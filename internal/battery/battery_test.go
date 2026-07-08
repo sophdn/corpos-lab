@@ -131,13 +131,7 @@ func TestFullBatteryComposeOnKnownPassIsDefer(t *testing.T) {
 		Content: content,
 		Model:   &fakeClient{text: "PASS"},
 	})
-	var verdicts []Verdict
-	for _, sr := range result.StepResults {
-		if sr.Outcome.Kind == OutcomeVerdict {
-			verdicts = append(verdicts, *sr.Outcome.Verdict)
-		}
-	}
-	composed := ComposeRunVerdict(verdicts)
+	composed := ComposeRunVerdict(result.ItemVerdicts())
 	if composed.Kind != RunDefer {
 		t.Fatalf("expected Defer (9 deferred stubs), got %+v", composed)
 	}

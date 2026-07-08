@@ -52,6 +52,19 @@ type Result struct {
 	FailureReason string       `json:"failure_reason,omitempty"`
 }
 
+// ItemVerdicts extracts the typed verdicts from the result's step outcomes
+// in step order, skipping observations and errors — the input shape
+// ComposeRunVerdict folds.
+func (r Result) ItemVerdicts() []Verdict {
+	var verdicts []Verdict
+	for _, sr := range r.StepResults {
+		if sr.Outcome.Kind == OutcomeVerdict && sr.Outcome.Verdict != nil {
+			verdicts = append(verdicts, *sr.Outcome.Verdict)
+		}
+	}
+	return verdicts
+}
+
 // RunSequence executes steps in order, failing fast on the first Fail
 // verdict or Error outcome. Deferred and Flag verdicts do NOT stop the
 // sequence: the battery registers 15 items of which several defer pending
