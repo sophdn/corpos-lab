@@ -7,3 +7,5 @@ go 1.26.3
 // flags all three on http-using code. All fixed by go1.26.5; GOTOOLCHAIN=auto
 // downloads it. (corpos pins go1.26.4, which predates the tls fix — bug filed.)
 toolchain go1.26.5
+
+require github.com/BurntSushi/toml v1.6.0
