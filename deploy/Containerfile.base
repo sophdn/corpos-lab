@@ -1,0 +1,59 @@
+# corpos-lab base assay image — a CGo-free static lab-assay binary on
+# distroless. Disposable research environment: the container is the entire
+# environment cost, and /in (study.json + materials, read-only) and /out
+# (results.json + responses/ + manifest.json) are the ONLY state channels.
+#
+# This replaces registry-lab's Ubuntu+python+jq base. The assay logic is now
+# Go (ported from lab-app's Rust study runner), so the old interpreter
+# toolchain is dead weight — a single static binary implements the same
+# /in-/out contract (report/run modes, extraction manifest on exit) with a far
+# smaller image and attack surface, matching the corpos family invariant of
+# CGo-free static Go on distroless. See docs/CONTAINER_ASSAY_MODEL.md.
+#
+# Bases pinned by DIGEST (not floating tags) for reproducible builds — same
+# pins as corpos. Build:  scripts/build-lab-images.sh
+
+# --- builder ---------------------------------------------------------------
+FROM docker.io/library/golang:1.26.4@sha256:68cb6d68bed024785b69195b89af7ac7a444f27791435f98647edff595aa0479 AS build
+
+WORKDIR /src
+
+# Module graph first so `go mod download` caches independently of source edits.
+COPY go.mod go.sum* ./
+RUN go mod download
+
+COPY . .
+
+# Static, stripped, reproducible. CGO_ENABLED=0 keeps it running on distroless
+# with no libc; GOTOOLCHAIN=auto honours go.mod's pinned toolchain (go1.26.5,
+# which carries the fixed stdlib).
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -trimpath -ldflags '-w -s' -o /out/lab-assay ./cmd/lab-assay
+
+# Stage the /in and /out mount points so they exist owned by the runtime user
+# (distroless has no shell to mkdir/chown them in the final stage). A bind
+# mount at run time shadows these with the host dir (use --userns=keep-id).
+RUN mkdir -p /stage/in /stage/out
+
+# --- runtime ---------------------------------------------------------------
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:b669b9df05a88a085fefed6520c6d2268aabacf3008b149ddf877e752ae89400
+
+LABEL org.opencontainers.image.title="corpos-lab assay base" \
+      org.opencontainers.image.description="Disposable behavioral-assay environment — static lab-assay on distroless"
+
+ENV LAB_IN_DIR=/in \
+    LAB_OUT_DIR=/out \
+    LAB_IMAGE=lab-base
+
+COPY --from=build /out/lab-assay /usr/local/bin/lab-assay
+COPY --from=build --chown=nonroot:nonroot /stage/in /in
+COPY --from=build --chown=nonroot:nonroot /stage/out /out
+
+# distroless :nonroot defaults to uid 65532; make it explicit so the non-root
+# guarantee survives a base change. /in and /out are bind-mount points supplied
+# at run time (podman creates them); use --userns=keep-id so host-owned mounts
+# are writable by the container user.
+USER nonroot:nonroot
+
+ENTRYPOINT ["/usr/local/bin/lab-assay"]
+CMD ["report"]

@@ -168,6 +168,43 @@ func TestVerifyReportsAddedAndRemovedMaterials(t *testing.T) {
 	}
 }
 
+func TestVerifyRefusesChangedModelIdentity(t *testing.T) {
+	in := writeIn(t, spec(), map[string]string{"scenario.md": "S", "glyph.md": "G", "ground.md": "GR"})
+	pinned, err := Compute(in, testImage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Swap the model in study.json — the pin must reject a different model.
+	changed := spec()
+	changed.Model.ModelID = "different-model"
+	changed.Model.Version = "v99"
+	raw, _ := json.Marshal(changed)
+	if err := os.WriteFile(filepath.Join(in, "study.json"), raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err = Verify(in, testImage, pinned)
+	if err == nil {
+		t.Fatal("expected refusal on changed model")
+	}
+	var mm *MismatchError
+	if !errors.As(err, &mm) {
+		t.Fatalf("expected MismatchError, got %T", err)
+	}
+	if !containsSubstr(mm.Divergences, "model_id") || !containsSubstr(mm.Divergences, "model_version") {
+		t.Fatalf("should report model divergences: %v", mm.Divergences)
+	}
+}
+
+func TestShortTruncatesLongAndPassesTiny(t *testing.T) {
+	if got := short("abc"); got != "abc" {
+		t.Fatalf("short tiny = %q, want abc", got)
+	}
+	long := "sha256:" + "abcdef0123456789"
+	if got := short(long); got != long[:12] {
+		t.Fatalf("short long = %q, want %q", got, long[:12])
+	}
+}
+
 func TestMismatchErrorMessageListsDivergences(t *testing.T) {
 	e := &MismatchError{Divergences: []string{"a", "b"}}
 	msg := e.Error()
