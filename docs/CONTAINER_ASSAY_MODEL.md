@@ -104,14 +104,18 @@ networking** (`--network host` is banned).
 - **Invocation:**
 
   ```bash
-  podman run --rm --userns=keep-id --network corpos-net \
-      -v ./in:/in:ro,Z -v ./out:/out:Z \
+  podman run --rm --userns=keep-id --user "$(id -u):$(id -g)" \
+      --network corpos-net -v ./in:/in:ro,Z -v ./out:/out:Z \
       lab-grounded-glyph-probe:dev run
   ```
 
-  `--userns=keep-id` maps the host uid into the container so bind-mounted
-  `/out` is writable by the non-root container user; `:ro` keeps `/in`
-  read-only (the disposability contract); `:Z` relabels for SELinux.
+  `--userns=keep-id --user <hostuid>:<hostgid>` runs the container as the host
+  user so bind-mounted `/out` is writable — the image's nonroot uid (65532)
+  otherwise maps to an unprivileged subuid that cannot write a host-owned dir
+  (verified: without `--user`, `mkdir /out/responses` fails with permission
+  denied). `:ro` keeps `/in` read-only (the disposability contract); `:Z`
+  relabels for SELinux. The lab controller (`corpos-lab run-study`) applies
+  these flags automatically.
 - **Fallback (no shared network):** `--add-host=host.containers.internal:host-gateway`
   with `base_url = http://host.containers.internal:8081/v1` reaches
   llama-server's host-published port. Still explicit, still not `--network host`.

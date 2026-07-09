@@ -1,0 +1,132 @@
+// Command corpos-lab is the headless lab controller CLI. It runs a study
+// end-to-end from a single definition file — reproducible with no agent in the
+// loop — and is the surface corpos drives as an external tool.
+//
+// Usage:
+//
+//	corpos-lab run-study <def.toml> [-work DIR]
+//
+// Exit 0 on a completed study, non-zero on any failure (the failed-run record
+// is written regardless).
+package main
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+
+	"corpos-lab/internal/control"
+	"corpos-lab/internal/image"
+	"corpos-lab/internal/study"
+)
+
+func main() {
+	os.Exit(run(os.Args[1:]))
+}
+
+func run(args []string) int {
+	if len(args) == 0 || args[0] != "run-study" {
+		fmt.Fprintln(os.Stderr, "usage: corpos-lab run-study <def.toml> [-work DIR]")
+		return 2
+	}
+	return runStudy(args[1:])
+}
+
+func runStudy(args []string) int {
+	var defPath, workDir string
+	rest := []string{}
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "-work":
+			if i+1 >= len(args) {
+				fmt.Fprintln(os.Stderr, "corpos-lab: -work needs a value")
+				return 2
+			}
+			i++
+			workDir = args[i]
+		default:
+			rest = append(rest, args[i])
+		}
+	}
+	if len(rest) != 1 {
+		fmt.Fprintln(os.Stderr, "usage: corpos-lab run-study <def.toml> [-work DIR]")
+		return 2
+	}
+	defPath = rest[0]
+
+	def, err := study.LoadDef(defPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "corpos-lab: %v\n", err)
+		return 1
+	}
+
+	if workDir == "" {
+		workDir = filepath.Join(filepath.Dir(defPath), "runs", def.Name)
+	}
+
+	fmt.Printf("corpos-lab: running study %q (%s, %d conditions × %d) on %s\n",
+		def.Name, def.Assay, len(def.Conditions), def.RunsPerCell, def.Network)
+
+	runResult, err := control.RunStudy(context.Background(), def, workDir, podmanLauncher{}, digestReader)
+	recordPath := filepath.Join(workDir, "run-record.json")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "corpos-lab: study FAILED: %v\n", err)
+		fmt.Fprintf(os.Stderr, "corpos-lab: failed-run record -> %s\n", recordPath)
+		return 1
+	}
+
+	fmt.Printf("corpos-lab: study %s — %d rows, image %s\n",
+		runResult.Status, len(runResult.Results.Rows), runResult.ImageDigest[:19])
+	fmt.Printf("corpos-lab: run record -> %s\n", recordPath)
+	return 0
+}
+
+// digestReader reads an image content digest via rootless podman.
+func digestReader(ctx context.Context, ref string) (string, error) {
+	return image.Digest(ctx, func(ctx context.Context, r string) ([]byte, error) {
+		return exec.CommandContext(ctx, "podman", "image", "inspect", "--format", "{{.Digest}}", r).Output()
+	}, ref)
+}
+
+// podmanLauncher runs one disposable assay container with rootless podman.
+type podmanLauncher struct{}
+
+func (podmanLauncher) Launch(ctx context.Context, spec control.LaunchSpec) (control.LaunchResult, error) {
+	if err := os.MkdirAll(spec.OutDir, 0o755); err != nil {
+		return control.LaunchResult{}, fmt.Errorf("corpos-lab: create out dir: %w", err)
+	}
+	// --userns=keep-id maps the host user into the container; --user then runs
+	// the process as that mapped uid/gid so it can write the host-owned /out
+	// bind mount. Without --user the image's nonroot uid (65532) maps to an
+	// unprivileged subuid that cannot write the host dir.
+	userArg := fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid())
+	argv := []string{
+		"run", "--rm", "--userns=keep-id", "--user", userArg,
+		"--network", spec.Network,
+		"-v", spec.InDir + ":/in:ro,Z",
+		"-v", spec.OutDir + ":/out:Z",
+		spec.Image, "run",
+	}
+	cmd := exec.CommandContext(ctx, "podman", argv...)
+	var stderr bytes.Buffer
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err == nil {
+		return control.LaunchResult{ExitCode: 0}, nil
+	}
+	// A non-zero container exit is a classified run failure, not a launcher
+	// error — return the exit code so the controller records it.
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		return control.LaunchResult{ExitCode: exitErr.ExitCode(), Stderr: strings.TrimSpace(stderr.String())}, nil
+	}
+	// podman itself could not run (missing binary, bad network name, etc.).
+	return control.LaunchResult{}, fmt.Errorf("corpos-lab: podman run: %w (stderr: %s)", err, strings.TrimSpace(stderr.String()))
+}
