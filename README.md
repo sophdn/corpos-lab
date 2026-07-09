@@ -34,6 +34,17 @@ Early scaffold. The battery runner and container assay model are being ported fr
 earlier repos; studies begin after the instrument reproduces a known prior result
 (parity gate).
 
+## Guides
+
+- **[docs/GLYPH_MINING_GUIDE.md](docs/GLYPH_MINING_GUIDE.md)** — how to mine your own
+  agent's transcripts and logs for candidate glyphs: what a glyph is, the fit-the-definition
+  triage, the decomposition/strip test, and the 15-item battery as a checklist. Start here to
+  turn observed agent failures into corpus candidates.
+- **[docs/LAB_CONTROLLER.md](docs/LAB_CONTROLLER.md)** — running a study end-to-end
+  (`corpos-lab run-study`).
+- **[docs/CONTAINER_ASSAY_MODEL.md](docs/CONTAINER_ASSAY_MODEL.md)** — the disposable assay
+  container model and digest pinning.
+
 ## Running
 
 Requires Go 1.26+, a local llama.cpp server, and (for persistence) the companion toolkit
