@@ -22,6 +22,7 @@ import (
 
 	"corpos-lab/internal/control"
 	"corpos-lab/internal/image"
+	"corpos-lab/internal/persist"
 	"corpos-lab/internal/study"
 )
 
@@ -39,6 +40,8 @@ func run(args []string) int {
 
 func runStudy(args []string) int {
 	var defPath, workDir string
+	toolkitURL := persist.DefaultToolkitURL
+	project := "glyph-research"
 	rest := []string{}
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -49,6 +52,21 @@ func runStudy(args []string) int {
 			}
 			i++
 			workDir = args[i]
+		case "-toolkit-url":
+			// Empty value disables persistence to the toolkit.
+			if i+1 >= len(args) {
+				fmt.Fprintln(os.Stderr, "corpos-lab: -toolkit-url needs a value")
+				return 2
+			}
+			i++
+			toolkitURL = args[i]
+		case "-project":
+			if i+1 >= len(args) {
+				fmt.Fprintln(os.Stderr, "corpos-lab: -project needs a value")
+				return 2
+			}
+			i++
+			project = args[i]
 		default:
 			rest = append(rest, args[i])
 		}
@@ -83,6 +101,19 @@ func runStudy(args []string) int {
 	fmt.Printf("corpos-lab: study %s — %d rows, image %s\n",
 		runResult.Status, len(runResult.Results.Rows), runResult.ImageDigest[:19])
 	fmt.Printf("corpos-lab: run record -> %s\n", recordPath)
+
+	// Persist to the toolkit for one queryable home (best-effort: the local
+	// run record is the durable artifact, so a persist failure is a warning,
+	// not a run failure). Raw responses stay on disk; only the pointer is sent.
+	if toolkitURL != "" {
+		responsesDir := filepath.Join(workDir, "out", "responses")
+		client := persist.NewClient(toolkitURL, project)
+		if err := client.Record(context.Background(), runResult, responsesDir); err != nil {
+			fmt.Fprintf(os.Stderr, "corpos-lab: WARN: persist to toolkit failed (run record on disk is unaffected): %v\n", err)
+		} else {
+			fmt.Printf("corpos-lab: persisted to toolkit (%s, project %s)\n", toolkitURL, project)
+		}
+	}
 	return 0
 }
 
