@@ -1,0 +1,68 @@
+# gate.yml — corpos-gate declarative config for corpos-lab.
+#
+# PARITY-FIRST / ADDITIVE: this mirrors scripts/gate.sh (the hand-rolled
+# "can't launch broken code" entrypoint) check-for-check, re-expressed on the
+# stack-agnostic corpos-gate orchestrator. It is a STOPGAP dogfood cutover for
+# chain 434 — once verified green and wired into .githooks, corpos-gate
+# SUPERSEDES the inline gate.sh stages as the gate driver (gate.sh is retained
+# as the documented fallback / CI-equivalent until the chain closes it out).
+#
+# Tier model: a strict superset — ci ⊃ pre-push ⊃ pre-commit. Fast checks run
+# at commit; slow checks (the -race suite, the coverage floor, the vuln scan)
+# run at push. `run --tier=pre-push` runs BOTH tiers, so nothing gate.sh
+# enforced is dropped — the slow stages simply move from every commit to push.
+#
+# Parity mapping to scripts/gate.sh (6 stages — NO image stage: assay-container
+# builds are NOT part of this gate; scripts/build-lab-images.sh runs standalone/CI):
+#   1/6 gofmt -s drift (whole tree)  -> check `format`   (pre-commit)
+#   2/6 go vet ./...                 -> check `vet`      (pre-commit)
+#   3/6 golangci-lint v1.62.2 run    -> check `lint`     (pre-commit)  [golangci-lint on PATH is v1.62.2]
+#   5/6 go build ./...               -> check `build`    (pre-commit)
+#   6a/6 go test -race ./...         -> check `test` (race:true)       (pre-push)
+#   6b/6 coverage floor 95% over     -> check `coverage` floor:95      (pre-push)
+#        ./internal/...                       scope: ./internal/...
+#   4/6 govulncheck v1.3.0 ./...     -> custom `vuln`    (pre-push)    [see NOTE below]
+#
+# Like gate.sh, the suite is intentionally double-run at push: `test` runs the
+# race detector over ./..., then `coverage` runs the (non-race) cover-floor over
+# ./internal/... — exactly gate.sh stage 6's two invocations.
+#
+# NOTE (vuln): the adapter's built-in `vuln` check runs `go tool govulncheck`,
+# which requires govulncheck to be a go.mod tool directive. This repo keeps
+# go.mod dependency-free (dev tools run via `go run <tool>@<ver>` — a hard
+# invariant), so the adapter vuln check is DISABLED and vuln is routed through
+# a custom check that reproduces gate.sh stage 4 EXACTLY (same @v1.3.0 pin,
+# same `go run` mechanism). This preserves the version pin AND the invariant.
+#
+# Prereq: corpos-gate must be on PATH. Bypass a blocked commit/push with
+# `git commit --no-verify` / `git push --no-verify`.
+stack: go
+
+units:
+  # go.mod is at the repo root; the unit dir is the repo root. No build tags.
+  - dir: "."
+
+checks:
+  format:   { enabled: true,  tier: pre-commit }
+  vet:      { enabled: true,  tier: pre-commit }
+  lint:     { enabled: true,  tier: pre-commit }
+  build:    { enabled: true,  tier: pre-commit }
+  # test: `go test -race ./...` (gate.sh 6a). race:true opts the suite into the
+  # race detector; scope is the whole tree ./... (not the coverage scope).
+  test:     { enabled: true,  tier: pre-push, race: true }
+  # coverage: gate.sh 6b — the 95% floor measured over the LOGIC packages only
+  # (./internal/...); cmd/ entrypoints are thin wrappers, not unit-covered.
+  # No race here (matches gate.sh's non-race cover run).
+  coverage: { enabled: true,  tier: pre-push, floor: 95, scope: "./internal/..." }
+  # vuln: DISABLED — see NOTE in the header. Routed through the custom `vuln`
+  # check below to preserve the @v1.3.0 pin and the dependency-free go.mod.
+  vuln:     { enabled: false, tier: pre-push }
+  # mutation: not part of gate.sh; left off.
+  mutation: { enabled: false, tier: ci }
+
+custom:
+  # vuln (gate.sh stage 4): govulncheck v1.3.0 over the whole module, run via
+  # the pinned `go run` mechanism exactly as gate.sh does — no go.mod tool dep.
+  - name: vuln
+    cmd: "go run golang.org/x/vuln/cmd/govulncheck@v1.3.0 ./..."
+    tier: pre-push
