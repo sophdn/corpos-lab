@@ -21,18 +21,17 @@
 #   6a/6 go test -race ./...         -> check `test` (race:true)       (pre-push)
 #   6b/6 coverage floor 95% over     -> check `coverage` floor:95      (pre-push)
 #        ./internal/...                       scope: ./internal/...
-#   4/6 govulncheck v1.3.0 ./...     -> custom `vuln`    (pre-push)    [see NOTE below]
+#   4/6 govulncheck v1.3.0 ./...     -> check `vuln` (govulncheck_version) (pre-push) [see NOTE]
 #
 # Like gate.sh, the suite is intentionally double-run at push: `test` runs the
 # race detector over ./..., then `coverage` runs the (non-race) cover-floor over
 # ./internal/... — exactly gate.sh stage 6's two invocations.
 #
-# NOTE (vuln): the adapter's built-in `vuln` check runs `go tool govulncheck`,
-# which requires govulncheck to be a go.mod tool directive. This repo keeps
-# go.mod dependency-free (dev tools run via `go run <tool>@<ver>` — a hard
-# invariant), so the adapter vuln check is DISABLED and vuln is routed through
-# a custom check that reproduces gate.sh stage 4 EXACTLY (same @v1.3.0 pin,
-# same `go run` mechanism). This preserves the version pin AND the invariant.
+# NOTE (vuln): `go tool govulncheck` needs a go.mod tool directive, which this
+# repo's dependency-free go.mod (dev tools via `go run <tool>@<ver>` — a hard
+# invariant) doesn't carry. So the vuln check sets `govulncheck_version: v1.3.0`,
+# making corpos-gate run govulncheck via `go run …@v1.3.0`: no go.mod entry,
+# exact @v1.3.0 pin, invariant preserved.
 #
 # Prereq: corpos-gate must be on PATH. Bypass a blocked commit/push with
 # `git commit --no-verify` / `git push --no-verify`.
@@ -54,15 +53,9 @@ checks:
   # (./internal/...); cmd/ entrypoints are thin wrappers, not unit-covered.
   # No race here (matches gate.sh's non-race cover run).
   coverage: { enabled: true,  tier: pre-push, floor: 95, scope: "./internal/..." }
-  # vuln: DISABLED — see NOTE in the header. Routed through the custom `vuln`
-  # check below to preserve the @v1.3.0 pin and the dependency-free go.mod.
-  vuln:     { enabled: false, tier: pre-push }
+  # vuln: govulncheck @v1.3.0 over the whole module, via corpos-gate's built-in
+  # go-run fallback (govulncheck_version) — needs no go.mod tool directive, so
+  # the dependency-free go.mod invariant is preserved.
+  vuln:     { enabled: true,  tier: pre-push, govulncheck_version: v1.3.0 }
   # mutation: not part of gate.sh; left off.
   mutation: { enabled: false, tier: ci }
-
-custom:
-  # vuln (gate.sh stage 4): govulncheck v1.3.0 over the whole module, run via
-  # the pinned `go run` mechanism exactly as gate.sh does — no go.mod tool dep.
-  - name: vuln
-    cmd: "go run golang.org/x/vuln/cmd/govulncheck@v1.3.0 ./..."
-    tier: pre-push
