@@ -27,12 +27,23 @@ gates sharing), FIELD_NOTES.md (verified field positioning).
 
 - **CGo-free.** `CGO_ENABLED=0`; only pure-Go deps (`modernc.org/sqlite`, not `mattn`). Keeps
   distroless/scratch shipping open, matching the corpos family.
-- **Results are provenance-stamped.** Every persisted result row carries the repo commit, the
-  study-version manifest digest (`internal/digest`), the model artifact digest + sampling
-  params, and the runner build. A result that can't reproduce its manifest is an anecdote,
-  not data (CHARTER.md freeze-by-digest).
-- **Assay containers are digest-pinned.** Images are referenced by content digest, never by
-  mutable tag; the digest is part of the study manifest.
+- **Record what ran — observe, don't assert.** Every run captures the config it *actually*
+  executed under: the effective sampler read back from the server (`/props`), the model
+  artifact digest + quant, the image digest, the substrate (GPU/CPU), and the repo commit.
+  Stored with the results, never edited afterwards.
+  **This replaces the retired freeze-by-digest rule** (see INQUIRY.md §What changed the
+  method). The freeze pinned six files that never changed and was blind to all three
+  variables that actually moved — temperature, sampler, and processor were unrecorded, so a
+  study "reproduced" a result while running on a different processor and nobody could tell.
+  A run record is permanently true; a manifest was a promise about the future that locked us
+  into mistakes. **Observation beats assertion.**
+  *Honesty note (2026-07-14): this invariant previously claimed every row carried the repo
+  commit. That was false — `internal/provenance` was dead code, never called. If you are
+  reading this before the observation work lands, the capture described above is the target,
+  not yet the state. Do not let this bullet drift back into asserting what the code doesn't do.*
+- **Reference images by content digest, never a mutable tag** — so a run record says exactly
+  what executed. Recorded, not enforced: a digest that doesn't match a prior run is
+  information about the two runs, not grounds for refusing to run.
 - **corpos-toolkit is reached over HTTP only** (`POST /mcp/<surface>` at
   `http://localhost:3001`). Never open the toolkit DB directly — the ledger stays owned by
   toolkit-server.
@@ -58,8 +69,25 @@ gates sharing), FIELD_NOTES.md (verified field positioning).
 
 ## Study discipline
 
-- **Instrument freeze:** frozen artifacts change only via study version bump; mid-run
-  insights drain to the toolkit suggestion/bug surfaces (aha-drain rule, CHARTER.md).
+Read **[`INQUIRY.md`](INQUIRY.md)** before designing anything study-facing: the questions,
+what we currently believe, and how we measure. It is a living document — revise it when you
+learn better. It replaced `lab-app/resumption/CHARTER.md`, retired 2026-07-14.
+
+- **If the instrument is broken, fix it. Now.** Do not file it and keep running.
+  The retired charter's "aha-drain" rule said mid-run insights route to the suggestion box
+  and may only be applied at a study-version bump. That rule *institutionalised proceeding
+  with known problems*: when we found the probe pinned temperature 0.0 — making a graded grid
+  structurally impossible — it told us to file it and run anyway. Notice → fix → write down
+  what you fixed and why. The suggestion/bug surfaces are still the right place for
+  *proposals*; they are not a waiting room for *repairs*.
+- **There is no parity, because we are the frontier.** Don't target prior results. Parity
+  fixes a goal from an earlier state of our own process, so any improvement — a new decomp
+  step, a tightened battery item — registers as divergence when it's just truer. The
+  2026-04-03 demotion is the model of correct behaviour: the battery tightened, prior passes
+  no longer met it, ALPHABET was emptied and said so. Old runs are orientation, never a target.
+- **Read cells, not counts.** n=8 gives a 95% CI roughly ±0.2 wide. Comparing single integers
+  between grids (7/8 vs 4/8) is comparing noise. What reproduces is the phenomenon and its
+  direction; the exact count does not and should not be expected to.
 - Thinking-mode-capable models (Qwen3.6) have thinking explicitly pinned or treated as a
   condition — never left to default.
 

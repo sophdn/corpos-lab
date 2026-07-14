@@ -43,10 +43,11 @@ type MaterialsSpec struct {
 // of one assay run: which assay, which item, which model, which conditions,
 // how many replicates, where the materials are, and how to sample.
 //
-// Sampling rides in this file deliberately: manifest.Compute digests study.json
-// into StudyDigest, so declaring sampling here places it under the freeze
-// automatically. Hardcoding it in Go would leave it pinned only by the runner
-// build, which CHARTER freeze-by-digest does not accept.
+// Sampling rides in this file deliberately: it is what the container actually
+// applies, so putting it here means the run's own inputs record the sampler
+// rather than it living as an invisible Go constant. (Originally justified by
+// CHARTER freeze-by-digest, retired 2026-07-14 — see INQUIRY.md. The placement
+// stands on its own: a hardcoded sampler is one nobody can audit afterwards.)
 type StudySpec struct {
 	Assay       string            `json:"assay"`
 	ItemID      string            `json:"item_id"`

@@ -116,10 +116,13 @@ type ProbeResponse struct {
 }
 
 // Sampling is a study's declared sampling regime for the probe. It lives in
-// the study definition rather than in this package because CHARTER
-// freeze-by-digest requires sampling params to be pinned per study version:
-// declared here, they travel inside study.json and fall under the manifest's
-// StudyDigest automatically, instead of being pinned only by the runner build.
+// the study definition rather than in this package so that a run records the
+// sampler it actually used: declared here, it travels inside study.json and is
+// captured with the run, instead of being a Go constant invisible to the
+// record. (The original rationale cited CHARTER freeze-by-digest, retired
+// 2026-07-14 — see INQUIRY.md. The placement outlives the rationale: what made
+// it right was never the freeze, it was that a hardcoded sampler is a sampler
+// nobody can see afterwards.)
 //
 // This is also what makes a graded grid possible. Greedy decoding
 // (temperature 0) returns an identical reply for every replicate, so a cell
