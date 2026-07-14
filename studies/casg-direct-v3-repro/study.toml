@@ -1,13 +1,14 @@
-# casg-direct v3 reproduction — corpos-lab study definition
+# casg-direct v3 reproduction — corpos-lab study definition — VERSION v2
 #
 # Exhumed from lab-app/corpus/studies/assay-grounded-casg-direct/v3 (toolkit task
 # exhume-v3-materials, chain instrument-parity-reproduction). This is the Phase-2
 # parity target: reproduce the Mistral grounded-lift 0/8 -> 7/8 on the new rig
 # before any new science runs (CHARTER.md gate).
 #
-# Materials in materials/ are BYTE-VERBATIM copies of the v3 originals (see
-# MANIFEST.sha256 + PROVENANCE in README.md). Scoring rubric: SCORING_RUBRIC.md.
-# Original v3 results (the parity target): PARITY_TARGET.md.
+# Materials in materials/ are BYTE-VERBATIM copies of the v3 originals and are
+# UNCHANGED from v1 — the stimulus is not what v2 bumps. Scoring rubric:
+# SCORING_RUBRIC.md. Original v3 results: PARITY_TARGET.md. Version history and
+# applied drain items: CHANGELOG.md. Frozen digests: MANIFEST.v2.sha256.
 #
 # Run headless:  corpos-lab run-study studies/casg-direct-v3-repro/study.toml
 # Material paths resolve relative to THIS file.
@@ -16,12 +17,10 @@ name = "casg-direct-v3-repro"
 assay = "grounded-glyph-probe"
 item_id = "casg-direct"
 
-# KNOWN DELTA (resolve in run-reproduction-batches, task 3479): image must be a
-# content DIGEST, never a mutable tag (corpos-lab invariant + freeze-by-digest).
-# The assay image is not yet built/pinned at exhume time; this dev tag is a
-# placeholder that MUST be replaced with the pinned digest in the vN MANIFEST
-# before the first treatment run.
-image = "localhost/lab-grounded-glyph-probe:dev"
+# Digest-pinned, never a mutable tag (corpos-lab invariant + freeze-by-digest).
+# v1 carried the placeholder `:dev` because the image had not been built at
+# exhume time. Built by scripts/build-lab-images.sh; also in deploy/IMAGE_DIGESTS.txt.
+image = "localhost/lab-grounded-glyph-probe@sha256:c0d44d61f1fc83afe4b37f83beda68a1e812adf7179d780021d14b40da8b3bbf"
 network = "corpos-net"
 
 conditions = ["baseline", "glyph_only", "grounded_glyph"]
@@ -29,18 +28,48 @@ runs_per_cell = 8
 
 [model]
 # Reached over corpos-net by container DNS — never --network host.
-# KNOWN DELTA vs original v3: the original ran Mistral via **ollama `mistral:latest`**
-# with prepend delivery (see study.json in the v3 source). The reproduction targets
-# **Mistral-7B-Instruct-v0.3** via llama.cpp server, "matching the original quant"
-# per task run-reproduction-batches. The exact original quant is UNVERIFIED at exhume
-# time (ollama mistral:latest c. 2026-04 — to be pinned in task 3479). model_id and
-# version below are the intended target and MUST be confirmed + digest-pinned before
-# the run counts toward parity.
+#
+# QUANT RESOLVED (v2): v1 carried version = "v0.3-q4km-UNVERIFIED" because the
+# original v3 quant was unknown at exhume time. The 2026-07-13 ollama positive
+# control settled it — ollama mistral:latest is Mistral-7B-Instruct-v0.3 at
+# Q4_K_M, 7.2B (`ollama show mistral`).
+#
+# The GGUF at this path is the SAME ARTIFACT the control ran on, not merely the
+# same build. It was staged byte-for-byte out of ollama's blob store, where the
+# model layer of mistral:latest IS the raw GGUF and ollama names blobs by their
+# SHA-256. The digest below is therefore both the artifact's content hash and
+# proof of shared identity with the control, which removes model weights as a
+# variable in the container-vs-control comparison.
+#
+#   source: /usr/share/ollama/.ollama/models/blobs/
+#             sha256-f5074b1221da0f5a2910d33b642efa5b9eb58cfdddca1c79e16d7ad28aa2b31f
+#   staged: /mnt/data1/models/Mistral-7B-Instruct-v0.3.Q4_K_M.gguf (4,372,811,712 bytes)
+#   gguf metadata general.name = "Mistral-7B-Instruct-v0.3" (arch llama, 291 tensors)
 base_url = "http://llama-server:8081/v1"
-model_id = "Mistral-7B-Instruct-v0.3.Q4_K_M.gguf"  # TBD-CONFIRM quant vs ollama original
-version = "v0.3-q4km-UNVERIFIED"
+model_id = "Mistral-7B-Instruct-v0.3.Q4_K_M.gguf"
+version = "v0.3-q4km"
 
 [materials]
 scenario = "materials/scenario.md"  # SCENARIO_casg-direct_mistral.md, verbatim
 glyph    = "materials/glyph.md"     # GLYPH_casg-direct.md, verbatim
 ground   = "materials/ground.md"    # GROUND_casg-direct.md, verbatim
+
+# Sampling regime — declared here, not in Go (v2; suggestion 64).
+#
+# Greedy decoding returns an identical reply per replicate, so a temperature-0
+# cell can only ever score 0/8 or 8/8. The v3 parity target is GRADED (baseline
+# 7/8, grounded 7/8), and that variation is itself the evidence the original
+# sampled: it is impossible at temperature 0. v3's study.json never recorded a
+# temperature, so the original value is permanently unknowable. 0.8 is the
+# ollama-era default and is what the positive control used — carried here as a
+# documented delta (CHANGELOG.md), not presented as the original value.
+#
+# Seeds match the control's 1..8. They buy reproducibility WITHIN this rig; they
+# do NOT make container runs byte-comparable to the control run-for-run, because
+# the endpoint, chat template, and sampler implementation all differ (CHANGELOG.md
+# KNOWN DELTAS). The comparison is at the CELL level, which is the level the
+# pre-registered tolerance is stated in.
+[sampling]
+temperature = 0.8
+seeds = [1, 2, 3, 4, 5, 6, 7, 8]
+max_tokens = 512

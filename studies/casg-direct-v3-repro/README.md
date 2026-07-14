@@ -18,7 +18,10 @@ Exhumed by toolkit task `exhume-v3-materials` (chain `instrument-parity-reproduc
 | `materials/ground.md` | verbatim `GROUND_casg-direct.md` |
 | `SCORING_RUBRIC.md` | the v3 scoring rubric incl. condition-specific C + ambiguous-case handling |
 | `PARITY_TARGET.md` | original v3 score grid = the parity target |
-| `MANIFEST.sha256` | content digests of the pinned materials + study.toml |
+| `MANIFEST.v2.sha256` | **current** — the full freeze-by-digest manifest (image + model artifact + sampling + runner build + files) |
+| `MANIFEST.v1.sha256` | superseded; corpus-side only, never backed a run |
+| `CHANGELOG.md` | study-version history + the drain items each bump applied |
+| `PARITY_VERDICT.md` | the ollama positive control's verdict (effect REPRODUCED; instrument HOLD) |
 
 ## Verbatim provenance (source → copy, sha256)
 
@@ -37,10 +40,12 @@ Companion source hashes (not copied, recorded for provenance): `SCENARIO_casg-di
 
 1. **Model runtime.** Original: Mistral via **ollama `mistral:latest`**, prepend delivery.
    Reproduction: **Mistral-7B-Instruct-v0.3** via **llama.cpp server** (`llama-server:8081/v1`).
-   The exact original quant is UNVERIFIED — pin it in `run-reproduction-batches` (3479).
-2. **Image pinning.** `study.toml image` is a placeholder dev tag; it must be replaced with a
-   content **digest** and entered into the vN MANIFEST before the first treatment run
-   (corpos-lab invariant + freeze-by-digest).
+   ~~The exact original quant is UNVERIFIED~~ → **RESOLVED at v2: Q4_K_M**, and the GGUF is the
+   control's own artifact, staged byte-for-byte from ollama's blob store (`sha256:f5074b12…`).
+   The endpoint/chat-template/stop-sequence deltas that remain are enumerated in
+   `CHANGELOG.md` §KNOWN DELTAS — read those before interpreting any container/control gap.
+2. **Image pinning.** ~~`study.toml image` is a placeholder dev tag~~ → **RESOLVED at v2:**
+   pinned to `sha256:c0d44d61…` (recorded in `MANIFEST.v2.sha256`).
 3. **Claude cells excluded from the verdict.** The v3 grid includes Claude cells; on the new
    rig Claude is a contaminated subject (CHARTER.md) and is not a treatment arm. Parity rests
    on the Mistral cells.
@@ -55,10 +60,15 @@ Companion source hashes (not copied, recorded for provenance): `SCENARIO_casg-di
   that rubric (including the ambiguous-case classification, inferred from the per-run
   observations). Flagged as reconstruction per the task constraint.
 
-## Not yet done here (belongs to later tasks in this chain)
+## Status
 
-- Building/pinning the assay container image digest (3479).
-- Confirming the Mistral quant and sampling params, and writing the vN `MANIFEST.sha256` over
-  the *full* executor-visible set incl. model artifact digest + sampling params (freeze-by-
-  digest MANIFEST — CHARTER.md §Instrument-freeze-by-digest). The `MANIFEST.sha256` in this
-  dir currently pins only the corpus-side materials + study.toml.
+**v2 is registered and unrun.** Image, model artifact, and sampling are pinned in
+`MANIFEST.v2.sha256`; the two instrument defects that made v1 unrunnable are fixed
+(`CHANGELOG.md`). What remains is chain `instrument-hold-lift`:
+
+- `container-leg-run` — GPU swap to Mistral, execute the 3×8 grid through the container path.
+- `container-leg-verdict` — rubric-score it, judge against the tolerance pre-registered in
+  task 3480 (glyph-only ≤2/8 C, grounded ≥6/8 C), and lift or maintain the instrument hold.
+
+The 2026-07-13 ollama run in `runs/` is a **positive control on the effect**, not a validation
+of this rig — see `PARITY_VERDICT.md` §5.
