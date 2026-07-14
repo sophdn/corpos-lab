@@ -64,9 +64,16 @@ func TestAssemblePromptRejectsUnknownCondition(t *testing.T) {
 }
 
 // testSampling is a sampled (non-greedy) regime with one seed per replicate —
-// the shape a real graded study declares.
+// the shape a real graded study declares. The chain is complete and neutral:
+// min_p is the only live truncation stage, every other stage pinned to its
+// disabled value.
 func testSampling() Sampling {
-	return Sampling{Temperature: 0.8, Seeds: []int{11, 22, 33}, MaxTokens: 512}
+	return Sampling{
+		Temperature: 0.8, Seeds: []int{11, 22, 33}, MaxTokens: 512,
+		TopNSigma: -1.0, TopK: 0, TypicalP: 1.0, TopP: 1.0, MinP: 0.05,
+		RepeatPenalty: 1.0, RepeatLastN: 0, PresencePenalty: 0.0, FrequencyPenalty: 0.0,
+		XTCProbability: 0.0, DryMultiplier: 0.0,
+	}
 }
 
 // Fake client for scoring/run tests.
@@ -75,6 +82,9 @@ type fakeClient struct {
 	err     error
 	prompts []string
 	params  []model.GenParams
+	// resp, when set, is returned instead of a bare text response — for
+	// asserting that server-reported observations reach the row.
+	resp *model.Response
 }
 
 func (f *fakeClient) Generate(_ context.Context, prompt string, p model.GenParams) (model.Response, error) {
@@ -83,10 +93,16 @@ func (f *fakeClient) Generate(_ context.Context, prompt string, p model.GenParam
 	if f.err != nil {
 		return model.Response{}, f.err
 	}
+	if f.resp != nil {
+		return *f.resp, nil
+	}
 	return model.Response{Text: f.text}, nil
 }
 func (f *fakeClient) Name() string    { return "fake" }
 func (f *fakeClient) Version() string { return "0.0.0" }
+func (f *fakeClient) Props(_ context.Context) (model.ServerProps, error) {
+	return model.ServerProps{}, nil
+}
 
 func TestRunProbeCapturesRowIdentityAndResponse(t *testing.T) {
 	f := &fakeClient{text: "I'd update the changelog first."}
@@ -207,5 +223,76 @@ func TestDeterministicSamplingIsGreedyAndUnseeded(t *testing.T) {
 	}
 	if testSampling().Deterministic() {
 		t.Fatal("temperature 0.8 must not report deterministic")
+	}
+}
+
+// Every row carries what the server said while producing THAT row. Per-row is
+// the point: a study's substrate was assumed constant for its whole life and
+// went unrecorded, so when one leg silently ran on CPU nothing in the data
+// could show it. Throughput on the row makes that a step in the numbers rather
+// than an invisible fact.
+func TestRunProbeRecordsServerReportedObservationsOnEveryRow(t *testing.T) {
+	f := &fakeClient{resp: &model.Response{
+		Text:              "the reply",
+		Model:             "Mistral-7B-Instruct-v0.3.Q4_K_M.gguf",
+		SystemFingerprint: "b9445-af6528e6d",
+		Timings: model.Timings{
+			PromptN: 210, PredictedN: 64,
+			PromptPerSecond: 330.29, PredictedPerSecond: 46.23,
+		},
+	}}
+	row, _, err := RunProbe(context.Background(), f, "i-1", GroundedGlyph, 1,
+		Materials{Scenario: "S", Glyph: "G", Ground: "R"}, testSampling())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.Observed.Model != "Mistral-7B-Instruct-v0.3.Q4_K_M.gguf" {
+		t.Errorf("observed model = %q", row.Observed.Model)
+	}
+	if row.Observed.BuildInfo != "b9445-af6528e6d" {
+		t.Errorf("observed build = %q", row.Observed.BuildInfo)
+	}
+	// The tripwire: ~46 is GPU, ~5 is the CPU fallback that went unnoticed.
+	if row.Observed.TokensPerSecond != 46.23 {
+		t.Errorf("observed tok/s = %v, want 46.23", row.Observed.TokensPerSecond)
+	}
+	if row.Observed.PromptTokens != 210 || row.Observed.PredictedTokens != 64 {
+		t.Errorf("observed token counts = %+v", row.Observed)
+	}
+}
+
+// GenParamsForRun must send the whole chain, not just the fields it used to.
+// A stage left nil here is a stage inherited from the server binary.
+func TestGenParamsForRunCarriesEveryStage(t *testing.T) {
+	s := Sampling{
+		Temperature: 0.7, Seeds: []int{5}, MaxTokens: 128,
+		TopNSigma: -1.0, TopK: 11, TypicalP: 0.66, TopP: 0.88, MinP: 0.04,
+		RepeatPenalty: 1.07, RepeatLastN: 33, PresencePenalty: 0.22, FrequencyPenalty: 0.11,
+		XTCProbability: 0.15, DryMultiplier: 0.44,
+	}
+	p := s.GenParamsForRun(1)
+	for _, c := range []struct {
+		field string
+		got   any
+		want  any
+	}{
+		{"temperature", *p.Temperature, 0.7},
+		{"max_tokens", *p.MaxTokens, 128},
+		{"seed", *p.Seed, 5},
+		{"top_n_sigma", *p.TopNSigma, -1.0},
+		{"top_k", *p.TopK, 11},
+		{"typical_p", *p.TypicalP, 0.66},
+		{"top_p", *p.TopP, 0.88},
+		{"min_p", *p.MinP, 0.04},
+		{"repeat_penalty", *p.RepeatPenalty, 1.07},
+		{"repeat_last_n", *p.RepeatLastN, 33},
+		{"presence_penalty", *p.PresencePenalty, 0.22},
+		{"frequency_penalty", *p.FrequencyPenalty, 0.11},
+		{"xtc_probability", *p.XTCProbability, 0.15},
+		{"dry_multiplier", *p.DryMultiplier, 0.44},
+	} {
+		if c.got != c.want {
+			t.Errorf("GenParams.%s = %v, want %v", c.field, c.got, c.want)
+		}
 	}
 }

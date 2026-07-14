@@ -38,6 +38,10 @@ func (f *fakeClient) Name() string {
 
 func (f *fakeClient) Version() string { return "0.0.0" }
 
+func (f *fakeClient) Props(_ context.Context) (model.ServerProps, error) {
+	return model.ServerProps{}, nil
+}
+
 func testInput() Input {
 	return Input{
 		ItemID:  "test-item",

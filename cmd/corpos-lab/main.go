@@ -23,7 +23,9 @@ import (
 	"corpos-lab/internal/control"
 	"corpos-lab/internal/image"
 	"corpos-lab/internal/persist"
+	"corpos-lab/internal/provenance"
 	"corpos-lab/internal/study"
+	"corpos-lab/internal/substrate"
 )
 
 func main() {
@@ -90,7 +92,12 @@ func runStudy(args []string) int {
 	fmt.Printf("corpos-lab: running study %q (%s, %d conditions × %d) on %s\n",
 		def.Name, def.Assay, len(def.Conditions), def.RunsPerCell, def.Network)
 
-	runResult, err := control.RunStudy(context.Background(), def, workDir, podmanLauncher{}, digestReader)
+	runResult, err := control.RunStudy(context.Background(), def, workDir, control.Deps{
+		Launcher:   podmanLauncher{},
+		DigestOf:   digestReader,
+		Substrate:  substrateProbe,
+		Provenance: provenanceReader(defPath),
+	})
 	recordPath := filepath.Join(workDir, "run-record.json")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "corpos-lab: study FAILED: %v\n", err)
@@ -122,6 +129,32 @@ func digestReader(ctx context.Context, ref string) (string, error) {
 	return image.Digest(ctx, func(ctx context.Context, r string) ([]byte, error) {
 		return exec.CommandContext(ctx, "podman", "image", "inspect", "--format", "{{.Digest}}", r).Output()
 	}, ref)
+}
+
+// substrateProbe identifies the processor the inference server is running on.
+func substrateProbe(ctx context.Context) substrate.Info {
+	return substrate.Probe(ctx, substrate.ExecRunner)
+}
+
+// provenanceReader stamps the repo the study definition lives in — the tree
+// that carries both the instrument and the materials.
+//
+// A caveat worth stating plainly rather than leaving for someone to discover:
+// this stamps the repo at defPath, which is the instrument's repo when the
+// documented invocation is used (run from the checkout) and is NOT when the
+// binary is run from elsewhere against a def somewhere else. The robust form is
+// a build-time stamp (-ldflags -X main.commit=$(git rev-parse HEAD)), which
+// describes the binary regardless of where it runs. This is the honest
+// available approximation, and it records its own failure rather than
+// inventing a commit.
+func provenanceReader(defPath string) control.ProvenanceReader {
+	return func(ctx context.Context) (provenance.Stamp, error) {
+		dir, err := filepath.Abs(filepath.Dir(defPath))
+		if err != nil {
+			return provenance.Stamp{}, err
+		}
+		return provenance.Capture(ctx, dir)
+	}
 }
 
 // podmanLauncher runs one disposable assay container with rootless podman.

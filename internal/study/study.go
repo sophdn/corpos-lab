@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 
@@ -42,12 +43,34 @@ type MaterialsDef struct {
 // casg-direct v3 study.json never recorded its temperature, so the original
 // value is now permanently unknowable and its reproduction carries an
 // inferred-0.8 delta forever.
+// Every sampler stage is a pointer for the same reason temperature is: each
+// has a meaningful zero (top_k 0 disables it, repeat_penalty is neutral at 1.0
+// but 0 is a real setting), so a plain value could not tell "I disabled this
+// stage deliberately" from "I never mentioned it". Omission is rejected rather
+// than defaulted — see validateSampling.
 type SamplingDef struct {
 	Temperature *float64 `toml:"temperature"`
 	// Seeds pins one RNG seed per replicate; run N uses Seeds[N-1]. Required
 	// whenever temperature > 0, so sampled runs stay reproducible.
 	Seeds     []int `toml:"seeds"`
 	MaxTokens *int  `toml:"max_tokens"`
+
+	// Truncation stages, in sampler-chain order.
+	TopNSigma *float64 `toml:"top_n_sigma"`
+	TopK      *int     `toml:"top_k"`
+	TypicalP  *float64 `toml:"typical_p"`
+	TopP      *float64 `toml:"top_p"`
+	MinP      *float64 `toml:"min_p"`
+
+	// Penalty stages.
+	RepeatPenalty    *float64 `toml:"repeat_penalty"`
+	RepeatLastN      *int     `toml:"repeat_last_n"`
+	PresencePenalty  *float64 `toml:"presence_penalty"`
+	FrequencyPenalty *float64 `toml:"frequency_penalty"`
+
+	// Stage switches; sub-parameters are inert while these are zero.
+	XTCProbability *float64 `toml:"xtc_probability"`
+	DryMultiplier  *float64 `toml:"dry_multiplier"`
 }
 
 // Def is a complete, self-contained study definition. A study is reproducible
@@ -134,8 +157,8 @@ func (d Def) validate() error {
 
 // validateSampling enforces that a study SAYS what it sampled. Every rule here
 // refuses a silent default: an unrecorded sampling regime is unreproducible,
-// and a result that cannot reproduce its manifest is an anecdote, not data
-// (CHARTER freeze-by-digest).
+// and a sampler you cannot see afterwards is one you cannot claim to have
+// chosen.
 func (d Def) validateSampling() error {
 	s := d.Sampling
 	if s.Temperature == nil {
@@ -150,6 +173,9 @@ func (d Def) validateSampling() error {
 	}
 	if *s.MaxTokens < 1 {
 		return fmt.Errorf("study: sampling.max_tokens must be >= 1, got %d", *s.MaxTokens)
+	}
+	if err := d.validateSamplerChain(); err != nil {
+		return err
 	}
 
 	// Above greedy, replicates only differ if the sampler is seeded — and they
@@ -184,12 +210,101 @@ func (d Def) validateSampling() error {
 	return nil
 }
 
+// validateSamplerChain refuses a study that names only some of the sampler.
+//
+// This is the same rule temperature already had, applied to the stages that
+// were quietly exempt from it. Temperature does not define a sampling
+// distribution on its own: llama.cpp runs a CHAIN — penalties, dry,
+// top_n_sigma, top_k, typ_p, top_p, min_p, xtc, temperature — and every stage
+// left undeclared is inherited from the server binary. A study that says
+// "temperature 0.8, seed N" and nothing else has specified a fraction of its
+// sampler and borrowed the rest from an accident of deployment; upgrade
+// llama.cpp, have it move a default, and that study samples differently with
+// nothing in the record to show it.
+//
+// Declaring a stage is not the same as enabling it. Most of these are meant to
+// be pinned to their neutral value — the point is that the file SAYS so.
+func (d Def) validateSamplerChain() error {
+	s := d.Sampling
+	stages := []struct {
+		name string
+		set  bool
+	}{
+		{"top_n_sigma", s.TopNSigma != nil},
+		{"top_k", s.TopK != nil},
+		{"typical_p", s.TypicalP != nil},
+		{"top_p", s.TopP != nil},
+		{"min_p", s.MinP != nil},
+		{"repeat_penalty", s.RepeatPenalty != nil},
+		{"repeat_last_n", s.RepeatLastN != nil},
+		{"presence_penalty", s.PresencePenalty != nil},
+		{"frequency_penalty", s.FrequencyPenalty != nil},
+		{"xtc_probability", s.XTCProbability != nil},
+		{"dry_multiplier", s.DryMultiplier != nil},
+	}
+	var missing []string
+	for _, st := range stages {
+		if !st.set {
+			missing = append(missing, "sampling."+st.name)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("study: sampler chain under-specified, missing %s — "+
+			"temperature alone does not define a sampling distribution, and an "+
+			"undeclared stage silently inherits the server's default "+
+			"(pin it to its neutral value to disable it, but say so)",
+			strings.Join(missing, ", "))
+	}
+	if *s.TopK < 0 {
+		return fmt.Errorf("study: sampling.top_k must be >= 0 (0 disables it), got %d", *s.TopK)
+	}
+	if *s.RepeatPenalty <= 0 {
+		return fmt.Errorf("study: sampling.repeat_penalty must be > 0 (1.0 is neutral), got %v", *s.RepeatPenalty)
+	}
+	if *s.RepeatLastN < 0 {
+		return fmt.Errorf("study: sampling.repeat_last_n must be >= 0 (0 disables it), got %d", *s.RepeatLastN)
+	}
+	for _, p := range []struct {
+		name string
+		val  float64
+	}{
+		{"top_p", *s.TopP},
+		{"min_p", *s.MinP},
+		{"typical_p", *s.TypicalP},
+		{"xtc_probability", *s.XTCProbability},
+	} {
+		if p.val < 0 || p.val > 1 {
+			return fmt.Errorf("study: sampling.%s must be in [0,1], got %v", p.name, p.val)
+		}
+	}
+	if *s.DryMultiplier < 0 {
+		return fmt.Errorf("study: sampling.dry_multiplier must be >= 0 (0 disables it), got %v", *s.DryMultiplier)
+	}
+	return nil
+}
+
 // sampling returns the definition's sampling regime as the typed assay value.
+// The bare dereferences are safe only because validateSampling ran in LoadDef —
+// it is load-bearing against a nil panic here, not merely advisory.
 func (d Def) sampling() assay.Sampling {
 	return assay.Sampling{
 		Temperature: *d.Sampling.Temperature,
 		Seeds:       d.Sampling.Seeds,
 		MaxTokens:   *d.Sampling.MaxTokens,
+
+		TopNSigma: *d.Sampling.TopNSigma,
+		TopK:      *d.Sampling.TopK,
+		TypicalP:  *d.Sampling.TypicalP,
+		TopP:      *d.Sampling.TopP,
+		MinP:      *d.Sampling.MinP,
+
+		RepeatPenalty:    *d.Sampling.RepeatPenalty,
+		RepeatLastN:      *d.Sampling.RepeatLastN,
+		PresencePenalty:  *d.Sampling.PresencePenalty,
+		FrequencyPenalty: *d.Sampling.FrequencyPenalty,
+
+		XTCProbability: *d.Sampling.XTCProbability,
+		DryMultiplier:  *d.Sampling.DryMultiplier,
 	}
 }
 

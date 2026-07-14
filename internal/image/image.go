@@ -1,7 +1,9 @@
 // Package image reads content digests of assay images from rootless podman.
-// The digest is what the freeze-by-digest manifest pins and verifies — image
-// tags are mutable and never trusted. The podman invocation is injectable so
-// the parse/validate logic is testable without a container runtime.
+// The digest is what a run record names — image tags are mutable and never
+// trusted, so a tag would say nothing about what actually executed. Recorded,
+// not enforced: a digest differing from a prior run's is information about the
+// two runs. The podman invocation is injectable so the parse/validate logic is
+// testable without a container runtime.
 package image
 
 import (

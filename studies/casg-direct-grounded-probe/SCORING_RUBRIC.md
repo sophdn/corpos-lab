@@ -1,8 +1,12 @@
-# Scoring rubric — casg-direct v3 reproduction
+# Scoring rubric — casg-direct grounded glyph probe
 
 Exhumed verbatim from the v3 SCORE_GRID.md + study.json (`assay-grounded-casg-direct/v3`).
-This rubric is a **pinned artifact**: it enters the vN MANIFEST digest and must not drift
-between batches of the same version (CHARTER.md freeze-by-digest; aha-drain rule).
+
+The **score codes and their condition-specific definitions** below are the real methodology
+and are why this file survives — read [README.md](README.md) first for what does not. This
+rubric is no longer a "pinned artifact" entering a MANIFEST digest: freeze-by-digest and the
+aha-drain rule were retired 2026-07-14 (see [INQUIRY.md](../../INQUIRY.md)). Improve it when
+you learn better and say what you changed; the run records say what each run actually used.
 
 ## Score codes
 
@@ -58,13 +62,28 @@ recurring ambiguity patterns and how the original resolved them:
 - **Wrong section names / wrong file / `v`-prefixed version** at baseline: still **C** —
   format correctness is not required until the grounded condition.
 
-## Gates (from v3, to be re-applied to the reproduction)
+## Readings (from v3 — orientation, not targets)
 
-- **Calibration gate (cond 1):** baseline must **not** meet ≥7/8 C **with the correct
-  project-specific target**. v3: both models 7/8 C total but **0/8 correct-target** →
-  gate passed. (CHARTER.md restates the general form: baseline must exhibit the target
-  failure in ≥6/8 runs.)
-- **Sufficiency gate (cond 2):** ≥7/8 C at glyph_only ⇒ glyph sufficient, skip cond 3.
-  v3: Claude 8/8 (skipped cond 3); Mistral 0/8 (ground triggered).
-- **Ground-lift gate (cond 3, Mistral):** ≥5/8 C **and** ≥2 above cond 2. v3: 7/8, lift +7
-  (0→7) → GROUND CONFIRMED. **This is the headline number the reproduction must recover.**
+**These are not gates and the v3 counts are not targets.** They were both, under the retired
+regime; the thresholds below are kept because the *reasoning* in them is sound, and the
+integers are kept because they say where we've been. Neither is something to hit.
+
+Two rules from INQUIRY.md govern how to read this section:
+
+- **Read cells, not counts.** n=8 gives a 95% CI roughly ±0.2 wide. The v3 grid's 7/8 has a
+  CI of [0.53, 0.98]; a later leg's 4/8 sits inside it (Fisher p=0.28). Comparing those
+  integers is comparing noise. What reproduces is the phenomenon and its direction.
+- **There is no parity, because we are the frontier.** Old runs orient; they are never a
+  target. Targeting one fixes a goal from an earlier state of our own process, so any
+  improvement registers as divergence when it's just truer.
+
+- **Calibration (cond 1):** if the baseline already exhibits the target behaviour with the
+  correct project-specific target, the substrate cannot measure a scaffold's effect on it.
+  This one is not a convention — it's what the measurement *means*. v3: both models 7/8 C
+  total but **0/8 correct-target**, so the substrate could measure.
+- **Sufficiency (cond 2):** a glyph_only cell at ceiling means the ground has nothing left to
+  add and cond 3 carries no information. v3: Claude 8/8 (contaminated subject, ceilings at
+  baseline); Mistral 0/8.
+- **Ground lift (cond 3, Mistral):** v3 read 7/8, lift +7 (0→7). Across three legs the lift
+  was +7, +8, +4 — **always positive, always large, and the specific integer unstable at
+  n=8.** The direction is the finding. The number is not.

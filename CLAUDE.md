@@ -3,11 +3,14 @@
 **corpos-lab** is the unified behavioral-experiment lab in Go: it absorbs lab-app's
 battery/sequence runner and registry-lab's disposable-container assay model, driven by
 **corpos** as the lab controller, persisting results through **corpos-toolkit**. It exists to
-run the pre-registered glyph research program — read
-**`~/dev/lab-app/resumption/CHARTER.md`** (claims C1–C3, instrument-freeze-by-digest rule,
-aha-drain rule) before designing any study-facing surface. Companion docs beside it:
-SALVAGE.md (what survives from the ancestors), BOUNDARY.md (everything is public; maturity
-gates sharing), FIELD_NOTES.md (verified field positioning).
+run the glyph research program — read **[`INQUIRY.md`](INQUIRY.md)** (the questions Q1–Q3,
+what we currently believe, how we measure) before designing any study-facing surface.
+Companion docs: SALVAGE.md (what survives from the ancestors), BOUNDARY.md (everything is
+public; maturity gates sharing), FIELD_NOTES.md (verified field positioning).
+
+> `lab-app/resumption/CHARTER.md` — pre-registration, freeze-by-digest, the aha-drain rule —
+> was **retired 2026-07-14** and INQUIRY.md replaced it. Anything still pointing at it
+> (bug slugs, task names, an old comment) is naming a dead regime, not citing a live one.
 
 ## Build & gate
 
@@ -28,27 +31,41 @@ gates sharing), FIELD_NOTES.md (verified field positioning).
 - **CGo-free.** `CGO_ENABLED=0`; only pure-Go deps (`modernc.org/sqlite`, not `mattn`). Keeps
   distroless/scratch shipping open, matching the corpos family.
 - **Record what ran — observe, don't assert.** Every run captures the config it *actually*
-  executed under: the effective sampler read back from the server (`/props`), the model
-  artifact digest + quant, the image digest, the substrate (GPU/CPU), and the repo commit.
-  Stored with the results, never edited afterwards.
+  executed under, and every study declares its COMPLETE sampler chain (validation refuses a
+  partial one: temperature alone does not define a distribution, and an unnamed stage
+  inherits the server binary's default). Stored with the results, never edited afterwards:
+  - **Per row** — the model the server says answered, its build id, and generation
+    throughput. Throughput is the substrate tripwire: ~40-60 tok/s on GPU for a 7B against
+    5.1 on CPU, so a fallback shows up as a step in the cells.
+  - **Per run** — the sampler actually sent; the server's `/props` self-report (model_path,
+    model_alias, build_info, n_ctx); a declared-vs-served **model mismatch**, recorded and
+    never enforced; the image digest; the substrate probe; and the repo commit.
   **This replaces the retired freeze-by-digest rule** (see INQUIRY.md §What changed the
   method). The freeze pinned six files that never changed and was blind to all three
   variables that actually moved — temperature, sampler, and processor were unrecorded, so a
   study "reproduced" a result while running on a different processor and nobody could tell.
   A run record is permanently true; a manifest was a promise about the future that locked us
   into mistakes. **Observation beats assertion.**
-  *Honesty note (2026-07-14): this invariant previously claimed every row carried the repo
-  commit. That was false — `internal/provenance` was dead code, never called. If you are
-  reading this before the observation work lands, the capture described above is the target,
-  not yet the state. Do not let this bullet drift back into asserting what the code doesn't do.*
+  *Two things `/props` is NOT, because both are easy to assume and one is written into a
+  bug's own acceptance criteria: it does not report the effective sampler (it reports the
+  server's LAUNCH defaults — send temperature 0.0 to a server started at 0.8 and it still
+  says 0.8), and it is served at the ROOT, not under `/v1`. The effective sampler is sound
+  because every stage is pinned and sent, verified against `/slots`.*
+  *Nothing here may fail a run.* A failed `/props` readback, an unknown substrate, an
+  unstampable repo, a model mismatch — each is recorded as the gap it is, never guessed at
+  and never grounds for refusal. A run that cannot fully describe itself is still a run;
+  refusing it is the freeze reflex wearing a different hat.
 - **Reference images by content digest, never a mutable tag** — so a run record says exactly
   what executed. Recorded, not enforced: a digest that doesn't match a prior run is
   information about the two runs, not grounds for refusing to run.
 - **corpos-toolkit is reached over HTTP only** (`POST /mcp/<surface>` at
   `http://localhost:3001`). Never open the toolkit DB directly — the ledger stays owned by
   toolkit-server.
-- **Claude-family models are never a treatment condition** (contaminated subjects — CHARTER.md).
-  Local shelf only for treatment arms; see FIELD_NOTES.md §strand-5 for the verified shelf.
+- **Claude-family models are never a treatment condition** — contaminated subjects: this
+  corpus's terrain is in their training data and they ceiling at baseline. They may judge;
+  they are never a treatment arm. This is methodology, not ceremony, and it outlived the
+  charter that first wrote it down (INQUIRY.md §How we measure). Local shelf only for
+  treatment arms; see FIELD_NOTES.md §strand-5 for the verified shelf.
 - **ONE local inference portal: llama.cpp (`llama-server` :8081).** Never install, start, or
   reach for a second inference server — not Ollama, LM Studio, vLLM, or anything else. Not as
   a fallback, not "just for this run", not because a model is already pulled there, **and not
@@ -93,8 +110,13 @@ learn better. It replaced `lab-app/resumption/CHARTER.md`, retired 2026-07-14.
 
 ## Layout
 
-`internal/digest` (SHA-256 content digests for freezing/pinning) — more as the port lands:
-battery runner, assay model, controller client, persistence.
+`internal/` — `assay` (the grounded-glyph probe + the sampler regime), `battery` (the 15-item
+runner), `control` (host-side controller; `Deps` is where the run reaches the world),
+`digest`/`image` (content digests, recorded not enforced), `manifest` (computed, no verify
+arm — it was deleted), `model` (the inference seam + llama-server client), `persist` (toolkit
+HTTP), `provenance` (repo stamp), `runner` (container-side executor), `study` (TOML def +
+validation), `substrate` (GPU/CPU probe). `cmd/corpos-lab` is the host CLI; `cmd/lab-assay`
+runs inside the container.
 
 ## Runtime deps (for live smokes)
 

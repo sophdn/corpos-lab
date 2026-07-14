@@ -15,6 +15,8 @@ import (
 
 	"corpos-lab/internal/assay"
 	"corpos-lab/internal/control"
+	"corpos-lab/internal/model"
+	"corpos-lab/internal/substrate"
 )
 
 // DefaultToolkitURL is the canonical toolkit HTTP daemon (post-flip).
@@ -52,6 +54,18 @@ type recordParams struct {
 	ResponsesDir    string            `json:"responses_dir"`
 	RunAt           string            `json:"run_at"`
 	Rows            []scoreRow        `json:"rows"`
+
+	// What the run OBSERVED, as distinct from what it declared. ModelID above
+	// is an echo of the study definition; these are the server's and the host's
+	// own accounts, and they are why the toolkit copy can answer "what ran"
+	// rather than only "what was asked for".
+	Sampler         assay.Sampling    `json:"sampler"`
+	Server          model.ServerProps `json:"server"`
+	ModelMismatch   string            `json:"model_mismatch,omitempty"`
+	Substrate       substrate.Info    `json:"substrate"`
+	CommitSHA       string            `json:"commit_sha,omitempty"`
+	CommitDirty     bool              `json:"commit_dirty"`
+	ProvenanceError string            `json:"provenance_error,omitempty"`
 }
 
 // mcpEnvelope is the `POST /mcp/<surface>` request body.
@@ -80,6 +94,16 @@ func paramsFrom(run control.StudyRun, responsesDir string) recordParams {
 		ModelVersion:    run.Manifest.ModelVersion,
 		ResponsesDir:    responsesDir,
 		Rows:            []scoreRow{},
+
+		Substrate:       run.Substrate,
+		CommitSHA:       run.Provenance.CommitSHA,
+		CommitDirty:     run.Provenance.Dirty,
+		ProvenanceError: run.ProvenanceError,
+	}
+	if run.Results != nil {
+		p.Sampler = run.Results.Sampler
+		p.Server = run.Results.Server
+		p.ModelMismatch = run.Results.ModelMismatch
 	}
 	if run.Extraction != nil {
 		p.RunAt = run.Extraction.FinishedAt

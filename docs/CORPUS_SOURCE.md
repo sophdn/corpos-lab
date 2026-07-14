@@ -19,8 +19,9 @@ services; the corpus is the research substrate the whole program consumes.
     assay-grounded-*/  — SERIES records + per-version scenario/glyph/ground materials
 ```
 
-The resumed program's charter lives beside it at **`~/dev/lab-app/resumption/`**
-(`CHARTER.md`, `SALVAGE.md`, `BOUNDARY.md`, `FIELD_NOTES.md`).
+Companion docs live beside it at **`~/dev/lab-app/resumption/`** (`SALVAGE.md`,
+`BOUNDARY.md`, `FIELD_NOTES.md`). `CHARTER.md` is also still on disk there but was
+**retired 2026-07-14** — the live research doc is [INQUIRY.md](../INQUIRY.md).
 
 ## Why left in place (not moved into corpos-lab)
 

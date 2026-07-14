@@ -1,9 +1,15 @@
-// Package digest computes the hex-encoded SHA-256 content digests used
-// across corpos-lab for instrument freezing and container pinning: every
-// executor-visible study artifact is pinned by digest at study
-// registration and re-checked at scoring time (CHARTER.md
-// freeze-by-digest rule), and assay container images are referenced by
-// digest, never by tag.
+// Package digest computes the hex-encoded SHA-256 content digests used across
+// corpos-lab to record what a run executed against: every executor-visible
+// study artifact is digested into the run record, and assay container images
+// are referenced by digest, never by tag.
+//
+// RECORDED, NOT ENFORCED. These digests once backed a freeze-by-digest rule
+// that refused to run on a mismatch; that rule was retired 2026-07-14 (see
+// INQUIRY.md). A digest that differs from a prior run's is information about
+// the two runs, not grounds for refusing either. The rule also covered the
+// wrong things: it pinned the stimulus — scenario, glyph, ground, rubric —
+// which by design never changes, while the variables that actually moved
+// between runs were the sampler and the processor, which it never touched.
 package digest
 
 import (

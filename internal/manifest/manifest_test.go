@@ -18,7 +18,12 @@ func spec() runner.StudySpec {
 		Conditions:  []assay.Condition{assay.Baseline, assay.GlyphOnly, assay.GroundedGlyph},
 		RunsPerCell: 2,
 		Materials:   runner.MaterialsSpec{Scenario: "scenario.md", Glyph: "glyph.md", Ground: "ground.md"},
-		Sampling:    assay.Sampling{Temperature: 0.8, Seeds: []int{1, 2}, MaxTokens: 512},
+		Sampling: assay.Sampling{
+			Temperature: 0.8, Seeds: []int{1, 2}, MaxTokens: 512,
+			TopNSigma: -1.0, TopK: 0, TypicalP: 1.0, TopP: 1.0, MinP: 0.05,
+			RepeatPenalty: 1.0, RepeatLastN: 0, PresencePenalty: 0.0, FrequencyPenalty: 0.0,
+			XTCProbability: 0.0, DryMultiplier: 0.0,
+		},
 	}
 }
 

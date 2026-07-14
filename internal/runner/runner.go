@@ -60,11 +60,30 @@ type StudySpec struct {
 
 // Results is the container's /out/results.json — the scored rows plus the
 // identifying context needed to attribute them.
+//
+// Sampler and Server are what make a run self-describing. Sampler is the
+// complete regime the rows were produced under; Server is the inference
+// server's own account of itself, read back after the loop. Together with each
+// row's Observed block they answer "what actually ran" from the artifact alone,
+// with no appeal to what anyone intended.
 type Results struct {
 	Assay   string           `json:"assay"`
 	ItemID  string           `json:"item_id"`
 	ModelID string           `json:"model_id"`
 	Rows    []assay.ScoreRow `json:"rows"`
+	// Sampler is the full chain actually sent with every generation.
+	Sampler assay.Sampling `json:"sampler"`
+	// Server is GET /props, read back after the run. Empty if the readback
+	// failed — a run is not voided for failing to describe itself, but the
+	// silence is visible rather than filled in.
+	Server model.ServerProps `json:"server"`
+	// ServerReadbackError records why Server is empty, when it is.
+	ServerReadbackError string `json:"server_readback_error,omitempty"`
+	// ModelMismatch is set when the server reports serving a model other than
+	// the one the study declared. RECORDED, NEVER ENFORCED: a divergence is
+	// information about this run, not grounds for refusing it. This is the
+	// check nothing performed when a study believed it was running Mistral.
+	ModelMismatch string `json:"model_mismatch,omitempty"`
 }
 
 // LoadSpec reads and validates study.json from inDir.
@@ -106,6 +125,16 @@ func (s StudySpec) validate() error {
 	if s.Sampling.MaxTokens < 1 {
 		return fmt.Errorf("runner: study.json missing sampling.max_tokens (got %d)", s.Sampling.MaxTokens)
 	}
+	// repeat_penalty is neutral at 1.0 and has no valid zero, so a zero here is
+	// the tell that the sampler chain was never declared — the same
+	// zero-value-means-absent reasoning as max_tokens above. The host catches
+	// omission field-by-field (it has pointers); the container only has the
+	// decoded values, so it checks the one field whose zero cannot be a choice.
+	if s.Sampling.RepeatPenalty <= 0 {
+		return fmt.Errorf("runner: study.json sampling.repeat_penalty is %v — the sampler chain "+
+			"was not declared, and an undeclared chain inherits the server's defaults",
+			s.Sampling.RepeatPenalty)
+	}
 	if s.Sampling.Temperature > 0 && len(s.Sampling.Seeds) != s.RunsPerCell {
 		return fmt.Errorf("runner: study.json sampling.seeds has %d entries for %d runs_per_cell — "+
 			"sampled runs need one seed each to reproduce", len(s.Sampling.Seeds), s.RunsPerCell)
@@ -140,6 +169,26 @@ func (s StudySpec) loadMaterials(inDir string) (assay.Materials, error) {
 		return assay.Materials{}, err
 	}
 	return assay.Materials{Scenario: scenario, Glyph: glyph, Ground: ground}, nil
+}
+
+// modelMismatch compares the model the study DECLARED against the artifact the
+// server says it actually loaded, and returns a human-readable divergence or
+// "" when they agree.
+//
+// Nothing ever performed this comparison. `model_id` was echoed from the TOML
+// into the record and never checked against reality, so a study could name one
+// model, be served another, and read back as if it had got what it asked for.
+// The result is reported, never enforced — per the record-what-ran invariant, a
+// mismatch is information about the run, not grounds for refusing it.
+func modelMismatch(declared string, props model.ServerProps) string {
+	if declared == "" || (props.ModelAlias == "" && props.ModelPath == "") {
+		return ""
+	}
+	if props.ModelAlias == declared || filepath.Base(props.ModelPath) == declared {
+		return ""
+	}
+	return fmt.Sprintf("study declared model_id %q; server reports alias %q (path %q)",
+		declared, props.ModelAlias, props.ModelPath)
 }
 
 // Execute runs the study described by inDir/study.json against client and
@@ -182,7 +231,21 @@ func Execute(ctx context.Context, inDir, outDir string, client model.Client) (Re
 		ItemID:  spec.ItemID,
 		ModelID: client.Name(),
 		Rows:    rows,
+		Sampler: spec.Sampling,
 	}
+
+	// Read the server's self-report back AFTER the loop, so it describes the
+	// server that answered rather than one that might have been swapped since.
+	// A failed readback degrades the record; it does not void the run — the
+	// rows are real either way, and refusing them would be the freeze again.
+	props, err := client.Props(ctx)
+	if err != nil {
+		results.ServerReadbackError = err.Error()
+	} else {
+		results.Server = props
+		results.ModelMismatch = modelMismatch(spec.Model.ModelID, props)
+	}
+
 	if err := writeResults(outDir, results); err != nil {
 		return Results{}, err
 	}

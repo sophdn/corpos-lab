@@ -2,8 +2,14 @@
 // from. The Rust source stamped commit SHA + dirty flag at build time via
 // build.rs; here they are captured at runtime, which is fresher — a
 // worktree-based run stamps the tree it actually used, not the tree the
-// binary was compiled from. Both values are part of every persisted result
-// row (CLAUDE.md invariant: results are provenance-stamped).
+// binary was compiled from.
+//
+// Called from control.RunStudy via the Provenance seam, and recorded on every
+// StudyRun. That is worth stating because it was not true until 2026-07-14:
+// this package sat here fully written and fully tested with ZERO callers,
+// while CLAUDE.md asserted that every result row carried the repo commit. The
+// tests passed, the coverage counted, and the invariant was false. If you are
+// about to remove the last caller, remove the claim in the same commit.
 package provenance
 
 import (
@@ -22,10 +28,11 @@ type Stamp struct {
 	Dirty bool `json:"dirty"`
 }
 
-// Capture reads the git identity of repoDir. It fails loudly when repoDir
-// is not a git repository — an unstampable run must not silently pass as
-// stamped (freeze-by-digest: unreproducible provenance downgrades a result
-// to anecdote).
+// Capture reads the git identity of repoDir. It fails loudly when repoDir is
+// not a git repository — an unstampable run must not silently pass as stamped.
+// Loudly to the CALLER, which records the failure and proceeds: a run that
+// cannot say which tree it came from is worse than one that can, but it is not
+// void, and refusing it would be the freeze reflex.
 func Capture(ctx context.Context, repoDir string) (Stamp, error) {
 	sha, err := gitOutput(ctx, repoDir, "rev-parse", "HEAD")
 	if err != nil {

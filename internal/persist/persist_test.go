@@ -5,13 +5,17 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"corpos-lab/internal/assay"
 	"corpos-lab/internal/control"
 	"corpos-lab/internal/extract"
 	"corpos-lab/internal/manifest"
+	"corpos-lab/internal/model"
+	"corpos-lab/internal/provenance"
 	"corpos-lab/internal/runner"
+	"corpos-lab/internal/substrate"
 )
 
 func sampleRun() control.StudyRun {
@@ -183,5 +187,72 @@ func TestRecordTransportErrorIsWrapped(t *testing.T) {
 	c := NewClient(srv.URL, "glyph-research")
 	if err := c.Record(context.Background(), sampleRun(), "/out/responses"); err == nil {
 		t.Fatal("expected transport error")
+	}
+}
+
+// The toolkit copy has to carry the observations, not just the declarations.
+// ModelID is an echo of the study definition; without these fields the queryable
+// home could only ever answer "what was asked for", which is the question that
+// was never in doubt.
+func TestParamsFromShipsObservationsNotJustDeclarations(t *testing.T) {
+	run := sampleRun()
+	run.Substrate = substrate.Info{
+		Kind: substrate.KindGPU, Device: "NVIDIA GeForce RTX 3090",
+		VRAMMiB: 21184, DetectedBy: "nvidia-smi",
+	}
+	run.Provenance = provenance.Stamp{CommitSHA: "abc123", Dirty: true}
+	run.Results.Sampler = assay.Sampling{Temperature: 0.8, MinP: 0.05, TopK: 0, RepeatPenalty: 1.0}
+	run.Results.Server = model.ServerProps{
+		ModelAlias: "Mistral-7B-Instruct-v0.3.Q4_K_M.gguf",
+		BuildInfo:  "b9445-af6528e6d",
+		NCtx:       8192,
+	}
+	run.Results.ModelMismatch = "study declared X; server reports Y"
+
+	p := paramsFrom(run, "/runs/responses")
+
+	if p.Substrate.Kind != substrate.KindGPU || p.Substrate.Device != "NVIDIA GeForce RTX 3090" {
+		t.Errorf("substrate not forwarded: %+v", p.Substrate)
+	}
+	if p.CommitSHA != "abc123" || !p.CommitDirty {
+		t.Errorf("provenance not forwarded: sha=%q dirty=%v", p.CommitSHA, p.CommitDirty)
+	}
+	if p.Sampler.MinP != 0.05 || p.Sampler.RepeatPenalty != 1.0 {
+		t.Errorf("sampler not forwarded: %+v", p.Sampler)
+	}
+	if p.Server.BuildInfo != "b9445-af6528e6d" || p.Server.NCtx != 8192 {
+		t.Errorf("server readback not forwarded: %+v", p.Server)
+	}
+	if p.ModelMismatch != "study declared X; server reports Y" {
+		t.Errorf("model mismatch not forwarded: %q", p.ModelMismatch)
+	}
+
+	// And it has to survive JSON — the toolkit reads the wire, not the struct.
+	raw, err := json.Marshal(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`"substrate"`, `"commit_sha":"abc123"`, `"commit_dirty":true`,
+		`"sampler"`, `"min_p":0.05`, `"server"`, `"build_info":"b9445-af6528e6d"`,
+		`"model_mismatch"`,
+	} {
+		if !strings.Contains(string(raw), want) {
+			t.Errorf("wire body missing %s", want)
+		}
+	}
+}
+
+// A failed provenance stamp travels as the recorded failure it is, rather than
+// arriving as a plausible-looking empty commit.
+func TestParamsFromForwardsProvenanceFailure(t *testing.T) {
+	run := sampleRun()
+	run.ProvenanceError = "not a git repository"
+	p := paramsFrom(run, "/d")
+	if p.ProvenanceError != "not a git repository" {
+		t.Errorf("provenance error not forwarded: %q", p.ProvenanceError)
+	}
+	if p.CommitSHA != "" {
+		t.Errorf("commit should stay empty on a failed stamp, got %q", p.CommitSHA)
 	}
 }

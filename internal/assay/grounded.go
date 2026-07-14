@@ -104,6 +104,29 @@ type ScoreRow struct {
 	Run       int        `json:"run"`
 	Score     ProbeScore `json:"score"`
 	Rationale string     `json:"rationale"`
+	// Observed is what the server reported while producing THIS row.
+	Observed Observed `json:"observed"`
+}
+
+// Observed is the server's own account of a single generation, recorded per
+// row rather than per run.
+//
+// Per-row is the point. A study's substrate was assumed constant for its whole
+// life and went unrecorded; when one leg silently fell back to CPU, nothing in
+// the data could show it. TokensPerSecond makes that visible in every cell —
+// ~40-60 on GPU for a 7B, 5.1 on CPU — so a mid-study substrate change shows up
+// as a step in the rows instead of never showing up at all.
+type Observed struct {
+	// Model is what the server said it used, which may differ from what the
+	// study asked for.
+	Model string `json:"model"`
+	// BuildInfo is llama.cpp's build id, so a server upgrade mid-study is
+	// visible in the rows either side of it.
+	BuildInfo string `json:"build_info"`
+	// TokensPerSecond is generation throughput — the substrate tripwire.
+	TokensPerSecond float64 `json:"tokens_per_second"`
+	PromptTokens    int     `json:"prompt_tokens"`
+	PredictedTokens int     `json:"predicted_tokens"`
 }
 
 // ProbeResponse is the raw model reply for one condition/run, retained for
@@ -129,6 +152,11 @@ type ProbeResponse struct {
 // can only ever score 0/8 or 8/8 — never a graded value like the casg-direct
 // v3 target's 7/8. Run-to-run variation requires sampling; Seeds keep that
 // variation reproducible.
+// The regime is COMPLETE: every stage of llama.cpp's sampler chain is named
+// here, not just temperature. Temperature alone does not define a sampling
+// distribution — top_k, top_p, min_p, the penalties and the rest all shape it,
+// and any one left unsaid is inherited from whatever binary is running and
+// changes silently when that binary is upgraded.
 type Sampling struct {
 	Temperature float64 `json:"temperature"`
 	// Seeds pins one RNG seed per replicate, indexed by 1-based run number.
@@ -136,6 +164,23 @@ type Sampling struct {
 	// at temperature 0.
 	Seeds     []int `json:"seeds,omitempty"`
 	MaxTokens int   `json:"max_tokens"`
+
+	// Truncation stages, in chain order.
+	TopNSigma float64 `json:"top_n_sigma"`
+	TopK      int     `json:"top_k"`
+	TypicalP  float64 `json:"typical_p"`
+	TopP      float64 `json:"top_p"`
+	MinP      float64 `json:"min_p"`
+
+	// Penalty stages.
+	RepeatPenalty    float64 `json:"repeat_penalty"`
+	RepeatLastN      int     `json:"repeat_last_n"`
+	PresencePenalty  float64 `json:"presence_penalty"`
+	FrequencyPenalty float64 `json:"frequency_penalty"`
+
+	// Stage switches. Sub-parameters are inert while these are zero.
+	XTCProbability float64 `json:"xtc_probability"`
+	DryMultiplier  float64 `json:"dry_multiplier"`
 }
 
 // Deterministic reports whether this regime decodes greedily, in which case
@@ -146,10 +191,26 @@ func (s Sampling) Deterministic() bool { return s.Temperature == 0 }
 // selecting that run's seed from the sequence. A run outside the sequence gets
 // no seed rather than a wrong one — silently reusing seed 1 would make two
 // replicates identical and quietly deflate a cell's variance.
+// Every field is sent, none left to inherit — that is what makes the params
+// recorded with the run also the params the run executed under.
 func (s Sampling) GenParamsForRun(run int) model.GenParams {
 	p := model.GenParams{
 		Temperature: model.Float64(s.Temperature),
 		MaxTokens:   model.Int(s.MaxTokens),
+
+		TopNSigma: model.Float64(s.TopNSigma),
+		TopK:      model.Int(s.TopK),
+		TypicalP:  model.Float64(s.TypicalP),
+		TopP:      model.Float64(s.TopP),
+		MinP:      model.Float64(s.MinP),
+
+		RepeatPenalty:    model.Float64(s.RepeatPenalty),
+		RepeatLastN:      model.Int(s.RepeatLastN),
+		PresencePenalty:  model.Float64(s.PresencePenalty),
+		FrequencyPenalty: model.Float64(s.FrequencyPenalty),
+
+		XTCProbability: model.Float64(s.XTCProbability),
+		DryMultiplier:  model.Float64(s.DryMultiplier),
 	}
 	if run >= 1 && run <= len(s.Seeds) {
 		p.Seed = model.Int(s.Seeds[run-1])
@@ -185,6 +246,13 @@ func RunProbe(ctx context.Context, m model.Client, itemID string, cond Condition
 		Run:       run,
 		Score:     Unscored,
 		Rationale: rationale,
+		Observed: Observed{
+			Model:           resp.Model,
+			BuildInfo:       resp.SystemFingerprint,
+			TokensPerSecond: resp.Timings.PredictedPerSecond,
+			PromptTokens:    resp.Timings.PromptN,
+			PredictedTokens: resp.Timings.PredictedN,
+		},
 	}
 	response := ProbeResponse{
 		Condition: cond,

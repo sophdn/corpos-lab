@@ -15,8 +15,10 @@ import (
 
 	"corpos-lab/internal/extract"
 	"corpos-lab/internal/manifest"
+	"corpos-lab/internal/provenance"
 	"corpos-lab/internal/runner"
 	"corpos-lab/internal/study"
+	"corpos-lab/internal/substrate"
 )
 
 // LaunchSpec is one container launch: the pinned image, the bind-mount dirs,
@@ -47,6 +49,29 @@ type Launcher interface {
 // production; injected in tests).
 type DigestReader func(ctx context.Context, ref string) (string, error)
 
+// SubstrateProbe identifies the processor the inference server is running on.
+// It returns Unknown rather than an error when it cannot tell.
+type SubstrateProbe func(ctx context.Context) substrate.Info
+
+// ProvenanceReader stamps the instrument's repo state.
+type ProvenanceReader func(ctx context.Context) (provenance.Stamp, error)
+
+// Deps are the seams RunStudy reaches the world through. They are a struct
+// rather than positional params because every one of them is a place the run
+// observes something, and this list grows: keeping them named means adding an
+// observation cannot silently reorder an existing one.
+//
+// Substrate and Provenance are REQUIRED to be non-nil. A nil probe that
+// quietly records nothing is how internal/provenance sat dead for months while
+// the docs claimed every result row carried the repo commit — so callers must
+// say what they observe with, even if the answer is a stub.
+type Deps struct {
+	Launcher   Launcher
+	DigestOf   DigestReader
+	Substrate  SubstrateProbe
+	Provenance ProvenanceReader
+}
+
 // Status is a study run's terminal state.
 type Status string
 
@@ -70,6 +95,16 @@ type StudyRun struct {
 	Manifest    manifest.RunManifest `json:"manifest"`
 	Results     *runner.Results      `json:"results,omitempty"`
 	Extraction  *extract.Manifest    `json:"extraction,omitempty"`
+	// Substrate is the processor the inference server ran on. Host-side,
+	// because no llama.cpp endpoint reports it — and it is the variable that
+	// went unrecorded through an entire study without anyone noticing.
+	Substrate substrate.Info `json:"substrate"`
+	// Provenance is the instrument's repo state at run time. Host-side,
+	// because the container has no repo to stamp.
+	Provenance provenance.Stamp `json:"provenance"`
+	// ProvenanceError records why Provenance is empty, when it is. A run is
+	// not voided for failing to describe itself.
+	ProvenanceError string `json:"provenance_error,omitempty"`
 }
 
 // ContainerExitError is a non-zero container exit — including the
@@ -98,7 +133,7 @@ func (e *MalformedResultsError) Error() string {
 // workDir/run-record.json. It returns the StudyRun (always) and a typed error
 // (nil on success). On any failure the returned StudyRun has Status=Failed
 // with the error recorded, and the run record is still written.
-func RunStudy(ctx context.Context, def study.Def, workDir string, launcher Launcher, digestOf DigestReader) (StudyRun, error) {
+func RunStudy(ctx context.Context, def study.Def, workDir string, deps Deps) (StudyRun, error) {
 	inDir := filepath.Join(workDir, "in")
 	outDir := filepath.Join(workDir, "out")
 
@@ -107,6 +142,17 @@ func RunStudy(ctx context.Context, def study.Def, workDir string, launcher Launc
 		Assay:  def.Assay,
 		ItemID: def.ItemID,
 		Image:  def.Image,
+	}
+
+	// Observe the host BEFORE the run, so the record describes the machine the
+	// container is about to execute on rather than one it might have drifted to.
+	// Neither of these can fail the run: a run that cannot fully describe itself
+	// is still a run, and refusing it would be the freeze reflex again.
+	run.Substrate = deps.Substrate(ctx)
+	if stamp, err := deps.Provenance(ctx); err != nil {
+		run.ProvenanceError = err.Error()
+	} else {
+		run.Provenance = stamp
 	}
 
 	// Any exit path writes the record; a failure records the error first.
@@ -133,7 +179,7 @@ func RunStudy(ctx context.Context, def study.Def, workDir string, launcher Launc
 		return finish(StatusFailed, err)
 	}
 
-	digest, err := digestOf(ctx, def.Image)
+	digest, err := deps.DigestOf(ctx, def.Image)
 	if err != nil {
 		return finish(StatusFailed, fmt.Errorf("control: read image digest for %s: %w", def.Image, err))
 	}
@@ -145,7 +191,7 @@ func RunStudy(ctx context.Context, def study.Def, workDir string, launcher Launc
 	}
 	run.Manifest = pinned
 
-	res, err := launcher.Launch(ctx, LaunchSpec{
+	res, err := deps.Launcher.Launch(ctx, LaunchSpec{
 		Image:   def.Image,
 		InDir:   inDir,
 		OutDir:  outDir,

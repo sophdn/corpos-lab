@@ -9,7 +9,7 @@
 # There are no study "versions" here any more. Change this file when you learn
 # better; the run records say what each run actually used.
 #
-# Run headless:  corpos-lab run-study studies/casg-direct-v3-repro/study.toml
+# Run headless:  corpos-lab run-study studies/casg-direct-grounded-probe/study.toml
 # Material paths resolve relative to THIS file.
 
 name = "casg-direct-grounded-probe"
@@ -43,15 +43,53 @@ ground   = "materials/ground.md"    # GROUND_casg-direct.md, verbatim
 # Sampling regime — declared here rather than hardcoded in Go, so a run records
 # the sampler it actually used.
 #
-# Greedy decoding (temperature 0) returns an identical reply per replicate, so a
-# cell could only ever score 0/8 or 8/8 — no graded result is possible. Above
-# greedy, seeds keep replicates varied AND repeatable.
+# THE WHOLE CHAIN IS DECLARED, and that is the point. llama.cpp runs a sampler
+# CHAIN — penalties, dry, top_n_sigma, top_k, typ_p, top_p, min_p, xtc,
+# temperature — and any stage not named here inherits whatever the server binary
+# defaults to. Temperature alone does not define a sampling distribution. This
+# file previously declared three of them and borrowed the rest from an accident
+# of deployment; validation now refuses that, so a llama.cpp upgrade that moves a
+# default cannot silently move the study.
 #
-# NOTE: temperature/seeds/max_tokens do NOT fully specify the sampler. top_p,
-# min_p and repeat_penalty currently inherit the server's defaults, which differ
-# between runtimes — this is a real gap (bug: sampling-regime-underspecified-...).
-# Fix it and record the effective config read back from /props; do not defer it.
+# These values were chosen for THIS measurement. They are not copied from any
+# runtime's defaults — notably not Ollama's, which an earlier version of the
+# sampler bug told us to match. Ollama is uninstalled, its defaults were never a
+# principled choice, and parity with a retired tool is not a goal.
+#
+#   temperature 0.8 — above greedy. Greedy decoding returns an identical reply
+#     per replicate, so a cell could only ever score 0/8 or 8/8 and a graded grid
+#     is structurally impossible. Seeds keep replicates varied AND repeatable.
+#   min_p 0.05 — the SOLE truncation stage. One truncation sampler is legible;
+#     stacked truncation (top_k AND top_p AND min_p) makes the effective
+#     distribution a function of three interacting cutoffs that nobody can
+#     reason about afterwards.
+#   top_k / top_p / typical_p / top_n_sigma / xtc / dry — all disabled, so min_p
+#     alone defines the tail.
+#   repeat_penalty 1.0 (neutral), repeat_last_n 0, presence/frequency 0 — ALL
+#     PENALTIES OFF, and this one is a measurement decision rather than a
+#     simplification. Penalties suppress repeated structure. A glyph scaffold
+#     induces repeated structure by design (Marker/Aim/Rest, walked axis by
+#     axis). A live penalty would therefore attenuate exactly the behaviour
+#     under study, and its effect would be indistinguishable from the glyph
+#     failing to work.
 [sampling]
 temperature = 0.8
 seeds = [1, 2, 3, 4, 5, 6, 7, 8]
 max_tokens = 512
+
+# Truncation: min_p only.
+top_n_sigma = -1.0
+top_k = 0
+typical_p = 1.0
+top_p = 1.0
+min_p = 0.05
+
+# Penalties: off — they would attenuate the structure being measured.
+repeat_penalty = 1.0
+repeat_last_n = 0
+presence_penalty = 0.0
+frequency_penalty = 0.0
+
+# Remaining stages: off.
+xtc_probability = 0.0
+dry_multiplier = 0.0

@@ -3,8 +3,10 @@ package runner
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"corpos-lab/internal/assay"
@@ -15,11 +17,23 @@ type fakeClient struct {
 	text string
 	err  error
 	name string
+	// resp, when set, is returned instead of a bare text response.
+	resp *model.Response
+	// props and propsErr drive the /props readback the runner records.
+	props    model.ServerProps
+	propsErr error
+	// gotParams records every GenParams the runner sent, so a test can assert
+	// the full sampler chain reached the wire rather than being dropped.
+	gotParams []model.GenParams
 }
 
-func (f *fakeClient) Generate(_ context.Context, _ string, _ model.GenParams) (model.Response, error) {
+func (f *fakeClient) Generate(_ context.Context, _ string, p model.GenParams) (model.Response, error) {
+	f.gotParams = append(f.gotParams, p)
 	if f.err != nil {
 		return model.Response{}, f.err
+	}
+	if f.resp != nil {
+		return *f.resp, nil
 	}
 	return model.Response{Text: f.text}, nil
 }
@@ -30,6 +44,12 @@ func (f *fakeClient) Name() string {
 	return "fake-model"
 }
 func (f *fakeClient) Version() string { return "0.0.0" }
+func (f *fakeClient) Props(_ context.Context) (model.ServerProps, error) {
+	if f.propsErr != nil {
+		return model.ServerProps{}, f.propsErr
+	}
+	return f.props, nil
+}
 
 // writeStudy lays out a valid /in dir (study.json + materials) and returns it.
 func writeStudy(t *testing.T, spec StudySpec, materials map[string]string) string {
@@ -58,14 +78,27 @@ func groundedSpec() StudySpec {
 		Conditions:  []assay.Condition{assay.Baseline, assay.GlyphOnly, assay.GroundedGlyph},
 		RunsPerCell: 2,
 		Materials:   MaterialsSpec{Scenario: "scenario.md", Glyph: "glyph.md", Ground: "ground.md"},
-		Sampling:    assay.Sampling{Temperature: 0.8, Seeds: []int{1, 2}, MaxTokens: 512},
+		Sampling:    neutralChain(0.8, []int{1, 2}),
+	}
+}
+
+// neutralChain is a complete sampler regime: min_p the only live truncation
+// stage, every other stage pinned to its disabled value. Complete because the
+// runner now refuses an undeclared chain — a partial regime here would fail on
+// sampling rather than on the rule its test names.
+func neutralChain(temp float64, seeds []int) assay.Sampling {
+	return assay.Sampling{
+		Temperature: temp, Seeds: seeds, MaxTokens: 512,
+		TopNSigma: -1.0, TopK: 0, TypicalP: 1.0, TopP: 1.0, MinP: 0.05,
+		RepeatPenalty: 1.0, RepeatLastN: 0, PresencePenalty: 0.0, FrequencyPenalty: 0.0,
+		XTCProbability: 0.0, DryMultiplier: 0.0,
 	}
 }
 
 // validSampling is a deterministic regime for fixtures whose subject is some
 // other rule, so they fail for the reason they name rather than on sampling.
 func validSampling() assay.Sampling {
-	return assay.Sampling{Temperature: 0, MaxTokens: 512}
+	return neutralChain(0, nil)
 }
 
 func TestExecuteProducesResultsAndResponses(t *testing.T) {
@@ -224,4 +257,188 @@ func itoa(n int) string {
 		n /= 10
 	}
 	return s
+}
+
+// A run has to describe itself from the artifact alone. These assert the three
+// things results.json gained: the sampler that was actually sent, the server's
+// self-report, and the declared-vs-served model comparison nothing performed.
+func TestExecuteRecordsSamplerAndServerReadback(t *testing.T) {
+	in := writeStudy(t, groundedSpec(), map[string]string{
+		"scenario.md": "SCENARIO", "glyph.md": "GLYPH", "ground.md": "GROUND",
+	})
+	out := t.TempDir()
+	f := &fakeClient{
+		text: "reply",
+		name: "qwen",
+		props: model.ServerProps{
+			ModelPath:  "/models/qwen",
+			ModelAlias: "qwen",
+			BuildInfo:  "b9445-af6528e6d",
+			NCtx:       8192,
+			Defaults:   map[string]any{"top_k": float64(40)},
+		},
+	}
+	res, err := Execute(context.Background(), in, out, f)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	// The complete regime rides with the results, not just temperature.
+	if res.Sampler.MinP != 0.05 || res.Sampler.TopK != 0 || res.Sampler.RepeatPenalty != 1.0 {
+		t.Errorf("sampler not recorded with results: %+v", res.Sampler)
+	}
+	if res.Server.BuildInfo != "b9445-af6528e6d" || res.Server.NCtx != 8192 {
+		t.Errorf("server readback = %+v", res.Server)
+	}
+	if res.ServerReadbackError != "" {
+		t.Errorf("unexpected readback error: %q", res.ServerReadbackError)
+	}
+	// Declared "qwen", served "qwen" — no divergence to report.
+	if res.ModelMismatch != "" {
+		t.Errorf("model mismatch on matching models: %q", res.ModelMismatch)
+	}
+
+	// And it survives the trip to disk, which is the artifact that outlives us.
+	raw, err := os.ReadFile(filepath.Join(out, "results.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var onDisk Results
+	if err := json.Unmarshal(raw, &onDisk); err != nil {
+		t.Fatal(err)
+	}
+	if onDisk.Server.BuildInfo != "b9445-af6528e6d" || onDisk.Sampler.MinP != 0.05 {
+		t.Errorf("results.json lost the self-description: %+v", onDisk)
+	}
+}
+
+// The check nothing performed. A study named one model, the server served
+// another, and the record read as if it got what it asked for — which is how a
+// Mistral study ran without anyone being able to tell what answered.
+func TestExecuteRecordsModelMismatchWithoutRefusingTheRun(t *testing.T) {
+	spec := groundedSpec()
+	spec.Model.ModelID = "Mistral-7B-Instruct-v0.3.Q4_K_M.gguf"
+	in := writeStudy(t, spec, map[string]string{
+		"scenario.md": "SCENARIO", "glyph.md": "GLYPH", "ground.md": "GROUND",
+	})
+	f := &fakeClient{
+		text: "reply",
+		props: model.ServerProps{
+			ModelPath:  "/models/Qwen2.5-32B-Instruct-Q4_K_M.gguf",
+			ModelAlias: "Qwen2.5-32B-Instruct-Q4_K_M.gguf",
+		},
+	}
+	res, err := Execute(context.Background(), in, t.TempDir(), f)
+	// RECORDED, NEVER ENFORCED — refusing here would be the freeze again.
+	if err != nil {
+		t.Fatalf("a model mismatch must not fail the run: %v", err)
+	}
+	if res.ModelMismatch == "" {
+		t.Fatal("serving Qwen for a declared Mistral must be recorded as a divergence")
+	}
+	if !strings.Contains(res.ModelMismatch, "Mistral") || !strings.Contains(res.ModelMismatch, "Qwen") {
+		t.Errorf("mismatch should name both models, got %q", res.ModelMismatch)
+	}
+	if len(res.Rows) == 0 {
+		t.Error("the rows are real either way; they must still be returned")
+	}
+}
+
+// A path matching the declared id is not a mismatch: llama-server reports an
+// absolute /models path while a study names the bare artifact.
+func TestExecuteTreatsPathBasenameMatchAsNoMismatch(t *testing.T) {
+	spec := groundedSpec()
+	spec.Model.ModelID = "Mistral-7B-Instruct-v0.3.Q4_K_M.gguf"
+	in := writeStudy(t, spec, map[string]string{
+		"scenario.md": "S", "glyph.md": "G", "ground.md": "R",
+	})
+	f := &fakeClient{
+		text:  "reply",
+		props: model.ServerProps{ModelPath: "/models/Mistral-7B-Instruct-v0.3.Q4_K_M.gguf", ModelAlias: "mistral"},
+	}
+	res, err := Execute(context.Background(), in, t.TempDir(), f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.ModelMismatch != "" {
+		t.Errorf("basename match must not read as divergence: %q", res.ModelMismatch)
+	}
+}
+
+// A server that won't describe itself degrades the record; it does not void the
+// run. The rows are real either way, and the silence is recorded rather than
+// filled in with a guess.
+func TestExecuteRecordsReadbackFailureWithoutFailingTheRun(t *testing.T) {
+	in := writeStudy(t, groundedSpec(), map[string]string{
+		"scenario.md": "S", "glyph.md": "G", "ground.md": "R",
+	})
+	f := &fakeClient{text: "reply", propsErr: errors.New("props unreachable")}
+	res, err := Execute(context.Background(), in, t.TempDir(), f)
+	if err != nil {
+		t.Fatalf("a failed readback must not fail the run: %v", err)
+	}
+	if !strings.Contains(res.ServerReadbackError, "props unreachable") {
+		t.Errorf("readback error not recorded: %q", res.ServerReadbackError)
+	}
+	if res.Server.BuildInfo != "" {
+		t.Error("a failed readback must leave the server report empty, not invented")
+	}
+	if len(res.Rows) == 0 {
+		t.Error("rows must survive a failed readback")
+	}
+}
+
+// The complete chain must reach every generation, not just be recorded beside
+// it — recording a sampler the run didn't use is the exact false-confidence the
+// record exists to prevent.
+func TestExecuteSendsFullChainOnEveryGeneration(t *testing.T) {
+	in := writeStudy(t, groundedSpec(), map[string]string{
+		"scenario.md": "S", "glyph.md": "G", "ground.md": "R",
+	})
+	f := &fakeClient{text: "reply"}
+	if _, err := Execute(context.Background(), in, t.TempDir(), f); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.gotParams) == 0 {
+		t.Fatal("no generations recorded")
+	}
+	for i, p := range f.gotParams {
+		for _, c := range []struct {
+			field string
+			isNil bool
+		}{
+			{"temperature", p.Temperature == nil},
+			{"max_tokens", p.MaxTokens == nil},
+			{"top_n_sigma", p.TopNSigma == nil},
+			{"top_k", p.TopK == nil},
+			{"typical_p", p.TypicalP == nil},
+			{"top_p", p.TopP == nil},
+			{"min_p", p.MinP == nil},
+			{"repeat_penalty", p.RepeatPenalty == nil},
+			{"repeat_last_n", p.RepeatLastN == nil},
+			{"presence_penalty", p.PresencePenalty == nil},
+			{"frequency_penalty", p.FrequencyPenalty == nil},
+			{"xtc_probability", p.XTCProbability == nil},
+			{"dry_multiplier", p.DryMultiplier == nil},
+		} {
+			if c.isNil {
+				t.Errorf("generation %d left %s unset — it would inherit the server default", i, c.field)
+			}
+		}
+	}
+}
+
+// The container's own gate against an undeclared chain: repeat_penalty is
+// neutral at 1.0 and has no valid zero, so a zero is the tell that study.json
+// carried no sampler at all.
+func TestValidateRejectsUndeclaredSamplerChain(t *testing.T) {
+	spec := groundedSpec()
+	spec.Sampling.RepeatPenalty = 0
+	in := writeStudy(t, spec, map[string]string{
+		"scenario.md": "S", "glyph.md": "G", "ground.md": "R",
+	})
+	_, err := Execute(context.Background(), in, t.TempDir(), &fakeClient{text: "x"})
+	if err == nil || !strings.Contains(err.Error(), "repeat_penalty") {
+		t.Fatalf("err = %v, want a refusal naming repeat_penalty", err)
+	}
 }
