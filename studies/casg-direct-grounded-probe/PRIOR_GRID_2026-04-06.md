@@ -1,9 +1,15 @@
-# Parity target — casg-direct v3 original results
+# The April 2026 observation — casg-direct v3 grid
 
-The reproduction on the new corpos-lab rig is judged against these original v3 numbers
-(source: `assay-grounded-casg-direct/v3/SCORE_GRID.md`, sha256
-`4136babbe2fe076d8a1848aaada05032872bc6664687d8eb3c7389d023c66006`). The **parity verdict**
-(task `parity-verdict`, 3480) defines its tolerance *before unblinding* the reproduction run.
+**Orientation, not a target.** These are the original v3 numbers (source:
+`assay-grounded-casg-direct/v3/SCORE_GRID.md`, sha256 `4136babb...`), kept because they are
+the observation that made us ask the question — and because glyph_only 0/8 here is one third
+of the 0/24 that is the real finding.
+
+They are **not** something to reproduce. The study recorded no temperature, no sampler and no
+processor, so its conditions are unrecoverable and "reproduce this" is not a well-formed
+request. At n=8 the grounded 7/8 has a 95% CI of [0.53, 0.98] — half the scale — so the
+integer carries no information either. Read the cells and the direction; ignore the counts.
+See README.md for why the parity premise is void.
 
 ## Original v3 score grid (8 runs per cell)
 
@@ -16,10 +22,9 @@ The reproduction on the new corpos-lab rig is judged against these original v3 n
 | claude  | grounded_glyph | —  | —  | —  | —  | —  | —  | —  | —  | not run (cond-2 sufficiency gate met) |
 | mistral | grounded_glyph | C  | Ii | C  | C  | C  | C  | C  | C  | 7/8 |
 
-## The headline parity target
+## The headline observation
 
-**Mistral grounded-glyph lift: 0/8 → 7/8 (lift +7).** This is the effect the new rig must
-reproduce. The v3 verdict was **GLYPH SUFFICIENT (Claude) / GROUND CONFIRMED (Mistral)**.
+**Mistral grounded-glyph lift: 0/8 → 7/8 (lift +7).** The v3 verdict was **GLYPH SUFFICIENT (Claude) / GROUND CONFIRMED (Mistral)**.
 
 Mechanism (for interpretation, not a scoring input): under third-person prepend the glyph read
 as an *analytical rubric* for Mistral → 7/8 Ii (recognition without execution). The ground's
@@ -33,8 +38,9 @@ calibration gate keys on correct-target C, which is why baseline 7/8 did not tri
 
 ## Reproduction scope note
 
-- The v3 Claude cells are **contaminated-subject** data (Claude-family = training-contaminated
-  per CHARTER.md) and are **not** a treatment target on the new rig — kept here only as the
-  original grid. The reproduction's verdict rests on the **Mistral** cells (local open-weight).
-- Original delivery: Mistral via ollama `mistral:latest`, prepend. See study.toml KNOWN DELTA
+- The v3 Claude cells are **contaminated-subject** data (Claude-family = training-contaminated;
+  see INQUIRY.md — that rule survives the charter's retirement, it is methodology not
+  ceremony) and are **not** a treatment condition — kept here only as the original grid. What
+  is worth reading here is the **Mistral** cells (local open-weight).
+- Original delivery: Mistral via ollama `mistral:latest`, prepend — on an unrecorded
   notes for the llama.cpp/quant modernization to resolve in the run task.
