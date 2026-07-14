@@ -12,6 +12,19 @@ last_updated: 2026-07-14
 
 **VERDICT: REPRODUCED** (effect) · **GATE: HOLD** (corpos-lab instrument) — see §5.
 
+> **UPDATE 2026-07-14 — §5's *Path to lifting the hold* is SUPERSEDED by
+> [`CONTAINER_PARITY_VERDICT.md`](CONTAINER_PARITY_VERDICT.md).** The container leg was
+> run and **DIVERGED** (grounded 4/8 vs the ≥6/8 floor); the **hold is MAINTAINED**.
+> Root cause candidate: the sampler was never actually pinned — only temperature/seed
+> were sent, so top_p/min_p/repeat_penalty inherited each runtime's differing defaults
+> (bug `sampling-regime-underspecified-defeats-freeze-by-digest`).
+>
+> **Nothing else in this document changes.** The effect remains REPRODUCED on the
+> positive control, and this verdict's core claim — that the control licenses exactly one
+> statement, *the effect is real*, and none about corpos-lab's fidelity — is what the
+> container leg went on to confirm the hard way. Superseded by pointer, not edited: the
+> §5 text below is left as it stood so the record shows what was believed when.
+
 ---
 
 ## 1. Tolerance — pre-committed, not reconstructed
