@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"corpos-lab/internal/assay"
-	"corpos-lab/internal/battery"
 	"corpos-lab/internal/runner"
 	"corpos-lab/internal/study"
 )
@@ -101,7 +100,7 @@ func (f *fakeLauncher) Launch(_ context.Context, spec LaunchSpec) (LaunchResult,
 			}
 			for i := 0; i < f.rows; i++ {
 				results.Rows = append(results.Rows, assay.ScoreRow{
-					Item: "casg-direct", Condition: assay.Baseline, Run: i + 1, Verdict: battery.Pass(), Rationale: "r",
+					Item: "casg-direct", Condition: assay.Baseline, Run: i + 1, Score: assay.Unscored, Rationale: "r",
 				})
 			}
 			raw, _ = json.MarshalIndent(results, "", "  ")

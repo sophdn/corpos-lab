@@ -13,14 +13,19 @@ import (
 	"io"
 	"net/http"
 
+	"corpos-lab/internal/assay"
 	"corpos-lab/internal/control"
 )
 
 // DefaultToolkitURL is the canonical toolkit HTTP daemon (post-flip).
 const DefaultToolkitURL = "http://localhost:3001"
 
-// scoreRow is the flattened per-condition score the toolkit persists — the
-// controller's nested verdict is flattened to kind/reason here.
+// scoreRow is the flattened per-condition score the toolkit persists. The
+// toolkit's verdict_kind is a free-form cell, so a probe ships its rubric code
+// (or "unscored") there rather than a pass/fail it has no basis to claim.
+// verdict_reason stays empty for probe rows: an unjudged capture has no reason
+// to give, and stuffing the response text into it is what previously disguised
+// unscored runs as failures.
 type scoreRow struct {
 	Item          string `json:"item"`
 	Condition     string `json:"condition"`
@@ -82,12 +87,13 @@ func paramsFrom(run control.StudyRun, responsesDir string) recordParams {
 	if run.Results != nil {
 		for _, r := range run.Results.Rows {
 			p.Rows = append(p.Rows, scoreRow{
-				Item:          r.Item,
-				Condition:     string(r.Condition),
-				Run:           r.Run,
-				VerdictKind:   string(r.Verdict.Kind),
-				VerdictReason: r.Verdict.Reason,
-				Rationale:     r.Rationale,
+				Item:      r.Item,
+				Condition: string(r.Condition),
+				Run:       r.Run,
+				// An empty Score would ship as "" and read as a blank cell;
+				// send the explicit sentinel so the DB says "unscored" out loud.
+				VerdictKind: string(scoreOrUnscored(r.Score)),
+				Rationale:   r.Rationale,
 			})
 		}
 	}
@@ -95,6 +101,16 @@ func paramsFrom(run control.StudyRun, responsesDir string) recordParams {
 		p.MaterialsHashes = map[string]string{}
 	}
 	return p
+}
+
+// scoreOrUnscored maps a probe's rubric code to the wire value, defaulting a
+// zero-value Score to the explicit Unscored sentinel. A row that reached the
+// toolkit as an empty string would be indistinguishable from a dropped field.
+func scoreOrUnscored(s assay.ProbeScore) assay.ProbeScore {
+	if s == "" {
+		return assay.Unscored
+	}
+	return s
 }
 
 // Client posts study runs to the toolkit's MCP HTTP surface.

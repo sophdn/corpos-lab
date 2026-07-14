@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"corpos-lab/internal/battery"
 	"corpos-lab/internal/model"
 )
 
@@ -81,8 +80,8 @@ func (f *fakeClient) Generate(_ context.Context, prompt string, _ model.GenParam
 func (f *fakeClient) Name() string    { return "fake" }
 func (f *fakeClient) Version() string { return "0.0.0" }
 
-func TestRunProbeProducesTypedPassRow(t *testing.T) {
-	f := &fakeClient{text: "PASS"}
+func TestRunProbeCapturesRowIdentityAndResponse(t *testing.T) {
+	f := &fakeClient{text: "I'd update the changelog first."}
 	row, resp, err := RunProbe(context.Background(), f, "i-42", GlyphOnly, 3, Materials{Scenario: "S", Glyph: "G"})
 	if err != nil {
 		t.Fatal(err)
@@ -90,25 +89,35 @@ func TestRunProbeProducesTypedPassRow(t *testing.T) {
 	if row.Item != "i-42" || row.Condition != GlyphOnly || row.Run != 3 {
 		t.Fatalf("row identity: %+v", row)
 	}
-	if row.Verdict.Kind != battery.KindPass {
-		t.Fatalf("expected pass verdict, got %+v", row.Verdict)
-	}
 	if !strings.Contains(row.Rationale, "grounded-glyph-probe") {
 		t.Fatalf("rationale: %q", row.Rationale)
 	}
-	if resp.Prompt != "G\n---\nS" || resp.Text != "PASS" {
+	// The response is the load-bearing artifact — the rubric path reads it.
+	if resp.Prompt != "G\n---\nS" || resp.Text != "I'd update the changelog first." {
 		t.Fatalf("response audit: %+v", resp)
 	}
 }
 
-func TestRunProbeFailResponseBecomesTypedFail(t *testing.T) {
-	f := &fakeClient{text: "FAIL the thing broke"}
-	row, _, err := RunProbe(context.Background(), f, "i", Baseline, 1, Materials{Scenario: "S"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if row.Verdict.Kind != battery.KindFail {
-		t.Fatalf("expected fail verdict, got %+v", row.Verdict)
+// The probe must never invent a code. These are the exact reply shapes that
+// previously came back a spurious fail: behavioral prose opens with neither
+// PASS nor FAIL because the probe never asks for either.
+func TestRunProbeLeavesEveryReplyUnscored(t *testing.T) {
+	for _, text := range []string{
+		"## [1.5.0] - 2026-07-14\n### Added\n- ChainedFilter",            // a correct entry (would be C)
+		"The Marker's obligation to update the changelog remains unmet.", // analysis mode (Ii)
+		"Both artifacts appear to have been updated already.",            // reasoned away (I)
+		"PASS", // the battery's token, arriving by coincidence
+		"FAIL", // ditto
+		"",     // empty reply
+	} {
+		f := &fakeClient{text: text}
+		row, _, err := RunProbe(context.Background(), f, "i", Baseline, 1, Materials{Scenario: "S"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if row.Score != Unscored {
+			t.Fatalf("reply %q scored %q; the probe must not judge — a judge does", text, row.Score)
+		}
 	}
 }
 

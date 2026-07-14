@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"corpos-lab/internal/assay"
-	"corpos-lab/internal/battery"
 	"corpos-lab/internal/control"
 	"corpos-lab/internal/extract"
 	"corpos-lab/internal/manifest"
@@ -32,15 +31,17 @@ func sampleRun() control.StudyRun {
 		Results: &runner.Results{
 			Assay: "grounded-glyph-probe", ItemID: "casg-direct", ModelID: "qwen",
 			Rows: []assay.ScoreRow{
-				{Item: "casg-direct", Condition: assay.Baseline, Run: 1, Verdict: battery.FailItem(1, "no PASS/FAIL"), Rationale: "rat-b"},
-				{Item: "casg-direct", Condition: assay.GroundedGlyph, Run: 1, Verdict: battery.Pass(), Rationale: "rat-g"},
+				// As a container emits them: captured, not yet judged.
+				{Item: "casg-direct", Condition: assay.Baseline, Run: 1, Score: assay.Unscored, Rationale: "rat-b"},
+				// As a judge leaves them once the rubric has been applied.
+				{Item: "casg-direct", Condition: assay.GroundedGlyph, Run: 1, Score: assay.ScoreC, Rationale: "rat-g"},
 			},
 		},
 		Extraction: &extract.Manifest{FinishedAt: "2026-07-09T00:33:10Z"},
 	}
 }
 
-func TestParamsFromFlattensRunAndVerdicts(t *testing.T) {
+func TestParamsFromFlattensRunAndScores(t *testing.T) {
 	p := paramsFrom(sampleRun(), "/out/responses")
 	if p.Name != "casg-direct-v3-smoke" || p.Assay != "grounded-glyph-probe" || p.Status != "completed" {
 		t.Fatalf("parent fields: %+v", p)
@@ -60,11 +61,31 @@ func TestParamsFromFlattensRunAndVerdicts(t *testing.T) {
 	if len(p.Rows) != 2 {
 		t.Fatalf("expected 2 flattened rows, got %d", len(p.Rows))
 	}
-	if p.Rows[0].VerdictKind != "fail" || p.Rows[0].VerdictReason != "no PASS/FAIL" || p.Rows[0].Condition != "baseline" {
+	// An unjudged capture must reach the canonical DB saying so. It previously
+	// shipped as verdict_kind "fail" with the response text as the reason,
+	// which is the defect this asserts against: a run nobody has scored is not
+	// a run that failed.
+	if p.Rows[0].VerdictKind != "unscored" || p.Rows[0].Condition != "baseline" {
 		t.Fatalf("row0 flatten: %+v", p.Rows[0])
 	}
-	if p.Rows[1].VerdictKind != "pass" || p.Rows[1].Condition != "grounded_glyph" {
+	if p.Rows[0].VerdictReason != "" {
+		t.Fatalf("unscored row must carry no failure reason, got %q", p.Rows[0].VerdictReason)
+	}
+	if p.Rows[1].VerdictKind != "C" || p.Rows[1].Condition != "grounded_glyph" {
 		t.Fatalf("row1 flatten: %+v", p.Rows[1])
+	}
+}
+
+func TestParamsFromShipsZeroScoreAsExplicitUnscored(t *testing.T) {
+	// A row whose Score was never set must not reach the toolkit as a blank
+	// cell — blank is indistinguishable from a dropped field.
+	run := sampleRun()
+	run.Results.Rows = []assay.ScoreRow{
+		{Item: "casg-direct", Condition: assay.Baseline, Run: 1, Rationale: "r"},
+	}
+	p := paramsFrom(run, "/out/responses")
+	if p.Rows[0].VerdictKind != "unscored" {
+		t.Fatalf("zero-value score should ship as the explicit sentinel, got %q", p.Rows[0].VerdictKind)
 	}
 }
 

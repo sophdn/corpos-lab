@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 
-	"corpos-lab/internal/battery"
 	"corpos-lab/internal/model"
 )
 
@@ -66,14 +65,45 @@ func AssemblePrompt(cond Condition, m Materials) (string, error) {
 	}
 }
 
-// ScoreRow pairs an evaluated item with its typed verdict and a rationale
-// pointer — the Go analogue of lab-app-types ScoreGridRow.
+// ProbeScore is a grounded-glyph probe rubric code (SCORING_RUBRIC.md). It is
+// deliberately NOT battery.Verdict: the battery asks a model a yes/no question
+// about a glyph entry and reads back PASS/FAIL, whereas a probe presents a
+// behavioral scenario and reads back conduct. The two are different
+// measurements and share no scale.
+//
+// What counts as C is condition-specific — at baseline any execution attempt
+// scores C, while the grounded condition demands a correctly formatted entry —
+// so a code cannot be derived from response text alone. Scoring is deferred to
+// a judge against the rubric; the probe's own job is capture.
+type ProbeScore string
+
+// Probe rubric codes. Unscored is the only value RunProbe ever assigns: it
+// marks a captured-but-unjudged run, and exists so that "nobody has scored
+// this yet" is impossible to confuse with "the agent failed".
+const (
+	// Unscored: response captured, no rubric code assigned yet.
+	Unscored ProbeScore = "unscored"
+	// ScoreC: recognition + correct action.
+	ScoreC ProbeScore = "C"
+	// ScoreIi: recognition, no action.
+	ScoreIi ProbeScore = "Ii"
+	// ScoreIc: recognition, wrong action.
+	ScoreIc ProbeScore = "Ic"
+	// ScoreI: no recognition.
+	ScoreI ProbeScore = "I"
+	// ScoreN: not scoreable (malformed / off-task / harness fault).
+	ScoreN ProbeScore = "N"
+)
+
+// ScoreRow pairs an evaluated item with its rubric code and a rationale
+// pointer — the Go analogue of lab-app-types ScoreGridRow. A row leaves the
+// probe Unscored; a judge fills Score in later.
 type ScoreRow struct {
-	Item      string          `json:"item"`
-	Condition Condition       `json:"condition"`
-	Run       int             `json:"run"`
-	Verdict   battery.Verdict `json:"verdict"`
-	Rationale string          `json:"rationale"`
+	Item      string     `json:"item"`
+	Condition Condition  `json:"condition"`
+	Run       int        `json:"run"`
+	Score     ProbeScore `json:"score"`
+	Rationale string     `json:"rationale"`
 }
 
 // ProbeResponse is the raw model reply for one condition/run, retained for
@@ -109,14 +139,17 @@ func RunProbe(ctx context.Context, m model.Client, itemID string, cond Condition
 		return ScoreRow{}, ProbeResponse{}, fmt.Errorf("assay: %s run %d: %w", cond, run, err)
 	}
 
-	verdict := battery.ParseModelVerdict(resp.Text, 1)
-	rationale := fmt.Sprintf("grounded-glyph-probe:%s:response=%dchars", cond, len(resp.Text))
+	// No verdict is derived from resp.Text. The probe captures; a judge scores
+	// against the rubric. Prefix-matching PASS/FAIL here (as this once did via
+	// battery.ParseModelVerdict) scored every behavioral reply a spurious fail,
+	// because a probe reply is conduct and never opens with either token.
+	rationale := fmt.Sprintf("grounded-glyph-probe:%s:response=%dchars:unscored", cond, len(resp.Text))
 
 	row := ScoreRow{
 		Item:      itemID,
 		Condition: cond,
 		Run:       run,
-		Verdict:   verdict,
+		Score:     Unscored,
 		Rationale: rationale,
 	}
 	response := ProbeResponse{
