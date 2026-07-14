@@ -58,7 +58,14 @@ func groundedSpec() StudySpec {
 		Conditions:  []assay.Condition{assay.Baseline, assay.GlyphOnly, assay.GroundedGlyph},
 		RunsPerCell: 2,
 		Materials:   MaterialsSpec{Scenario: "scenario.md", Glyph: "glyph.md", Ground: "ground.md"},
+		Sampling:    assay.Sampling{Temperature: 0.8, Seeds: []int{1, 2}, MaxTokens: 512},
 	}
+}
+
+// validSampling is a deterministic regime for fixtures whose subject is some
+// other rule, so they fail for the reason they name rather than on sampling.
+func validSampling() assay.Sampling {
+	return assay.Sampling{Temperature: 0, MaxTokens: 512}
 }
 
 func TestExecuteProducesResultsAndResponses(t *testing.T) {
@@ -114,7 +121,7 @@ func TestExecuteIsNotPlaceholder(t *testing.T) {
 	in := writeStudy(t, StudySpec{
 		Assay: SupportedAssay, ItemID: "i", Model: ModelSpec{ModelID: "m"},
 		Conditions: []assay.Condition{assay.Baseline}, RunsPerCell: 1,
-		Materials: MaterialsSpec{Scenario: "scenario.md"},
+		Materials: MaterialsSpec{Scenario: "scenario.md"}, Sampling: validSampling(),
 	}, map[string]string{"scenario.md": "S"})
 	out := t.TempDir()
 
@@ -150,10 +157,10 @@ func TestLoadSpecValidations(t *testing.T) {
 		name string
 		spec StudySpec
 	}{
-		{"missing item_id", StudySpec{Assay: SupportedAssay, Conditions: []assay.Condition{assay.Baseline}, RunsPerCell: 1, Materials: MaterialsSpec{Scenario: "s.md"}}},
-		{"no conditions", StudySpec{Assay: SupportedAssay, ItemID: "i", RunsPerCell: 1, Materials: MaterialsSpec{Scenario: "s.md"}}},
-		{"zero runs", StudySpec{Assay: SupportedAssay, ItemID: "i", Conditions: []assay.Condition{assay.Baseline}, RunsPerCell: 0, Materials: MaterialsSpec{Scenario: "s.md"}}},
-		{"missing scenario", StudySpec{Assay: SupportedAssay, ItemID: "i", Conditions: []assay.Condition{assay.Baseline}, RunsPerCell: 1}},
+		{"missing item_id", StudySpec{Assay: SupportedAssay, Conditions: []assay.Condition{assay.Baseline}, RunsPerCell: 1, Materials: MaterialsSpec{Scenario: "s.md"}, Sampling: validSampling()}},
+		{"no conditions", StudySpec{Assay: SupportedAssay, ItemID: "i", RunsPerCell: 1, Materials: MaterialsSpec{Scenario: "s.md"}, Sampling: validSampling()}},
+		{"zero runs", StudySpec{Assay: SupportedAssay, ItemID: "i", Conditions: []assay.Condition{assay.Baseline}, RunsPerCell: 0, Materials: MaterialsSpec{Scenario: "s.md"}, Sampling: validSampling()}},
+		{"missing scenario", StudySpec{Assay: SupportedAssay, ItemID: "i", Conditions: []assay.Condition{assay.Baseline}, RunsPerCell: 1, Sampling: validSampling()}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -193,7 +200,7 @@ func TestExecuteFailsFastOnProbeError(t *testing.T) {
 	in := writeStudy(t, StudySpec{
 		Assay: SupportedAssay, ItemID: "i", Model: ModelSpec{ModelID: "m"},
 		Conditions: []assay.Condition{assay.Baseline}, RunsPerCell: 3,
-		Materials: MaterialsSpec{Scenario: "scenario.md"},
+		Materials: MaterialsSpec{Scenario: "scenario.md"}, Sampling: validSampling(),
 	}, map[string]string{"scenario.md": "S"})
 	_, err := Execute(context.Background(), in, t.TempDir(), &fakeClient{err: errContext})
 	if err == nil {

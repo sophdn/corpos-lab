@@ -51,6 +51,11 @@ func TestOpenAIGenerateSendsChatCompletionShape(t *testing.T) {
 	if got.MaxTokens == nil || *got.MaxTokens != 256 {
 		t.Fatalf("max_tokens = %v", got.MaxTokens)
 	}
+	// No seed was asked for, so none is sent — omitempty leaves the server's
+	// default alone rather than silently pinning seed 0.
+	if got.Seed != nil {
+		t.Fatalf("seed should be absent when unset, got %v", *got.Seed)
+	}
 	if c.Name() != "qwen2.5-32b" || c.Version() != "q4km-2026" {
 		t.Fatal("identity accessors")
 	}
@@ -155,5 +160,32 @@ func TestTruncateBoundsErrorBodies(t *testing.T) {
 	got := truncate(long, 200)
 	if len([]rune(got)) != 201 || !strings.HasSuffix(got, "…") {
 		t.Fatalf("truncate shape: len %d", len(got))
+	}
+}
+
+// The seed must reach the wire: it is what makes a temperature>0 run
+// reproducible, and a study that declares seeds but never sends them would
+// produce varied-but-unrepeatable grids while appearing correctly pinned.
+func TestGenerateForwardsSeed(t *testing.T) {
+	var got chatRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"ok"}}]}`))
+	}))
+	defer srv.Close()
+
+	c := NewOpenAI(srv.URL+"/v1", "mistral", "v0.3-q4km", WithHTTPClient(srv.Client()))
+	if _, err := c.Generate(context.Background(), "scenario", GenParams{
+		Temperature: Float64(0.8),
+		MaxTokens:   Int(512),
+		Seed:        Int(7),
+	}); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if got.Seed == nil || *got.Seed != 7 {
+		t.Fatalf("seed = %v, want 7", got.Seed)
+	}
+	if got.Temperature == nil || *got.Temperature != 0.8 {
+		t.Fatalf("temperature = %v", got.Temperature)
 	}
 }

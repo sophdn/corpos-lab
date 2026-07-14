@@ -41,7 +41,12 @@ type MaterialsSpec struct {
 
 // StudySpec is the container's /in/study.json — a self-contained description
 // of one assay run: which assay, which item, which model, which conditions,
-// how many replicates, and where the materials are.
+// how many replicates, where the materials are, and how to sample.
+//
+// Sampling rides in this file deliberately: manifest.Compute digests study.json
+// into StudyDigest, so declaring sampling here places it under the freeze
+// automatically. Hardcoding it in Go would leave it pinned only by the runner
+// build, which CHARTER freeze-by-digest does not accept.
 type StudySpec struct {
 	Assay       string            `json:"assay"`
 	ItemID      string            `json:"item_id"`
@@ -49,6 +54,7 @@ type StudySpec struct {
 	Conditions  []assay.Condition `json:"conditions"`
 	RunsPerCell int               `json:"runs_per_cell"`
 	Materials   MaterialsSpec     `json:"materials"`
+	Sampling    assay.Sampling    `json:"sampling"`
 }
 
 // Results is the container's /out/results.json — the scored rows plus the
@@ -91,6 +97,17 @@ func (s StudySpec) validate() error {
 	}
 	if s.Materials.Scenario == "" {
 		return fmt.Errorf("runner: study.json missing materials.scenario")
+	}
+	// Sampling is re-checked container-side, not just host-side: a container
+	// can be launched against any /in, and a spec with no sampling block
+	// unmarshals to a zero value that would silently decode greedily with no
+	// token cap. The executor refuses rather than inventing a regime.
+	if s.Sampling.MaxTokens < 1 {
+		return fmt.Errorf("runner: study.json missing sampling.max_tokens (got %d)", s.Sampling.MaxTokens)
+	}
+	if s.Sampling.Temperature > 0 && len(s.Sampling.Seeds) != s.RunsPerCell {
+		return fmt.Errorf("runner: study.json sampling.seeds has %d entries for %d runs_per_cell — "+
+			"sampled runs need one seed each to reproduce", len(s.Sampling.Seeds), s.RunsPerCell)
 	}
 	return nil
 }
@@ -146,7 +163,7 @@ func Execute(ctx context.Context, inDir, outDir string, client model.Client) (Re
 	rows := []assay.ScoreRow{}
 	for _, cond := range spec.Conditions {
 		for run := 1; run <= spec.RunsPerCell; run++ {
-			row, resp, err := assay.RunProbe(ctx, client, spec.ItemID, cond, run, mats)
+			row, resp, err := assay.RunProbe(ctx, client, spec.ItemID, cond, run, mats, spec.Sampling)
 			if err != nil {
 				return Results{}, err
 			}

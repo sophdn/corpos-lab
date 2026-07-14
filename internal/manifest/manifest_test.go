@@ -19,6 +19,7 @@ func spec() runner.StudySpec {
 		Conditions:  []assay.Condition{assay.Baseline, assay.GlyphOnly, assay.GroundedGlyph},
 		RunsPerCell: 2,
 		Materials:   runner.MaterialsSpec{Scenario: "scenario.md", Glyph: "glyph.md", Ground: "ground.md"},
+		Sampling:    assay.Sampling{Temperature: 0.8, Seeds: []int{1, 2}, MaxTokens: 512},
 	}
 }
 
@@ -62,6 +63,40 @@ func TestComputePinsImageStudyAndMaterials(t *testing.T) {
 	}
 	if m.ModelID != "qwen" || m.ModelVersion != "q4" {
 		t.Fatalf("model identity: %+v", m)
+	}
+}
+
+// CHARTER freeze-by-digest requires sampling params to be pinned per study
+// version. They are — structurally, not by convention: sampling is declared in
+// study.json, and StudyDigest hashes that file, so a sampling edit necessarily
+// moves the digest and invalidates results attached to the old manifest. This
+// test is what stops sampling from silently drifting back out of the freeze
+// (e.g. by someone reintroducing a hardcoded default in Go).
+func TestStudyDigestCoversSamplingParams(t *testing.T) {
+	base := spec()
+	in := writeIn(t, base, map[string]string{"scenario.md": "S", "glyph.md": "G", "ground.md": "GR"})
+	m, err := Compute(in, testImage)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for name, mutate := range map[string]func(s *runner.StudySpec){
+		"temperature": func(s *runner.StudySpec) { s.Sampling.Temperature = 0.7 },
+		"seeds":       func(s *runner.StudySpec) { s.Sampling.Seeds = []int{9, 10} },
+		"max tokens":  func(s *runner.StudySpec) { s.Sampling.MaxTokens = 256 },
+	} {
+		t.Run(name, func(t *testing.T) {
+			changed := spec()
+			mutate(&changed)
+			in2 := writeIn(t, changed, map[string]string{"scenario.md": "S", "glyph.md": "G", "ground.md": "GR"})
+			m2, err := Compute(in2, testImage)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if m2.StudyDigest == m.StudyDigest {
+				t.Fatalf("changing %s left StudyDigest unchanged — sampling is outside the freeze", name)
+			}
+		})
 	}
 }
 
@@ -125,9 +160,13 @@ func TestVerifyRefusesChangedStudyJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Bump runs_per_cell — a study.json edit must invalidate the pin.
+	// Bump runs_per_cell — a study.json edit must invalidate the pin. The seed
+	// sequence grows with it: an 8-run cell with 2 seeds is an invalid spec,
+	// and Compute would reject it before ever reaching the digest comparison
+	// this test is about.
 	changed := spec()
 	changed.RunsPerCell = 8
+	changed.Sampling.Seeds = []int{1, 2, 3, 4, 5, 6, 7, 8}
 	raw, _ := json.Marshal(changed)
 	if err := os.WriteFile(filepath.Join(in, "study.json"), raw, 0o644); err != nil {
 		t.Fatal(err)

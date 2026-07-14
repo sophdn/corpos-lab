@@ -11,6 +11,11 @@ import "context"
 type GenParams struct {
 	Temperature *float64
 	MaxTokens   *int
+	// Seed pins the sampler's RNG for this call. It is what makes a
+	// temperature>0 run reproducible: without it, sampled runs cannot be
+	// re-executed, and with temperature 0 it is irrelevant because decoding
+	// is greedy. Nil leaves the server to pick.
+	Seed *int
 }
 
 // Response is a model's reply to a single prompt.

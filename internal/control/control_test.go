@@ -31,6 +31,11 @@ version = "q4"
 scenario = "scenario.md"
 glyph = "glyph.md"
 ground = "ground.md"
+
+[sampling]
+temperature = 0.8
+seeds = [1]
+max_tokens = 512
 `
 
 func loadTestDef(t *testing.T) study.Def {

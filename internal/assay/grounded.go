@@ -115,26 +115,57 @@ type ProbeResponse struct {
 	Text      string
 }
 
-// probeGenParams pins the grounded-glyph probe sampling: deterministic,
-// 512-token cap (verbatim from the Rust runner).
-func probeGenParams() model.GenParams {
-	return model.GenParams{
-		Temperature: model.Float64(0.0),
-		MaxTokens:   model.Int(512),
+// Sampling is a study's declared sampling regime for the probe. It lives in
+// the study definition rather than in this package because CHARTER
+// freeze-by-digest requires sampling params to be pinned per study version:
+// declared here, they travel inside study.json and fall under the manifest's
+// StudyDigest automatically, instead of being pinned only by the runner build.
+//
+// This is also what makes a graded grid possible. Greedy decoding
+// (temperature 0) returns an identical reply for every replicate, so a cell
+// can only ever score 0/8 or 8/8 — never a graded value like the casg-direct
+// v3 target's 7/8. Run-to-run variation requires sampling; Seeds keep that
+// variation reproducible.
+type Sampling struct {
+	Temperature float64 `json:"temperature"`
+	// Seeds pins one RNG seed per replicate, indexed by 1-based run number.
+	// Empty means deterministic single-shot decoding, which is only coherent
+	// at temperature 0.
+	Seeds     []int `json:"seeds,omitempty"`
+	MaxTokens int   `json:"max_tokens"`
+}
+
+// Deterministic reports whether this regime decodes greedily, in which case
+// every replicate of a cell is identical by construction.
+func (s Sampling) Deterministic() bool { return s.Temperature == 0 }
+
+// GenParamsForRun builds the generation params for a 1-based replicate index,
+// selecting that run's seed from the sequence. A run outside the sequence gets
+// no seed rather than a wrong one — silently reusing seed 1 would make two
+// replicates identical and quietly deflate a cell's variance.
+func (s Sampling) GenParamsForRun(run int) model.GenParams {
+	p := model.GenParams{
+		Temperature: model.Float64(s.Temperature),
+		MaxTokens:   model.Int(s.MaxTokens),
 	}
+	if run >= 1 && run <= len(s.Seeds) {
+		p.Seed = model.Int(s.Seeds[run-1])
+	}
+	return p
 }
 
 // RunProbe assembles the prompt for one condition, calls the model once, and
-// scores the reply. It returns both the scored row and the raw response so
-// the caller can persist the response for audit. run is the 1-based replicate
-// index, recorded on the row and used for the response filename.
-func RunProbe(ctx context.Context, m model.Client, itemID string, cond Condition, run int, mats Materials) (ScoreRow, ProbeResponse, error) {
+// captures the reply. It returns both the row and the raw response so the
+// caller can persist the response for audit. run is the 1-based replicate
+// index: it is recorded on the row, used for the response filename, and
+// selects this run's seed from samp.
+func RunProbe(ctx context.Context, m model.Client, itemID string, cond Condition, run int, mats Materials, samp Sampling) (ScoreRow, ProbeResponse, error) {
 	prompt, err := AssemblePrompt(cond, mats)
 	if err != nil {
 		return ScoreRow{}, ProbeResponse{}, err
 	}
 
-	resp, err := m.Generate(ctx, prompt, probeGenParams())
+	resp, err := m.Generate(ctx, prompt, samp.GenParamsForRun(run))
 	if err != nil {
 		return ScoreRow{}, ProbeResponse{}, fmt.Errorf("assay: %s run %d: %w", cond, run, err)
 	}

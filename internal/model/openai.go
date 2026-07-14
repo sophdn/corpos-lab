@@ -57,6 +57,7 @@ type chatRequest struct {
 	Messages    []chatMessage `json:"messages"`
 	Temperature *float64      `json:"temperature,omitempty"`
 	MaxTokens   *int          `json:"max_tokens,omitempty"`
+	Seed        *int          `json:"seed,omitempty"`
 }
 
 type chatMessage struct {
@@ -78,6 +79,7 @@ func (o *OpenAI) Generate(ctx context.Context, prompt string, params GenParams) 
 		Messages:    []chatMessage{{Role: "user", Content: prompt}},
 		Temperature: params.Temperature,
 		MaxTokens:   params.MaxTokens,
+		Seed:        params.Seed,
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {

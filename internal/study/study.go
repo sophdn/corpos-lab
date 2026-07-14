@@ -32,6 +32,24 @@ type MaterialsDef struct {
 	Ground   string `toml:"ground"`
 }
 
+// SamplingDef is the study's declared sampling regime.
+//
+// Temperature and MaxTokens are pointers so that an OMITTED field is
+// distinguishable from a deliberate zero. This matters concretely: temperature
+// 0.0 is a legitimate choice (deterministic single-shot), so a plain float64
+// would make "I chose greedy decoding" and "I forgot to say" identical — and
+// an unrecorded temperature is precisely the gap being closed here. The
+// casg-direct v3 study.json never recorded its temperature, so the original
+// value is now permanently unknowable and its reproduction carries an
+// inferred-0.8 delta forever.
+type SamplingDef struct {
+	Temperature *float64 `toml:"temperature"`
+	// Seeds pins one RNG seed per replicate; run N uses Seeds[N-1]. Required
+	// whenever temperature > 0, so sampled runs stay reproducible.
+	Seeds     []int `toml:"seeds"`
+	MaxTokens *int  `toml:"max_tokens"`
+}
+
 // Def is a complete, self-contained study definition. A study is reproducible
 // from this file alone (plus the pinned image) — no agent in the loop.
 type Def struct {
@@ -44,6 +62,7 @@ type Def struct {
 	Conditions  []string     `toml:"conditions"`
 	RunsPerCell int          `toml:"runs_per_cell"`
 	Materials   MaterialsDef `toml:"materials"`
+	Sampling    SamplingDef  `toml:"sampling"`
 
 	// baseDir is the directory of the definition file, used to resolve
 	// relative material paths. Not part of the wire format.
@@ -88,6 +107,9 @@ func (d Def) validate() error {
 	if d.RunsPerCell < 1 {
 		return fmt.Errorf("study: runs_per_cell must be >= 1, got %d", d.RunsPerCell)
 	}
+	if err := d.validateSampling(); err != nil {
+		return err
+	}
 	for _, c := range d.Conditions {
 		cond := assay.Condition(c)
 		switch cond {
@@ -108,6 +130,67 @@ func (d Def) validate() error {
 		}
 	}
 	return nil
+}
+
+// validateSampling enforces that a study SAYS what it sampled. Every rule here
+// refuses a silent default: an unrecorded sampling regime is unreproducible,
+// and a result that cannot reproduce its manifest is an anecdote, not data
+// (CHARTER freeze-by-digest).
+func (d Def) validateSampling() error {
+	s := d.Sampling
+	if s.Temperature == nil {
+		return fmt.Errorf("study: sampling.temperature must be declared explicitly " +
+			"(0.0 for deterministic decoding) — an unrecorded temperature is unreproducible")
+	}
+	if *s.Temperature < 0 {
+		return fmt.Errorf("study: sampling.temperature must be >= 0, got %v", *s.Temperature)
+	}
+	if s.MaxTokens == nil {
+		return fmt.Errorf("study: sampling.max_tokens must be declared explicitly")
+	}
+	if *s.MaxTokens < 1 {
+		return fmt.Errorf("study: sampling.max_tokens must be >= 1, got %d", *s.MaxTokens)
+	}
+
+	// Above greedy, replicates only differ if the sampler is seeded — and they
+	// only REPRODUCE if the seeds are written down. Requiring one seed per
+	// replicate is what buys reproducible-but-varied runs, the property greedy
+	// decoding cannot offer at any seed.
+	if *s.Temperature > 0 {
+		if len(s.Seeds) != d.RunsPerCell {
+			return fmt.Errorf("study: sampling.seeds must list exactly one seed per replicate "+
+				"(runs_per_cell = %d, got %d) — sampled runs are only reproducible when seeded",
+				d.RunsPerCell, len(s.Seeds))
+		}
+		seen := map[int]bool{}
+		for _, seed := range s.Seeds {
+			if seen[seed] {
+				return fmt.Errorf("study: sampling.seeds repeats seed %d — "+
+					"duplicate seeds make replicates identical and deflate the cell's variance", seed)
+			}
+			seen[seed] = true
+		}
+		return nil
+	}
+
+	// Deterministic mode stays available, but it must be chosen, not inherited.
+	// Seeds are meaningless under greedy decoding, so accepting them here would
+	// imply a variation the run cannot deliver.
+	if len(s.Seeds) > 0 {
+		return fmt.Errorf("study: sampling.seeds is set but temperature is 0 — " +
+			"greedy decoding ignores seeds and returns an identical reply per replicate; " +
+			"either raise the temperature or drop the seeds")
+	}
+	return nil
+}
+
+// sampling returns the definition's sampling regime as the typed assay value.
+func (d Def) sampling() assay.Sampling {
+	return assay.Sampling{
+		Temperature: *d.Sampling.Temperature,
+		Seeds:       d.Sampling.Seeds,
+		MaxTokens:   *d.Sampling.MaxTokens,
+	}
 }
 
 // conditions returns the definition's conditions as typed assay.Condition.
@@ -156,6 +239,7 @@ func (d Def) Materialize(inDir string) error {
 		Conditions:  d.conditions(),
 		RunsPerCell: d.RunsPerCell,
 		Materials:   mats,
+		Sampling:    d.sampling(),
 	}
 	raw, err := json.MarshalIndent(spec, "", "  ")
 	if err != nil {

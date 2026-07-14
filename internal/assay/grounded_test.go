@@ -63,15 +63,23 @@ func TestAssemblePromptRejectsUnknownCondition(t *testing.T) {
 	}
 }
 
+// testSampling is a sampled (non-greedy) regime with one seed per replicate —
+// the shape a real graded study declares.
+func testSampling() Sampling {
+	return Sampling{Temperature: 0.8, Seeds: []int{11, 22, 33}, MaxTokens: 512}
+}
+
 // Fake client for scoring/run tests.
 type fakeClient struct {
 	text    string
 	err     error
 	prompts []string
+	params  []model.GenParams
 }
 
-func (f *fakeClient) Generate(_ context.Context, prompt string, _ model.GenParams) (model.Response, error) {
+func (f *fakeClient) Generate(_ context.Context, prompt string, p model.GenParams) (model.Response, error) {
 	f.prompts = append(f.prompts, prompt)
+	f.params = append(f.params, p)
 	if f.err != nil {
 		return model.Response{}, f.err
 	}
@@ -82,7 +90,7 @@ func (f *fakeClient) Version() string { return "0.0.0" }
 
 func TestRunProbeCapturesRowIdentityAndResponse(t *testing.T) {
 	f := &fakeClient{text: "I'd update the changelog first."}
-	row, resp, err := RunProbe(context.Background(), f, "i-42", GlyphOnly, 3, Materials{Scenario: "S", Glyph: "G"})
+	row, resp, err := RunProbe(context.Background(), f, "i-42", GlyphOnly, 3, Materials{Scenario: "S", Glyph: "G"}, testSampling())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +119,7 @@ func TestRunProbeLeavesEveryReplyUnscored(t *testing.T) {
 		"",     // empty reply
 	} {
 		f := &fakeClient{text: text}
-		row, _, err := RunProbe(context.Background(), f, "i", Baseline, 1, Materials{Scenario: "S"})
+		row, _, err := RunProbe(context.Background(), f, "i", Baseline, 1, Materials{Scenario: "S"}, testSampling())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -123,7 +131,7 @@ func TestRunProbeLeavesEveryReplyUnscored(t *testing.T) {
 
 func TestRunProbeSurfacesModelError(t *testing.T) {
 	f := &fakeClient{err: errors.New("timeout")}
-	_, _, err := RunProbe(context.Background(), f, "i", Baseline, 2, Materials{Scenario: "S"})
+	_, _, err := RunProbe(context.Background(), f, "i", Baseline, 2, Materials{Scenario: "S"}, testSampling())
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -134,7 +142,7 @@ func TestRunProbeSurfacesModelError(t *testing.T) {
 
 func TestRunProbeSurfacesAssemblyError(t *testing.T) {
 	f := &fakeClient{text: "PASS"}
-	_, _, err := RunProbe(context.Background(), f, "i", GlyphOnly, 1, Materials{Scenario: "S"})
+	_, _, err := RunProbe(context.Background(), f, "i", GlyphOnly, 1, Materials{Scenario: "S"}, testSampling())
 	if err == nil {
 		t.Fatal("expected assembly error for missing glyph")
 	}
@@ -143,12 +151,61 @@ func TestRunProbeSurfacesAssemblyError(t *testing.T) {
 	}
 }
 
-func TestProbeGenParamsPinDeterministicSampling(t *testing.T) {
-	p := probeGenParams()
-	if p.Temperature == nil || *p.Temperature != 0.0 {
+func TestRunProbeAppliesTheStudysSamplingRegime(t *testing.T) {
+	f := &fakeClient{text: "reply"}
+	if _, _, err := RunProbe(context.Background(), f, "i", Baseline, 2,
+		Materials{Scenario: "S"}, testSampling()); err != nil {
+		t.Fatal(err)
+	}
+	got := f.params[0]
+	if got.Temperature == nil || *got.Temperature != 0.8 {
+		t.Fatalf("temperature not taken from the study: %v", got.Temperature)
+	}
+	if got.MaxTokens == nil || *got.MaxTokens != 512 {
+		t.Fatalf("max tokens: %v", got.MaxTokens)
+	}
+	// Run 2 must draw the SECOND seed. Off-by-one here would silently pair two
+	// replicates to one seed and deflate the cell's variance.
+	if got.Seed == nil || *got.Seed != 22 {
+		t.Fatalf("run 2 should use seed 22, got %v", got.Seed)
+	}
+}
+
+// Each replicate draws its own seed — the property that makes a graded grid
+// reproducible rather than merely random.
+func TestGenParamsForRunSelectsSeedByRunIndex(t *testing.T) {
+	s := testSampling()
+	for run, want := range map[int]int{1: 11, 2: 22, 3: 33} {
+		if got := s.GenParamsForRun(run); got.Seed == nil || *got.Seed != want {
+			t.Fatalf("run %d: seed = %v, want %d", run, got.Seed, want)
+		}
+	}
+}
+
+func TestGenParamsForRunOutsideSeedSequenceGetsNoSeed(t *testing.T) {
+	s := testSampling() // 3 seeds
+	// Better an unseeded run than a wrongly-seeded one: reusing seed 1 would
+	// duplicate an existing replicate while appearing to be a fresh sample.
+	for _, run := range []int{0, 4, 99} {
+		if got := s.GenParamsForRun(run); got.Seed != nil {
+			t.Fatalf("run %d: expected no seed, got %v", run, *got.Seed)
+		}
+	}
+}
+
+func TestDeterministicSamplingIsGreedyAndUnseeded(t *testing.T) {
+	s := Sampling{Temperature: 0, MaxTokens: 256}
+	if !s.Deterministic() {
+		t.Fatal("temperature 0 must report deterministic")
+	}
+	p := s.GenParamsForRun(1)
+	if p.Temperature == nil || *p.Temperature != 0 {
 		t.Fatalf("temperature: %v", p.Temperature)
 	}
-	if p.MaxTokens == nil || *p.MaxTokens != 512 {
-		t.Fatalf("max tokens: %v", p.MaxTokens)
+	if p.Seed != nil {
+		t.Fatalf("greedy decoding needs no seed, got %v", *p.Seed)
+	}
+	if testSampling().Deterministic() {
+		t.Fatal("temperature 0.8 must not report deterministic")
 	}
 }
