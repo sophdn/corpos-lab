@@ -38,6 +38,23 @@ gates sharing), FIELD_NOTES.md (verified field positioning).
   toolkit-server.
 - **Claude-family models are never a treatment condition** (contaminated subjects — CHARTER.md).
   Local shelf only for treatment arms; see FIELD_NOTES.md §strand-5 for the verified shelf.
+- **ONE local inference portal: llama.cpp (`llama-server` :8081).** Never install, start, or
+  reach for a second inference server — not Ollama, LM Studio, vLLM, or anything else. Not as
+  a fallback, not "just for this run", not because a model is already pulled there, **and not
+  because the GPU is currently busy**. To run a different model, *swap the model on
+  llama-server* (`systemctl --user stop llama-server-container` → run your model → `start` to
+  restore). Measured: 4s to load Mistral-7B, 3s to restore Qwen-32B. A busy GPU is not a
+  reason to route around the portal.
+  **This invariant is written in blood.** On 2026-07-13 an agent needed Mistral, found the GPU
+  busy and the Mistral GGUF missing, and used a retired-but-still-running Ollama daemon. It
+  silently ran on **CPU** (5.1 tok/s vs ~60-100 on GPU) — undocumented — and was written up as
+  a *"positive control on the ORIGINAL v3 runtime"*: a respectable-sounding sentence describing
+  what was really "the only thing already running". The next session then froze Ollama-derived
+  provenance into a study MANIFEST, compared llama.cpp-on-GPU against Ollama-on-CPU, declared
+  **llama.cpp** the divergence, and proposed making Ollama's arbitrary sampler defaults
+  canonical. Ollama was uninstalled 2026-07-14. If you catch yourself writing a principled
+  reason for using a non-standard runtime, that sentence is the tell — you picked the
+  frictionless path and reasoned afterward. See memory `one-local-inference-portal-llama-cpp`.
 
 ## Study discipline
 
@@ -55,7 +72,11 @@ battery runner, assay model, controller client, persistence.
 
 - **toolkit-server** HTTP daemon at `http://localhost:3001` (surfaces: work / knowledge / fs /
   measure / ml / admin).
-- **Local model:** llama.cpp server at `http://localhost:8081/v1` (OpenAI-compatible).
+- **Local model:** llama.cpp server at `http://localhost:8081/v1` (OpenAI-compatible) — the
+  **only** local inference portal (see Invariants). Containerized as the quadlet
+  `llama-server-container`, reachable on `corpos-net` by DNS as `llama-server:8081`. GGUFs live
+  under `/mnt/data1/models`, bind-mounted read-only at `/models`. Default model is Qwen2.5-32B;
+  swap it by restarting the unit with a different `--model`, never by starting a second server.
 
 ## Git
 
