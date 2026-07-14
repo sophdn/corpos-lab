@@ -164,24 +164,20 @@ func (podmanLauncher) Launch(ctx context.Context, spec control.LaunchSpec) (cont
 	if err := os.MkdirAll(spec.OutDir, 0o755); err != nil {
 		return control.LaunchResult{}, fmt.Errorf("corpos-lab: create out dir: %w", err)
 	}
-	// --userns=keep-id maps the host user into the container; --user then runs
-	// the process as that mapped uid/gid so it can write the host-owned /out
-	// bind mount. Without --user the image's nonroot uid (65532) maps to an
-	// unprivileged subuid that cannot write the host dir.
-	userArg := fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid())
-	argv := []string{
-		"run", "--rm", "--userns=keep-id", "--user", userArg,
-		"--network", spec.Network,
-		"-v", spec.InDir + ":/in:ro,Z",
-		"-v", spec.OutDir + ":/out:Z",
-		spec.Image, "run",
+	// Argv assembly lives in control.PodmanArgs, not here: cmd/ has no tests and
+	// the gate's coverage floor scopes to ./internal/..., so an inline argv was
+	// the one translation in the tree with nowhere to assert on it. This
+	// launcher keeps only the exec concern.
+	argv, err := control.PodmanArgs(spec)
+	if err != nil {
+		return control.LaunchResult{}, err
 	}
 	cmd := exec.CommandContext(ctx, "podman", argv...)
 	var stderr bytes.Buffer
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = &stderr
 
-	err := cmd.Run()
+	err = cmd.Run()
 	if err == nil {
 		return control.LaunchResult{ExitCode: 0}, nil
 	}

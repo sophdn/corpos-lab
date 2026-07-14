@@ -45,6 +45,86 @@ type Launcher interface {
 	Launch(ctx context.Context, spec LaunchSpec) (LaunchResult, error)
 }
 
+// PodmanArgs assembles the argv for one disposable assay container.
+//
+// It lives here, next to LaunchSpec, rather than inside the production launcher
+// in cmd/corpos-lab — because that is the one place in the tree that is both
+// untested by convention (cmd/ has no test files) and unmeasured by the gate
+// (the coverage floor scopes to ./internal/...). Argv assembly was inline in
+// the exec call, so the only translation from LaunchSpec to a podman command
+// line had no seam to test at. It shipped a total denial of the container path.
+//
+// THE BUG THIS EXISTS TO PREVENT: podman's -v distinguishes a BIND MOUNT from a
+// NAMED VOLUME by whether the source starts with '/' or '.'. A bare relative
+// path like `studies/x/runs/y/out` is parsed as a named-volume NAME, fails
+// podman's volume-name charset check on the '/', and the container exits 125
+// before the assay starts. The documented invocation
+//
+//	corpos-lab run-study studies/<x>/study.toml
+//
+// derives a relative workDir and hit this with no unusual flags — it was the
+// default happy path from the repo root. It survived the gate because
+// control_test's fakeLauncher never shells out and t.TempDir() is always
+// absolute: the sans-IO seam that makes the controller testable is exactly what
+// hid it, since the bug lived in the one adapter the seam replaces.
+//
+// So mount sources are absolutized here, and a source that cannot be made
+// absolute is refused with a corpos-lab error rather than being handed to
+// podman to fail as a volume-name charset complaint.
+func PodmanArgs(spec LaunchSpec) ([]string, error) {
+	if spec.Image == "" {
+		return nil, fmt.Errorf("control: launch spec has no image")
+	}
+	inDir, err := absMount(spec.InDir, "in")
+	if err != nil {
+		return nil, err
+	}
+	outDir, err := absMount(spec.OutDir, "out")
+	if err != nil {
+		return nil, err
+	}
+
+	// --userns=keep-id maps the host user into the container; --user then runs
+	// the process as that mapped uid/gid so it can write the host-owned /out
+	// bind mount. Without --user the image's nonroot uid (65532) maps to an
+	// unprivileged subuid that cannot write the host dir.
+	userArg := fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid())
+	argv := []string{
+		"run", "--rm", "--userns=keep-id", "--user", userArg,
+	}
+	// An empty network would emit a bare "--network" and swallow the image as
+	// its value, producing a baffling podman error instead of ours.
+	if spec.Network != "" {
+		argv = append(argv, "--network", spec.Network)
+	}
+	return append(argv,
+		"-v", inDir+":/in:ro,Z",
+		"-v", outDir+":/out:Z",
+		spec.Image, "run",
+	), nil
+}
+
+// absMount resolves a bind-mount source to an absolute path, refusing an empty
+// one. name is the mount's role, for the error message.
+func absMount(dir, name string) (string, error) {
+	if dir == "" {
+		return "", fmt.Errorf("control: launch spec has no %s dir", name)
+	}
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return "", fmt.Errorf("control: resolve %s dir %q to an absolute path: %w", name, dir, err)
+	}
+	// Belt and braces: filepath.Abs only fails when the working directory is
+	// unreadable, so this should be unreachable. It is here because the failure
+	// it guards against is silent at this layer and lands as podman exit 125
+	// two layers away.
+	if !filepath.IsAbs(abs) {
+		return "", fmt.Errorf("control: %s dir %q did not resolve to an absolute path (got %q) — "+
+			"podman would read a relative mount source as a named volume, not a bind mount", name, dir, abs)
+	}
+	return abs, nil
+}
+
 // DigestReader returns the content digest of an image ref (podman-backed in
 // production; injected in tests).
 type DigestReader func(ctx context.Context, ref string) (string, error)
