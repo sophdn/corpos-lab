@@ -1,31 +1,47 @@
-// Package manifest implements the freeze-by-digest rule for containerized
-// assays (CHARTER.md): a study run is pinned to exact content digests of its
-// executor-visible inputs — the assay image and every material file — and any
-// divergence at verify time is a hard refusal, not a warning. A result whose
-// manifest cannot be reproduced is an anecdote, not data.
+// Package manifest records the content digests of a run's inputs — the assay
+// image, study.json, and every material file — so a run record says exactly
+// what was fed in.
+//
+// It RECORDS; it does not enforce. The verify-or-refuse arm (Verify,
+// MismatchError) was deleted 2026-07-14 along with the freeze-by-digest rule it
+// served (INQUIRY.md §What changed the method). That arm was never called on the
+// run path anyway — control.RunStudy only ever called Compute — so the freeze
+// had the authority of a mechanism with none of the checking.
+//
+// The deeper reason it went: these digests cover the STIMULUS (scenario, glyph,
+// ground, rubric) which by design never changes. The variables that actually
+// moved between runs — temperature, the sampler, and the processor — were not
+// captured here at all. Pinning the stimulus and refusing on its drift protected
+// nothing while certifying results as frozen. What replaces it is observation:
+// capture the effective config the server actually used, and the substrate.
+//
+// A digest that differs from a prior run is information about the two runs. It
+// is not grounds for refusing to run.
 package manifest
 
 import (
 	"fmt"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"corpos-lab/internal/digest"
 	"corpos-lab/internal/runner"
 )
 
 // ImagePin identifies an assay image by immutable content digest. The ref is
-// recorded for humans; the digest is what verification compares — tags are
-// mutable and never trusted.
+// recorded for humans; the digest is what identifies the bytes that ran — tags
+// are mutable and say nothing about content.
 type ImagePin struct {
 	Ref    string `json:"ref"`
 	Digest string `json:"digest"`
 }
 
-// RunManifest pins every executor-visible input of one assay run: the image,
-// study.json, and each material file, plus the model identity. It is written
-// beside the study record at pin time and re-checked before every launch.
+// RunManifest records the content digests of one assay run's inputs: the image,
+// study.json, and each material file, plus the model identity. It is captured at
+// launch and stored with the run.
+//
+// It is a record of what was fed in, not a promise about what may run. Nothing
+// re-checks it; nothing refuses on a mismatch.
 type RunManifest struct {
 	Assay        string            `json:"assay"`
 	Image        ImagePin          `json:"image"`
@@ -35,8 +51,8 @@ type RunManifest struct {
 	ModelVersion string            `json:"model_version"`
 }
 
-// Compute builds the manifest for the study laid out in inDir, pinning it to
-// image. It hashes study.json and every material file the spec names.
+// Compute captures the input digests for the study laid out in inDir under the
+// image it ran with. It hashes study.json and every material file the spec names.
 func Compute(inDir string, image ImagePin) (RunManifest, error) {
 	spec, err := runner.LoadSpec(inDir)
 	if err != nil {
@@ -78,86 +94,4 @@ func namedMaterials(spec runner.StudySpec) []string {
 	}
 	sort.Strings(names)
 	return names
-}
-
-// MismatchError is the hard-refusal error Verify returns when the live inputs
-// diverge from the pinned manifest. It lists every divergence so an operator
-// sees the full picture, not just the first.
-type MismatchError struct {
-	Divergences []string
-}
-
-func (e *MismatchError) Error() string {
-	return fmt.Sprintf("manifest: verification FAILED — %d divergence(s) from pinned manifest:\n  - %s",
-		len(e.Divergences), strings.Join(e.Divergences, "\n  - "))
-}
-
-// Verify recomputes the manifest for inDir under the actually-observed image
-// digest and compares it field-by-field against pinned. Any divergence —
-// image digest, study.json content, a material's content, an added or removed
-// material — is collected into a MismatchError. A nil return means the run is
-// faithful to what was pinned and may proceed.
-func Verify(inDir string, actualImage ImagePin, pinned RunManifest) error {
-	current, err := Compute(inDir, actualImage)
-	if err != nil {
-		return err
-	}
-
-	var divergences []string
-
-	if pinned.Image.Digest != current.Image.Digest {
-		divergences = append(divergences, fmt.Sprintf(
-			"image digest: pinned %s, got %s", short(pinned.Image.Digest), short(current.Image.Digest)))
-	}
-	if pinned.Assay != current.Assay {
-		divergences = append(divergences, fmt.Sprintf(
-			"assay: pinned %q, got %q", pinned.Assay, current.Assay))
-	}
-	if pinned.StudyDigest != current.StudyDigest {
-		divergences = append(divergences, fmt.Sprintf(
-			"study.json digest: pinned %s, got %s", short(pinned.StudyDigest), short(current.StudyDigest)))
-	}
-	if pinned.ModelID != current.ModelID {
-		divergences = append(divergences, fmt.Sprintf(
-			"model_id: pinned %q, got %q", pinned.ModelID, current.ModelID))
-	}
-	if pinned.ModelVersion != current.ModelVersion {
-		divergences = append(divergences, fmt.Sprintf(
-			"model_version: pinned %q, got %q", pinned.ModelVersion, current.ModelVersion))
-	}
-	divergences = append(divergences, diffMaterials(pinned.Materials, current.Materials)...)
-
-	if len(divergences) > 0 {
-		sort.Strings(divergences)
-		return &MismatchError{Divergences: divergences}
-	}
-	return nil
-}
-
-// diffMaterials reports every material that was added, removed, or changed
-// between the pinned and current manifests.
-func diffMaterials(pinned, current map[string]string) []string {
-	var out []string
-	for name, pd := range pinned {
-		cd, ok := current[name]
-		switch {
-		case !ok:
-			out = append(out, fmt.Sprintf("material %q: pinned but missing from run", name))
-		case pd != cd:
-			out = append(out, fmt.Sprintf("material %q content: pinned %s, got %s", name, short(pd), short(cd)))
-		}
-	}
-	for name := range current {
-		if _, ok := pinned[name]; !ok {
-			out = append(out, fmt.Sprintf("material %q: present in run but not pinned", name))
-		}
-	}
-	return out
-}
-
-func short(sha string) string {
-	if len(sha) <= 12 {
-		return sha
-	}
-	return sha[:12]
 }
