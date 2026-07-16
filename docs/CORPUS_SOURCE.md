@@ -47,5 +47,10 @@ a `casg-direct` study def sits in a working dir with `scenario.md` / `glyph.md` 
 copied from `~/dev/lab-app/corpus/studies/assay-grounded-casg-direct/v3/`.
 
 The corpus is never bind-mounted into a container; only the materialized `/in` is. This keeps
-the disposability contract clean and the freeze-by-digest manifest pinned to exactly the
+the disposability contract clean and the recorded content manifest pinned to exactly the
 material bytes a run used.
+
+> **Note (2026-07-15):** *freeze-by-digest* was retired 2026-07-14 and its verify arm deleted.
+> The manifest is still **computed and recorded** — it tells you what ran — but it is never
+> enforced: a digest that doesn't match a prior run is information about the two runs, not
+> grounds for refusing to run. See [INQUIRY.md](../INQUIRY.md) §How we measure.

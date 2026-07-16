@@ -52,8 +52,11 @@ Under the hood, per run:
 
 1. **Materialize** — derive the container `/in` (study.json + copied materials)
    from the definition.
-2. **Pin** — read the image content digest (podman) and compute the
-   freeze-by-digest manifest over image + study.json + every material.
+2. **Pin** — read the image content digest (podman) and compute the content
+   manifest over image + study.json + every material. **Recorded, never
+   enforced** — freeze-by-digest was retired 2026-07-14 and the verify arm
+   deleted, so a digest that doesn't match a prior run is information about the
+   two runs, not grounds for refusing to run. See INQUIRY.md §How we measure.
 3. **Launch** — one disposable container:
 
    ```
