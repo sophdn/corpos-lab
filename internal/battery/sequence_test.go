@@ -42,6 +42,28 @@ func (f *fakeClient) Props(_ context.Context) (model.ServerProps, error) {
 	return model.ServerProps{}, nil
 }
 
+// fakeProfiles is the in-memory ProfileReader for battery tests: docs maps a
+// resolved path to its content; err, when set, is returned for every read
+// (the unreadable-referent case). seen records the paths asked for, so a test
+// can assert the step resolved the reference relative to the entry file.
+type fakeProfiles struct {
+	docs map[string]string
+	err  error
+	seen []string
+}
+
+func (f *fakeProfiles) ReadProfile(path string) (string, error) {
+	f.seen = append(f.seen, path)
+	if f.err != nil {
+		return "", f.err
+	}
+	doc, ok := f.docs[path]
+	if !ok {
+		return "", errors.New("no such profile: " + path)
+	}
+	return doc, nil
+}
+
 func testInput() Input {
 	return Input{
 		ItemID:  "test-item",

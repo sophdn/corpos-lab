@@ -14,4 +14,4 @@
 
 **Rest axis:** Territory where the companion artifact does not exist, or where the obligation to update it is explicitly delegated to another role by protocol. The decision class does not fire.
 
-**Fallout profile:** See FALLOUT_test-known-pass.md
+**Fallout profile:** FALLOUT_test-known-pass.md

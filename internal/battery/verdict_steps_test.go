@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"corpos-lab/internal/model"
 )
 
 // Characterization tests ported from steps/battery/verdict_steps.rs
@@ -141,6 +143,79 @@ func TestItem9ReturnsErrorOnModelFailure(t *testing.T) {
 	}
 	if !strings.Contains(out.Message, "Item 9: model error:") {
 		t.Fatalf("got %q", out.Message)
+	}
+}
+
+// labelledCalibrationEntry is an entry whose structural fields are otherwise
+// project-agnostic, with its ONLY project-specific vocabulary ("parent
+// initiative document") sitting inside a violation-signal calibration instance
+// labelled "recognition illustration — does not define scope". The 2026-04-23
+// ruling voided the reading that such a label exempts the instance from
+// Sub-check A: this entry must be assessed FAIL, not PASS.
+const labelledCalibrationEntry = "**Y — Decision terrain**\n" +
+	"The agent closes an operation while a dependent state check remains undone.\n" +
+	"**Violation signal:** the dependent state is never verified before close.\n" +
+	"Calibration instance (recognition illustration — does not define scope): " +
+	"the agent proceeds without the parent initiative document loaded.\n"
+
+// calibrationVocabSentinel appears in labelledCalibrationEntry only inside the
+// labelled calibration instance.
+const calibrationVocabSentinel = "parent initiative document"
+
+// rulingOperativePhrase is the load-bearing sentence the repaired prompt must
+// carry; if it is dropped the runner reverts to the interpretation the ruling
+// voided.
+const rulingOperativePhrase = "does not exempt the instance from this scan"
+
+// rulingAwareClient stands in for a model that applies Sub-check A exactly as
+// far as the prompt instructs. It fails an entry carrying project-specific
+// vocabulary inside a labelled calibration instance only when the prompt tells
+// it such labels grant no exemption — so if the ruling sentence is removed from
+// the prompt it reverts to PASS, flipping the FAIL assertion below.
+type rulingAwareClient struct{ prompts []string }
+
+func (c *rulingAwareClient) Generate(_ context.Context, prompt string, _ model.GenParams) (model.Response, error) {
+	c.prompts = append(c.prompts, prompt)
+	rulingPresent := strings.Contains(prompt, rulingOperativePhrase)
+	entryHasCalibrationVocab := strings.Contains(prompt, calibrationVocabSentinel)
+	if rulingPresent && entryHasCalibrationVocab {
+		return model.Response{Text: "FAIL project-specific vocabulary in a labelled calibration instance"}, nil
+	}
+	return model.Response{Text: "PASS"}, nil
+}
+
+func (c *rulingAwareClient) Name() string    { return "ruling-aware-fake" }
+func (c *rulingAwareClient) Version() string { return "0.0.0" }
+func (c *rulingAwareClient) Props(_ context.Context) (model.ServerProps, error) {
+	return model.ServerProps{}, nil
+}
+
+func TestItem9PromptCarriesCalibrationInstanceRuling(t *testing.T) {
+	f := &fakeClient{text: "PASS"}
+	st := &State{Content: labelledCalibrationEntry, Model: f}
+	Item9Universality(context.Background(), st)
+	if len(f.prompts) != 1 {
+		t.Fatalf("expected one prompt, got %d", len(f.prompts))
+	}
+	prompt := f.prompts[0]
+	if !strings.Contains(prompt, calibrationVocabSentinel) {
+		t.Fatal("prompt should embed the entry under evaluation")
+	}
+	for _, want := range []string{"recognition illustration", rulingOperativePhrase, "still a FAIL"} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("prompt should carry the 2026-04-23 ruling; missing %q", want)
+		}
+	}
+}
+
+func TestItem9AssessesLabelledCalibrationInstanceAsFail(t *testing.T) {
+	st := &State{Content: labelledCalibrationEntry, Model: &rulingAwareClient{}}
+	out := Item9Universality(context.Background(), st)
+	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindFail {
+		t.Fatalf("labelled calibration instance must be assessed FAIL, got %+v", out)
+	}
+	if out.Verdict.Item == nil || *out.Verdict.Item != 9 {
+		t.Fatalf("expected item 9, got %v", out.Verdict.Item)
 	}
 }
 

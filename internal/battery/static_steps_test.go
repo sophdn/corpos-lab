@@ -117,20 +117,142 @@ func TestItem10FailsMissingAxes(t *testing.T) {
 	}
 }
 
-func TestItem15PassesWithField(t *testing.T) {
-	out := Item15FalloutProfile(context.Background(), staticState("Entry text.\n\n**Fallout profile:** See FALLOUT_casg-direct.md"))
-	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindPass {
-		t.Fatalf("expected pass, got %+v", out)
-	}
-}
+// Item 15 fallout-profile fixtures. Both heading forms the restored profiles
+// use; the missing-suppression fixture carries the full five-item definition
+// preamble but omits the Suppression *section heading*, so it proves the check
+// keys on headings rather than the vacuous substring the preamble would
+// satisfy. The entry references the profile by the relative path the real
+// candidate files use.
+const (
+	entryWithFallout = "Entry text.\n\n" +
+		"**Fallout profile:** ../fallout-profiles/TASK_fallout-x.md\n"
+	falloutRef = "../fallout-profiles/TASK_fallout-x.md"
 
-func TestItem15FailsWithoutField(t *testing.T) {
-	out := Item15FalloutProfile(context.Background(), staticState("Entry text with no fallout field."))
+	completeBoldProfile = "## Analysis\n" +
+		"**Attentional shift.** primes scanning.\n" +
+		"**Over-application.** could misfire.\n" +
+		"**Meta-awareness effects.** frames done as co-presence.\n" +
+		"**Scope creep.** the boundary is fuzzy.\n" +
+		"**Suppression effects.** operation-close hesitation.\n"
+
+	completeATXProfile = "## Analysis\n" +
+		"### Attentional shift\nprimes scanning.\n" +
+		"### Over-application\ncould misfire.\n" +
+		"### Meta-awareness effects\nframes done.\n" +
+		"### Scope creep\nthe boundary is fuzzy.\n" +
+		"### Suppression effects\noperation-close hesitation.\n"
+
+	missingSuppressionProfile = "## Analysis\n" +
+		"Dimensions checked:\n" +
+		"- **Attentional shift:** does loading prime attention?\n" +
+		"- **Over-application:** could the action misfire?\n" +
+		"- **Meta-awareness effects:** does it frame self-behavior?\n" +
+		"- **Scope creep:** false-positive pattern-matching?\n" +
+		"- **Suppression effects:** does it prime unwanted hesitation?\n\n" +
+		"**Attentional shift.** primes scanning.\n" +
+		"**Over-application.** could misfire.\n" +
+		"**Meta-awareness effects.** frames done.\n" +
+		"**Scope creep.** the boundary is fuzzy.\n"
+	// no **Suppression effects.** section heading — only the preamble list item
+)
+
+func TestItem15FailsWhenFieldAbsent(t *testing.T) {
+	st := &State{Content: "Entry text with no fallout field.", Profiles: &fakeProfiles{}}
+	out := Item15FalloutProfile(context.Background(), st)
 	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindFail {
 		t.Fatalf("expected fail, got %+v", out)
 	}
 	if !strings.Contains(out.Verdict.Reason, "Fallout profile") {
 		t.Fatalf("got %q", out.Verdict.Reason)
+	}
+}
+
+func TestItem15FailsWhenFieldPresentButEmpty(t *testing.T) {
+	// A marker with no path is treated as no reference at all.
+	st := &State{Content: "Entry text.\n\n**Fallout profile:**\n", Profiles: &fakeProfiles{}}
+	out := Item15FalloutProfile(context.Background(), st)
+	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindFail {
+		t.Fatalf("expected fail, got %+v", out)
+	}
+	if !strings.Contains(out.Verdict.Reason, "Fallout profile") {
+		t.Fatalf("got %q", out.Verdict.Reason)
+	}
+}
+
+func TestItem15FailsWhenReferentMissing(t *testing.T) {
+	st := &State{Content: entryWithFallout, Profiles: &fakeProfiles{docs: map[string]string{}}}
+	out := Item15FalloutProfile(context.Background(), st)
+	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindFail {
+		t.Fatalf("expected fail, got %+v", out)
+	}
+	if !strings.Contains(out.Verdict.Reason, "missing or unreadable") {
+		t.Fatalf("reason should report an unreadable referent, got %q", out.Verdict.Reason)
+	}
+}
+
+func TestItem15FailsWhenNoReaderConfigured(t *testing.T) {
+	// A referenced field with no reader must fail closed, never pass: the
+	// battery cannot verify a profile it cannot open.
+	st := &State{Content: entryWithFallout, Profiles: nil}
+	out := Item15FalloutProfile(context.Background(), st)
+	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindFail {
+		t.Fatalf("expected fail, got %+v", out)
+	}
+	if !strings.Contains(out.Verdict.Reason, "no profile reader") {
+		t.Fatalf("got %q", out.Verdict.Reason)
+	}
+}
+
+func TestItem15FailsWhenDimensionUnaddressed(t *testing.T) {
+	// The preamble lists all five dimensions; only the Suppression *section*
+	// is missing. A substring scan would pass this vacuously — the heading
+	// check must fail it and name the missing dimension.
+	fp := &fakeProfiles{docs: map[string]string{falloutRef: missingSuppressionProfile}}
+	st := &State{Content: entryWithFallout, Profiles: fp}
+	out := Item15FalloutProfile(context.Background(), st)
+	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindFail {
+		t.Fatalf("expected fail, got %+v", out)
+	}
+	if !strings.Contains(out.Verdict.Reason, "suppression effects") {
+		t.Fatalf("reason should name the unaddressed dimension, got %q", out.Verdict.Reason)
+	}
+	if strings.Contains(out.Verdict.Reason, "attentional shift") {
+		t.Fatalf("addressed dimensions should not be listed, got %q", out.Verdict.Reason)
+	}
+}
+
+func TestItem15PassesWhenReferentCompleteBoldHeadings(t *testing.T) {
+	fp := &fakeProfiles{docs: map[string]string{falloutRef: completeBoldProfile}}
+	st := &State{Content: entryWithFallout, Profiles: fp}
+	out := Item15FalloutProfile(context.Background(), st)
+	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindPass {
+		t.Fatalf("expected pass, got %+v", out)
+	}
+}
+
+func TestItem15PassesWhenReferentCompleteATXHeadings(t *testing.T) {
+	fp := &fakeProfiles{docs: map[string]string{falloutRef: completeATXProfile}}
+	st := &State{Content: entryWithFallout, Profiles: fp}
+	out := Item15FalloutProfile(context.Background(), st)
+	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindPass {
+		t.Fatalf("expected pass, got %+v", out)
+	}
+}
+
+func TestItem15ResolvesReferenceRelativeToEntryFile(t *testing.T) {
+	// The `../` reference must resolve against the entry file's directory, not
+	// be opened verbatim: a candidate in candidates/ points up-and-over into
+	// fallout-profiles/.
+	entry := "corpus/glyph-model/candidates/CANDIDATE_x.md"
+	wantPath := "corpus/glyph-model/fallout-profiles/TASK_fallout-x.md"
+	fp := &fakeProfiles{docs: map[string]string{wantPath: completeBoldProfile}}
+	st := &State{Content: entryWithFallout, EntryPath: entry, Profiles: fp}
+	out := Item15FalloutProfile(context.Background(), st)
+	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindPass {
+		t.Fatalf("expected pass, got %+v", out)
+	}
+	if len(fp.seen) != 1 || fp.seen[0] != wantPath {
+		t.Fatalf("expected reader to receive %q, got %v", wantPath, fp.seen)
 	}
 }
 

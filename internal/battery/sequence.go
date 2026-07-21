@@ -33,11 +33,16 @@ func (s *Sequence) AddStep(name string, fn StepFn) {
 func (s *Sequence) StepCount() int { return len(s.steps) }
 
 // Input is what a sequence runs against: the item under evaluation, its
-// content, and the inference client for verdict steps.
+// content, the inference client for verdict steps, and — for Item 15 — the
+// entry's filesystem path and the reader that resolves its fallout-profile
+// reference. EntryPath and Profiles may be zero for sequences that never run
+// Item 15; a run that does reach Item 15 without them fails that item closed.
 type Input struct {
-	ItemID  string
-	Content string
-	Model   model.Client
+	ItemID    string
+	Content   string
+	Model     model.Client
+	EntryPath string
+	Profiles  ProfileReader
 }
 
 // Result is the outcome of running a sequence. ExitIndex is the index of
@@ -72,9 +77,11 @@ func (r Result) ItemVerdicts() []Verdict {
 // Fails. Flag is advisory — recorded, not stopping.
 func RunSequence(ctx context.Context, seq *Sequence, input Input) Result {
 	st := &State{
-		ItemID:  input.ItemID,
-		Content: input.Content,
-		Model:   input.Model,
+		ItemID:    input.ItemID,
+		Content:   input.Content,
+		Model:     input.Model,
+		EntryPath: input.EntryPath,
+		Profiles:  input.Profiles,
 	}
 
 	for index, step := range seq.steps {

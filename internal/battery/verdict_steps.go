@@ -80,7 +80,12 @@ func Item1XYZSpecificity(ctx context.Context, st *State) StepOutcome {
 
 // Item9Universality — the model checks whether structural fields contain
 // project-specific references (file paths, protocol slugs, artifact names,
-// project vocabulary). Prompt preserved verbatim from the source.
+// project vocabulary). The prompt carries the 2026-04-23 calibration-instance
+// ruling (lab-app/fidelity/item9-criterion-ruling.md): a calibration instance
+// labelled "recognition illustration" or "does not define scope" gets no
+// exemption from the scan, so project-specific vocabulary inside such a
+// labelled instance is still a FAIL. Before this the runner embodied the
+// interpretation the ruling voided.
 func Item9Universality(ctx context.Context, st *State) StepOutcome {
 	prompt := fmt.Sprintf(
 		"You are evaluating a glyph entry for universality.\n\n"+
@@ -90,6 +95,13 @@ func Item9Universality(ctx context.Context, st *State) StepOutcome {
 			"- Protocol slugs by name\n"+
 			"- Project-specific artifact names\n"+
 			"- Project-specific vocabulary that would not exist in another agent system\n\n"+
+			"Calibration instances in the violation signal and illustrative carve-outs in "+
+			"does-not-fire-on are structural fields and must meet the same universality "+
+			"standard. No carve-outs. A label marking a calibration instance as "+
+			"\"recognition illustration\" or \"does not define scope\" describes its "+
+			"evidentiary function — it does not exempt the instance from this scan. "+
+			"Project-specific vocabulary inside such a labelled calibration instance is "+
+			"still a FAIL (ruled 2026-04-23).\n\n"+
 			"The decision class must be recognizable by an agent in a different project "+
 			"that has this decision class, without importing this project's infrastructure.\n\n"+
 			"Entry to evaluate:\n---\n%s\n---\n\n"+

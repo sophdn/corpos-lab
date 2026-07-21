@@ -13,12 +13,18 @@ package battery
 // but not yet evaluable"; unknown step names return the reserved "0.0.0".
 func StepVersion(stepName string) string {
 	switch stepName {
+	case "item9-universality",
+		"item15-fallout-profile":
+		// Repaired under task 3586: item 15 now resolves and dimensionally
+		// checks the referenced profile instead of a bare substring; item 9
+		// carries the 2026-04-23 calibration-instance ruling. Bumped past the
+		// 0.1.0 cohort so a post-hoc query separates repaired-logic runs from
+		// the pre-repair runs whose item-9/15 verdicts cannot be trusted.
+		return "0.2.0"
 	case "item1-xyz-specificity",
 		"item2-intent-language-scan",
 		"item4-na",
-		"item9-universality",
-		"item10-axis-presence",
-		"item15-fallout-profile":
+		"item10-axis-presence":
 		return "0.1.0"
 	case "item3-duplicate-check",
 		"item5-y-not-fire",

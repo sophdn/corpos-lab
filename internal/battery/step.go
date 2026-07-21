@@ -73,13 +73,31 @@ type StepResult struct {
 	Duration time.Duration `json:"duration_ns"`
 }
 
+// ProfileReader is the sans-IO seam for Item 15: it reads a referenced
+// fallout-profile document by path. The step resolves the path the entry
+// points at (pure string math) and hands it here; the injected reader is the
+// only thing that touches the filesystem, so the battery package stays sans-IO
+// and tests substitute an in-memory fake. The path is already resolved
+// relative to the entry file — the reader opens it as given.
+type ProfileReader interface {
+	ReadProfile(path string) (string, error)
+}
+
 // State is the sequence execution context steps receive: the item under
 // evaluation, its content, the inference client, and the results of every
 // step run so far (observation → judge patterns read prior results).
+//
+// EntryPath is the filesystem path of the entry under assessment; Item 15
+// resolves the entry's "**Fallout profile:**" reference relative to it.
+// Profiles is the injected reader Item 15 uses to open that referent — nil
+// unless the caller wired one, in which case Item 15 fails closed rather than
+// manufacturing a pass it cannot verify.
 type State struct {
 	ItemID      string
 	Content     string
 	Model       model.Client
+	EntryPath   string
+	Profiles    ProfileReader
 	StepResults []StepResult
 }
 

@@ -61,6 +61,17 @@ func TestEveryRegisteredStepHasAVersion(t *testing.T) {
 	if v := StepVersion("item1-xyz-specificity"); v != "0.1.0" {
 		t.Fatalf("implemented step should be 0.1.0, got %q", v)
 	}
+	// The item-9 and item-15 repairs (task 3586) bump those two past the
+	// 0.1.0 cohort so a post-hoc query can separate repaired-logic runs from
+	// the pre-repair runs whose verdicts on those items cannot be trusted.
+	for _, name := range []string{"item9-universality", "item15-fallout-profile"} {
+		if v := StepVersion(name); v != "0.2.0" {
+			t.Fatalf("repaired step %s should be 0.2.0, got %q", name, v)
+		}
+		if StepVersion(name) == StepVersion("item1-xyz-specificity") {
+			t.Fatalf("repaired step %s must be distinguishable from the 0.1.0 cohort", name)
+		}
+	}
 }
 
 func fixture(t *testing.T, name string) string {
@@ -72,12 +83,23 @@ func fixture(t *testing.T, name string) string {
 	return string(raw)
 }
 
+// knownPassProfiles wires the fake fallout-profile reader the full-battery
+// fixtures need now that Item 15 opens and dimensionally checks the referent.
+// known_pass.md references FALLOUT_test-known-pass.md; the reader returns a
+// profile covering all five dimensions.
+func knownPassProfiles() *fakeProfiles {
+	return &fakeProfiles{docs: map[string]string{
+		"FALLOUT_test-known-pass.md": completeBoldProfile,
+	}}
+}
+
 func TestKnownPassItemPassesFullBattery(t *testing.T) {
 	content := fixture(t, "known_pass.md")
 	result := RunSequence(context.Background(), BuildBattery(), Input{
-		ItemID:  "known-pass",
-		Content: content,
-		Model:   &fakeClient{text: "PASS"},
+		ItemID:   "known-pass",
+		Content:  content,
+		Model:    &fakeClient{text: "PASS"},
+		Profiles: knownPassProfiles(),
 	})
 
 	if !result.Passed {
@@ -127,9 +149,10 @@ func TestFullBatteryComposeOnKnownPassIsDefer(t *testing.T) {
 	// items land — exactly the source's compose semantics.
 	content := fixture(t, "known_pass.md")
 	result := RunSequence(context.Background(), BuildBattery(), Input{
-		ItemID:  "known-pass",
-		Content: content,
-		Model:   &fakeClient{text: "PASS"},
+		ItemID:   "known-pass",
+		Content:  content,
+		Model:    &fakeClient{text: "PASS"},
+		Profiles: knownPassProfiles(),
 	})
 	composed := ComposeRunVerdict(result.ItemVerdicts())
 	if composed.Kind != RunDefer {
