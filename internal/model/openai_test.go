@@ -318,6 +318,73 @@ func TestGenerateCapturesServerReportedObservations(t *testing.T) {
 	}
 }
 
+func TestGenerateCapturesSeparatedReasoningContent(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{
+			"choices":[{"message":{"role":"assistant","content":"PASS","reasoning_content":"the fields are project-agnostic"}}],
+			"model":"Qwen3.6-27B-Q4_K_M.gguf"
+		}`))
+	}))
+	defer srv.Close()
+
+	c := NewOpenAI(srv.URL+"/v1", "qwen3.6-27b", "v", WithHTTPClient(srv.Client()))
+	resp, err := c.Generate(context.Background(), "p", GenParams{})
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if resp.Text != "PASS" {
+		t.Fatalf("answer should be the clean content, got %q", resp.Text)
+	}
+	if resp.Reasoning != "the fields are project-agnostic" {
+		t.Fatalf("reasoning = %q", resp.Reasoning)
+	}
+}
+
+func TestGenerateStripsInlineThinkBlock(t *testing.T) {
+	// No reasoning parser configured: the model emits the think block inline in
+	// content. The verdict parser must see "FAIL …", not "<think>…".
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{
+			"choices":[{"message":{"role":"assistant","content":"<think>the slug names a protocol</think>\nFAIL project-specific slug"}}]
+		}`))
+	}))
+	defer srv.Close()
+
+	c := NewOpenAI(srv.URL+"/v1", "qwen3.6-27b", "v", WithHTTPClient(srv.Client()))
+	resp, err := c.Generate(context.Background(), "p", GenParams{})
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if resp.Text != "FAIL project-specific slug" {
+		t.Fatalf("answer should be the content past the think block, got %q", resp.Text)
+	}
+	if resp.Reasoning != "the slug names a protocol" {
+		t.Fatalf("reasoning = %q", resp.Reasoning)
+	}
+}
+
+func TestSplitThinkingCases(t *testing.T) {
+	cases := []struct {
+		name, in, wantAnswer, wantReasoning string
+	}{
+		{"no-think", "PASS", "PASS", ""},
+		{"clean", "<think>abc</think>PASS", "PASS", "abc"},
+		{"leading-space", "  <think> abc </think>\n\nFAIL x", "FAIL x", "abc"},
+		{"unclosed-yields-empty-answer", "<think>abc without end", "", "abc without end"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			answer, reasoning := splitThinking(tc.in)
+			if answer != tc.wantAnswer {
+				t.Errorf("answer = %q, want %q", answer, tc.wantAnswer)
+			}
+			if reasoning != tc.wantReasoning {
+				t.Errorf("reasoning = %q, want %q", reasoning, tc.wantReasoning)
+			}
+		})
+	}
+}
+
 // /props is served at the ROOT, not under /v1: llama-server answers /props with
 // 200 and /v1/props with 404. Appending to baseURL would 404 against the real
 // server while passing any test that used a naive fake, so the derivation is

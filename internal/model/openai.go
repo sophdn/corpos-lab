@@ -84,6 +84,11 @@ type chatRequest struct {
 type chatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
+	// ReasoningContent is llama.cpp's separated thinking, present when the
+	// server was launched with a reasoning parser (e.g. --reasoning-format).
+	// When absent, a thinking model instead emits the reasoning inline as a
+	// leading <think>…</think> block in Content.
+	ReasoningContent string `json:"reasoning_content,omitempty"`
 }
 
 type chatResponse struct {
@@ -171,8 +176,15 @@ func (o *OpenAI) Generate(ctx context.Context, prompt string, params GenParams) 
 	if len(parsed.Choices) == 0 {
 		return Response{}, fmt.Errorf("model: %s returned no choices", o.modelID)
 	}
+	msg := parsed.Choices[0].Message
+	text, inlineReasoning := splitThinking(msg.Content)
+	reasoning := msg.ReasoningContent
+	if reasoning == "" {
+		reasoning = inlineReasoning
+	}
 	return Response{
-		Text:              parsed.Choices[0].Message.Content,
+		Text:              text,
+		Reasoning:         reasoning,
 		Model:             parsed.Model,
 		SystemFingerprint: parsed.SystemFingerprint,
 		Timings: Timings{
@@ -182,6 +194,30 @@ func (o *OpenAI) Generate(ctx context.Context, prompt string, params GenParams) 
 			PredictedPerSecond: parsed.Timings.PredictedPerSecond,
 		},
 	}, nil
+}
+
+// splitThinking separates a leading inline <think>…</think> block from the
+// answer. llama.cpp emits reasoning inline in the content when no reasoning
+// parser is configured; a caller that parses the answer (e.g. a verdict step
+// keyed on a leading PASS/FAIL) must see the content past the think block. It
+// returns the trimmed answer and the reasoning (without the tags). Content
+// with no think block is returned unchanged with empty reasoning. An unclosed
+// <think> (a truncated generation) yields an empty answer and the partial
+// reasoning, so the caller fails the parse rather than reading think text as
+// the answer.
+func splitThinking(content string) (answer, reasoning string) {
+	trimmed := strings.TrimSpace(content)
+	if !strings.HasPrefix(trimmed, "<think>") {
+		return content, ""
+	}
+	rest := trimmed[len("<think>"):]
+	end := strings.Index(rest, "</think>")
+	if end < 0 {
+		return "", strings.TrimSpace(rest)
+	}
+	reasoning = strings.TrimSpace(rest[:end])
+	answer = strings.TrimSpace(rest[end+len("</think>"):])
+	return answer, reasoning
 }
 
 // propsURL derives the /props endpoint from baseURL.

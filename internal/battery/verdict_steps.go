@@ -17,6 +17,10 @@ func verdictGenParams() model.GenParams {
 	}
 }
 
+// VerdictGenParams exposes the sampler the model-assessed steps send, so a run
+// can record what it actually ran under without duplicating the values.
+func VerdictGenParams() model.GenParams { return verdictGenParams() }
+
 // ParseModelVerdict converts a model's PASS / FAIL response into a typed
 // Verdict. The single seam where LLM prose becomes a typed scoring outcome —
 // every inference step goes through here so the string→Verdict mapping has

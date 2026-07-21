@@ -71,8 +71,17 @@ type Timings struct {
 // Response is a model's reply to a single prompt, plus what the server said
 // about itself while answering.
 type Response struct {
-	// Text is the raw completion text.
+	// Text is the completion's answer content with any thinking removed: the
+	// reasoning stripped into Reasoning below, and a leading inline
+	// <think>…</think> block (llama.cpp emits this when no reasoning parser is
+	// configured) trimmed off. This is what a caller parses — a verdict step
+	// that expects a leading "PASS"/"FAIL" must not trip over a think block.
 	Text string
+	// Reasoning is the thinking a reasoning model produced, when the server
+	// surfaced it — either as the response's reasoning_content field or as the
+	// inline <think>…</think> block trimmed from Text. Empty for a non-thinking
+	// model. Recorded as provenance; never parsed for the answer.
+	Reasoning string
 	// Model is the model the SERVER reports having used — not the one we
 	// asked for. A mismatch against the requested model is the check that
 	// catches a model swap behind the endpoint.
