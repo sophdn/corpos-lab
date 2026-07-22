@@ -113,6 +113,32 @@ func TestItem1PromptCarriesEntryContent(t *testing.T) {
 	}
 }
 
+// The item-1 repair (task 3588): the prompt must tell the assessor to resolve
+// X and Y from the entry's decision point and firing condition before judging
+// them, and must say that the canonical "Taking X from Y" notation is not
+// itself a failure. Without this the assessor reads the two symbols as the
+// components and fails every entry in the corpus at step 0. The companion
+// clause — an unresolvable component still FAILS — keeps the item from going
+// vacuous; both are pinned so a prompt edit that drops either one is caught.
+func TestItem1PromptDemandsResolvedReading(t *testing.T) {
+	f := &fakeClient{text: "PASS"}
+	st := &State{Content: "entry", Model: f}
+	Item1XYZSpecificity(context.Background(), st)
+	prompt := f.prompts[0]
+	for _, want := range []string{
+		"RESOLVE BEFORE JUDGING",
+		"Taking X from Y",
+		"not the components themselves",
+		"decision point and firing condition",
+		"judge the RESOLVED X, Y, and Z",
+		"no resolvable definition for a component anywhere",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("item-1 prompt must carry %q (task 3588 resolved-reading repair)", want)
+		}
+	}
+}
+
 func TestItem9PassesWhenModelSaysPass(t *testing.T) {
 	st := &State{Content: "some entry", Model: &fakeClient{text: "PASS"}}
 	out := Item9Universality(context.Background(), st)

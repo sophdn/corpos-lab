@@ -58,17 +58,22 @@ func TestEveryRegisteredStepHasAVersion(t *testing.T) {
 	if v := StepVersion("item3-duplicate-check"); v != "0.0.0-deferred" {
 		t.Fatalf("deferred step should be 0.0.0-deferred, got %q", v)
 	}
-	if v := StepVersion("item1-xyz-specificity"); v != "0.1.0" {
+	if v := StepVersion("item2-intent-language-scan"); v != "0.1.0" {
 		t.Fatalf("implemented step should be 0.1.0, got %q", v)
 	}
-	// The item-9 and item-15 repairs (task 3586) bump those two past the
-	// 0.1.0 cohort so a post-hoc query can separate repaired-logic runs from
-	// the pre-repair runs whose verdicts on those items cannot be trusted.
-	for _, name := range []string{"item9-universality", "item15-fallout-profile"} {
+	// The item-9/15 repairs (task 3586) and the item-1 resolved-reading repair
+	// (task 3588) bump those three past the 0.1.0 cohort so a post-hoc query
+	// can separate repaired-logic runs from the pre-repair runs whose verdicts
+	// on those items cannot be trusted.
+	for _, name := range []string{
+		"item1-xyz-specificity",
+		"item9-universality",
+		"item15-fallout-profile",
+	} {
 		if v := StepVersion(name); v != "0.2.0" {
 			t.Fatalf("repaired step %s should be 0.2.0, got %q", name, v)
 		}
-		if StepVersion(name) == StepVersion("item1-xyz-specificity") {
+		if StepVersion(name) == StepVersion("item2-intent-language-scan") {
 			t.Fatalf("repaired step %s must be distinguishable from the 0.1.0 cohort", name)
 		}
 	}

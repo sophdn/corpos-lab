@@ -21,8 +21,15 @@ func StepVersion(stepName string) string {
 		// 0.1.0 cohort so a post-hoc query separates repaired-logic runs from
 		// the pre-repair runs whose item-9/15 verdicts cannot be trusted.
 		return "0.2.0"
-	case "item1-xyz-specificity",
-		"item2-intent-language-scan",
+	case "item1-xyz-specificity":
+		// Repaired under task 3588: the prompt now resolves X and Y from the
+		// entry's decision point and firing condition before judging them,
+		// instead of reading the canonical "Taking X from Y" notation as the
+		// components themselves. Bumped past the 0.1.0 cohort so a post-hoc
+		// query separates resolved-reading runs from the literal-reading runs,
+		// which failed every entry in the corpus at step 0.
+		return "0.2.0"
+	case "item2-intent-language-scan",
 		"item4-na",
 		"item10-axis-presence":
 		return "0.1.0"

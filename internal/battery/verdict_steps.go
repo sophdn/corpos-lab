@@ -70,8 +70,20 @@ func runVerdictStep(ctx context.Context, st *State, item int, prompt string) Ste
 
 // Item1XYZSpecificity — X/Y/Z specificity: the model evaluates whether the
 // Marker invariant fills X (action), Y (context), Z (violation) with
-// particulars rather than category labels or paraphrases. Prompt preserved
-// verbatim from the source.
+// particulars rather than category labels or paraphrases.
+//
+// The prompt resolves X and Y before judging them. The corpus's canonical
+// Marker form is the literal sentence "Taking X from Y → <Z prose>"
+// (GLYPH_DEFINITION.md:72) — X and Y are notation, standing for the action and
+// the context condition the entry defines elsewhere (its decision point,
+// firing condition, and does-not-fire-on carve-out). Reading the two symbols
+// as the components themselves makes every entry in the corpus an instant
+// FAIL on a naming convention, which is not what this item tests: the item
+// tests whether the entry's action and context are specifiable, and the
+// 2026-04-03 human assessor resolved them from the surrounding prose before
+// scoring. An entry that gives no resolvable definition anywhere still fails —
+// the resolution step is where an unspecifiable X or Y shows itself, so
+// scoping the read this way tightens the item rather than excusing it.
 func Item1XYZSpecificity(ctx context.Context, st *State) StepOutcome {
 	prompt := fmt.Sprintf(
 		"You are evaluating a glyph entry for structural specificity.\n\n"+
@@ -79,13 +91,29 @@ func Item1XYZSpecificity(ctx context.Context, st *State) StepOutcome {
 			"- X: a specific action, structural position, design decision, or omission\n"+
 			"- Y: a specific, specifiable context condition\n"+
 			"- Z: a specific structural violation (a named invariant that fails)\n\n"+
-			"None of these may be category labels, paraphrases, or placeholders "+
+			"RESOLVE BEFORE JUDGING. This corpus writes its Marker invariant in a "+
+			"canonical notation: \"Taking X from Y → <violation prose>\". The letters "+
+			"X and Y in that sentence are that notation — symbols standing for "+
+			"components the entry defines elsewhere — not the components themselves, "+
+			"and their presence is not by itself a failure. Before scoring, resolve "+
+			"each component from the whole entry:\n"+
+			"- X = the action or omission the entry's decision point and firing "+
+			"condition describe the agent taking.\n"+
+			"- Y = the context condition the entry's decision point, does-not-fire-on "+
+			"carve-out, and discriminating conditions describe.\n"+
+			"- Z = the violation prose written after the arrow in the invariant.\n\n"+
+			"Then judge the RESOLVED X, Y, and Z for specificity. If the entry gives "+
+			"no resolvable definition for a component anywhere — the symbol is never "+
+			"cashed out into an action or a context condition — that component is an "+
+			"unresolved placeholder and the entry FAILS.\n\n"+
+			"None of the resolved components may be category labels, paraphrases, or "+
+			"placeholders "+
 			"(e.g. \"skips a step\", \"makes an error\", \"in a context where a gate is absent\").\n\n"+
 			"Entry to evaluate:\n---\n%s\n---\n\n"+
 			"Respond with exactly one of:\n"+
-			"PASS — if all three components name specifics\n"+
-			"FAIL <reason> — if any component is a placeholder or category label, "+
-			"naming which component and why",
+			"PASS — if all three resolved components name specifics\n"+
+			"FAIL <reason> — if any component is unresolvable, a placeholder, or a "+
+			"category label, naming which component and why",
 		st.Content)
 	return runVerdictStep(ctx, st, 1, prompt)
 }
