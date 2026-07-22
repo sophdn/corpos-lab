@@ -5,7 +5,7 @@
 // Usage:
 //
 //	corpos-lab run-study <def.toml> [-work DIR]
-//	corpos-lab battery <candidate.md> [-out FILE] [-model NAME] [-base URL] [-repo DIR]
+//	corpos-lab battery <candidate.md> [-out FILE] [-model NAME] [-base URL] [-repo DIR] [-all-items]
 //
 // Exit 0 on a completed run, non-zero on any failure (the record is written
 // regardless).
@@ -41,7 +41,7 @@ func main() {
 
 const usage = "usage:\n" +
 	"  corpos-lab run-study <def.toml> [-work DIR]\n" +
-	"  corpos-lab battery <candidate.md> [-out FILE] [-model NAME] [-base URL] [-repo DIR]"
+	"  corpos-lab battery <candidate.md> [-out FILE] [-model NAME] [-base URL] [-repo DIR] [-all-items]"
 
 func run(args []string) int {
 	if len(args) == 0 {
@@ -69,6 +69,7 @@ func runBattery(args []string) int {
 	modelName := "qwen3.6-27b"
 	version := ""
 	repoDir := "."
+	allItems := false
 	rest := []string{}
 	for i := 0; i < len(args); i++ {
 		needsValue := func() (string, bool) {
@@ -110,12 +111,14 @@ func runBattery(args []string) int {
 				return 2
 			}
 			repoDir = v
+		case "-all-items":
+			allItems = true
 		default:
 			rest = append(rest, args[i])
 		}
 	}
 	if len(rest) != 1 {
-		fmt.Fprintln(os.Stderr, "usage: corpos-lab battery <candidate.md> [-out FILE] [-model NAME] [-base URL] [-repo DIR]")
+		fmt.Fprintln(os.Stderr, "usage: corpos-lab battery <candidate.md> [-out FILE] [-model NAME] [-base URL] [-repo DIR] [-all-items]")
 		return 2
 	}
 	candidatePath := rest[0]
@@ -130,7 +133,7 @@ func runBattery(args []string) int {
 		Substrate:  substrateProbe,
 		Provenance: repoStamp(repoDir),
 		Props:      client.Props,
-	})
+	}, batteryrun.Options{AllItems: allItems})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "corpos-lab: %v\n", err)
 		return 1
@@ -175,9 +178,12 @@ func printBatterySummary(w *os.File, res batteryrun.Result) {
 	for _, sr := range res.Sequence.StepResults {
 		fmt.Fprintf(w, "  %-28s %s\n", sr.StepName, verdictLabel(sr.Outcome))
 	}
-	if res.Sequence.Passed {
+	switch {
+	case res.Sequence.Passed:
 		fmt.Fprintln(w, "  => mechanized items PASS (judged items still Deferred to an assessor)")
-	} else {
+	case res.AllItems:
+		fmt.Fprintf(w, "  => FAIL, all items run: %s\n", res.Sequence.FailureReason)
+	default:
 		fmt.Fprintf(w, "  => stopped at step %d: %s\n", res.Sequence.ExitIndex, res.Sequence.FailureReason)
 	}
 }

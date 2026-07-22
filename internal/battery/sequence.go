@@ -43,6 +43,16 @@ type Input struct {
 	Model     model.Client
 	EntryPath string
 	Profiles  ProfileReader
+	// ContinueOnFail runs every remaining step after a Fail verdict instead of
+	// stopping at it. The run verdict is unchanged — the sequence still does not
+	// pass, and FailureReason still carries the FIRST failure — but the later
+	// items get measured instead of being left silently unassessed. Fail-fast is
+	// a cost optimization, not a claim that the downstream items are unknowable:
+	// a recertification run whose subject is item 15 learns nothing about it when
+	// an item-9 failure ends the sequence seven steps early. An Error outcome
+	// still stops the sequence regardless — a broken transport is not a verdict,
+	// and repeating it down the remaining items records noise, not measurements.
+	ContinueOnFail bool
 }
 
 // Result is the outcome of running a sequence. ExitIndex is the index of
@@ -75,6 +85,12 @@ func (r Result) ItemVerdicts() []Verdict {
 // sequence: the battery registers 15 items of which several defer pending
 // corpus access, and short-circuiting on Deferred would hide downstream
 // Fails. Flag is advisory — recorded, not stopping.
+//
+// Input.ContinueOnFail suspends the Fail half of that rule: every step runs,
+// the first Fail is still the Result's FailureReason, and Passed is still
+// false. ExitIndex keeps its documented meaning — the index of the last step
+// that ran — so under ContinueOnFail it is the final step, and the first
+// failure is located by scanning StepResults for the first Fail.
 func RunSequence(ctx context.Context, seq *Sequence, input Input) Result {
 	st := &State{
 		ItemID:    input.ItemID,
@@ -84,13 +100,16 @@ func RunSequence(ctx context.Context, seq *Sequence, input Input) Result {
 		Profiles:  input.Profiles,
 	}
 
+	failed := false
+	firstFailure := ""
+
 	for index, step := range seq.steps {
 		start := time.Now()
 		outcome := step.fn(ctx, st)
 		duration := time.Since(start)
 
-		stop := outcome.Kind == OutcomeError ||
-			(outcome.Kind == OutcomeVerdict && outcome.Verdict != nil && outcome.Verdict.Kind == KindFail)
+		isFail := outcome.Kind == OutcomeVerdict && outcome.Verdict != nil && outcome.Verdict.Kind == KindFail
+		isError := outcome.Kind == OutcomeError
 
 		st.StepResults = append(st.StepResults, StepResult{
 			Index:    index,
@@ -99,17 +118,22 @@ func RunSequence(ctx context.Context, seq *Sequence, input Input) Result {
 			Duration: duration,
 		})
 
-		if stop {
-			reason := outcome.Message
-			if outcome.Kind == OutcomeVerdict {
-				reason = outcome.Verdict.Reason
+		if (isFail || isError) && !failed {
+			failed = true
+			if isError {
+				firstFailure = outcome.Message
+			} else {
+				firstFailure = outcome.Verdict.Reason
 			}
+		}
+
+		if isError || (isFail && !input.ContinueOnFail) {
 			return Result{
 				ItemID:        input.ItemID,
 				StepResults:   st.StepResults,
 				Passed:        false,
 				ExitIndex:     index,
-				FailureReason: reason,
+				FailureReason: firstFailure,
 			}
 		}
 	}
@@ -119,9 +143,10 @@ func RunSequence(ctx context.Context, seq *Sequence, input Input) Result {
 		exitIndex = 0
 	}
 	return Result{
-		ItemID:      input.ItemID,
-		StepResults: st.StepResults,
-		Passed:      true,
-		ExitIndex:   exitIndex,
+		ItemID:        input.ItemID,
+		StepResults:   st.StepResults,
+		Passed:        !failed,
+		ExitIndex:     exitIndex,
+		FailureReason: firstFailure,
 	}
 }

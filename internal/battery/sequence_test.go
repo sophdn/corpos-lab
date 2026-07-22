@@ -134,6 +134,77 @@ func TestVerdictFailExitsEarly(t *testing.T) {
 	}
 }
 
+// ContinueOnFail: every step runs, the verdict is still a failure, and the
+// FIRST failure is the reason — the later items get measured instead of being
+// left unassessed. The recertification case this exists for fails at item 9
+// and still needs item 15 measured.
+func TestContinueOnFailRunsEveryStep(t *testing.T) {
+	seq := NewSequence("test-continue")
+	seq.AddStep("step-1", passStep())
+	seq.AddStep("step-2", failStep("first bad item"))
+	seq.AddStep("step-3", failStep("second bad item"))
+	seq.AddStep("step-4", passStep())
+
+	in := testInput()
+	in.ContinueOnFail = true
+	result := RunSequence(context.Background(), seq, in)
+
+	if result.Passed {
+		t.Fatal("a failing item must still fail the run under ContinueOnFail")
+	}
+	if len(result.StepResults) != 4 {
+		t.Fatalf("expected all 4 steps to run, got %d", len(result.StepResults))
+	}
+	if result.ExitIndex != 3 {
+		t.Fatalf("expected exit index 3 (the last step that ran), got %d", result.ExitIndex)
+	}
+	if result.FailureReason != "first bad item" {
+		t.Fatalf("expected the FIRST failure as the reason, got %q", result.FailureReason)
+	}
+}
+
+// ContinueOnFail suspends the Fail half of the stop rule only. An Error is a
+// broken transport, not a verdict, so it still stops the sequence — repeating
+// it down the remaining items would record noise, not measurements.
+func TestContinueOnFailStillStopsOnError(t *testing.T) {
+	seq := NewSequence("test-continue-error")
+	seq.AddStep("step-1", errorStep("transport down"))
+	seq.AddStep("step-2", passStep()) // should not run
+
+	in := testInput()
+	in.ContinueOnFail = true
+	result := RunSequence(context.Background(), seq, in)
+
+	if result.Passed {
+		t.Fatal("expected failure")
+	}
+	if len(result.StepResults) != 1 {
+		t.Fatalf("expected 1 step result, got %d", len(result.StepResults))
+	}
+	if result.FailureReason != "transport down" {
+		t.Fatalf("got %q", result.FailureReason)
+	}
+}
+
+// A clean run under ContinueOnFail is indistinguishable from a clean fail-fast
+// run: nothing failed, so there is nothing to carry.
+func TestContinueOnFailPassesWhenNothingFails(t *testing.T) {
+	seq := NewSequence("test-continue-clean")
+	seq.AddStep("step-1", passStep())
+	seq.AddStep("step-2", passStep())
+
+	in := testInput()
+	in.ContinueOnFail = true
+	result := RunSequence(context.Background(), seq, in)
+
+	if !result.Passed {
+		t.Fatalf("expected pass, got %+v", result)
+	}
+	if result.FailureReason != "" {
+		t.Fatalf("expected no failure reason, got %q", result.FailureReason)
+	}
+}
+
 func TestObservationThenVerdictReadsData(t *testing.T) {
 	seq := NewSequence("test-obs-verdict")
 	seq.AddStep("observe", observationStep(`{"score": 42}`))

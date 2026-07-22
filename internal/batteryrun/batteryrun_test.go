@@ -94,7 +94,7 @@ func TestFileProfileReaderReadsAndErrors(t *testing.T) {
 
 func TestRunPassesMechanizedItemsAndCapturesProvenance(t *testing.T) {
 	entryPath := writeCandidate(t, completeCandidate, completeProfile)
-	res, err := Run(context.Background(), entryPath, "test-item", fakeClient{text: "PASS"}, okDeps())
+	res, err := Run(context.Background(), entryPath, "test-item", fakeClient{text: "PASS"}, okDeps(), Options{})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestRunFailsFastOnMechanizedFail(t *testing.T) {
 	// Item 15 fails: no profile on disk. The sequence stops there; provenance
 	// is still captured.
 	entryPath := writeCandidate(t, completeCandidate, "")
-	res, err := Run(context.Background(), entryPath, "test-item", fakeClient{text: "PASS"}, okDeps())
+	res, err := Run(context.Background(), entryPath, "test-item", fakeClient{text: "PASS"}, okDeps(), Options{})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -144,8 +144,34 @@ func TestRunFailsFastOnMechanizedFail(t *testing.T) {
 	}
 }
 
+// Options.AllItems carries through to the sequence: a run whose first
+// model-assessed item fails still measures every later item, including item 15.
+// This is what a recertification pass needs — six of the eight candidates fail
+// at item 9, and item 15 is half of what the pass exists to measure.
+func TestRunAllItemsMeasuresEveryItemDespiteFailure(t *testing.T) {
+	entryPath := writeCandidate(t, completeCandidate, completeProfile)
+	res, err := Run(context.Background(), entryPath, "test-item",
+		fakeClient{text: "FAIL not specific enough"}, okDeps(), Options{AllItems: true})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if res.Sequence.Passed {
+		t.Fatal("a failing item must still fail the run")
+	}
+	if !res.AllItems {
+		t.Error("the result must record that it ran under all-items")
+	}
+	if got, want := len(res.Sequence.StepResults), battery.BuildBattery().StepCount(); got != want {
+		t.Fatalf("expected all %d items measured, got %d", want, got)
+	}
+	last := res.Sequence.StepResults[len(res.Sequence.StepResults)-1]
+	if last.StepName != "item15-fallout-profile" {
+		t.Fatalf("expected item 15 to have run, last step was %q", last.StepName)
+	}
+}
+
 func TestRunErrorsWhenCandidateUnreadable(t *testing.T) {
-	_, err := Run(context.Background(), filepath.Join(t.TempDir(), "nope.md"), "x", fakeClient{text: "PASS"}, okDeps())
+	_, err := Run(context.Background(), filepath.Join(t.TempDir(), "nope.md"), "x", fakeClient{text: "PASS"}, okDeps(), Options{})
 	if err == nil {
 		t.Fatal("expected an error reading a missing candidate")
 	}
@@ -164,7 +190,7 @@ func TestRunRecordsProvenanceGapsWithoutAborting(t *testing.T) {
 			return model.ServerProps{}, errors.New("props unreachable")
 		},
 	}
-	res, err := Run(context.Background(), entryPath, "test-item", fakeClient{text: "PASS"}, deps)
+	res, err := Run(context.Background(), entryPath, "test-item", fakeClient{text: "PASS"}, deps, Options{})
 	if err != nil {
 		t.Fatalf("a failed readback must not abort the run: %v", err)
 	}

@@ -63,12 +63,25 @@ type RunProvenance struct {
 
 // Result is one candidate's mechanized battery pass: the sequence result (the
 // per-item verdicts for the mechanized items, Deferred for the judged stubs,
-// fail-fast on the first mechanized FAIL) plus the run-level provenance.
+// fail-fast on the first mechanized FAIL unless Options.AllItems suspends it)
+// plus the run-level provenance. AllItems records which of the two the run
+// executed under, so a reader can tell an unassessed item from a measured one
+// without inferring it from where the verdicts stop.
 type Result struct {
 	CandidatePath string         `json:"candidate_path"`
 	ItemID        string         `json:"item_id"`
+	AllItems      bool           `json:"all_items"`
 	Sequence      battery.Result `json:"sequence"`
 	Provenance    RunProvenance  `json:"provenance"`
+}
+
+// Options are the run's execution choices, as opposed to Deps' world-seams.
+type Options struct {
+	// AllItems runs every battery item even after one fails, instead of
+	// stopping at the first failure. The run verdict is unchanged; the later
+	// items get measured rather than left unassessed. See battery.Input's
+	// ContinueOnFail for why the default is still fail-fast.
+	AllItems bool
 }
 
 // Deps are the seams a run reaches the world through, injected so Run is
@@ -87,18 +100,19 @@ type Deps struct {
 // is failing to read the candidate itself; a failed provenance or props
 // readback is recorded as a gap, never a reason to abort — a run that cannot
 // fully describe itself is still a run.
-func Run(ctx context.Context, candidatePath, itemID string, client model.Client, deps Deps) (Result, error) {
+func Run(ctx context.Context, candidatePath, itemID string, client model.Client, deps Deps, opts Options) (Result, error) {
 	content, err := os.ReadFile(candidatePath) //nolint:gosec // candidatePath is the corpus entry under assessment
 	if err != nil {
 		return Result{}, fmt.Errorf("batteryrun: read candidate %s: %w", candidatePath, err)
 	}
 
 	seq := battery.RunSequence(ctx, battery.BuildBattery(), battery.Input{
-		ItemID:    itemID,
-		Content:   string(content),
-		Model:     client,
-		EntryPath: candidatePath,
-		Profiles:  FileProfileReader{},
+		ItemID:         itemID,
+		Content:        string(content),
+		Model:          client,
+		EntryPath:      candidatePath,
+		Profiles:       FileProfileReader{},
+		ContinueOnFail: opts.AllItems,
 	})
 
 	prov := RunProvenance{
@@ -121,6 +135,7 @@ func Run(ctx context.Context, candidatePath, itemID string, client model.Client,
 	return Result{
 		CandidatePath: candidatePath,
 		ItemID:        itemID,
+		AllItems:      opts.AllItems,
 		Sequence:      seq,
 		Provenance:    prov,
 	}, nil
