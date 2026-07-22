@@ -8,12 +8,16 @@ import (
 	"corpos-lab/internal/model"
 )
 
-// verdictGenParams pins the sampling for battery verdict steps:
-// deterministic scoring, short replies.
+// verdictGenParams pins the sampling for battery verdict steps: deterministic
+// scoring (greedy) with room for a thinking model's reasoning before the
+// verdict. The token budget covers a reasoning model's <think> block plus the
+// short PASS/FAIL answer — a 256-token cap truncated a thinking assessor
+// mid-reasoning, leaving no answer to parse and manufacturing a FAIL. A
+// non-thinking model simply stops at its short answer well under the cap.
 func verdictGenParams() model.GenParams {
 	return model.GenParams{
 		Temperature: model.Float64(0.0),
-		MaxTokens:   model.Int(256),
+		MaxTokens:   model.Int(2048),
 	}
 }
 
