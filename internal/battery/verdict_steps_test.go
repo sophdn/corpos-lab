@@ -241,7 +241,7 @@ func TestVerdictGenParamsPinDeterministicSampling(t *testing.T) {
 	if p.Temperature == nil || *p.Temperature != 0.0 {
 		t.Fatalf("temperature should pin 0.0, got %v", p.Temperature)
 	}
-	if p.MaxTokens == nil || *p.MaxTokens != 2048 {
-		t.Fatalf("max tokens should give a thinking model room (2048), got %v", p.MaxTokens)
+	if p.MaxTokens == nil || *p.MaxTokens != 8000 {
+		t.Fatalf("max tokens should give a thinking model room (8000), got %v", p.MaxTokens)
 	}
 }

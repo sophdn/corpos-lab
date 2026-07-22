@@ -14,10 +14,14 @@ import (
 // short PASS/FAIL answer — a 256-token cap truncated a thinking assessor
 // mid-reasoning, leaving no answer to parse and manufacturing a FAIL. A
 // non-thinking model simply stops at its short answer well under the cap.
+// Measured: an item-1 assessment of a real entry spent ~2400 tokens on
+// reasoning before the verdict, so the cap sits well above that (a truncated
+// completion has no answer to parse and reads as a FAIL). A non-thinking model
+// still stops at its short answer, and greedy decoding has not run away.
 func verdictGenParams() model.GenParams {
 	return model.GenParams{
 		Temperature: model.Float64(0.0),
-		MaxTokens:   model.Int(2048),
+		MaxTokens:   model.Int(8000),
 	}
 }
 
