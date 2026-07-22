@@ -99,6 +99,10 @@ func Item9Universality(ctx context.Context, st *State) StepOutcome {
 			"- Protocol slugs by name\n"+
 			"- Project-specific artifact names\n"+
 			"- Project-specific vocabulary that would not exist in another agent system\n\n"+
+			"Assess only the structural fields named above. The entry may also carry a "+
+			"`**Fallout profile:**` reference to a separate fallout document — that is a "+
+			"metadata pointer, not a structural field, so its path is not a Sub-check A "+
+			"reference and must be ignored.\n\n"+
 			"Calibration instances in the violation signal and illustrative carve-outs in "+
 			"does-not-fire-on are structural fields and must meet the same universality "+
 			"standard. No carve-outs. A label marking a calibration instance as "+

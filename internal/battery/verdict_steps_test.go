@@ -208,6 +208,23 @@ func TestItem9PromptCarriesCalibrationInstanceRuling(t *testing.T) {
 	}
 }
 
+func TestItem9PromptScopesOutFalloutProfileMetadata(t *testing.T) {
+	// The entry carries a **Fallout profile:** reference (Item 15's referent);
+	// it is a metadata pointer, not one of Item 9's structural fields, so the
+	// prompt must tell the assessor to ignore its path — otherwise the model
+	// flags corpus plumbing as a project-specific reference.
+	f := &fakeClient{text: "PASS"}
+	st := &State{Content: "**Fallout profile:** ../fallout-profiles/x.md\n**Glyph:** g\n", Model: f}
+	Item9Universality(context.Background(), st)
+	if len(f.prompts) != 1 {
+		t.Fatalf("expected one prompt, got %d", len(f.prompts))
+	}
+	if !strings.Contains(f.prompts[0], "**Fallout profile:**") ||
+		!strings.Contains(f.prompts[0], "metadata pointer, not a structural field") {
+		t.Fatal("prompt should instruct the assessor to ignore the fallout-profile metadata reference")
+	}
+}
+
 func TestItem9AssessesLabelledCalibrationInstanceAsFail(t *testing.T) {
 	st := &State{Content: labelledCalibrationEntry, Model: &rulingAwareClient{}}
 	out := Item9Universality(context.Background(), st)
