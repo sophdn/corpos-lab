@@ -3,7 +3,8 @@
 Compares against the primary (Claude) scores and reports agreement."""
 import json, urllib.request, pathlib
 
-RUNS = pathlib.Path("/home/sophi/dev/corpos-lab/studies/casg-direct-v3-repro/runs/ollama-repro-2026-07-13")
+REPO = pathlib.Path(__file__).resolve().parents[4]
+RUNS = REPO / "studies" / "casg-direct-v3-repro" / "runs" / "ollama-repro-2026-07-13"
 QWEN = "http://localhost:8081/v1/chat/completions"
 MODEL = "Qwen2.5-32B-Instruct-Q4_K_M.gguf"
 
@@ -65,6 +66,6 @@ for cond, run, primary in SAMPLE:
     print(f"{cond} r{run}: primary={primary}  qwen={qwen} (raw={raw!r})  {'AGREE' if match else 'DISAGREE'}", flush=True)
 
 print(f"\nAgreement: {agree}/{len(SAMPLE)} = {agree/len(SAMPLE)*100:.0f}%")
-pathlib.Path("/tmp/claude-1000/-home-sophi-dev/e1f9de99-4232-4391-9415-2862da7379fb/scratchpad/double_score_result.json").write_text(
+(pathlib.Path(__file__).resolve().parent / "double_score_result.json").write_text(
     json.dumps({"sample": [{"condition": c, "run": r, "primary": p, "qwen": q, "raw": raw, "match": m} for c, r, p, q, raw, m in rows],
                 "agreement": f"{agree}/{len(SAMPLE)}"}, indent=2))

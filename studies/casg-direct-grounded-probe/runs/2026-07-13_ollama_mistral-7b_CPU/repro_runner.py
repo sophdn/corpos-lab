@@ -8,7 +8,8 @@ human/judge step). No material edits.
 """
 import json, sys, time, urllib.request, hashlib, pathlib
 
-STUDY = pathlib.Path("/home/sophi/dev/corpos-lab/studies/casg-direct-v3-repro")
+REPO = pathlib.Path(__file__).resolve().parents[4]
+STUDY = REPO / "studies" / "casg-direct-v3-repro"
 MAT = STUDY / "materials"
 OUT = STUDY / "runs" / "ollama-repro-2026-07-13"
 OLLAMA = "http://localhost:11434/api/generate"
