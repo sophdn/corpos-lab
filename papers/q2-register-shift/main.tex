@@ -36,9 +36,9 @@
 We report an empirical observation in Mistral-7B-Instruct-v0.3 (Q4\_K\_M).
 When prompted with a \emph{glyph}, a three-axis phenomenological description
 of a recurring decision class, the model enters an analysis register: it
-traverses the glyph's axes, recognizes the described obligation, and produces
-no task execution. Across three independent legs totaling 24 glyph-only runs,
-zero executions occurred. The same model produced changelog entries in 19 of 24
+analyzes the glyph, in 17 of 24 runs recognizes the described obligation as
+unmet, and in no run produces task execution. Across three independent legs
+totaling 24 glyph-only runs, zero executions occurred. The same model produced changelog entries in 19 of 24
 baseline runs with no glyph context. Adding a \emph{ground register}, a
 concrete action specification for the same decision class, recovers execution,
 with lifts of +7, +8, and +4 out of 8 runs per leg. The phenomenon is
@@ -76,16 +76,18 @@ three-axis structured description of a decision class:
 
 The glyph format is deliberately phenomenological: it describes what happens,
 not what to do. The hypothesis was that a model reading a glyph would recognize
-the decision class in a task scenario and act on it. What we observed instead was that the model \emph{analyzed} the
-glyph, axis by axis and with explicit references to the Marker, Aim, and Rest
-axes, and produced no task execution.
-The model comprehended the decision class. It did not comply.
+the decision class in a task scenario and act on it. What we observed instead was that the model \emph{analyzed} the glyph, in
+most runs axis by axis with explicit references to the Marker, Aim, and Rest
+axes, and produced no task execution. In 17 of 24 runs it recognized the
+obligation as unmet; in the other 7 it concluded that the class did not apply
+or that the changelog was already updated. In no run did it comply.
 
 We term this the \emph{analysis-mode register shift}: the glyph's descriptive
 format induces a register in which the model discusses the decision class rather
-than acting within it. The shift is consistent (24/24 glyph-only runs), model
-behavior is qualitatively uniform (axis-by-axis traversal with recognition
-language), and the effect reverses when a concrete action specification
+than acting within it. The shift
+is consistent (0 executions in 24 glyph-only runs), the dominant behavior is
+axis-by-axis traversal with recognition language (17 of 24 runs coded as
+recognition without action), and the effect reverses when a concrete action specification
 (\emph{ground register}) is added alongside the glyph.
 
 This report documents the observation across three legs, states the method and
@@ -213,16 +215,20 @@ Three conditions, 8 runs each:
     and the ground register are prepended.
 \end{enumerate}
 
-Materials were prepended via the inference server's API, assembled with a
-newline-separator-newline delimiter.
+Materials were prepended to the scenario. For the CPU and GPU legs the record
+shows the parts joined with a newline-separator-newline delimiter; the April
+record says only that the materials were prepended.
 
 \subsection{Legs}
 
 Three independent legs were run:
 
 \begin{enumerate}
-  \item \textbf{April v3} (2026-04): Ollama runtime, temperature unrecorded
-    (inferred $>0$ from grid variation), original study materials.
+    \item \textbf{April v3} (2026-04): Ollama runtime, temperature unrecorded
+    (inferred $>0$ from grid variation), original study materials. The April
+    grid also holds cells for a Claude subject; they are excluded here because
+    Claude-family models are treated as contaminated subjects for this task
+    (Section~\ref{sec:scoring}).
   \item \textbf{CPU reproduction} (2026-07-13): Ollama runtime, CPU inference
     (5.1 tok/s), temperature 0.8, seeds 1--8.
   \item \textbf{GPU leg} (2026-07-14): llama.cpp (\texttt{llama-server}),
@@ -277,8 +283,9 @@ Section~\ref{sec:agents} states what is recorded.
 \subsection{Agents and Models}
 \label{sec:agents}
 
-Table~\ref{tab:agents} lists every model that produced or scored a response,
-with the version information the study record holds. Where a version was not
+Table~\ref{tab:agents} lists every model that produced or scored a response
+in the three legs reported here, with the version information the study
+record holds. Where a version was not
 recorded, the table says so.
 
 \begin{table}[h]
@@ -293,7 +300,7 @@ recorded, the table says so.
 Role & Model & Version and runtime & Date \\
 \midrule
 Subject, all legs & Mistral-7B-Instruct-v0.3 & Q4\_K\_M GGUF. April leg: Ollama \texttt{mistral:latest}, digest not recorded. CPU leg: Ollama \texttt{mistral:latest}, digest \texttt{6577803a}. GPU leg: llama.cpp in a digest-pinned OCI image. & 2026-04; 2026-07-13; 2026-07-14 \\
-Primary scorer, April leg & Not recorded & The April grid records manual scoring at run time and does not name the scorer. & 2026-04 \\
+Primary scorer, April leg & Not recorded & The April grid records manual scoring and names neither the scorer nor the time of scoring. & 2026-04 \\
 Primary scorer, CPU leg & Claude (Anthropic) & Not recorded. Scored at run time.\textsuperscript{c} & 2026-07-13 \\
 Primary scorer, GPU leg & Claude (Anthropic) & Not recorded. All 24 responses were scored at run time (grid in the repository history, 2026-07-14) and scored again from stored responses on 2026-09-05; the two gradings agree on all 24 cells.\textsuperscript{c} & 2026-07-14; 2026-09-05 \\
 Second rater, CPU and GPU legs & Qwen2.5-32B-Instruct & Q4\_K\_M GGUF served at the local OpenAI-compatible endpoint, temperature 0.0, max 8 output tokens, fixed rubric prompt. & 2026-07-13; 2026-07-14 \\
@@ -304,7 +311,9 @@ Second rater, CPU and GPU legs & Qwen2.5-32B-Instruct & Q4\_K\_M GGUF served at 
 \footnotesize
 \textsuperscript{c} The repository commits that landed the CPU and GPU score
 files carry co-author trailers naming the committing Claude session (Claude
-Opus 4.8 on 2026-07-13; Claude Opus 4.6 on 2026-09-05). A trailer names the
+Opus 4.8 on 2026-07-13 for the CPU grid, Claude Opus 4.8 on 2026-07-14 for
+the GPU run-time grid, and Claude Opus 4.6 on 2026-09-05 for the GPU
+re-scoring). A trailer names the
 session that committed the file, which is not always the session that scored;
 we therefore report the version as not recorded.
 \end{table}
@@ -320,10 +329,12 @@ not double-scored.
   \item CPU leg: 6 responses sampled (baseline runs 1 and 3; glyph-only runs 2
     and 4; grounded runs 2 and 7). Agreement: 6/6 (100\%).
   \item GPU leg: 12 responses sampled (baseline runs 1 and 6; glyph-only runs 3
-    and 4; grounded runs 1--8). Agreement: 10/12 (83\%). Both disagreements
-    involved adjacent codes: I versus Ii on glyph-only run 3, and C versus Ii
-    on grounded run 7. Each is a distinction between degrees of recognition,
-    not between recognition and no recognition.
+    and 4; grounded runs 1--8). Agreement: 10/12 (83\%). The two disagreements: on
+    glyph-only run 3 the primary scorer coded I (no recognition) and the
+    second rater Ii (recognition without action), which leaves the 0/8
+    glyph-only count unchanged; on grounded run 7 the primary scorer coded C
+    and the second rater Ii, which would lower the GPU grounded count from
+    4/8 to 3/8.
 \end{itemize}
 
 \section{Results}
@@ -365,19 +376,23 @@ produced a changelog entry when given the glyph without the ground register.
 
 \subsection{Qualitative Pattern in Glyph-Only Responses}
 
-The 0/24 count understates the uniformity of the behavior. In every glyph-only
-response across all three legs, the model entered a recognizable pattern:
+The 0/24 count understates how specific the behavior is. Every glyph-only
+response across all three legs analyzes the glyph rather than acting on the
+scenario, and none produces an entry. Within that:
 
 \begin{enumerate}
-  \item \textbf{Axis-by-axis traversal}: the response walks through the
-    Marker, Aim, and/or Rest axes explicitly, using the glyph's own vocabulary.
-  \item \textbf{Recognition language}: the model correctly identifies the
-    changelog as the companion artifact and states that the update obligation is
-    unmet. Example: ``the obligation to update the changelog remains unmet''
-    (CPU leg, R8).
-  \item \textbf{No execution}: despite recognizing the obligation, the model either defers (``is updated
-separately after verifying the release is complete'') or dismisses (``the current operation \ldots{} doesn't include this
-companion artifact update'').
+  \item \textbf{Axis-by-axis traversal}: most responses walk through the
+    Marker, Aim, and/or Rest axes explicitly, using the glyph's own vocabulary;
+    the per-run notes in the score grids record which.
+  \item \textbf{Recognition language}: in 17 of 24 responses (code Ii), the
+    model identifies the changelog as the companion artifact and states that
+    the update obligation is unmet. Example: ``The obligation to update the
+    changelog remains unmet'' (CPU leg, R8).
+  \item \textbf{No execution}: the Ii responses either defer (``is updated
+    separately after verifying the release is complete'') or dismiss (``the
+    current operation \ldots{} doesn't include this companion artifact
+    update''). The 7 responses coded I conclude that the class does not apply
+    or that the changelog is already updated. None writes an entry.
 \end{enumerate}
 
 The distribution of non-C codes in glyph-only illustrates the analysis pattern:
@@ -397,8 +412,9 @@ I (no recognition)          & 1 & 2 & 4 \\
 
 \smallskip
 \footnotesize
-April v3 and CPU legs scored per-run at run time. GPU leg scored per-run at run time and again from stored responses on
-2026-09-05, with identical results (Table~\ref{tab:agents}). In all three legs, the dominant code is Ii: the
+April v3 grid scored per run (time of scoring not recorded). CPU leg scored
+per run at run time. GPU leg scored per run at run time and again from stored
+responses on 2026-09-05, with identical results (Table~\ref{tab:agents}). In all three legs, the dominant code is Ii: the
 model recognizes the obligation but does not act. The GPU leg has a higher
 proportion of I codes (4/8 vs.\ 1/8 and 2/8), with the I responses frequently
 misreading the scenario as already complete.
@@ -409,7 +425,7 @@ misreading the scenario as already complete.
 The baseline condition serves as a calibration gate. Across the three legs,
 19/24 baseline runs produced changelog entries (C at the any-entry threshold:
 7/8, 6/8, and 6/8). \textbf{0/24 produced correct-target entries}: no baseline
-response combined the correct file, format, date, and placement. This
+response combined the correct file, format, and placement. This
 establishes that:
 
 \begin{enumerate}
@@ -444,13 +460,14 @@ The study defined three gates, evaluated per-leg:
 The central observation is that the glyph produces a specific, identifiable
 alternative behavior, analysis-mode traversal of the glyph's own structure,
 rather than simply failing to produce execution. The model does not
-ignore the glyph or produce unrelated output. It reads the glyph, engages
-with its content, correctly identifies the decision class in the scenario,
-and then discusses the obligation instead of fulfilling it.
+ignore the glyph or produce unrelated output. It reads the
+glyph, engages with its content, and discusses the decision class instead of
+acting on it; in 17 of 24 runs it identifies the obligation as unmet and still
+does not fulfil it.
 
-This is a \emph{register} phenomenon rather than a failure of comprehension. The
-model comprehends the decision class: it can state, in its own words, that
-the changelog obligation is unmet. What it does not do is transition from
+This is a \emph{register} phenomenon rather than a failure of comprehension. In
+the Ii runs the model comprehends the decision class: it states, in its own
+words, that the changelog obligation is unmet. What it does not do is transition from
 recognition to execution. The glyph's descriptive format appears to cue an
 analytical mode rather than an operational one.
 
@@ -521,13 +538,15 @@ This report is scoped narrowly, and the limitations are substantial:
 
 The CaPC hypothesis predicts that comprehension of a decision class should
 produce correct navigation. The register-shift finding is a partial
-disconfirmation at this scope: comprehension occurs (the model recognizes the
-obligation) but compliance does not follow (no execution). However, the
+disconfirmation at this scope: comprehension
+occurs in most runs (17 of 24 recognize the obligation) but compliance never
+follows (no execution). However, the
 grounded condition shows that comprehension + concrete specification
 \emph{does} produce correct execution, and at a higher fidelity than baseline
-execution. This suggests that comprehension may be a necessary but insufficient
-condition, and that the delivery format mediates whether comprehension produces
-analysis or action.
+execution. This suggests that
+comprehension is insufficient on its own; whether it is necessary was not
+tested, since no ground-only condition was run. The delivery format appears
+to mediate whether comprehension produces analysis or action.
 
 The distinction between the glyph (phenomenological description) and the ground
 (action specification) maps loosely onto the distinction between
@@ -581,7 +600,7 @@ Liu, H., Liu, R., Xu, H., Han, J., Fang, S., Yan, S., Deng, H., Wang, G., and
 \bibitem[Polanyi(1966)]{polanyi1966}
 Polanyi, M. (1966).
 \newblock \emph{The Tacit Dimension}.
-\newblock University of Chicago Press.
+\newblock Doubleday.
 
 \bibitem[Ryle(1949)]{ryle1949}
 Ryle, G. (1949).
@@ -600,8 +619,11 @@ Wang, Y., Lester, J., and Srivastava, S. (2026).
 \section{Materials}
 \label{app:materials}
 
-The text of the three study materials is reproduced below; the metadata
-header of the ground register file (element slug and status) is omitted.
+The text of the three study materials is reproduced below. Omitted or
+changed in this rendering, though present in the prompts the model received:
+each file's title line, the horizontal rules in the glyph file, the ground
+register file's metadata header (element slug and status), and the axis and
+field headings, which appear here as run-in bold labels with a colon.
 SHA-256 hashes of the files are recorded in the CPU and GPU run manifests.
 
 \subsection{Scenario (CASG-direct, Mistral)}
@@ -735,7 +757,7 @@ grounded       & C  & C  & C  & C  & C  & C  & C  & C  & 8/8 C \\
     reflect this release.'' Misread as done.
   \item[R2 (Ii)] Axis-by-axis; ``obligation is unmet''; recommends updating.
     No entry produced.
-  \item[R3 (Ii)] Axis-by-axis; ``changelog still needs to be performed'';
+  \item[R3 (Ii)] Axis-by-axis; ``the companion artifact update (changelog) still needs to be performed'';
     good-practice recommendation. No entry.
     \item[R4 (I)] Concluded there are ``no companion artifacts that need to be
     updated directly''; treated the class as not applying. Reasoned the
@@ -744,7 +766,7 @@ grounded       & C  & C  & C  & C  & C  & C  & C  & C  & 8/8 C \\
     separately after verifying'' (deferral). No entry.
     \item[R6 (Ii)] Recommends that the team verify both the primary artifact
     and its companion artifacts before closing. No entry.
-    \item[R7 (Ii)] ``The changelog should be updated after the release
+    \item[R7 (Ii)] ``the changelog should be updated after the release
     \ldots{} the current operation \ldots{} doesn't include this companion
     artifact update.'' Deferral. No entry.
   \item[R8 (Ii)] Marker ``obligation to update the changelog remains unmet'';
