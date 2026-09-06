@@ -170,15 +170,21 @@ leg, and no leg recorded its full sampler chain:
   \item \textbf{April v3}: no temperature, sampler, or processor was recorded.
     Variation across the eight runs of a cell implies a temperature above
     zero.
-  \item \textbf{CPU reproduction} (Ollama): temperature 0.8, per-run seeds
+    \item \textbf{CPU reproduction} (Ollama): temperature 0.8, per-run seeds
     1--8, and 512 max tokens, as recorded in the run manifest. No other
     sampler stage was set, so Ollama's defaults for truncation and penalties
-    applied. Those defaults were not recorded.
+    applied. The runner did not read them back; the repository record of the
+    GPU verdict lists them from Ollama's documented defaults as top\_p 0.9,
+    min\_p 0.0, and repeat\_penalty 1.1.
   \item \textbf{GPU leg} (llama.cpp): temperature 0.8, per-run seeds 1--8,
     and 512 max tokens, as declared in the run's study definition. No other
-    stage was declared, so the server's defaults for truncation and penalties
-    applied. Those defaults were not recorded.
+    stage was declared, so the server's defaults applied. They were read
+    from the server's properties endpoint at the time and recorded in the
+    repository history: top\_p 0.95, min\_p 0.05, repeat\_penalty 1.0.
 \end{itemize}
+
+The CPU and GPU legs therefore sampled different distributions while both
+reporting temperature 0.8 and seeds 1--8.
 
 Seeds keep replicates both varied and repeatable within a leg. The study
 definition released with this report declares the full chain for future
@@ -283,11 +289,11 @@ recorded, the table says so.
 \toprule
 Role & Model & Version and runtime & Date \\
 \midrule
-Subject, all legs & Mistral-7B-Instruct-v0.3 & Q4\_K\_M GGUF. April and CPU legs: Ollama \texttt{mistral:latest}, digest \texttt{6577803a}. GPU leg: llama.cpp in a digest-pinned OCI image. & 2026-04; 2026-07-13; 2026-07-14 \\
+Subject, all legs & Mistral-7B-Instruct-v0.3 & Q4\_K\_M GGUF. April leg: Ollama \texttt{mistral:latest}, digest not recorded. CPU leg: Ollama \texttt{mistral:latest}, digest \texttt{6577803a}. GPU leg: llama.cpp in a digest-pinned OCI image. & 2026-04; 2026-07-13; 2026-07-14 \\
 Primary scorer, April leg & Claude (Anthropic) & Not recorded. Scored at run time. & 2026-04 \\
 Primary scorer, CPU leg & Claude (Anthropic) & Not recorded. Scored at run time.\textsuperscript{c} & 2026-07-13 \\
 Primary scorer, GPU leg & Claude (Anthropic) & Not recorded for the 12 responses scored at run time; the remaining 12 were scored from stored responses on 2026-09-05.\textsuperscript{c} & 2026-07-14; 2026-09-05 \\
-Second rater, CPU and GPU legs & Qwen2.5-32B-Instruct & Q4\_K\_M GGUF on llama.cpp, temperature 0.0, max 8 output tokens, fixed rubric prompt. & 2026-07-13; 2026-07-14 \\
+Second rater, CPU and GPU legs & Qwen2.5-32B-Instruct & Q4\_K\_M GGUF served at the local OpenAI-compatible endpoint, temperature 0.0, max 8 output tokens, fixed rubric prompt. & 2026-07-13; 2026-07-14 \\
 \bottomrule
 \end{tabular}
 
@@ -295,7 +301,7 @@ Second rater, CPU and GPU legs & Qwen2.5-32B-Instruct & Q4\_K\_M GGUF on llama.c
 \footnotesize
 \textsuperscript{c} The repository commits that landed the CPU and GPU score
 files carry co-author trailers naming the committing Claude session (Claude
-Opus 4.8 on 2026-07-14; Claude Opus 4.6 on 2026-09-05). A trailer names the
+Opus 4.8 on 2026-07-13; Claude Opus 4.6 on 2026-09-05). A trailer names the
 session that committed the file, which is not always the session that scored;
 we therefore report the version as not recorded.
 \end{table}
@@ -366,9 +372,9 @@ response across all three legs, the model entered a recognizable pattern:
     changelog as the companion artifact and states that the update obligation is
     unmet. Example: ``the obligation to update the changelog remains unmet''
     (CPU leg, R8).
-  \item \textbf{No execution}: despite recognizing the obligation, the model
-    either defers (``should be updated separately after verifying'') or
-    dismisses (``current operation doesn't include it'').
+  \item \textbf{No execution}: despite recognizing the obligation, the model either defers (``is updated
+separately after verifying the release is complete'') or dismisses (``current
+operation doesn't include this companion artifact update'').
 \end{enumerate}
 
 The distribution of non-C codes in glyph-only illustrates the analysis pattern:
@@ -433,14 +439,14 @@ The study defined three gates, evaluated per-leg:
 
 \subsection{The Register Shift}
 
-The central observation is not that the glyph fails to produce execution.
-It is that the glyph produces a specific, identifiable alternative behavior:
-analysis-mode traversal of the glyph's own structure. The model does not
+The central observation is that the glyph produces a specific, identifiable
+alternative behavior, analysis-mode traversal of the glyph's own structure,
+rather than simply failing to produce execution. The model does not
 ignore the glyph or produce unrelated output. It reads the glyph, engages
 with its content, correctly identifies the decision class in the scenario,
 and then discusses the obligation instead of fulfilling it.
 
-This is a \emph{register} phenomenon, not a failure of comprehension. The
+This is a \emph{register} phenomenon rather than a failure of comprehension. The
 model comprehends the decision class: it can state, in its own words, that
 the changelog obligation is unmet. What it does not do is transition from
 recognition to execution. The glyph's descriptive format appears to cue an
@@ -485,9 +491,11 @@ This report is scoped narrowly, and the limitations are substantial:
     and CPU legs used Ollama; the GPU leg used llama.cpp. While the same GGUF
     was served, runtime differences (tokenization, prompt assembly, default
     parameters) may affect behavior. The April v3 leg has unrecorded
-    temperature, and no leg recorded its truncation or penalty settings,
-    which fell to runtime defaults (Section~\ref{sec:sampling}). The effect
-    of those defaults on the counts is unknown.
+        temperature. No leg declared its truncation or penalty settings, which
+    fell to runtime defaults that differ between Ollama and llama.cpp
+    (Section~\ref{sec:sampling}); the CPU and GPU legs sampled different
+    distributions, and the April leg's are unknown. The effect on the counts
+    is unknown.
   \item \textbf{Prepend delivery only.} The glyph was delivered by prepending
     it to the scenario. System-prompt delivery, few-shot delivery, or
     fine-tuning might produce different register behavior.
@@ -585,8 +593,9 @@ Wang, Y., Lester, J., and Srivastava, S. (2026).
 \section{Materials}
 \label{app:materials}
 
-The three study materials are reproduced verbatim below. SHA-256 hashes are
-recorded in each leg's run manifest.
+The text of the three study materials is reproduced below; the metadata
+header of the ground register file (element slug and status) is omitted.
+SHA-256 hashes of the files are recorded in the CPU and GPU run manifests.
 
 \subsection{Scenario (CASG-direct, Mistral)}
 
@@ -733,7 +742,7 @@ grounded       & C  & C  & C  & C  & C  & C  & C  & C  & 8/8 C \\
     Aim ``verify \ldots{} present.'' Truncated mid-analysis. No entry.
 \end{description}
 
-Every response entered analysis mode. Not one wrote an entry.
+Every response entered analysis mode, and none wrote an entry.
 
 \section{Second-Rater Prompt}
 \label{app:rater}
