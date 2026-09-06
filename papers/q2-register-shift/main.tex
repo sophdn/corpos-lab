@@ -163,8 +163,7 @@ The ground register is reproduced in full in Appendix~\ref{app:materials}.
 \subsection{Model and Sampling}\label{sec:sampling}
 
 All runs used \textbf{Mistral-7B-Instruct-v0.3} at Q4\_K\_M quantization
-(7.2B parameters, GGUF format). The recorded sampling parameters differ by
-leg, and no leg recorded its full sampler chain:
+(7.2B parameters, GGUF format). The declared sampling parameters differ by leg, and no leg declared its full sampler chain:
 
 \begin{itemize}
   \item \textbf{April v3}: no temperature, sampler, or processor was recorded.
@@ -173,9 +172,9 @@ leg, and no leg recorded its full sampler chain:
     \item \textbf{CPU reproduction} (Ollama): temperature 0.8, per-run seeds
     1--8, and 512 max tokens, as recorded in the run manifest. No other
     sampler stage was set, so Ollama's defaults for truncation and penalties
-    applied. The runner did not read them back; the repository record of the
-    GPU verdict lists them from Ollama's documented defaults as top\_p 0.9,
-    min\_p 0.0, and repeat\_penalty 1.1.
+    applied. The repository record of the GPU verdict lists them as top\_p 0.9,
+    min\_p 0.0, and repeat\_penalty 1.1. The runner did not read them back,
+    and the Ollama version that ran is not recorded.
   \item \textbf{GPU leg} (llama.cpp): temperature 0.8, per-run seeds 1--8,
     and 512 max tokens, as declared in the run's study definition. No other
     stage was declared, so the server's defaults applied. They were read
@@ -194,9 +193,10 @@ after the GPU leg ran and describes none of the three legs. The penalty
 setting is a measurement decision: penalties suppress repeated structure,
 the glyph scaffold induces repeated structure by design (axis-by-axis
 traversal), and a live penalty would attenuate exactly the behavior under
-study. Whether the unrecorded defaults in the three legs included such a
-penalty is unknown; Section~\ref{sec:limitations} lists this among the
-limitations.
+study. By the recorded
+defaults, the CPU leg ran with a repetition penalty (1.1) and the GPU leg
+without (1.0); the April leg's setting is unknown. Section~\ref{sec:limitations}
+lists this among the limitations.
 
 \subsection{Conditions}
 
@@ -263,12 +263,13 @@ scored against progressively stricter criteria. A glyph-only score of 0/8
 means zero runs produced \emph{any} entry. A grounded score of 8/8 means all
 runs produced the \emph{correct} entry.
 
-Primary scoring was performed by Claude (Anthropic), which is a contaminated
+Primary scoring for the CPU and GPU legs was performed by Claude (Anthropic), which is a contaminated
 \emph{subject} for this task (the decision class is in its training data) but a
 permitted scoring \emph{judge}: it can recognize correct behavior without its
 own susceptibility affecting the score. The primary scorer applied the rubric
 above in an interactive session rather than through a fixed prompt. The model
-version of the primary scorer is not recorded in the study record for any leg;
+version of the primary scorer is not recorded in the study record for any leg,
+and the April grid records manual scoring without naming the scorer;
 Section~\ref{sec:agents} states what is recorded.
 
 \subsection{Agents and Models}
@@ -290,9 +291,9 @@ recorded, the table says so.
 Role & Model & Version and runtime & Date \\
 \midrule
 Subject, all legs & Mistral-7B-Instruct-v0.3 & Q4\_K\_M GGUF. April leg: Ollama \texttt{mistral:latest}, digest not recorded. CPU leg: Ollama \texttt{mistral:latest}, digest \texttt{6577803a}. GPU leg: llama.cpp in a digest-pinned OCI image. & 2026-04; 2026-07-13; 2026-07-14 \\
-Primary scorer, April leg & Claude (Anthropic) & Not recorded. Scored at run time. & 2026-04 \\
+Primary scorer, April leg & Not recorded & The April grid records manual scoring at run time and does not name the scorer. & 2026-04 \\
 Primary scorer, CPU leg & Claude (Anthropic) & Not recorded. Scored at run time.\textsuperscript{c} & 2026-07-13 \\
-Primary scorer, GPU leg & Claude (Anthropic) & Not recorded for the 12 responses scored at run time; the remaining 12 were scored from stored responses on 2026-09-05.\textsuperscript{c} & 2026-07-14; 2026-09-05 \\
+Primary scorer, GPU leg & Claude (Anthropic) & Not recorded. All 24 responses were scored at run time (grid in the repository history, 2026-07-14) and scored again from stored responses on 2026-09-05; the two gradings agree on all 24 cells.\textsuperscript{c} & 2026-07-14; 2026-09-05 \\
 Second rater, CPU and GPU legs & Qwen2.5-32B-Instruct & Q4\_K\_M GGUF served at the local OpenAI-compatible endpoint, temperature 0.0, max 8 output tokens, fixed rubric prompt. & 2026-07-13; 2026-07-14 \\
 \bottomrule
 \end{tabular}
@@ -373,8 +374,8 @@ response across all three legs, the model entered a recognizable pattern:
     unmet. Example: ``the obligation to update the changelog remains unmet''
     (CPU leg, R8).
   \item \textbf{No execution}: despite recognizing the obligation, the model either defers (``is updated
-separately after verifying the release is complete'') or dismisses (``current
-operation doesn't include this companion artifact update'').
+separately after verifying the release is complete'') or dismisses (``the current operation \ldots{} doesn't include this
+companion artifact update'').
 \end{enumerate}
 
 The distribution of non-C codes in glyph-only illustrates the analysis pattern:
@@ -394,9 +395,8 @@ I (no recognition)          & 1 & 2 & 4 \\
 
 \smallskip
 \footnotesize
-April v3 and CPU legs scored per-run at run time. GPU leg: 12 responses
-scored at run time and the remaining 12 scored from stored responses on
-2026-09-05 (Table~\ref{tab:agents}). In all three legs, the dominant code is Ii: the
+April v3 and CPU legs scored per-run at run time. GPU leg scored per-run at run time and again from stored responses on
+2026-09-05, with identical results (Table~\ref{tab:agents}). In all three legs, the dominant code is Ii: the
 model recognizes the obligation but does not act. The GPU leg has a higher
 proportion of I codes (4/8 vs.\ 1/8 and 2/8), with the I responses frequently
 misreading the scenario as already complete.
@@ -488,12 +488,16 @@ This report is scoped narrowly, and the limitations are substantial:
     different instruction-tuning regimes might not exhibit the same register
     shift.
     \item \textbf{Two runtimes and unrecorded sampler stages.} The April v3
-    and CPU legs used Ollama; the GPU leg used llama.cpp. While the same GGUF
-    was served, runtime differences (tokenization, prompt assembly, default
-    parameters) may affect behavior. The April v3 leg has unrecorded
-        temperature. No leg declared its truncation or penalty settings, which
+    and CPU legs used Ollama; the GPU leg used llama.cpp. Every leg's record
+    names the same model and quantization, but the served weights are
+    identified by an Ollama digest for the CPU leg, a filename for the GPU
+    leg, and a tag alone for the April leg, so byte-identity of the weights
+    is not established. Runtime differences (tokenization, prompt assembly,
+    default parameters) may affect behavior. The April v3 leg has unrecorded
+    temperature. No leg declared its truncation or penalty settings, which
     fell to runtime defaults that differ between Ollama and llama.cpp
-    (Section~\ref{sec:sampling}); the CPU and GPU legs sampled different
+    (Section~\ref{sec:sampling}): the CPU leg ran with a repetition penalty
+    of 1.1 and the GPU leg with none, so the two legs sampled different
     distributions, and the April leg's are unknown. The effect on the counts
     is unknown.
   \item \textbf{Prepend delivery only.} The glyph was delivered by prepending
@@ -724,20 +728,22 @@ grounded       & C  & C  & C  & C  & C  & C  & C  & C  & 8/8 C \\
 \subsection{Glyph-Only Per-Run Observations}
 
 \begin{description}
-  \item[R1 (I)] Analyzed axes, concluded the changelog was ``already updated.''
-    Misread as done.
+    \item[R1 (I)] Analyzed axes; stated that the changelog ``is updated to
+    reflect this release.'' Misread as done.
   \item[R2 (Ii)] Axis-by-axis; ``obligation is unmet''; recommends updating.
     No entry produced.
   \item[R3 (Ii)] Axis-by-axis; ``changelog still needs to be performed'';
     good-practice recommendation. No entry.
-  \item[R4 (I)] Concluded ``no companion artifacts that need updating''; class
-    ``doesn't fire.'' Reasoned the obligation away.
+    \item[R4 (I)] Concluded there are ``no companion artifacts that need to be
+    updated directly''; treated the class as not applying. Reasoned the
+    obligation away.
   \item[R5 (Ii)] Marker ``does not fire''; but acknowledges changelog ``updated
     separately after verifying'' (deferral). No entry.
-  \item[R6 (Ii)] Recommends the team ``verify both artifacts updated before
-    marking closed.'' No entry.
-  \item[R7 (Ii)] ``Changelog should be updated after the release \ldots{}
-    current operation doesn't include it.'' Deferral. No entry.
+    \item[R6 (Ii)] Recommends that the team verify both the primary artifact
+    and its companion artifacts before closing. No entry.
+    \item[R7 (Ii)] ``The changelog should be updated after the release
+    \ldots{} the current operation \ldots{} doesn't include this companion
+    artifact update.'' Deferral. No entry.
   \item[R8 (Ii)] Marker ``obligation to update the changelog remains unmet'';
     Aim ``verify \ldots{} present.'' Truncated mid-analysis. No entry.
 \end{description}
