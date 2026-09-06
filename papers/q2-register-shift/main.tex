@@ -1,0 +1,668 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{natbib}
+\usepackage{graphicx}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!60!black,
+  citecolor=blue!60!black,
+  urlcolor=blue!60!black
+}
+
+\title{%
+  Structured Phenomenological Descriptions Induce \\
+  Analysis-Mode Behavior in a Small Language Model%
+}
+
+\author{Sophie D.\ Neilson \\
+  \small Independent Researcher \\
+  \small ORCID: \href{https://orcid.org/0009-0001-2430-1743}{0009-0001-2430-1743}
+}
+
+\date{September 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We report an empirical observation in Mistral-7B-Instruct-v0.3 (Q4\_K\_M):
+when prompted with a \emph{glyph}---a three-axis phenomenological description
+of a recurring decision class---the model enters an analysis register. It
+traverses the glyph's axes, recognizes the described obligation, and produces
+no task execution. Across three independent legs totaling 24 glyph-only runs,
+zero executions occurred---despite the model producing changelog entries in 6/8
+baseline runs without any glyph context. By contrast, adding a \emph{ground
+register}---a concrete action specification for the same decision class---recovers
+execution, with lifts of +7, +8, and +4 out of 8 runs per leg. The phenomenon is
+consistent: glyph comprehension does not produce compliance but analysis. We
+report this as a preliminary observation, scoped to one glyph, one scenario,
+and one model. Limitations, inter-rater agreement, and sampling methodology
+are documented in full.
+\end{abstract}
+
+\section{Introduction}
+
+Instruction-following in language models is typically studied as a compliance
+problem: given an instruction, does the model do what it says? The implicit
+assumption is that comprehension of the instruction leads to execution. This
+report documents a case where comprehension and execution cleanly dissociate.
+
+The observation arises from a research program called
+\emph{Comprehension-as-Compliance} (CaPC), which investigates whether
+structured descriptions of recurring failure points can steer agent behavior
+through recognition rather than instruction. The theoretical grounding draws on
+Polanyi's account of tacit knowledge~\citep{polanyi1966} and Klein's
+Recognition-Primed Decision model~\citep{klein1998}: an agent that
+\emph{recognizes} a decision class from prior exposure should navigate it
+correctly without explicit rules. In this framework, a \emph{glyph} is a
+three-axis structured description of a decision class:
+
+\begin{itemize}
+  \item \textbf{Marker}: what the failure looks like from inside the decision,
+    described without intent modeling.
+  \item \textbf{Aim}: what correct navigation looks like---the co-presence of
+    the right actions in the execution trace.
+  \item \textbf{Rest}: the conditions under which this decision class is not
+    live.
+\end{itemize}
+
+The glyph format is deliberately phenomenological: it describes what happens,
+not what to do. The hypothesis was that a model reading a glyph would recognize
+the decision class in a task scenario and act on it. What we observed instead
+was that the model \emph{analyzed} the glyph---axis by axis, with explicit
+references to the Marker, Aim, and Rest axes---and produced no task execution.
+The model comprehended the decision class. It did not comply.
+
+We term this the \emph{analysis-mode register shift}: the glyph's descriptive
+format induces a register in which the model discusses the decision class rather
+than acting within it. The shift is consistent (24/24 glyph-only runs), model
+behavior is qualitatively uniform (axis-by-axis traversal with recognition
+language), and the effect reverses when a concrete action specification
+(\emph{ground register}) is added alongside the glyph.
+
+This report documents the observation across three legs, states the method and
+materials, and reports the results with inter-rater agreement. We make no claim
+about mechanism. The scope is narrow by design: one glyph (CASG---companion
+artifact scope gap), one scenario (a software release with an unupdated
+changelog), one model (Mistral-7B-Instruct-v0.3, Q4\_K\_M quantization). The
+purpose is to establish priority on the finding and provide sufficient detail
+for replication.
+
+\subsection{Related Work}
+
+Two recent papers occupy adjacent territory. Wang et
+al.~\citep{wang2026narrative} study ``narrative priors''---story-structured
+context that shapes model behavior---and find that narrative framing alters
+decision patterns in language models. Their work addresses format-dependent
+behavioral shifts but does not test phenomenological descriptions or measure
+register dissociation between comprehension and execution. Liu et
+al.~\citep{liu2026behavioral} propose ``behavioral mode axes'' as a mechanistic
+framework for characterizing distinct behavioral registers in language models.
+Their methodology for identifying and measuring register shifts is directly
+relevant to the analysis-mode phenomenon reported here, though their work does
+not study glyph-structured prompts.
+
+To our knowledge, no published work has tested the effect of
+descriptive-phenomenological prompts on language model behavior, nor documented
+a clean dissociation between comprehension (evidenced by correct recognition of
+the decision class) and compliance (execution of the corresponding action).
+
+\section{Materials and Method}
+
+\subsection{Task Scenario}
+
+The scenario describes a completed software release (filterpipe v1.5.0) with
+all engineering steps done---version bump, tests, commit, tag pushed---but the
+project changelog not yet updated. The final instruction is: ``Ensure the
+release is complete.'' The correct action is to update \texttt{CHANGELOG.md}
+with the release entry.
+
+The scenario was chosen because it contains a clear companion-artifact
+obligation: the changelog validity depends on reflecting the current release
+state, and the releasing agent holds direct update authority. The scenario is
+reproduced in full in Appendix~\ref{app:materials}.
+
+\subsection{Glyph}
+
+The glyph used is \textbf{CASG} (Companion Artifact Scope Gap), a three-axis
+description of the decision class where an agent completing an operation on a
+primary artifact holds direct authority over a companion artifact whose validity
+depends on the primary. The full glyph text is in Appendix~\ref{app:materials}.
+
+The glyph is domain-free: it describes ``primary artifact'' and ``companion
+artifact'' without naming changelogs, releases, or any specific technology. The
+decision class is universal---it applies whenever completing one artifact
+creates an update obligation on another.
+
+\subsection{Ground Register}
+
+The ground register is a concrete action specification for the CASG decision
+class, scoped to the filterpipe scenario. It contains:
+
+\begin{itemize}
+  \item \textbf{Context}: the specific release situation.
+  \item \textbf{X} (the failure): closing the release without updating the
+    changelog.
+  \item \textbf{Local-rational frame}: why the failure feels reasonable
+    (``the four-step release procedure is complete'').
+  \item \textbf{Z} (the consequence): changelog and tag out of sync.
+  \item \textbf{Action}: the exact entry to prepend to \texttt{CHANGELOG.md},
+    including format and placement.
+\end{itemize}
+
+The ground register is reproduced in full in Appendix~\ref{app:materials}.
+
+\subsection{Model and Sampling}
+
+All runs used \textbf{Mistral-7B-Instruct-v0.3} at Q4\_K\_M quantization
+(7.2B parameters, GGUF format). Sampling parameters were identical across all
+legs:
+
+\begin{itemize}
+  \item Temperature: 0.8, with per-run seeds 1--8.
+  \item Max tokens: 512.
+  \item Truncation: min\_p = 0.05 as the sole truncation stage.
+  \item All other truncation stages disabled (top\_k = 0, top\_p = 1.0,
+    typical\_p = 1.0, top\_n\_sigma = $-1.0$).
+  \item All penalties disabled: repeat\_penalty = 1.0, repeat\_last\_n = 0,
+    presence\_penalty = 0.0, frequency\_penalty = 0.0. This is a measurement
+    decision: penalties suppress repeated structure, and the glyph scaffold
+    induces repeated structure by design (axis-by-axis traversal). A live
+    penalty would attenuate exactly the behavior under study.
+\end{itemize}
+
+The full sampling chain is declared in the study definition and recorded in
+each run's manifest. Seeds ensure replicates are both varied and repeatable.
+
+\subsection{Conditions}
+
+Three conditions, 8 runs each:
+
+\begin{enumerate}
+  \item \textbf{Baseline}: scenario only. The model receives the release
+    scenario with no additional context.
+  \item \textbf{Glyph-only}: scenario + glyph. The CASG glyph is prepended to
+    the scenario.
+  \item \textbf{Grounded}: scenario + glyph + ground register. Both the glyph
+    and the ground register are prepended.
+\end{enumerate}
+
+Materials were prepended via the inference server's API, assembled with a
+newline-separator-newline delimiter.
+
+\subsection{Legs}
+
+Three independent legs were run:
+
+\begin{enumerate}
+  \item \textbf{April v3} (2026-04): Ollama runtime, temperature unrecorded
+    (inferred $>0$ from grid variation), original study materials.
+  \item \textbf{CPU reproduction} (2026-07-13): Ollama runtime, CPU inference
+    (5.1 tok/s), temperature 0.8, seeds 1--8.
+  \item \textbf{GPU leg} (2026-07-14): llama.cpp (\texttt{llama-server}),
+    GPU inference, temperature 0.8, seeds 1--8, containerized via
+    OCI image (digest-pinned).
+\end{enumerate}
+
+The CPU reproduction was run on Ollama because the GPU was occupied at the time.
+This is documented as a known runtime difference. Material hashes are recorded
+in each leg's manifest and match across all three legs.
+
+\subsection{Scoring}
+
+Responses were scored using a rubric with five codes:
+
+\begin{itemize}
+  \item \textbf{C}: recognition of the decision class + correct action.
+  \item \textbf{Ii}: recognition, but no action taken.
+  \item \textbf{Ic}: recognition, but wrong action taken.
+  \item \textbf{I}: no recognition of the decision class.
+  \item \textbf{N}: not scoreable (e.g., refusal, gibberish).
+\end{itemize}
+
+Critically, the C threshold is \emph{condition-specific}:
+
+\begin{itemize}
+  \item \textbf{Baseline C}: any changelog execution attempt (the model tried
+    to write an entry, regardless of format correctness).
+  \item \textbf{Glyph-only C}: any entry attempted (the model produced a
+    changelog entry, not just analysis).
+  \item \textbf{Grounded C}: correctly formatted entry matching the ground
+    register's specification (right file, right format, right placement).
+\end{itemize}
+
+This escalating threshold means that glyph-only and grounded conditions are
+scored against progressively stricter criteria. A glyph-only score of 0/8
+means zero runs produced \emph{any} entry. A grounded score of 8/8 means all
+runs produced the \emph{correct} entry.
+
+Primary scoring was performed by Claude (Anthropic), which is a contaminated
+\emph{subject} for this task (the decision class is in its training data) but a
+permitted scoring \emph{judge}: it can recognize correct behavior without its
+own susceptibility affecting the score.
+
+\subsection{Inter-Rater Agreement}
+
+Each leg was double-scored by a second rater (Qwen-32B-Instruct, Q4\_K\_M) on a
+sample of responses:
+
+\begin{itemize}
+  \item CPU leg: 6 responses sampled (2 per condition). Agreement: 6/6 (100\%).
+  \item GPU leg: 12 responses sampled (full set except baseline runs 2--5).
+    Agreement: 10/12 (83\%). Both disagreements involved adjacent codes (I vs.\
+    Ii in glyph-only; C vs.\ Ii in grounded)---distinctions between degrees of
+    recognition, not between recognition and no-recognition.
+\end{itemize}
+
+\section{Results}
+
+\subsection{Aggregate Scores}
+
+\begin{table}[h]
+\centering
+\caption{Scores (C out of 8 runs) by condition and leg. Ground lift =
+  grounded $-$ glyph\_only.}
+\label{tab:results}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Leg & Baseline & Glyph-only & Grounded & Ground lift \\
+\midrule
+April v3 (ollama, unrecorded) & 0/8\textsuperscript{a} & 0/8 & 7/8 & +7 \\
+CPU repro (ollama, CPU)       & 0/8\textsuperscript{b} & 0/8 & 8/8 & +8 \\
+GPU leg (llama.cpp, GPU)      & 0/8                     & 0/8 & 4/8 & +4 \\
+\midrule
+\textbf{Total}                & 0/24                    & \textbf{0/24} & 19/24 & --- \\
+\bottomrule
+\end{tabular}
+
+\smallskip
+\footnotesize
+\textsuperscript{a} 7/8 produced changelog entries but none hit correct target
+(correct file + format + placement). \\
+\textsuperscript{b} 6/8 C at the ``any attempt'' threshold; 0/8 correct-target.
+Calibration gate passes: baseline demonstrates the model \emph{can} produce
+entries but does not produce correct ones without guidance.
+\end{table}
+
+The core result: \textbf{0 executions in 24 glyph-only runs}. The model never
+produced a changelog entry when given the glyph without the ground register.
+
+\subsection{Qualitative Pattern in Glyph-Only Responses}
+
+The 0/24 count understates the uniformity of the behavior. In every glyph-only
+response across all three legs, the model entered a recognizable pattern:
+
+\begin{enumerate}
+  \item \textbf{Axis-by-axis traversal}: the response walks through the
+    Marker, Aim, and/or Rest axes explicitly, using the glyph's own vocabulary.
+  \item \textbf{Recognition language}: the model correctly identifies the
+    changelog as the companion artifact and states that the update obligation is
+    unmet. Example: ``the obligation to update the changelog remains unmet''
+    (CPU leg, R8).
+  \item \textbf{No execution}: despite recognizing the obligation, the model
+    either defers (``should be updated separately after verifying'') or
+    dismisses (``current operation doesn't include it'').
+\end{enumerate}
+
+The distribution of non-C codes in glyph-only illustrates the analysis pattern:
+
+\begin{table}[h]
+\centering
+\caption{Glyph-only score distribution across legs.}
+\label{tab:glyph-dist}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Code & April v3 & CPU repro & GPU leg \\
+\midrule
+Ii (recognition, no action) & 7 & 6 & 4 \\
+I (no recognition)          & 1 & 2 & 4 \\
+\bottomrule
+\end{tabular}
+
+\smallskip
+\footnotesize
+April v3 and CPU legs scored per-run at run time. GPU leg scored per-run from
+stored responses (backfilled). In all three legs, the dominant code is Ii: the
+model recognizes the obligation but does not act. The GPU leg has a higher
+proportion of I codes (4/8 vs.\ 1/8 and 2/8), with the I responses frequently
+misreading the scenario as already complete.
+\end{table}
+
+\subsection{Baseline Calibration}
+
+The baseline condition serves as a calibration gate. In the CPU reproduction
+leg (the most thoroughly documented), 6/8 baseline runs produced changelog
+entries (C at the ``any attempt'' threshold). However, \textbf{0/8 produced
+correct-target entries}---none used the right format, the right date, or the
+right placement. This establishes that:
+
+\begin{enumerate}
+  \item The model \emph{can} produce changelog entries (it does so without any
+    glyph or ground).
+  \item The model does \emph{not} produce correct entries without guidance.
+  \item The grounded condition does not merely recover execution---it recovers
+    \emph{correct} execution (8/8 C at the strict threshold in the CPU leg).
+\end{enumerate}
+
+\subsection{Pre-Registered Gates}
+
+The study defined three gates, evaluated per-leg:
+
+\begin{itemize}
+  \item \textbf{Calibration}: baseline must show the target failure. Passes in
+    all three legs (0/8 correct-target in baseline).
+  \item \textbf{Sufficiency}: if glyph-only $\geq 7/8$ C, the glyph alone is
+    sufficient and the ground is not needed. Fails in all three legs (0/8),
+    triggering the ground condition.
+  \item \textbf{Ground lift}: grounded $\geq 5/8$ C AND $\geq 2$ above
+    glyph-only. Met in the CPU leg (8/8, lift +8) and April v3 (7/8, lift +7).
+    Met in the GPU leg on the direction criterion (+4 above 0) but the 4/8
+    absolute score does not meet the $\geq 5/8$ threshold.
+\end{itemize}
+
+\section{Discussion}
+
+\subsection{The Register Shift}
+
+The central observation is not that the glyph fails to produce execution.
+It is that the glyph produces a specific, identifiable alternative behavior:
+analysis-mode traversal of the glyph's own structure. The model does not
+ignore the glyph or produce unrelated output. It reads the glyph, engages
+with its content, correctly identifies the decision class in the scenario,
+and then discusses the obligation instead of fulfilling it.
+
+This is a \emph{register} phenomenon, not a failure of comprehension. The
+model comprehends the decision class---it can state, in its own words, that
+the changelog obligation is unmet. What it does not do is transition from
+recognition to execution. The glyph's descriptive format appears to cue an
+analytical mode rather than an operational one.
+
+\subsection{Ground as Register Recovery}
+
+The ground register recovers execution by providing a concrete action
+specification within the same prompt. It does not teach the model a task
+it cannot perform---the baseline demonstrates that the model produces
+changelog entries without any glyph or ground. The ground recovers a
+capability the glyph suppressed. The ground does not replace the glyph;
+it accompanies it. In the grounded condition, the model still has access to
+the glyph's phenomenological description, but the ground's Action field
+provides an executable specification. The lifts (+7, +8, +4) show that the
+ground register shifts the model back into an execution register.
+
+The variation in lift magnitude (+4 to +8) is expected at $n = 8$. The 95\%
+confidence interval at this sample size is roughly $\pm 0.2$ wide, so
+comparing individual counts between legs is comparing noise. The phenomenon
+and its direction---glyph alone produces zero execution; ground recovers
+nonzero execution---is what reproduces.
+
+\subsection{Limitations}
+
+This report is scoped narrowly, and the limitations are substantial:
+
+\begin{enumerate}
+  \item \textbf{One glyph.} Only the CASG (companion artifact scope gap)
+    glyph was tested. The register shift may be specific to this glyph's
+    content, structure, or length.
+  \item \textbf{One scenario.} The filterpipe release scenario is the only
+    task context tested. A different scenario with the same glyph might not
+    produce the same pattern.
+  \item \textbf{One model.} All legs used Mistral-7B-Instruct-v0.3 at
+    Q4\_K\_M quantization. The phenomenon may be model-specific, size-specific,
+    or quantization-specific. Larger models, different architectures, or
+    different instruction-tuning regimes might not exhibit the same register
+    shift.
+  \item \textbf{Two runtimes.} The April v3 and CPU legs used Ollama; the GPU
+    leg used llama.cpp. While the same GGUF was served, runtime differences
+    (tokenization, prompt assembly, default parameters) may affect behavior.
+    The April v3 leg has unrecorded temperature.
+  \item \textbf{Prepend delivery only.} The glyph was delivered by prepending
+    it to the scenario. System-prompt delivery, few-shot delivery, or
+    fine-tuning might produce different register behavior.
+  \item \textbf{No mechanistic claim.} We report the phenomenon. We do not
+    claim to know \emph{why} the glyph induces analysis-mode behavior. Possible
+    explanations include the glyph's descriptive register cueing similar
+    register in the response, the three-axis structure resembling analytical
+    frameworks in training data, or the absence of imperative verbs.
+  \item \textbf{Scoring subjectivity.} The distinction between Ii (recognition,
+    no action) and I (no recognition) involves judgment about whether the model
+    ``recognized'' the obligation. The 83\% inter-rater agreement on the GPU
+    leg reflects this subjectivity.
+\end{enumerate}
+
+\subsection{Relation to Comprehension-as-Compliance}
+
+The CaPC hypothesis predicts that comprehension of a decision class should
+produce correct navigation. The register-shift finding is a partial
+disconfirmation at this scope: comprehension occurs (the model recognizes the
+obligation) but compliance does not follow (no execution). However, the
+grounded condition shows that comprehension + concrete specification
+\emph{does} produce correct execution, and at a higher fidelity than baseline
+execution. This suggests that comprehension may be a necessary but insufficient
+condition, and that the delivery format mediates whether comprehension produces
+analysis or action.
+
+The distinction between the glyph (phenomenological description) and the ground
+(action specification) maps loosely onto the distinction between
+\emph{knowing-that} and \emph{knowing-how} in Ryle's analysis~\citep{ryle1949}.
+The glyph provides knowing-that: what the decision class is, what failure looks
+like, what correct navigation looks like. The ground provides knowing-how: what
+specifically to do. The register shift suggests that knowing-that alone cues
+analysis, while knowing-how cues execution. The full CaPC framework, including
+its theoretical grounding and broader experimental design, is described in a
+companion paper~\citep{neilson2026capc}.
+
+\section{Conclusion}
+
+We report a consistent empirical observation: a structured phenomenological
+description of a decision class (glyph) induces analysis-mode behavior in
+Mistral-7B-Instruct-v0.3, with 0 executions in 24 glyph-only runs across
+three independent legs. Adding a concrete action specification (ground register)
+recovers execution with lifts of +7, +8, and +4. The finding is scoped to one
+glyph, one scenario, and one model. We release this observation to establish
+priority and invite replication.
+
+\subsection{Data Availability}
+
+The complete study materials---scenario, glyph, ground register, scoring
+rubric, study definition, run manifests, per-run scores, and inter-rater
+agreement data---are available at
+\url{https://github.com/sophdn/corpos-lab} under the
+\texttt{studies/casg-direct-grounded-probe/} directory.
+
+\bibliographystyle{plainnat}
+
+\begin{thebibliography}{9}
+
+\bibitem[Neilson(in preparation)]{neilson2026capc}
+Neilson, S.~D. (in preparation).
+\newblock Comprehension-as-Compliance: Structured phenomenological descriptions
+  as a steering mechanism for language model agents.
+
+\bibitem[Klein(1998)]{klein1998}
+Klein, G.~A. (1998).
+\newblock \emph{Sources of Power: How People Make Decisions}.
+\newblock MIT Press.
+
+\bibitem[Liu et~al.(2026)]{liu2026behavioral}
+Liu, H., et~al. (2026).
+\newblock Behavioral mode axes in large language models.
+\newblock \emph{arXiv preprint arXiv:2608.10703}.
+
+\bibitem[Polanyi(1966)]{polanyi1966}
+Polanyi, M. (1966).
+\newblock \emph{The Tacit Dimension}.
+\newblock University of Chicago Press.
+
+\bibitem[Ryle(1949)]{ryle1949}
+Ryle, G. (1949).
+\newblock \emph{The Concept of Mind}.
+\newblock Hutchinson.
+
+\bibitem[Wang et~al.(2026)]{wang2026narrative}
+Wang, X., et~al. (2026).
+\newblock Narrative priors shape decision patterns in language models.
+\newblock \emph{arXiv preprint arXiv:2607.18566}.
+
+\end{thebibliography}
+
+\appendix
+
+\section{Materials}
+\label{app:materials}
+
+The three study materials are reproduced verbatim below. SHA-256 hashes are
+recorded in each leg's run manifest.
+
+\subsection{Scenario (CASG-direct, Mistral)}
+
+\begin{quote}
+\texttt{filterpipe} v1.5.0 has been cut. The version is bumped in
+\texttt{filterpipe/\_\_init\_\_.py} and \texttt{pyproject.toml}, all 47 tests
+pass, and the release commit and tag v1.5.0 are pushed to the remote.
+
+This release adds a \texttt{ChainedFilter} class for composing multiple filter
+functions and fixes \texttt{NullFilter} raising \texttt{AttributeError} on
+empty input.
+
+The project maintains a changelog at \texttt{CHANGELOG.md}. Ensure the release
+is complete.
+\end{quote}
+
+\subsection{Glyph (CASG)}
+
+\begin{quote}
+\textbf{Decision class:} An agent completing an operation on a primary artifact
+holds direct execution authority over a companion artifact whose validity
+depends on reflecting the current state of the primary artifact set. No protocol
+assigns the companion update to another role --- the execution obligation
+includes the companion artifact update directly. Completing the primary artifact
+action feels like the end of the operation. The live choice is whether to treat
+the primary artifact update as the terminal step, or to include the companion
+artifact update as an equally required component of this operation.
+
+\textbf{Marker axis:} The operation closes --- primary artifact updated, task
+marked complete --- without a companion artifact update in the same execution
+scope. Observable without intent modeling: the execution trace shows the primary
+artifact action present and the operation closed; no companion artifact update
+appears within the same execution block. The agent held direct update authority;
+the obligation is unmet and no delegation transfer was filed.
+
+Does not fire on: operations where no companion artifact exists whose validity
+depends on reflecting the current state of the primary artifact set, or where
+the current operation does not affect the primary artifact in a way that
+triggers a companion update obligation; or where the companion update is
+protocol-assigned to another role.
+
+\textbf{Aim axis:} The companion artifact update is present in the execution
+trace alongside the primary artifact action, within the same operation scope,
+before the operation closes --- both updates co-present in the execution block.
+
+Recognition signal from position Y: correct navigation is the co-presence of
+the companion artifact update with the primary artifact action in the same
+execution scope. Both actions appear in the trace before the operation is
+marked complete.
+
+\textbf{Rest axis:} This decision class is not live when: no companion artifact
+exists whose validity depends on reflecting the primary artifact set state; or
+the current operation does not affect the primary artifact in a way that creates
+a companion update obligation (absent-preconditions territory). Also not live
+when: all companion artifact preconditions are present but the companion update
+is protocol-assigned to another role --- the current agent's obligation is to
+file a delegation handoff, not to perform the update directly
+(present-preconditions-delegated-elsewhere territory).
+\end{quote}
+
+\subsection{Ground Register (CASG-direct)}
+
+\begin{quote}
+\textbf{Context:} A \texttt{filterpipe} release is in progress. The version
+bump, tests, commit, and tag are complete. \texttt{CHANGELOG.md} exists at the
+project root and tracks releases using Keep a Changelog format. The companion
+update obligation is live.
+
+\textbf{X:} Close the release without updating \texttt{CHANGELOG.md} --- or
+defer the update to a separate follow-up step, a post-release process, or an
+automated tool.
+
+\textbf{Local-rational frame:} The four-step release procedure is complete. The
+tag is pushed. The release is done from an engineering standpoint. The changelog
+is a documentation artifact --- it can be updated in a follow-up commit, or the
+maintainer may prefer to handle it, or it will get included in the next
+housekeeping pass. This operation was the code release; the changelog lives
+adjacent to it, not inside it.
+
+\textbf{Z:} \texttt{CHANGELOG.md} does not reflect the current release. The
+tag and the changelog are out of sync. Consumers and contributors checking the
+changelog for v1.5.0 find nothing. The release is functionally incomplete as a
+communication artifact even though it is mechanically complete as a code
+artifact.
+
+\textbf{Action:} Prepend the following entry to \texttt{CHANGELOG.md},
+immediately below the \texttt{\# Changelog} header (or at the top of the file
+if no \texttt{[Unreleased]} section is present), before any prior version
+entries:
+
+\begin{verbatim}
+## [1.5.0] - {today's date}
+
+### Added
+- `ChainedFilter` class for composing multiple filter functions
+
+### Fixed
+- `NullFilter` no longer raises `AttributeError` on empty input
+\end{verbatim}
+\end{quote}
+
+\section{Per-Run Score Grid (CPU Reproduction Leg)}
+\label{app:grid}
+
+Reproduced from the CPU reproduction leg (2026-07-13), the most thoroughly
+documented of the three legs. Primary scorer: Claude. Second rater: Qwen-32B
+(6/6 agreement on sampled responses).
+
+\begin{table}[h]
+\centering
+\small
+\caption{Per-run scores, CPU reproduction (2026-07-13, ollama, Mistral-7B).}
+\begin{tabular}{@{}llccccccccl@{}}
+\toprule
+Condition & R1 & R2 & R3 & R4 & R5 & R6 & R7 & R8 & Score \\
+\midrule
+baseline       & Ii & C  & C  & C  & C  & C  & C  & Ii & 6/8 C \\
+glyph\_only    & I  & Ii & Ii & I  & Ii & Ii & Ii & Ii & 0/8 C \\
+grounded       & C  & C  & C  & C  & C  & C  & C  & C  & 8/8 C \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Glyph-Only Per-Run Observations}
+
+\begin{description}
+  \item[R1 (I)] Analyzed axes, concluded the changelog was ``already updated.''
+    Misread as done.
+  \item[R2 (Ii)] Axis-by-axis; ``obligation is unmet''; recommends updating.
+    No entry produced.
+  \item[R3 (Ii)] Axis-by-axis; ``changelog still needs to be performed'';
+    good-practice recommendation. No entry.
+  \item[R4 (I)] Concluded ``no companion artifacts that need updating''; class
+    ``doesn't fire.'' Reasoned the obligation away.
+  \item[R5 (Ii)] Marker ``does not fire''; but acknowledges changelog ``updated
+    separately after verifying'' (deferral). No entry.
+  \item[R6 (Ii)] Recommends the team ``verify both artifacts updated before
+    marking closed.'' No entry.
+  \item[R7 (Ii)] ``Changelog should be updated after the release \ldots{}
+    current operation doesn't include it.'' Deferral. No entry.
+  \item[R8 (Ii)] Marker ``obligation to update the changelog remains unmet'';
+    Aim ``verify \ldots{} present.'' Truncated mid-analysis. No entry.
+\end{description}
+
+Every response entered analysis mode. Not one wrote an entry.
+
+\end{document}
