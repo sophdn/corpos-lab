@@ -31,12 +31,13 @@ type ModelSpec struct {
 }
 
 // MaterialsSpec names the material files (relative to the input dir) the
-// assay assembles prompts from. Glyph and Ground are optional for conditions
-// that don't use them.
+// assay assembles prompts from. Glyph, Ground, and Imperative are optional for
+// conditions that don't use them.
 type MaterialsSpec struct {
-	Scenario string `json:"scenario"`
-	Glyph    string `json:"glyph,omitempty"`
-	Ground   string `json:"ground,omitempty"`
+	Scenario   string `json:"scenario"`
+	Glyph      string `json:"glyph,omitempty"`
+	Ground     string `json:"ground,omitempty"`
+	Imperative string `json:"imperative,omitempty"`
 }
 
 // StudySpec is the container's /in/study.json — a self-contained description
@@ -168,7 +169,11 @@ func (s StudySpec) loadMaterials(inDir string) (assay.Materials, error) {
 	if err != nil {
 		return assay.Materials{}, err
 	}
-	return assay.Materials{Scenario: scenario, Glyph: glyph, Ground: ground}, nil
+	imperative, err := read(s.Materials.Imperative)
+	if err != nil {
+		return assay.Materials{}, err
+	}
+	return assay.Materials{Scenario: scenario, Glyph: glyph, Ground: ground, Imperative: imperative}, nil
 }
 
 // modelMismatch compares the model the study DECLARED against the artifact the

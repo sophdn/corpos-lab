@@ -25,12 +25,13 @@ type ModelDef struct {
 }
 
 // MaterialsDef names the material files, as paths relative to the definition
-// file (or absolute). Glyph and Ground are optional for conditions that don't
-// use them.
+// file (or absolute). Glyph, Ground, and Imperative are optional for conditions
+// that don't use them.
 type MaterialsDef struct {
-	Scenario string `toml:"scenario"`
-	Glyph    string `toml:"glyph"`
-	Ground   string `toml:"ground"`
+	Scenario   string `toml:"scenario"`
+	Glyph      string `toml:"glyph"`
+	Ground     string `toml:"ground"`
+	Imperative string `toml:"imperative"`
 }
 
 // SamplingDef is the study's declared sampling regime.
@@ -147,6 +148,10 @@ func (d Def) validate() error {
 			}
 			if d.Materials.Ground == "" {
 				return fmt.Errorf("study: condition %q requires materials.ground", c)
+			}
+		case assay.ImperativeOnly:
+			if d.Materials.Imperative == "" {
+				return fmt.Errorf("study: condition %q requires materials.imperative", c)
 			}
 		default:
 			return fmt.Errorf("study: unknown condition %q", c)
@@ -341,6 +346,12 @@ func (d Def) Materialize(inDir string) error {
 			return err
 		}
 		mats.Ground = "ground.md"
+	}
+	if d.Materials.Imperative != "" {
+		if err := d.copyMaterial(d.Materials.Imperative, filepath.Join(inDir, "imperative.md")); err != nil {
+			return err
+		}
+		mats.Imperative = "imperative.md"
 	}
 
 	spec := runner.StudySpec{

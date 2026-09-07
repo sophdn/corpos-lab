@@ -42,6 +42,27 @@ func TestAssemblePromptGroundedGlyphConcatsAllThree(t *testing.T) {
 	}
 }
 
+func TestAssemblePromptImperativeOnlyConcatsImperativeAndScenario(t *testing.T) {
+	// T2: the imperative rule takes the glyph's slot — same delimiter, same
+	// shape as GlyphOnly, no glyph. A glyph present in Materials must not leak
+	// into the prompt.
+	got, err := AssemblePrompt(ImperativeOnly, Materials{Scenario: "S", Glyph: "G", Imperative: "IMP"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "IMP\n---\nS" {
+		t.Fatalf("got %q, want IMP\\n---\\nS", got)
+	}
+}
+
+func TestAssemblePromptRejectsMissingImperative(t *testing.T) {
+	// A glyph present but no imperative must still fail: T2 carries the
+	// imperative, never the glyph as a fallback.
+	if _, err := AssemblePrompt(ImperativeOnly, Materials{Scenario: "S", Glyph: "G"}); err == nil {
+		t.Fatal("expected error for missing imperative")
+	}
+}
+
 func TestAssemblePromptRejectsMissingGlyph(t *testing.T) {
 	if _, err := AssemblePrompt(GlyphOnly, Materials{Scenario: "S"}); err == nil {
 		t.Fatal("expected error for missing glyph")

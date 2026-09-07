@@ -183,10 +183,53 @@ func TestValidateRejectsConditionMaterialGaps(t *testing.T) {
 	if _, err := LoadDef(writeDef(t, noGround, map[string]string{"s.md": "S", "g.md": "G"})); err == nil {
 		t.Fatal("expected ground-required error")
 	}
+	// imperative_only without an imperative material.
+	noImperative := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"i\"\nimage=\"x\"\nconditions=[\"imperative_only\"]\nruns_per_cell=1\n[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n[materials]\nscenario=\"s.md\"\n" + samplingBlock
+	if _, err := LoadDef(writeDef(t, noImperative, map[string]string{"s.md": "S"})); err == nil {
+		t.Fatal("expected imperative-required error")
+	}
 	// unknown condition.
 	unknown := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"i\"\nimage=\"x\"\nconditions=[\"teleport\"]\nruns_per_cell=1\n[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n[materials]\nscenario=\"s.md\"\n" + samplingBlock
 	if _, err := LoadDef(writeDef(t, unknown, map[string]string{"s.md": "S"})); err == nil {
 		t.Fatal("expected unknown-condition error")
+	}
+}
+
+// The matched-content T2 condition materializes the imperative into the
+// container contract as imperative.md, alongside the scenario, with no glyph.
+func TestMaterializeCopiesImperativeMaterial(t *testing.T) {
+	body := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"casg-direct\"\n" +
+		"image=\"x\"\nconditions=[\"baseline\",\"imperative_only\"]\nruns_per_cell=1\n" +
+		"[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n" +
+		"[materials]\nscenario=\"s.md\"\nimperative=\"imp.md\"\n" + samplingBlock
+	d, err := LoadDef(writeDef(t, body, map[string]string{"s.md": "SCENARIO", "imp.md": "IMPERATIVE"}))
+	if err != nil {
+		t.Fatalf("LoadDef: %v", err)
+	}
+	inDir := filepath.Join(t.TempDir(), "in")
+	if err := d.Materialize(inDir); err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(inDir, "imperative.md"))
+	if err != nil {
+		t.Fatalf("read imperative.md: %v", err)
+	}
+	if string(got) != "IMPERATIVE" {
+		t.Fatalf("imperative.md content = %q, want IMPERATIVE", got)
+	}
+	spec, err := runner.LoadSpec(inDir)
+	if err != nil {
+		t.Fatalf("LoadSpec: %v", err)
+	}
+	if spec.Materials.Imperative != "imperative.md" {
+		t.Fatalf("spec imperative = %q, want imperative.md", spec.Materials.Imperative)
+	}
+	if spec.Materials.Glyph != "" {
+		t.Fatalf("imperative_only study must carry no glyph, got %q", spec.Materials.Glyph)
+	}
+	// A glyph must not have been written to the contract dir.
+	if _, err := os.Stat(filepath.Join(inDir, "glyph.md")); !os.IsNotExist(err) {
+		t.Fatal("glyph.md should not exist for an imperative_only study")
 	}
 }
 

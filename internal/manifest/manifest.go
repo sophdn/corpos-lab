@@ -87,7 +87,7 @@ func Compute(inDir string, image ImagePin) (RunManifest, error) {
 // stable order, skipping the optional ones that are unset.
 func namedMaterials(spec runner.StudySpec) []string {
 	var names []string
-	for _, n := range []string{spec.Materials.Scenario, spec.Materials.Glyph, spec.Materials.Ground} {
+	for _, n := range []string{spec.Materials.Scenario, spec.Materials.Glyph, spec.Materials.Ground, spec.Materials.Imperative} {
 		if n != "" {
 			names = append(names, n)
 		}

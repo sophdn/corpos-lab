@@ -25,10 +25,14 @@ type fakeClient struct {
 	// gotParams records every GenParams the runner sent, so a test can assert
 	// the full sampler chain reached the wire rather than being dropped.
 	gotParams []model.GenParams
+	// gotPrompts records every assembled prompt, so a test can assert the
+	// condition's materials reached the wire in the right shape.
+	gotPrompts []string
 }
 
-func (f *fakeClient) Generate(_ context.Context, _ string, p model.GenParams) (model.Response, error) {
+func (f *fakeClient) Generate(_ context.Context, prompt string, p model.GenParams) (model.Response, error) {
 	f.gotParams = append(f.gotParams, p)
+	f.gotPrompts = append(f.gotPrompts, prompt)
 	if f.err != nil {
 		return model.Response{}, f.err
 	}
@@ -145,6 +149,55 @@ func TestExecuteProducesResultsAndResponses(t *testing.T) {
 				t.Fatalf("response %s = %q", p, b)
 			}
 		}
+	}
+}
+
+// The matched-content T2 condition: the runner loads the imperative material
+// and assembles imperative + scenario, carrying no glyph.
+func TestExecuteRunsImperativeOnlyCondition(t *testing.T) {
+	spec := StudySpec{
+		Assay:       SupportedAssay,
+		ItemID:      "casg-direct",
+		Model:       ModelSpec{ModelID: "qwen"},
+		Conditions:  []assay.Condition{assay.ImperativeOnly},
+		RunsPerCell: 1,
+		Materials:   MaterialsSpec{Scenario: "scenario.md", Imperative: "imperative.md"},
+		Sampling:    validSampling(),
+	}
+	in := writeStudy(t, spec, map[string]string{"scenario.md": "SCENARIO", "imperative.md": "IMPERATIVE"})
+	out := t.TempDir()
+
+	f := &fakeClient{text: "reply", name: "qwen"}
+	results, err := Execute(context.Background(), in, out, f)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if len(results.Rows) != 1 || results.Rows[0].Condition != assay.ImperativeOnly {
+		t.Fatalf("rows: %+v", results.Rows)
+	}
+	// The imperative reached the prompt in the glyph's slot; no glyph leaked in.
+	if len(f.gotPrompts) != 1 || f.gotPrompts[0] != "IMPERATIVE\n---\nSCENARIO" {
+		t.Fatalf("assembled prompt = %q, want IMPERATIVE\\n---\\nSCENARIO", f.gotPrompts)
+	}
+	// Response captured under the condition's wire string.
+	if _, err := os.ReadFile(filepath.Join(out, "responses", "imperative_only_1.txt")); err != nil {
+		t.Fatalf("missing imperative_only response: %v", err)
+	}
+}
+
+// A study that names imperative_only but ships no imperative material fails
+// loudly, rather than assembling a bare scenario as if the T2 arm were empty.
+func TestExecuteReportsMissingImperativeMaterial(t *testing.T) {
+	spec := StudySpec{
+		Assay: SupportedAssay, ItemID: "i", Model: ModelSpec{ModelID: "m"},
+		Conditions: []assay.Condition{assay.ImperativeOnly}, RunsPerCell: 1,
+		Materials: MaterialsSpec{Scenario: "scenario.md", Imperative: "imperative.md"},
+		Sampling:  validSampling(),
+	}
+	// scenario present, imperative.md deliberately absent.
+	in := writeStudy(t, spec, map[string]string{"scenario.md": "S"})
+	if _, err := Execute(context.Background(), in, t.TempDir(), &fakeClient{text: "x"}); err == nil {
+		t.Fatal("expected missing-imperative-material error")
 	}
 }
 

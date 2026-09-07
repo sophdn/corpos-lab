@@ -23,23 +23,33 @@ const (
 	GlyphOnly Condition = "glyph_only"
 	// GroundedGlyph: universal glyph + domain ground prepended.
 	GroundedGlyph Condition = "grounded_glyph"
+	// ImperativeOnly: an information-matched imperative rule prepended, no
+	// glyph. This is the matched-content experiment's T2 condition — the content
+	// control against GlyphOnly (T1): same propositions, directive format
+	// instead of the three-axis glyph. It carries no glyph on purpose; T1 and T2
+	// are the two arms of the contrast, never combined.
+	ImperativeOnly Condition = "imperative_only"
 )
 
-// Materials are the text inputs a probe assembles a prompt from. Glyph and
-// Ground may be empty for conditions that don't use them.
+// Materials are the text inputs a probe assembles a prompt from. Glyph, Ground,
+// and Imperative may be empty for conditions that don't use them.
 type Materials struct {
 	Scenario string
 	Glyph    string
 	Ground   string
+	// Imperative is the matched imperative rule for the ImperativeOnly (T2)
+	// condition.
+	Imperative string
 }
 
 // AssemblePrompt builds the probe prompt for a condition. The "\n---\n"
 // delimiter matches the legacy blueprint separator verbatim so Mistral/Claude
 // prompt formats stay compatible:
 //
-//	baseline       → scenario
-//	glyph_only     → glyph "---" scenario
-//	grounded_glyph → glyph "---" ground "---" scenario
+//	baseline        → scenario
+//	glyph_only      → glyph "---" scenario
+//	grounded_glyph  → glyph "---" ground "---" scenario
+//	imperative_only → imperative "---" scenario
 //
 // It returns an error when a condition's required material is missing, rather
 // than silently emitting a malformed prompt.
@@ -52,6 +62,11 @@ func AssemblePrompt(cond Condition, m Materials) (string, error) {
 			return "", fmt.Errorf("assay: %s condition requires a glyph", cond)
 		}
 		return fmt.Sprintf("%s\n---\n%s", m.Glyph, m.Scenario), nil
+	case ImperativeOnly:
+		if m.Imperative == "" {
+			return "", fmt.Errorf("assay: %s condition requires an imperative", cond)
+		}
+		return fmt.Sprintf("%s\n---\n%s", m.Imperative, m.Scenario), nil
 	case GroundedGlyph:
 		if m.Glyph == "" {
 			return "", fmt.Errorf("assay: %s condition requires a glyph", cond)
