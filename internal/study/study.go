@@ -22,6 +22,15 @@ type ModelDef struct {
 	BaseURL string `toml:"base_url"`
 	ModelID string `toml:"model_id"`
 	Version string `toml:"version"`
+	// Endpoint selects the inference path: "" or "chat" (default) uses
+	// /v1/chat/completions; "completion" uses the raw /completion endpoint with no
+	// server-side chat template — the least-opinionated subject path
+	// (studies/REPRODUCIBILITY.md).
+	Endpoint string `toml:"endpoint"`
+	// PromptTemplate is the study-declared instruct wrapper for "completion" mode,
+	// carrying a "{prompt}" placeholder the assembled prompt is substituted into.
+	// Published verbatim so a reproduction sees the exact input.
+	PromptTemplate string `toml:"prompt_template"`
 }
 
 // MaterialsDef names the material files, as paths relative to the definition
@@ -124,6 +133,16 @@ func (d Def) validate() error {
 	}
 	if d.Assay != runner.SupportedAssay {
 		return fmt.Errorf("study: unsupported assay %q (only %q implemented)", d.Assay, runner.SupportedAssay)
+	}
+	switch d.Model.Endpoint {
+	case "", "chat":
+	case "completion":
+		if !strings.Contains(d.Model.PromptTemplate, "{prompt}") {
+			return fmt.Errorf("study: model.endpoint = \"completion\" requires model.prompt_template " +
+				"containing the \"{prompt}\" placeholder (the study-declared instruct wrapper)")
+		}
+	default:
+		return fmt.Errorf("study: unknown model.endpoint %q (want \"chat\" or \"completion\")", d.Model.Endpoint)
 	}
 	if len(d.Conditions) == 0 {
 		return fmt.Errorf("study: definition lists no conditions")
@@ -358,9 +377,11 @@ func (d Def) Materialize(inDir string) error {
 		Assay:  d.Assay,
 		ItemID: d.ItemID,
 		Model: runner.ModelSpec{
-			BaseURL: d.Model.BaseURL,
-			ModelID: d.Model.ModelID,
-			Version: d.Model.Version,
+			BaseURL:        d.Model.BaseURL,
+			ModelID:        d.Model.ModelID,
+			Version:        d.Model.Version,
+			Endpoint:       d.Model.Endpoint,
+			PromptTemplate: d.Model.PromptTemplate,
 		},
 		Conditions:  d.conditions(),
 		RunsPerCell: d.RunsPerCell,

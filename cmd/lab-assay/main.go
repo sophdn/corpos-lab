@@ -82,9 +82,17 @@ func runMode(outDir string) int {
 		return 1
 	}
 
-	client := model.NewOpenAI(spec.Model.BaseURL, spec.Model.ModelID, spec.Model.Version)
-	fmt.Printf("[lab-assay] assay=%s item=%s model=%s conditions=%v runs=%d\n",
-		spec.Assay, spec.ItemID, spec.Model.ModelID, spec.Conditions, spec.RunsPerCell)
+	var opts []model.OpenAIOption
+	if spec.Model.Endpoint == "completion" {
+		opts = append(opts, model.WithCompletion(spec.Model.PromptTemplate))
+	}
+	client := model.NewOpenAI(spec.Model.BaseURL, spec.Model.ModelID, spec.Model.Version, opts...)
+	endpoint := spec.Model.Endpoint
+	if endpoint == "" {
+		endpoint = "chat"
+	}
+	fmt.Printf("[lab-assay] assay=%s item=%s model=%s endpoint=%s conditions=%v runs=%d\n",
+		spec.Assay, spec.ItemID, spec.Model.ModelID, endpoint, spec.Conditions, spec.RunsPerCell)
 
 	results, err := runner.Execute(context.Background(), inDir, outDir, client)
 	if err != nil {

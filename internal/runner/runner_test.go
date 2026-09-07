@@ -201,6 +201,47 @@ func TestExecuteReportsMissingImperativeMaterial(t *testing.T) {
 	}
 }
 
+// When the client surfaces a rendered prompt (the raw /completion path), the
+// runner records it per run so the run is self-describing down to its input.
+func TestExecutePersistsRenderedPromptWhenSurfaced(t *testing.T) {
+	spec := StudySpec{
+		Assay: SupportedAssay, ItemID: "i", Model: ModelSpec{ModelID: "m", Endpoint: "completion"},
+		Conditions: []assay.Condition{assay.Baseline}, RunsPerCell: 1,
+		Materials: MaterialsSpec{Scenario: "scenario.md"}, Sampling: validSampling(),
+	}
+	in := writeStudy(t, spec, map[string]string{"scenario.md": "S"})
+	out := t.TempDir()
+	f := &fakeClient{resp: &model.Response{Text: "reply", RenderedPrompt: "WRAPPED-INPUT"}}
+	if _, err := Execute(context.Background(), in, out, f); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(out, "prompts", "baseline_1.txt"))
+	if err != nil {
+		t.Fatalf("read recorded prompt: %v", err)
+	}
+	if string(got) != "WRAPPED-INPUT" {
+		t.Fatalf("recorded prompt = %q, want WRAPPED-INPUT", got)
+	}
+}
+
+// The chat path surfaces no rendered prompt (the server templates server-side),
+// so the runner writes no prompt file rather than recording a half-truth.
+func TestExecuteWritesNoPromptFileInChatMode(t *testing.T) {
+	spec := StudySpec{
+		Assay: SupportedAssay, ItemID: "i", Model: ModelSpec{ModelID: "m"},
+		Conditions: []assay.Condition{assay.Baseline}, RunsPerCell: 1,
+		Materials: MaterialsSpec{Scenario: "scenario.md"}, Sampling: validSampling(),
+	}
+	in := writeStudy(t, spec, map[string]string{"scenario.md": "S"})
+	out := t.TempDir()
+	if _, err := Execute(context.Background(), in, out, &fakeClient{text: "reply"}); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(out, "prompts", "baseline_1.txt")); !os.IsNotExist(err) {
+		t.Fatal("chat mode must not write a prompt file")
+	}
+}
+
 func TestExecuteIsNotPlaceholder(t *testing.T) {
 	// Guards against the registry-lab regression: results.json must carry
 	// real scored rows, never a {"status":"pending-adapter"} stub.

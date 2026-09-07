@@ -195,6 +195,59 @@ func TestValidateRejectsConditionMaterialGaps(t *testing.T) {
 	}
 }
 
+func TestValidateCompletionEndpoint(t *testing.T) {
+	base := func(model string) string {
+		return "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"i\"\nimage=\"x\"\n" +
+			"conditions=[\"baseline\"]\nruns_per_cell=1\n[model]\n" + model + "\n[materials]\nscenario=\"s.md\"\n" + samplingBlock
+	}
+	mats := map[string]string{"s.md": "S"}
+
+	// completion mode without a {prompt} placeholder is rejected.
+	noPlaceholder := base("base_url=\"u\"\nmodel_id=\"m\"\nendpoint=\"completion\"\nprompt_template=\"no placeholder here\"")
+	if _, err := LoadDef(writeDef(t, noPlaceholder, mats)); err == nil {
+		t.Fatal("expected error for completion without a {prompt} placeholder")
+	}
+	// an unknown endpoint is rejected.
+	unknown := base("base_url=\"u\"\nmodel_id=\"m\"\nendpoint=\"telepathy\"")
+	if _, err := LoadDef(writeDef(t, unknown, mats)); err == nil {
+		t.Fatal("expected error for unknown endpoint")
+	}
+	// completion mode with a valid wrapper loads.
+	ok := base("base_url=\"u\"\nmodel_id=\"m\"\nendpoint=\"completion\"\nprompt_template=\"<a>{prompt}<b>\"")
+	if _, err := LoadDef(writeDef(t, ok, mats)); err != nil {
+		t.Fatalf("valid completion def rejected: %v", err)
+	}
+	// the default (no endpoint) is chat and needs no template.
+	if _, err := LoadDef(writeDef(t, base("base_url=\"u\"\nmodel_id=\"m\""), mats)); err != nil {
+		t.Fatalf("default chat def rejected: %v", err)
+	}
+}
+
+func TestMaterializeCarriesEndpointAndPromptTemplate(t *testing.T) {
+	body := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"i\"\nimage=\"x\"\n" +
+		"conditions=[\"baseline\"]\nruns_per_cell=1\n[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n" +
+		"endpoint=\"completion\"\nprompt_template=\"<|im_start|>user\\n{prompt}<|im_end|>\\n<|im_start|>assistant\\n\"\n" +
+		"[materials]\nscenario=\"s.md\"\n" + samplingBlock
+	d, err := LoadDef(writeDef(t, body, map[string]string{"s.md": "S"}))
+	if err != nil {
+		t.Fatalf("LoadDef: %v", err)
+	}
+	inDir := filepath.Join(t.TempDir(), "in")
+	if err := d.Materialize(inDir); err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
+	spec, err := runner.LoadSpec(inDir)
+	if err != nil {
+		t.Fatalf("LoadSpec: %v", err)
+	}
+	if spec.Model.Endpoint != "completion" {
+		t.Fatalf("endpoint = %q, want completion", spec.Model.Endpoint)
+	}
+	if !strings.Contains(spec.Model.PromptTemplate, "{prompt}") {
+		t.Fatalf("prompt_template not carried: %q", spec.Model.PromptTemplate)
+	}
+}
+
 // The matched-content T2 condition materializes the imperative into the
 // container contract as imperative.md, alongside the scenario, with no glyph.
 func TestMaterializeCopiesImperativeMaterial(t *testing.T) {

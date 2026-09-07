@@ -71,6 +71,13 @@ type Timings struct {
 // Response is a model's reply to a single prompt, plus what the server said
 // about itself while answering.
 type Response struct {
+	// RenderedPrompt is the exact prompt string the client put on the wire — for
+	// raw /completion, the study-declared wrapper with the material substituted,
+	// i.e. the literal bytes the subject received. Empty for the chat endpoint,
+	// where the server applies its own template and the true input is not ours to
+	// record. This is what makes a vanilla-path run self-describing down to its
+	// input (reproducibility contract: studies/REPRODUCIBILITY.md).
+	RenderedPrompt string
 	// Text is the completion's answer content with any thinking removed: the
 	// reasoning stripped into Reasoning below, and a leading inline
 	// <think>…</think> block (llama.cpp emits this when no reasoning parser is

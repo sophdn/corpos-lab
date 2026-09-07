@@ -28,6 +28,14 @@ type ModelSpec struct {
 	BaseURL string `json:"base_url"`
 	ModelID string `json:"model_id"`
 	Version string `json:"version"`
+	// Endpoint selects the inference path: "chat" (default) hits
+	// /v1/chat/completions; "completion" hits the raw /completion endpoint with
+	// no server-side chat template — the least-opinionated subject path.
+	Endpoint string `json:"endpoint,omitempty"`
+	// PromptTemplate is the study-declared instruct wrapper for "completion"
+	// mode: the assembled prompt is substituted at its "{prompt}" placeholder and
+	// sent verbatim. Unused in "chat" mode.
+	PromptTemplate string `json:"prompt_template,omitempty"`
 }
 
 // MaterialsSpec names the material files (relative to the input dir) the
@@ -214,6 +222,14 @@ func Execute(ctx context.Context, inDir, outDir string, client model.Client) (Re
 	if err := os.MkdirAll(responsesDir, 0o755); err != nil {
 		return Results{}, fmt.Errorf("runner: create responses dir: %w", err)
 	}
+	// The rendered prompt is the literal input the subject received; recording it
+	// per run makes a run self-describing down to its input (reproducibility
+	// contract). Written only when the client surfaces it — the chat endpoint
+	// applies its own template, so the true input is not ours to record there.
+	promptsDir := filepath.Join(outDir, "prompts")
+	if err := os.MkdirAll(promptsDir, 0o755); err != nil {
+		return Results{}, fmt.Errorf("runner: create prompts dir: %w", err)
+	}
 
 	rows := []assay.ScoreRow{}
 	for _, cond := range spec.Conditions {
@@ -227,6 +243,12 @@ func Execute(ctx context.Context, inDir, outDir string, client model.Client) (Re
 			respPath := filepath.Join(responsesDir, fmt.Sprintf("%s_%d.txt", cond, run))
 			if err := os.WriteFile(respPath, []byte(resp.Text), 0o644); err != nil {
 				return Results{}, fmt.Errorf("runner: write response %s: %w", respPath, err)
+			}
+			if resp.RenderedPrompt != "" {
+				promptPath := filepath.Join(promptsDir, fmt.Sprintf("%s_%d.txt", cond, run))
+				if err := os.WriteFile(promptPath, []byte(resp.RenderedPrompt), 0o644); err != nil {
+					return Results{}, fmt.Errorf("runner: write prompt %s: %w", promptPath, err)
+				}
 			}
 		}
 	}

@@ -9,6 +9,115 @@ import (
 	"testing"
 )
 
+func TestCompletionModeWrapsPromptHitsRootAndSurfacesRendered(t *testing.T) {
+	var got completionRequest
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Errorf("decode request: %v", err)
+		}
+		_, _ = w.Write([]byte(`{"content":"HELLO","model":"served-m","timings":{"prompt_n":10,"predicted_n":5,"prompt_per_second":100,"predicted_per_second":40}}`))
+	}))
+	defer srv.Close()
+
+	// baseURL carries /v1; completion must strip it and hit the server root.
+	c := NewOpenAI(srv.URL+"/v1", "qwen", "q4km",
+		WithHTTPClient(srv.Client()),
+		WithCompletion("<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"))
+	resp, err := c.Generate(context.Background(), "DO THE THING", GenParams{
+		Temperature: Float64(0.8), MaxTokens: Int(512), Seed: Int(3), MinP: Float64(0.05),
+	})
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if gotPath != "/completion" {
+		t.Fatalf("path = %q, want /completion (root, not /v1)", gotPath)
+	}
+	wantPrompt := "<|im_start|>user\nDO THE THING<|im_end|>\n<|im_start|>assistant\n"
+	if got.Prompt != wantPrompt {
+		t.Fatalf("wire prompt = %q, want %q", got.Prompt, wantPrompt)
+	}
+	// The rendered wrapper is surfaced for recording — the literal subject input.
+	if resp.RenderedPrompt != wantPrompt {
+		t.Fatalf("RenderedPrompt = %q, want %q", resp.RenderedPrompt, wantPrompt)
+	}
+	// max_tokens maps to n_predict; the sampler rides through.
+	if got.NPredict == nil || *got.NPredict != 512 {
+		t.Fatalf("n_predict = %v, want 512", got.NPredict)
+	}
+	if got.Seed == nil || *got.Seed != 3 {
+		t.Fatalf("seed = %v", got.Seed)
+	}
+	if got.MinP == nil || *got.MinP != 0.05 {
+		t.Fatalf("min_p = %v", got.MinP)
+	}
+	if got.CachePrompt {
+		t.Fatal("cache_prompt must be false so a warm cache cannot shape a run")
+	}
+	if resp.Text != "HELLO" || resp.Model != "served-m" {
+		t.Fatalf("reply = %+v", resp)
+	}
+	if resp.Timings.PredictedPerSecond != 40 || resp.Timings.PredictedN != 5 {
+		t.Fatalf("timings = %+v", resp.Timings)
+	}
+}
+
+func TestCompletionModeStripsInlineThinking(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"content":"<think>hmm</think>ANSWER","model":"m","timings":{}}`))
+	}))
+	defer srv.Close()
+	c := NewOpenAI(srv.URL+"/v1", "m", "v", WithHTTPClient(srv.Client()), WithCompletion("{prompt}"))
+	resp, err := c.Generate(context.Background(), "x", GenParams{MaxTokens: Int(64)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Text != "ANSWER" || resp.Reasoning != "hmm" {
+		t.Fatalf("think not split: text=%q reasoning=%q", resp.Text, resp.Reasoning)
+	}
+}
+
+func TestCompletionModeSurfacesHTTPError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("boom"))
+	}))
+	defer srv.Close()
+	c := NewOpenAI(srv.URL+"/v1", "m", "v", WithHTTPClient(srv.Client()), WithCompletion("{prompt}"))
+	if _, err := c.Generate(context.Background(), "x", GenParams{MaxTokens: Int(8)}); err == nil {
+		t.Fatal("expected error on 500")
+	}
+}
+
+func TestCompletionModeSurfacesDecodeError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("not json"))
+	}))
+	defer srv.Close()
+	c := NewOpenAI(srv.URL+"/v1", "m", "v", WithHTTPClient(srv.Client()), WithCompletion("{prompt}"))
+	if _, err := c.Generate(context.Background(), "x", GenParams{MaxTokens: Int(8)}); err == nil {
+		t.Fatal("expected decode error on non-JSON completion response")
+	}
+}
+
+func TestChatModeLeavesRenderedPromptEmpty(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"ok"}}]}`))
+	}))
+	defer srv.Close()
+	c := NewOpenAI(srv.URL+"/v1", "m", "v", WithHTTPClient(srv.Client()))
+	resp, err := c.Generate(context.Background(), "x", GenParams{MaxTokens: Int(8)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The chat endpoint templates server-side; the true input is not ours to
+	// record, so RenderedPrompt stays empty and the runner writes no prompt file.
+	if resp.RenderedPrompt != "" {
+		t.Fatalf("chat RenderedPrompt should be empty, got %q", resp.RenderedPrompt)
+	}
+}
+
 func TestOpenAIGenerateSendsChatCompletionShape(t *testing.T) {
 	var got chatRequest
 	var gotPath, gotContentType string

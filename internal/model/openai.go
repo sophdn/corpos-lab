@@ -19,6 +19,12 @@ type OpenAI struct {
 	modelID string
 	version string
 	httpc   *http.Client
+	// completionTemplate, when non-empty, switches the client to raw /completion
+	// (the least-opinionated path, no server-side chat template): the prompt is
+	// substituted into this wrapper at its "{prompt}" placeholder and sent
+	// verbatim to the server root's /completion. Empty means the OpenAI
+	// chat-completions endpoint. See studies/REPRODUCIBILITY.md.
+	completionTemplate string
 }
 
 // OpenAIOption configures an OpenAI client.
@@ -28,6 +34,16 @@ type OpenAIOption func(*OpenAI)
 // server's client; production uses a timeout-configured client).
 func WithHTTPClient(c *http.Client) OpenAIOption {
 	return func(o *OpenAI) { o.httpc = c }
+}
+
+// WithCompletion switches the client to the raw /completion endpoint. Each
+// prompt is substituted into template at its "{prompt}" placeholder and sent
+// verbatim — the model sees exactly the study-declared wrapper and nothing a
+// chat template would inject. The rendered string is returned on the Response so
+// a run records the literal bytes the subject received. See
+// studies/REPRODUCIBILITY.md.
+func WithCompletion(template string) OpenAIOption {
+	return func(o *OpenAI) { o.completionTemplate = template }
 }
 
 // NewOpenAI builds a client for the OpenAI-compatible server at baseURL
@@ -118,9 +134,19 @@ type propsResponse struct {
 	} `json:"default_generation_settings"`
 }
 
-// Generate sends prompt as a single user message and returns the first
-// choice's content.
+// Generate produces a completion for prompt. It dispatches to the raw
+// /completion endpoint when the client was built WithCompletion (the
+// least-opinionated subject path), otherwise to chat-completions.
 func (o *OpenAI) Generate(ctx context.Context, prompt string, params GenParams) (Response, error) {
+	if o.completionTemplate != "" {
+		return o.generateCompletion(ctx, prompt, params)
+	}
+	return o.generateChat(ctx, prompt, params)
+}
+
+// generateChat sends prompt as a single user message and returns the first
+// choice's content.
+func (o *OpenAI) generateChat(ctx context.Context, prompt string, params GenParams) (Response, error) {
 	payload := chatRequest{
 		Model:       o.modelID,
 		Messages:    []chatMessage{{Role: "user", Content: prompt}},
@@ -194,6 +220,130 @@ func (o *OpenAI) Generate(ctx context.Context, prompt string, params GenParams) 
 			PredictedPerSecond: parsed.Timings.PredictedPerSecond,
 		},
 	}, nil
+}
+
+// completionRequest is llama.cpp's raw /completion body. The full sampler chain
+// rides here exactly as it does for chat; n_predict is /completion's name for
+// the token cap. cache_prompt is pinned false so a run is not shaped by a warm
+// prompt cache left by a prior run.
+type completionRequest struct {
+	Prompt      string   `json:"prompt"`
+	NPredict    *int     `json:"n_predict,omitempty"`
+	Seed        *int     `json:"seed,omitempty"`
+	Temperature *float64 `json:"temperature,omitempty"`
+
+	TopK      *int     `json:"top_k,omitempty"`
+	TopP      *float64 `json:"top_p,omitempty"`
+	MinP      *float64 `json:"min_p,omitempty"`
+	TypicalP  *float64 `json:"typical_p,omitempty"`
+	TopNSigma *float64 `json:"top_n_sigma,omitempty"`
+
+	RepeatPenalty    *float64 `json:"repeat_penalty,omitempty"`
+	RepeatLastN      *int     `json:"repeat_last_n,omitempty"`
+	PresencePenalty  *float64 `json:"presence_penalty,omitempty"`
+	FrequencyPenalty *float64 `json:"frequency_penalty,omitempty"`
+
+	XTCProbability *float64 `json:"xtc_probability,omitempty"`
+	DryMultiplier  *float64 `json:"dry_multiplier,omitempty"`
+
+	CachePrompt bool `json:"cache_prompt"`
+}
+
+// completionResponse is llama.cpp's raw /completion reply. It carries the same
+// timings block as chat, but no system_fingerprint (build id) — that is read
+// separately from /props and recorded per run, so its absence here is a small,
+// honest gap, not a failure.
+type completionResponse struct {
+	Content string `json:"content"`
+	Model   string `json:"model"`
+	Timings struct {
+		PromptN            int     `json:"prompt_n"`
+		PredictedN         int     `json:"predicted_n"`
+		PromptPerSecond    float64 `json:"prompt_per_second"`
+		PredictedPerSecond float64 `json:"predicted_per_second"`
+	} `json:"timings"`
+}
+
+// generateCompletion sends the study-declared wrapper (prompt substituted) to
+// the raw /completion endpoint and returns the reply. The rendered wrapper is
+// returned on the Response as the literal input the subject received.
+func (o *OpenAI) generateCompletion(ctx context.Context, prompt string, params GenParams) (Response, error) {
+	rendered := strings.Replace(o.completionTemplate, "{prompt}", prompt, 1)
+	payload := completionRequest{
+		Prompt:      rendered,
+		NPredict:    params.MaxTokens,
+		Seed:        params.Seed,
+		Temperature: params.Temperature,
+
+		TopK:      params.TopK,
+		TopP:      params.TopP,
+		MinP:      params.MinP,
+		TypicalP:  params.TypicalP,
+		TopNSigma: params.TopNSigma,
+
+		RepeatPenalty:    params.RepeatPenalty,
+		RepeatLastN:      params.RepeatLastN,
+		PresencePenalty:  params.PresencePenalty,
+		FrequencyPenalty: params.FrequencyPenalty,
+
+		XTCProbability: params.XTCProbability,
+		DryMultiplier:  params.DryMultiplier,
+
+		CachePrompt: false,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return Response{}, fmt.Errorf("model: marshal completion request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, o.completionURL(), bytes.NewReader(body))
+	if err != nil {
+		return Response{}, fmt.Errorf("model: build completion request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := o.httpc.Do(req)
+	if err != nil {
+		return Response{}, fmt.Errorf("model: %s: %w", o.modelID, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return Response{}, fmt.Errorf("model: read completion response: %w", err)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return Response{}, fmt.Errorf("model: %s completion returned %d: %s",
+			o.modelID, resp.StatusCode, truncate(string(raw), 200))
+	}
+
+	var parsed completionResponse
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return Response{}, fmt.Errorf("model: decode completion response: %w", err)
+	}
+	text, inlineReasoning := splitThinking(parsed.Content)
+	return Response{
+		RenderedPrompt:    rendered,
+		Text:              text,
+		Reasoning:         inlineReasoning,
+		Model:             parsed.Model,
+		SystemFingerprint: "",
+		Timings: Timings{
+			PromptN:            parsed.Timings.PromptN,
+			PredictedN:         parsed.Timings.PredictedN,
+			PromptPerSecond:    parsed.Timings.PromptPerSecond,
+			PredictedPerSecond: parsed.Timings.PredictedPerSecond,
+		},
+	}, nil
+}
+
+// completionURL derives the /completion endpoint from baseURL. Like /props,
+// /completion is served at the ROOT, not under /v1, so this trims the OpenAI
+// path segment rather than appending to it.
+func (o *OpenAI) completionURL() string {
+	root := strings.TrimSuffix(o.baseURL, "/")
+	root = strings.TrimSuffix(root, "/v1")
+	return strings.TrimSuffix(root, "/") + "/completion"
 }
 
 // splitThinking separates a leading inline <think>…</think> block from the

@@ -149,8 +149,15 @@ type Observed struct {
 type ProbeResponse struct {
 	Condition Condition
 	Run       int
-	Prompt    string
-	Text      string
+	// Prompt is the assembled probe prompt ([guidance] "---" [scenario]) — the
+	// material the assay handed the client, before any endpoint-specific wrapping.
+	Prompt string
+	// RenderedPrompt is the exact string the client put on the wire, when it
+	// surfaces one — the study-declared wrapper with the material substituted, for
+	// the raw /completion path. Empty for the chat endpoint. This is the literal
+	// input recorded for a self-describing, reproducible run.
+	RenderedPrompt string
+	Text           string
 }
 
 // Sampling is a study's declared sampling regime for the probe. It lives in
@@ -270,10 +277,11 @@ func RunProbe(ctx context.Context, m model.Client, itemID string, cond Condition
 		},
 	}
 	response := ProbeResponse{
-		Condition: cond,
-		Run:       run,
-		Prompt:    prompt,
-		Text:      resp.Text,
+		Condition:      cond,
+		Run:            run,
+		Prompt:         prompt,
+		RenderedPrompt: resp.RenderedPrompt,
+		Text:           resp.Text,
 	}
 	return row, response, nil
 }
