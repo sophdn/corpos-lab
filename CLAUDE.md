@@ -131,9 +131,11 @@ runs inside the container.
 ## Git
 
 **Worktrees only — the main checkout stays on `main`.** Never `git checkout -b` here; the
-pre-commit guard (`scripts/guard-worktree-discipline.sh`) refuses commits on non-main
+pre-commit guard (`scripts/gitflow/guard-worktree-discipline.sh`) refuses commits on non-main
 branches in the main checkout. Start work with `scripts/worktree-new.sh <slug>`; merge with
-`scripts/worktree-merge.sh <branch>`; clear stragglers with `scripts/worktree-reap.sh`. Full
+`scripts/worktree-merge.sh <branch>`; clear stragglers with `scripts/worktree-reap.sh`. Those
+three are thin shims over the **git-flow service** — canonical in corpos-toolkit's `gitflow/`,
+installed here at `scripts/gitflow/`, configured by `.gitflow`, and drift-gated. Full
 discipline: skill **`worktree-workflow`**. Every commit gates.
 
 ## Work ledger

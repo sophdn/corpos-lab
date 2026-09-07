@@ -12,6 +12,11 @@
 # that does NOT call this, so worktree commits proceed normally.
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=gitflow-common.sh
+. "$SCRIPT_DIR/gitflow-common.sh"
+gitflow_load_config
+
 git_dir="$(git rev-parse --absolute-git-dir)"
 common_dir="$(git rev-parse --path-format=absolute --git-common-dir)"
 
@@ -22,10 +27,10 @@ if [ "$git_dir" != "$common_dir" ]; then
 fi
 
 branch="$(git symbolic-ref --short -q HEAD || echo DETACHED)"
-if [ "$branch" != "main" ]; then
+if [ "$branch" != "$GITFLOW_LANDING_BRANCH" ]; then
     repo_root="$(git rev-parse --show-toplevel)"
     cat >&2 <<EOF
-✋ worktree-discipline: the MAIN checkout must stay on 'main'.
+✋ worktree-discipline: the MAIN checkout must stay on '$GITFLOW_LANDING_BRANCH'.
    Refusing to commit on '$branch' in $repo_root.
 
    Start work in a worktree instead:
@@ -34,7 +39,7 @@ if [ "$branch" != "main" ]; then
        scripts/worktree-merge.sh <branch>
 
    This keeps stray branches/worktrees from piling up. (skill: worktree-workflow)
-   To bootstrap on main anyway (merges, hotfix), switch back: git checkout main
+   To bootstrap on '$GITFLOW_LANDING_BRANCH' anyway (merges, hotfix): git checkout $GITFLOW_LANDING_BRANCH
 EOF
     exit 1
 fi
