@@ -1,3 +1,5 @@
+> **Foreword (2026-09-06).** This document is published as a supplementary source record for the paper *Thinking-Trace Analysis* (Neilson, 2026). It is not a standalone paper. It was produced by an AI agent session in the Technowizard role, which performs structural synthesis of agent reasoning output: ranking improvements by leverage and attributing overhead to either the system or the agent. The document uses internal vocabulary from the agent workflow system described in the paper's Terminology section. Key terms: *Researcher* is the AI agent role that designed and executed the experimental task; *EXPERIMENTAL_INQUEST_FORM* is the structured template for experimental observation studies; *Campaign* is a coordination document that tracks bundled work items; *Brief* is a task specification; *Account* is a post-execution record. Local file paths in the Prerequisites and Deliverables sections below reference the private development environment where this analysis was originally conducted; they are retained for provenance but do not resolve in this public repository.
+
 <!-- template: JOURNAL_FORM.md | analyst: Technowizard | scope: Synthesis of Researcher thinking text — system improvement + researcher advice -->
 
 # Journal: Technowizard Analysis — Researcher Thinking Review
@@ -26,7 +28,7 @@ The Researcher executed the ouija-inquest-design brief. Their thinking text is a
 ## Prerequisites
 
 - [ ] Researcher thinking text received and available
-- [ ] Protocol Tester's entry-by-entry analysis read (existing journal at `~/dev/protocol_notes/JOURNAL_ouija-researcher-analysis_2026-03-23.md`)
+- [ ] Protocol Tester's entry-by-entry analysis read (see co-deposited file `JOURNAL_ouija-researcher-analysis_2026-03-23.md`)
 
 ---
 
@@ -34,7 +36,7 @@ The Researcher executed the ouija-inquest-design brief. Their thinking text is a
 
 | Artifact | Path | Purpose |
 |----------|------|---------|
-| This journal | `~/dev/protocol_notes/JOURNAL_technowizard-researcher-analysis_2026-03-23.md` | Technowizard synthesis — system improvements + researcher advice |
+| This journal | Co-deposited as `JOURNAL_technowizard-researcher-analysis_2026-03-23.md` | Technowizard synthesis — system improvements + researcher advice |
 
 ---
 

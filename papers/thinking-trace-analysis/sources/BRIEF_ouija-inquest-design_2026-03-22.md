@@ -1,3 +1,5 @@
+> **Foreword (2026-09-06).** This document is published as a supplementary source record for the paper *Thinking-Trace Analysis* (Neilson, 2026). It is not a standalone paper. It is the task specification (a *Brief*) that the Researcher agent executed when it produced the thinking trace analyzed in the paper. The Brief defines the problem, acceptance criteria, and context for designing a behavioral observation experiment (an *experimental inquest*). The Researcher's thinking trace was the model's reasoning output during execution of this Brief; the trace itself is not stored in this file but is quoted extensively in the two analytical journals (source documents 1 and 2). Internal file paths and project names reference the private repository where this work was originally conducted; they are retained for provenance but do not resolve in this public repository.
+
 # Brief: ouija-inquest-design
 **Date:** 2026-03-22
 **Priority:** high

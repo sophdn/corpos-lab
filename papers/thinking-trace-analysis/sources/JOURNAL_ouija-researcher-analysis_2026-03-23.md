@@ -1,3 +1,5 @@
+> **Foreword (2026-09-06).** This document is published as a supplementary source record for the paper *Thinking-Trace Analysis* (Neilson, 2026). It is not a standalone paper. It was produced by an AI agent session in the Protocol Tester role, which performs temporal, entry-by-entry analysis of agent reasoning output. The document uses internal vocabulary from the agent workflow system described in the paper's Terminology section. Key terms: *Researcher* is the AI agent role that designed and executed the experimental task; *EXPERIMENTAL_INQUEST_FORM* is the structured template that defines required fields for an experimental observation study; *taboo* is a behavioral contract that prevents locally rational but globally harmful actions; *Brief* is a task specification; *Account* is a post-execution record. Internal file paths reference the private repository where this work was originally conducted; they are retained for provenance but do not resolve in this public repository.
+
 # Journal: Ouija Researcher Thinking Analysis
 **Date:** 2026-03-23
 **Analyst role:** Protocol Tester

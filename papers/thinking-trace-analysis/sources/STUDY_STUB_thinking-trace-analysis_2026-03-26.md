@@ -1,3 +1,5 @@
+> **Foreword (2026-09-06).** This document is published as a supplementary source record for the paper *Thinking-Trace Analysis* (Neilson, 2026). It is not a standalone paper. It is the scoping document (a *study stub*) that identified the two analytical journals as constituting a reusable methodology, proposed the section structure for the paper, and named the research question. Internal file paths reference the private repository where this work was originally conducted; they are retained for provenance but do not resolve in this public repository.
+
 # Study Stub: Thinking-Trace Analysis Methodology
 
 **Slug:** thinking-trace-analysis
