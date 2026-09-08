@@ -13,40 +13,23 @@
 
 set -uo pipefail
 
-# A hermetic harness must not be able to reach the real repo, and inherited git
-# env is the one channel that lets it. Inside a pre-commit hook git exports
-# GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE, and the worktree gate-only commit path
-# runs `git -c …`, which exports GIT_CONFIG_PARAMETERS/GIT_CONFIG_COUNT (bugs
-# 921/937 — precommit.sh scrubs the same five for corpos-gate). Every git call
-# below would then operate on THIS checkout instead of its throwaway /tmp repo.
-# Observed 2026-08-11 the first time this harness was wired into the gate: the
-# scenario-8 landing pushed the branch under test to the live origin.
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT
-# The gitea RESOLUTION env is a second such channel. worktree-merge exports
-# GITEA_API/OWNER/REPO/TOKEN from its orphan-PR pre-flight; a landing that runs
-# this harness at PRE-PUSH (e.g. corpos's landing-path guard) inherits them, and
-# gitea-resolve-env's full-override affordance then makes the orphan-PR scenarios
-# resolve against the REAL gitea instead of their local stubs (5 scenarios failed
-# this way, 2026-09-07). Scrub them, plus the WORKTREE_MERGE_/GITEA_RESOLVE_
-# stub-pointing overrides, so each scenario's own env is authoritative.
-unset GITEA_API GITEA_OWNER GITEA_REPO GITEA_TOKEN \
-      WORKTREE_MERGE_API_BASE WORKTREE_MERGE_TOKEN \
-      GITEA_RESOLVE_API_BASE GITEA_RESOLVE_TOKEN
-# WORKTREE_MERGE_SNAPSHOT/SOURCE_DIR are the deadliest inherited channel. When
-# this harness runs INSIDE a worktree-merge landing (e.g. a repo's landing-path
-# gate at PRE-PUSH), the parent worktree-merge has exported WORKTREE_MERGE_SNAPSHOT
-# = its own private snapshot dir. A child worktree-merge started by a scenario
-# below would inherit it, skip making its own snapshot, and on exit `rm -rf` the
-# PARENT's snapshot — deleting the running landing's gitea-resolve-env.sh out from
-# under it, so the parent's next resolve fails with "no gitea token" (2026-09-07,
-# corpos). Unset them so each child snapshots itself and reaps only its own.
-unset WORKTREE_MERGE_SNAPSHOT WORKTREE_MERGE_SOURCE_DIR
-# gitflow-common exports the per-repo config; a non-default value (e.g. a
-# non-empty migrations glob or post-land hook, as corpos-toolkit configures)
-# leaks into a child worktree-merge and breaks the scenarios that assert the
-# DEFAULT behaviour (2026-09-07). Scrub them so each throwaway repo sees only
-# its own .gitflow.
-unset GITFLOW_LANDING_BRANCH GITFLOW_GATE_CMD GITFLOW_WORKTREE GITFLOW_GUARD GITFLOW_MIGRATIONS_GLOB GITFLOW_POST_LAND_HOOK
+# Hermetic isolation. This harness runs the tool under test (worktree-merge) as
+# a CHILD in its scenarios. Whenever it runs at PRE-PUSH inside a real landing,
+# the parent worktree-merge has exported its git env (GIT_DIR... bugs 921/937),
+# gitea resolution (GITEA_*), its private snapshot dir (WORKTREE_MERGE_SNAPSHOT —
+# a child would rm-rf the parent's snapshot on exit), and the per-repo config
+# (GITFLOW_*). Enumerating every such variable to unset proved fragile — three
+# leak-sets were found one failed landing at a time. Instead re-exec ONCE in a
+# clean env with a minimal whitelist: any variable the service exports later is
+# gone too. Each scenario still sets its OWN overrides (WORKTREE_MERGE_API_BASE,
+# GITEA_*) per-invocation, and those live inside this re-execed script, so they
+# survive. (Original leak symptom, 2026-08-11: an unscrubbed run pushed the
+# branch under test to the live origin.)
+if [[ -z "${_WTM_HERMETIC:-}" ]]; then
+    _self="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+    exec env -i HOME="${HOME:-/tmp}" PATH="$PATH" TMPDIR="${TMPDIR:-/tmp}" TERM="${TERM:-dumb}" \
+        _WTM_HERMETIC=1 bash "$_self" "$@"
+fi
 
 # Prove the scrub worked before any scenario runs. If git still resolves a repo
 # from a neutral directory, something in the environment still points at a real
