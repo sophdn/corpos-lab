@@ -159,6 +159,7 @@ cd "$REPO_ROOT"
 # is a landing-path sibling, so the snapshot copy is sourced when running from a
 # snapshot.
 # shellcheck source=gitflow-common.sh
+# shellcheck disable=SC1091
 . "$SCRIPT_DIR/gitflow-common.sh"
 gitflow_load_config "$REPO_ROOT"
 LANDING_BRANCH="$GITFLOW_LANDING_BRANCH"
@@ -221,6 +222,7 @@ else
 fi
 resolve_gitea_remote() {
     # shellcheck source=gitea-resolve-env.sh
+    # shellcheck disable=SC1091
     . "$SCRIPT_DIR/gitea-resolve-env.sh" 2>/dev/null || return 1
     return 0
 }

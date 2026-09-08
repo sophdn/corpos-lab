@@ -22,6 +22,7 @@ repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
 # shellcheck source=gitflow-common.sh
+# shellcheck disable=SC1091
 . "$SCRIPT_DIR/gitflow-common.sh"
 gitflow_load_config "$repo_root"
 

@@ -62,6 +62,7 @@ gitflow_load_config() {
     # only the sentinel triggers a default below.
     if [[ -n "$root" && -f "$root/.gitflow" ]]; then
         # shellcheck disable=SC1090
+        # shellcheck disable=SC1091
         . "$root/.gitflow"
     fi
 

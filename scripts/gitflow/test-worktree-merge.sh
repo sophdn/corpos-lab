@@ -90,7 +90,7 @@ spawn_agent "$d1" agent-b "featureB.txt::B" "go/internal/db/migrations/081_beta.
 git -C "$d1" config core.bare true
 rc=0
 ( cd "$d1" && "$HELPER" --no-gate agent-a agent-b ) > "$d1/out.log" 2>&1 || rc=$?
-cat "$d1/out.log" | sed 's/^/    │ /'
+sed 's/^/    │ /' "$d1/out.log"
 assert "clean: helper exits 0" test "$rc" -eq 0
 assert "clean: core.bare reset to false" test "$(git -C "$d1" config core.bare)" = "false"
 assert "clean: featureA merged onto main" test -f "$d1/featureA.txt"
@@ -109,7 +109,7 @@ spawn_agent "$d2" agent-a "x.txt::A" "go/internal/db/migrations/080_alpha.sql::-
 spawn_agent "$d2" agent-b "y.txt::B" "go/internal/db/migrations/080_beta.sql::-- b"
 rc=0
 ( cd "$d2" && "$HELPER" --check-only agent-a agent-b ) > "$d2/out.log" 2>&1 || rc=$?
-cat "$d2/out.log" | sed 's/^/    │ /'
+sed 's/^/    │ /' "$d2/out.log"
 assert "dup-migration: --check-only exits 1" test "$rc" -eq 1
 assert "dup-migration: report names number 080" grep -q "number 080" "$d2/out.log"
 assert "dup-migration: nothing merged (x.txt absent on main)" bash -c "! test -f '$d2/x.txt'"
@@ -123,7 +123,7 @@ spawn_agent "$d2b" agent-a "x.txt::A" "go/internal/db/migrations/080_alpha.sql::
 spawn_agent "$d2b" agent-b "y.txt::B" "go/internal/db/migrations/080_beta.sql::-- b"
 rc=0
 ( cd "$d2b" && "$HELPER" --check-only agent-a agent-b ) > "$d2b/out.log" 2>&1 || rc=$?
-cat "$d2b/out.log" | sed 's/^/    │ /'
+sed 's/^/    │ /' "$d2b/out.log"
 assert "no-glob: --check-only exits 0 (dup not checked)" test "$rc" -eq 0
 assert "no-glob: did not run the migration check" bash -c "! grep -q 'duplicate migration' '$d2b/out.log'"
 
@@ -133,7 +133,7 @@ spawn_agent "$d3" agent-a "shared.txt::from A"
 spawn_agent "$d3" agent-b "shared.txt::from B"
 rc=0
 ( cd "$d3" && "$HELPER" --check-only agent-a agent-b ) > "$d3/out.log" 2>&1 || rc=$?
-cat "$d3/out.log" | sed 's/^/    │ /'
+sed 's/^/    │ /' "$d3/out.log"
 assert "overlap: --check-only exits 1" test "$rc" -eq 1
 assert "overlap: report names shared.txt" grep -q "shared.txt" "$d3/out.log"
 
@@ -171,8 +171,7 @@ PY
     # child inherits this function's stdout, and `$(start_pr_stub …)` blocks
     # forever waiting for that fd to close.
     STUBS+=("$!")
-    local i
-    for i in $(seq 1 50); do [[ -s "$d/port" ]] && break; sleep 0.1; done
+    for _ in $(seq 1 50); do [[ -s "$d/port" ]] && break; sleep 0.1; done
     [[ -s "$d/port" ]] || { echo "stub failed to start" >&2; return 1; }
     echo "http://127.0.0.1:$(cat "$d/port")"
 }
@@ -193,7 +192,7 @@ spawn_agent "$d4" agent-a "featureA.txt::A"
 rc=0
 ( cd "$d4" && WORKTREE_MERGE_API_BASE="$BASE" WORKTREE_MERGE_TOKEN=stub \
     "$HELPER" --check-only agent-a ) > "$d4/out.log" 2>&1 || rc=$?
-cat "$d4/out.log" | sed 's/^/    │ /'
+sed 's/^/    │ /' "$d4/out.log"
 assert "orphan-pr: exits 1" test "$rc" -eq 1
 assert "orphan-pr: names the open PR number" grep -q '#21' "$d4/out.log"
 assert "orphan-pr: names the land branch" grep -q 'land/main-20260805T015319' "$d4/out.log"
@@ -205,7 +204,7 @@ spawn_agent "$d5" agent-a "featureA.txt::A"
 rc=0
 ( cd "$d5" && WORKTREE_MERGE_API_BASE="$BASE" WORKTREE_MERGE_TOKEN=stub \
     "$HELPER" --check-only --allow-open-land-prs agent-a ) > "$d5/out.log" 2>&1 || rc=$?
-cat "$d5/out.log" | sed 's/^/    │ /'
+sed 's/^/    │ /' "$d5/out.log"
 assert "override: exits 0" test "$rc" -eq 0
 assert "override: no refusal printed" bash -c "! grep -q 'outstanding on origin' '$d5/out.log'"
 
@@ -216,7 +215,7 @@ spawn_agent "$d6" agent-a "featureA.txt::A"
 rc=0
 ( cd "$d6" && WORKTREE_MERGE_API_BASE="$BASE2" WORKTREE_MERGE_TOKEN=stub \
     "$HELPER" --check-only agent-a ) > "$d6/out.log" 2>&1 || rc=$?
-cat "$d6/out.log" | sed 's/^/    │ /'
+sed 's/^/    │ /' "$d6/out.log"
 assert "non-land PR: exits 0" test "$rc" -eq 0
 assert "non-land PR: no refusal printed" bash -c "! grep -q 'outstanding on origin' '$d6/out.log'"
 
@@ -227,7 +226,7 @@ rc=0
 # Port 1 is reserved and never listening — curl fails fast.
 ( cd "$d7" && WORKTREE_MERGE_API_BASE="http://127.0.0.1:1" WORKTREE_MERGE_TOKEN=stub \
     "$HELPER" --check-only agent-a ) > "$d7/out.log" 2>&1 || rc=$?
-cat "$d7/out.log" | sed 's/^/    │ /'
+sed 's/^/    │ /' "$d7/out.log"
 assert "unreachable: exits 0 (does not block local work)" test "$rc" -eq 0
 assert "unreachable: warns that the pre-flight was skipped" grep -q 'pre-flight skipped' "$d7/out.log"
 
@@ -248,7 +247,7 @@ git -C "$d8" add -A; git -C "$d8" commit -q -m "scripts: post-land hook"
 spawn_agent "$d8" agent-a "featureA.txt::A"
 rc=0
 ( cd "$d8" && "$HELPER" --no-gate --deploy agent-a ) > "$d8/out.log" 2>&1 || rc=$?
-cat "$d8/out.log" | sed 's/^/    │ /'
+sed 's/^/    │ /' "$d8/out.log"
 assert "post-land-hook: exits 0" test "$rc" -eq 0
 assert "post-land-hook: the hook ran" grep -q "HOOK RAN" "$d8/out.log"
 assert "post-land-hook: --deploy was passed through" bash -c "grep -q -- '--deploy' '$d8/hook_args'"
@@ -263,7 +262,7 @@ git -C "$d8b" add -A; git -C "$d8b" commit -q -m "scripts: post-land hook"
 spawn_agent "$d8b" agent-a "featureA.txt::A"
 rc=0
 ( cd "$d8b" && "$HELPER" --no-gate agent-a ) > "$d8b/out.log" 2>&1 || rc=$?
-cat "$d8b/out.log" | sed 's/^/    │ /'
+sed 's/^/    │ /' "$d8b/out.log"
 assert "no-deploy: exits 0" test "$rc" -eq 0
 assert "no-deploy: the hook ran" grep -q "HOOK RAN" "$d8b/out.log"
 assert "no-deploy: hook got no --deploy" bash -c "! grep -q -- '--deploy' '$d8b/hook_args'"
@@ -278,7 +277,7 @@ git -C "$d8c" add -A; git -C "$d8c" commit -q -m "scripts: failing hook"
 spawn_agent "$d8c" agent-a "featureA.txt::A"
 rc=0
 ( cd "$d8c" && "$HELPER" --no-gate agent-a ) > "$d8c/out.log" 2>&1 || rc=$?
-cat "$d8c/out.log" | sed 's/^/    │ /'
+sed 's/^/    │ /' "$d8c/out.log"
 assert "hook-fail: exits nonzero" test "$rc" -ne 0
 
 echo "── Scenario 9: no post-land hook configured → nothing runs ──"
@@ -286,7 +285,7 @@ d9="$(new_repo)"
 spawn_agent "$d9" agent-a "featureA.txt::A"
 rc=0
 ( cd "$d9" && "$HELPER" --no-gate agent-a ) > "$d9/out.log" 2>&1 || rc=$?
-cat "$d9/out.log" | sed 's/^/    │ /'
+sed 's/^/    │ /' "$d9/out.log"
 assert "no-hook: exits 0" test "$rc" -eq 0
 assert "no-hook: no post-land hook line" bash -c "! grep -q 'post-land hook' '$d9/out.log'"
 assert "no-hook: featureA still merged" test -f "$d9/featureA.txt"
@@ -325,7 +324,7 @@ spawn_agent "$d10" agent-a "scripts/worktree-merge.sh::#!/usr/bin/env bash
 echo 'a much shorter worktree-merge.sh'"
 rc=0
 ( cd "$d10" && "$d10/scripts/worktree-merge.sh" --no-gate agent-a ) > "$d10/out.log" 2>&1 || rc=$?
-cat "$d10/out.log" | sed 's/^/    │ /'
+sed 's/^/    │ /' "$d10/out.log"
 assert "self-rewrite: runs from a snapshot, not the repo copy it is merging into" \
     grep -q "running from a private snapshot" "$d10/out.log"
 assert "self-rewrite: the snapshot lives outside the repo under test" \
@@ -358,7 +357,7 @@ d11="$(new_repo)"
 spawn_agent "$d11" agent-a "featureA.txt::A"
 rc=0
 ( cd "$d11/.wt/agent-a" && "$HELPER" --no-gate agent-a ) > "$d11/out.log" 2>&1 || rc=$?
-cat "$d11/out.log" | sed 's/^/    │ /'
+sed 's/^/    │ /' "$d11/out.log"
 assert "linked-worktree: exits nonzero" test "$rc" -ne 0
 assert "linked-worktree: says LINKED WORKTREE" grep -q "LINKED WORKTREE" "$d11/out.log"
 assert "linked-worktree: names the main checkout to run from" grep -q "cd $d11 " "$d11/out.log"
@@ -370,7 +369,7 @@ git -C "$d12" checkout -b not-main 2>/dev/null
 spawn_agent "$d12" agent-a "featureA.txt::A"
 rc=0
 ( cd "$d12" && "$HELPER" --no-gate agent-a ) > "$d12/out.log" 2>&1 || rc=$?
-cat "$d12/out.log" | sed 's/^/    │ /'
+sed 's/^/    │ /' "$d12/out.log"
 assert "wrong-branch: exits nonzero" test "$rc" -ne 0
 assert "wrong-branch: names the branch" grep -q "not-main" "$d12/out.log"
 assert "wrong-branch: nothing merged" bash -c "! test -f '$d12/featureA.txt'"
@@ -385,7 +384,7 @@ git -C "$d13" add -A; git -C "$d13" commit -q -m "config: landing branch trunk"
 spawn_agent "$d13" agent-a "featureA.txt::A"
 rc=0
 ( cd "$d13" && "$HELPER" --no-gate agent-a ) > "$d13/out.log" 2>&1 || rc=$?
-cat "$d13/out.log" | sed 's/^/    │ /'
+sed 's/^/    │ /' "$d13/out.log"
 assert "landing-branch: exits 0" test "$rc" -eq 0
 assert "landing-branch: integration target is trunk" grep -q "integration target = trunk" "$d13/out.log"
 assert "landing-branch: featureA merged onto trunk" test -f "$d13/featureA.txt"
@@ -399,7 +398,7 @@ git -C "$d13b" add -A; git -C "$d13b" commit -q -m "config: landing branch trunk
 spawn_agent "$d13b" agent-a "featureA.txt::A"
 rc=0
 ( cd "$d13b" && "$HELPER" --no-gate agent-a ) > "$d13b/out.log" 2>&1 || rc=$?
-cat "$d13b/out.log" | sed 's/^/    │ /'
+sed 's/^/    │ /' "$d13b/out.log"
 assert "wrong-config-branch: exits nonzero" test "$rc" -ne 0
 assert "wrong-config-branch: names 'trunk'" grep -q "trunk" "$d13b/out.log"
 assert "wrong-config-branch: nothing merged" bash -c "! test -f '$d13b/featureA.txt'"
@@ -424,7 +423,7 @@ git -C "$other14" push -q origin main
 spawn_agent "$d14" agent-a "featureA.txt::A"
 rc=0
 ( cd "$d14" && "$HELPER" --no-gate agent-a ) > "$d14/out.log" 2>&1 || rc=$?
-cat "$d14/out.log" | sed 's/^/    │ /'
+sed 's/^/    │ /' "$d14/out.log"
 assert "non-ff: exits 0" test "$rc" -eq 0
 assert "non-ff: reconciled with origin" grep -qi "reconcil" "$d14/out.log"
 assert "non-ff: pushed to origin" grep -q "pushed main to origin" "$d14/out.log"
@@ -494,7 +493,7 @@ spawn_agent "$d15" agent-a "featureA.txt::A"
 rc=0
 ( cd "$d15" && GITEA_API="$B15" GITEA_OWNER=owner GITEA_REPO=repo GITEA_TOKEN=stub \
     GITEA_CI_TIMEOUT=5 GITEA_CI_INTERVAL=1 "$HELPER" --no-gate agent-a ) > "$d15/out.log" 2>&1 || rc=$?
-cat "$d15/out.log" | sed 's/^/    │ /'
+sed 's/^/    │ /' "$d15/out.log"
 assert "protected: detected the protection rejection" grep -q "push-protected" "$d15/out.log"
 assert "protected: landed via a PR" grep -qi "landing via PR" "$d15/out.log"
 assert "protected: the PR was merged through the handshake" grep -q "PR #42 merged" "$d15/out.log"

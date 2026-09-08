@@ -56,6 +56,7 @@ if [[ "$_need_resolve" -eq 1 ]]; then
     _resolve="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gitea-resolve-env.sh"
     if [[ -f "$_resolve" ]]; then
         # shellcheck source=gitea-resolve-env.sh
+        # shellcheck disable=SC1091
         . "$_resolve"
     fi
 fi
@@ -154,16 +155,18 @@ required_state() {
             [[ "$ctx" == $glob ]] || continue
             # A glob can match several contexts — notably the same job's `push`
             # and `pull_request` event variants (ci / precommit (push) AND
-            # ci / precommit (pull_request)). Gitea's own merge gate is satisfied
-            # by a matching SUCCESS and is not held by a still-pending sibling
-            # variant, so we match that: success is sticky, only a failure
-            # overrides it. Waiting for every variant made a landing sit ~26 min
-            # on a green PR while the slower push-event variant queued behind the
-            # single-parallel runner (2026-09-07).
+            # ci / precommit (pull_request)). Gitea's merge gate requires EVERY
+            # matching context to be successful: a merge POST while one variant
+            # is still pending returns 405 "Not all required status checks
+            # successful" (observed 2026-09-07 on PR #73). So a pending sibling
+            # HOLDS the glob — success is provisional and any pending entry drops
+            # the glob back to pending. Waiting for both variants is correct, not
+            # over-strict; the ~26-min waits are the slower push-event run queued
+            # behind the single-parallel runner (a CI-config issue, not this).
             case "$st" in
                 failure|error) found=failure; break ;;
-                success)       found=success ;;
-                *)             [[ "$found" == "success" ]] || found=pending ;;
+                success)       [[ -n "$found" ]] || found=success ;;
+                *)             found=pending ;;
             esac
         done <<<"$latest"
         case "$found" in

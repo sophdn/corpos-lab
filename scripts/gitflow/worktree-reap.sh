@@ -7,6 +7,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=gitflow-common.sh
+# shellcheck disable=SC1091
 . "$SCRIPT_DIR/gitflow-common.sh"
 gitflow_load_config
 

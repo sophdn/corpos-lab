@@ -319,10 +319,12 @@ assert "null-state: exits 0" test "$rc" -eq 0
 assert "null-state: merged the PR" grep -q "merged" "$d10/out.log"
 assert "null-state: merged on the first attempt" test "$(wc -w < "$d10/merge_calls")" -eq 1
 
-echo "── Scenario 11: a pending sibling event-variant does NOT hold the merge ──"
-# ci / precommit (pull_request) is green while ci / precommit (push) is still
-# queued behind the single-parallel runner. Gitea would merge; the handshake
-# must too, and must NOT wait out the deadline (the 2026-09-07 ~26-min stall).
+echo "── Scenario 11: ALL matching event-variants must pass before merge (strict) ──"
+# ci / precommit (pull_request) is green but ci / precommit (push) is still
+# pending. Gitea requires EVERY matching context, so the handshake must WAIT,
+# not merge early — merging early returns 405 "Not all required status checks
+# successful" (the 2026-09-07 PR #73 regression). When the push variant goes
+# green on the next poll (statuses2), it merges.
 d11="$(new_stub_dir)"
 cat > "$d11/protections.json" <<'JSON'
 {"branch_name":"main","enable_status_check":true,"status_check_contexts":["ci / precommit*"]}
@@ -331,14 +333,16 @@ cat > "$d11/statuses.json" <<'JSON'
 [{"id":3,"context":"ci / precommit (pull_request)","status":"success","state":null},
  {"id":2,"context":"ci / precommit (push)","status":"pending","state":null}]
 JSON
+cat > "$d11/statuses2.json" <<'JSON'
+[{"id":5,"context":"ci / precommit (pull_request)","status":"success","state":null},
+ {"id":4,"context":"ci / precommit (push)","status":"success","state":null}]
+JSON
 B11="$(start_gitea_stub "$d11")"
-start=$SECONDS
-rc=0; GITEA_CI_TIMEOUT=30 run_land "$d11" "$B11" || rc=$?
-elapsed=$((SECONDS - start))
+rc=0; GITEA_CI_TIMEOUT=30 GITEA_CI_INTERVAL=1 run_land "$d11" "$B11" || rc=$?
 sed 's/^/    │ /' "$d11/out.log"
-assert "multi-variant: exits 0" test "$rc" -eq 0
-assert "multi-variant: merged the PR" grep -q "merged" "$d11/out.log"
-assert "multi-variant: did not wait out the deadline" test "$elapsed" -lt 10
+assert "strict-multi-variant: exits 0 once BOTH variants are green" test "$rc" -eq 0
+assert "strict-multi-variant: waited (polled more than once)" test "$(wc -w < "$d11/statuses_calls")" -ge 2
+assert "strict-multi-variant: merged the PR exactly once" test "$(wc -w < "$d11/merge_calls")" -eq 1
 
 echo "── Scenario 12: an already-merged PR (405 on merge) is success, not failure ──"
 # A human or a concurrent run merged the PR first; the merge POST then returns a
