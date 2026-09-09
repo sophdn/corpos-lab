@@ -6,7 +6,7 @@ scenario (materials/scenario.md) and run under the SAME no-tools notice as T0/T1
 ## scrambled_glyph (structure vs comprehension)
 - File: materials/scrambled_glyph.md
 - Method: word-order shuffle within each prose span of materials/glyph.md, seeded
-  (scripts scramble.py, random.Random(42)). Structure lines preserved verbatim:
+  (scripts/scramble.py, random.Random(42)). Structure lines preserved verbatim:
   the title, Y-fire / Y-not-fire labels, the Marker / Aim / Rest axis headers, and
   every bold label (Invariant, Firing condition, Does not fire on, Violation signal,
   Recognition signal, Characterization, Distinguishing condition), blockquote and
