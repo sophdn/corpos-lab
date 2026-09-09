@@ -95,6 +95,13 @@ type Response struct {
 	Model string
 	// SystemFingerprint is llama.cpp's build id (e.g. "b9445-af6528e6d").
 	SystemFingerprint string
+	// Truncated is true when generation stopped because it hit the token cap
+	// (n_predict / max_tokens) rather than a natural stop. Recorded per run so a
+	// response cut off mid-artifact is visible in the data instead of being
+	// inferred by a scorer: on verbose classes a correct answer truncated before
+	// its load-bearing step is otherwise indistinguishable from an incomplete one.
+	// Sourced from /completion's stopped_limit and chat's finish_reason=="length".
+	Truncated bool
 	// Timings is the server's cost report for this generation.
 	Timings Timings
 }

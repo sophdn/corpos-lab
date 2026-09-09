@@ -109,7 +109,8 @@ type chatMessage struct {
 
 type chatResponse struct {
 	Choices []struct {
-		Message chatMessage `json:"message"`
+		Message      chatMessage `json:"message"`
+		FinishReason string      `json:"finish_reason"`
 	} `json:"choices"`
 	// Model and SystemFingerprint are the server's account of what answered.
 	Model             string `json:"model"`
@@ -213,6 +214,7 @@ func (o *OpenAI) generateChat(ctx context.Context, prompt string, params GenPara
 		Reasoning:         reasoning,
 		Model:             parsed.Model,
 		SystemFingerprint: parsed.SystemFingerprint,
+		Truncated:         parsed.Choices[0].FinishReason == "length",
 		Timings: Timings{
 			PromptN:            parsed.Timings.PromptN,
 			PredictedN:         parsed.Timings.PredictedN,
@@ -256,7 +258,10 @@ type completionRequest struct {
 type completionResponse struct {
 	Content string `json:"content"`
 	Model   string `json:"model"`
-	Timings struct {
+	// StoppedLimit is llama.cpp's flag that generation stopped at n_predict (the
+	// token cap) rather than an EOS or stop word — i.e. the reply was truncated.
+	StoppedLimit bool `json:"stopped_limit"`
+	Timings      struct {
 		PromptN            int     `json:"prompt_n"`
 		PredictedN         int     `json:"predicted_n"`
 		PromptPerSecond    float64 `json:"prompt_per_second"`
@@ -328,6 +333,7 @@ func (o *OpenAI) generateCompletion(ctx context.Context, prompt string, params G
 		Reasoning:         inlineReasoning,
 		Model:             parsed.Model,
 		SystemFingerprint: "",
+		Truncated:         parsed.StoppedLimit,
 		Timings: Timings{
 			PromptN:            parsed.Timings.PromptN,
 			PredictedN:         parsed.Timings.PredictedN,

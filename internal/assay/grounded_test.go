@@ -42,6 +42,42 @@ func TestAssemblePromptGroundedGlyphConcatsAllThree(t *testing.T) {
 	}
 }
 
+// stubModel is a minimal model.Client for RunProbe tests.
+type stubModel struct {
+	resp model.Response
+	err  error
+}
+
+func (s stubModel) Generate(context.Context, string, model.GenParams) (model.Response, error) {
+	return s.resp, s.err
+}
+func (s stubModel) Props(context.Context) (model.ServerProps, error) {
+	return model.ServerProps{}, nil
+}
+func (s stubModel) Name() string    { return "stub" }
+func (s stubModel) Version() string { return "v0" }
+
+func TestRunProbeRecordsTruncation(t *testing.T) {
+	m := stubModel{resp: model.Response{Text: "cut", Truncated: true}}
+	row, _, err := RunProbe(context.Background(), m, "item", Baseline, 1, Materials{Scenario: "S"}, Sampling{Seeds: []int{1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !row.Observed.Truncated {
+		t.Fatal("row Observed.Truncated should be true")
+	}
+	if !strings.Contains(row.Rationale, ":truncated") {
+		t.Fatalf("rationale missing :truncated: %q", row.Rationale)
+	}
+}
+
+func TestRunProbeSurfacesGenerateError(t *testing.T) {
+	m := stubModel{err: errors.New("boom")}
+	if _, _, err := RunProbe(context.Background(), m, "item", Baseline, 1, Materials{Scenario: "S"}, Sampling{Seeds: []int{1}}); err == nil {
+		t.Fatal("expected RunProbe to surface the Generate error")
+	}
+}
+
 func TestAssemblePromptImperativeOnlyConcatsImperativeAndScenario(t *testing.T) {
 	// T2: the imperative rule takes the glyph's slot — same delimiter, same
 	// shape as GlyphOnly, no glyph. A glyph present in Materials must not leak

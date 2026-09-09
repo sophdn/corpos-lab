@@ -63,6 +63,53 @@ func TestCompletionModeWrapsPromptHitsRootAndSurfacesRendered(t *testing.T) {
 	}
 }
 
+func TestCompletionModeRecordsTruncationFromStoppedLimit(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"content":"cut off","model":"m","stopped_limit":true,"timings":{}}`))
+	}))
+	defer srv.Close()
+	c := NewOpenAI(srv.URL+"/v1", "m", "q4km", WithHTTPClient(srv.Client()),
+		WithCompletion("{prompt}"))
+	resp, err := c.Generate(context.Background(), "x", GenParams{MaxTokens: Int(8)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !resp.Truncated {
+		t.Fatal("expected Truncated=true when stopped_limit is set")
+	}
+}
+
+func TestCompletionModeNaturalStopIsNotTruncated(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"content":"done","model":"m","stopped_limit":false,"timings":{}}`))
+	}))
+	defer srv.Close()
+	c := NewOpenAI(srv.URL+"/v1", "m", "q4km", WithHTTPClient(srv.Client()),
+		WithCompletion("{prompt}"))
+	resp, err := c.Generate(context.Background(), "x", GenParams{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Truncated {
+		t.Fatal("expected Truncated=false on a natural stop")
+	}
+}
+
+func TestChatModeRecordsTruncationFromFinishReason(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"cut"},"finish_reason":"length"}]}`))
+	}))
+	defer srv.Close()
+	c := NewOpenAI(srv.URL+"/v1", "m", "q4km", WithHTTPClient(srv.Client()))
+	resp, err := c.Generate(context.Background(), "x", GenParams{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !resp.Truncated {
+		t.Fatal("expected Truncated=true when chat finish_reason is length")
+	}
+}
+
 func TestCompletionModeStripsInlineThinking(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"content":"<think>hmm</think>ANSWER","model":"m","timings":{}}`))

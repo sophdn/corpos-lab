@@ -171,6 +171,10 @@ type Observed struct {
 	TokensPerSecond float64 `json:"tokens_per_second"`
 	PromptTokens    int     `json:"prompt_tokens"`
 	PredictedTokens int     `json:"predicted_tokens"`
+	// Truncated is true when the reply was cut off at the token cap rather than
+	// stopping naturally. Recorded so a verbose answer cut off mid-artifact is a
+	// visible fact for scoring and analysis, not something a rater has to infer.
+	Truncated bool `json:"truncated"`
 }
 
 // ProbeResponse is the raw model reply for one condition/run, retained for
@@ -289,7 +293,11 @@ func RunProbe(ctx context.Context, m model.Client, itemID string, cond Condition
 	// against the rubric. Prefix-matching PASS/FAIL here (as this once did via
 	// battery.ParseModelVerdict) scored every behavioral reply a spurious fail,
 	// because a probe reply is conduct and never opens with either token.
-	rationale := fmt.Sprintf("grounded-glyph-probe:%s:response=%dchars:unscored", cond, len(resp.Text))
+	truncNote := ""
+	if resp.Truncated {
+		truncNote = ":truncated"
+	}
+	rationale := fmt.Sprintf("grounded-glyph-probe:%s:response=%dchars%s:unscored", cond, len(resp.Text), truncNote)
 
 	row := ScoreRow{
 		Item:      itemID,
@@ -303,6 +311,7 @@ func RunProbe(ctx context.Context, m model.Client, itemID string, cond Condition
 			TokensPerSecond: resp.Timings.PredictedPerSecond,
 			PromptTokens:    resp.Timings.PromptN,
 			PredictedTokens: resp.Timings.PredictedN,
+			Truncated:       resp.Truncated,
 		},
 	}
 	response := ProbeResponse{

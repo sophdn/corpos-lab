@@ -290,6 +290,28 @@ func TestExecutePersistsRenderedPromptWhenSurfaced(t *testing.T) {
 	}
 }
 
+// A truncated reply (stopped at the token cap) is recorded on the row's Observed
+// and flagged in the rationale, so a cut-off answer is a visible fact.
+func TestExecuteRecordsTruncationOnTheRow(t *testing.T) {
+	spec := StudySpec{
+		Assay: SupportedAssay, ItemID: "i", Model: ModelSpec{ModelID: "m"},
+		Conditions: []assay.Condition{assay.Baseline}, RunsPerCell: 1,
+		Materials: MaterialsSpec{Scenario: "scenario.md"}, Sampling: validSampling(),
+	}
+	in := writeStudy(t, spec, map[string]string{"scenario.md": "S"})
+	f := &fakeClient{resp: &model.Response{Text: "cut off here", Truncated: true}}
+	results, err := Execute(context.Background(), in, t.TempDir(), f)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if len(results.Rows) != 1 || !results.Rows[0].Observed.Truncated {
+		t.Fatalf("row Observed.Truncated not set: %+v", results.Rows)
+	}
+	if !strings.Contains(results.Rows[0].Rationale, ":truncated") {
+		t.Fatalf("rationale missing :truncated marker: %q", results.Rows[0].Rationale)
+	}
+}
+
 // The chat path surfaces no rendered prompt (the server templates server-side),
 // so the runner writes no prompt file rather than recording a half-truth.
 func TestExecuteWritesNoPromptFileInChatMode(t *testing.T) {
