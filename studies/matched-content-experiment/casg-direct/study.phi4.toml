@@ -1,0 +1,59 @@
+# matched-content experiment (Q1) + Q2 model-breadth sweep — casg-direct — phi-4 (14B) Q4_K_M
+#
+# T3 of chain delivery-register-completion. Q2 shelf sweep: does analysis-mode
+# (recognition-without-execution under glyph prepend) generalize across the shelf?
+# phi-4 is a different family (Microsoft) and a mid size (14B) — the cleanest
+# non-Qwen, non-Mistral fitting arm on the 24 GB shelf.
+#
+# Conditions: T0 = baseline, T1 = glyph_only, T2 = imperative_only. Read cells, not counts.
+#
+# INSTRUMENT NOTE: image pinned to the current assay build (e159…, post the
+# 2026-09-09 truncation fix). Read cross-model as cells; not pooled with
+# matched-content's older-image (8218…) qwen38/mistral runs.
+#
+# Run: corpos-lab run-study studies/matched-content-experiment/casg-direct/study.phi4.toml \
+#        -work studies/matched-content-experiment/runs/phi4/casg-direct
+
+name = "matched-content-casg-direct-phi4"
+assay = "grounded-glyph-probe"
+item_id = "casg-direct"
+
+image = "localhost/lab-grounded-glyph-probe@sha256:e159c2b88ce748e0c1fa7e592fa39f3c599d38d2cb2916b14e3a7f9f658dacb1"
+network = "corpos-net"
+
+conditions = ["baseline", "glyph_only", "imperative_only"]
+runs_per_cell = 8
+
+[model]
+base_url = "http://llama-server:8081/v1"
+model_id = "phi-4-Q4_K_M.gguf"
+version = "q4km"
+# Raw /completion, phi-4 chat format: role and content separated by <|im_sep|>,
+# turn closed by <|im_end|>. phi-4 (non-reasoning) has no thinking mode. Same
+# no-tools notice as the other arms so the prompt body is matched across models.
+endpoint = "completion"
+prompt_template = "<|im_start|>user<|im_sep|>{prompt}\n\n---\nNote: You are running as a single completion. There is no harness, no tools, no filesystem, no shell. You cannot call functions or read files. Give your answer directly as text.<|im_end|><|im_start|>assistant<|im_sep|>"
+
+[materials]
+scenario   = "materials/scenario.md"
+glyph      = "materials/glyph.md"
+imperative = "materials/imperative.md"
+
+[sampling]
+temperature = 0.8
+seeds = [1, 2, 3, 4, 5, 6, 7, 8]
+max_tokens = 1024
+
+top_n_sigma = -1.0
+top_k = 0
+typical_p = 1.0
+top_p = 1.0
+min_p = 0.05
+
+repeat_penalty = 1.0
+repeat_last_n = 0
+presence_penalty = 0.0
+frequency_penalty = 0.0
+
+xtc_probability = 0.0
+dry_multiplier = 0.0

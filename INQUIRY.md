@@ -80,6 +80,20 @@ model.** It does not yet distinguish "models read glyphs as rubrics" from "this
 particular glyph doesn't afford execution." Q2's shelf sweep is what separates
 those.
 
+**Update 2026-09-09 — the shelf sweep ran (4 models), and it splits the two
+readings.** casg-direct across Mistral-7B, phi-4-14B, Qwen2.5-32B and
+Qwen3.8-27B: execution drops under a glyph prepend in every model that executes
+unguided (Mistral 8C→0C, phi-4 8C→0C, Qwen3.8 8C→4C). Analysis-mode is
+**general, not Mistral-specific** — "models read prepended decision-framing as an
+analytical rubric" is the supported reading. AND it is a **content effect, not a
+glyph-format effect**: the information-matched imperative suppresses execution as
+much as the glyph in three of four models, and MORE in Qwen2.5-32B — the
+three-axis glyph format never beats the matched imperative. Still one glyph, one
+scenario. See `studies/matched-content-experiment/CROSS_MODEL_SWEEP_FINDINGS.md`.
+Separately, FSCB v6 showed agent-facing second-person voice does not convert the
+treatment model to execution (glyph-only regressed 8Ii→8Ic); format is not the
+lever there either.
+
 **Ground converts it.** Lift was +7, +8, +4 across the same three legs. Always
 positive, always large. The magnitude is unstable at n=8 and we should stop
 reading meaning into the specific integer.

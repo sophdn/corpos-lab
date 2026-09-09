@@ -1,0 +1,65 @@
+# matched-content experiment (Q1) + Q2 model-breadth sweep — casg-direct — Qwen2.5-32B-Instruct Q4_K_M
+#
+# T3 of chain delivery-register-completion. Q2 shelf sweep: does analysis-mode
+# (recognition-without-execution under glyph prepend) generalize across the shelf,
+# or is it Mistral-specific / casg-direct-specific? This adds a large general-Qwen
+# arm to the matched-content matrix (qwen38 + mistral already run).
+#
+# Conditions: T0 = baseline (scenario only), T1 = glyph_only (glyph + scenario),
+# T2 = imperative_only (imperative + scenario, NO glyph). Read cells, not counts.
+#
+# INSTRUMENT NOTE: image pinned to the CURRENT assay build (e159…, post the
+# 2026-09-09 truncation fix), NOT matched-content's 8218… (now rebuilt away). New
+# arms are read cross-model as cells/direction; not pooled with the older-image runs.
+#
+# Run: corpos-lab run-study studies/matched-content-experiment/casg-direct/study.qwen2532.toml \
+#        -work studies/matched-content-experiment/runs/qwen2532/casg-direct
+# Material paths resolve relative to THIS file.
+
+name = "matched-content-casg-direct-qwen2532"
+assay = "grounded-glyph-probe"
+item_id = "casg-direct"
+
+image = "localhost/lab-grounded-glyph-probe@sha256:e159c2b88ce748e0c1fa7e592fa39f3c599d38d2cb2916b14e3a7f9f658dacb1"
+network = "corpos-net"
+
+conditions = ["baseline", "glyph_only", "imperative_only"]
+runs_per_cell = 8
+
+[model]
+# Reached over corpos-net by container DNS. SWAP on llama-server (:8081) via
+# sophdn-llama-server/scripts/swap-model.sh — never a second inference server.
+base_url = "http://llama-server:8081/v1"
+model_id = "Qwen2.5-32B-Instruct-Q4_K_M.gguf"
+version = "q4km"
+# Raw /completion, Qwen chatml wrapper. Qwen2.5 is NOT a thinking model — no
+# <think> block. Same no-tools notice as the qwen38/mistral arms so the prompt
+# body is matched across models.
+endpoint = "completion"
+prompt_template = "<|im_start|>user\n{prompt}\n\n---\nNote: You are running as a single completion. There is no harness, no tools, no filesystem, no shell. You cannot call functions or read files. Give your answer directly as text.<|im_end|>\n<|im_start|>assistant\n"
+
+[materials]
+scenario   = "materials/scenario.md"
+glyph      = "materials/glyph.md"
+imperative = "materials/imperative.md"
+
+# Sampler chain — lab-standard (PROTOCOL section 6), byte-identical to the qwen38
+# and mistral arms so the cross-model read is consistent.
+[sampling]
+temperature = 0.8
+seeds = [1, 2, 3, 4, 5, 6, 7, 8]
+max_tokens = 1024
+
+top_n_sigma = -1.0
+top_k = 0
+typical_p = 1.0
+top_p = 1.0
+min_p = 0.05
+
+repeat_penalty = 1.0
+repeat_last_n = 0
+presence_penalty = 0.0
+frequency_penalty = 0.0
+
+xtc_probability = 0.0
+dry_multiplier = 0.0
