@@ -1,0 +1,74 @@
+# matched-content experiment (Q1) — parent-state-check-bypass — anchor treatment model: Mistral-7B-Instruct-v0.3 Q4_K_M (mistral)
+#
+# Chain 423, task execute-matched-runs. Q1: does the three-axis glyph (T1) beat an
+# information-matched imperative rule (T2) carrying the same content?
+#
+# Conditions: T0 = baseline (scenario only), T1 = glyph_only (glyph + scenario),
+# T2 = imperative_only (imperative + scenario, NO glyph). T1 and T2 are the two
+# arms of the contrast; the materials are content-parity audited (PARITY_AUDIT.md,
+# SIGN-OFF). Read cells, not counts (INQUIRY.md). Old runs orient, never target.
+#
+# Run headless:  corpos-lab run-study studies/matched-content-experiment/parent-state-check-bypass/study.mistral.toml
+# Material paths resolve relative to THIS file.
+
+name = "mechanism-controls-parent-state-check-bypass-mistral"
+assay = "grounded-glyph-probe"
+item_id = "parent-state-check-bypass"
+
+# Probe image, digest-pinned so a run record says exactly what executed (recorded,
+# NOT enforced — a mismatch is information, never grounds for refusing to run).
+# Same assay image as the grounded-glyph probe; built by scripts/build-lab-images.sh.
+image = "localhost/lab-grounded-glyph-probe@sha256:e159c2b88ce748e0c1fa7e592fa39f3c599d38d2cb2916b14e3a7f9f658dacb1"
+network = "corpos-net"
+
+conditions = ["baseline", "glyph_only", "scrambled_glyph", "off_target_glyph"]
+runs_per_cell = 8
+
+[model]
+# Reached over corpos-net by container DNS. To run this model, SWAP it on
+# llama-server (:8081) — never a second inference server (CLAUDE.md: ONE local
+# inference portal, written in blood).
+# anchor treatment model: Mistral-7B-Instruct-v0.3 Q4_K_M. GGUF basename is what the server reports; the runner records a
+# declared-vs-served mismatch without enforcing it.
+base_url = "http://llama-server:8081/v1"
+model_id = "Mistral-7B-Instruct-v0.3.Q4_K_M.gguf"
+version = "v0.3-q4km"
+# Vanilla path: raw /completion, Mistral-v0.3 instruct wrapper. No system prompt,
+# no tools. NOTE: verify BOS handling when the Mistral arm is loaded (add_special).
+endpoint = "completion"
+prompt_template = "[INST] {prompt}\n\n---\nNote: You are running as a single completion. There is no harness, no tools, no filesystem, no shell. You cannot call functions or read files. Give your answer directly as text. [/INST]"
+
+[materials]
+scenario   = "materials/scenario.md"   # T0/T1/T2 all share this
+glyph      = "materials/glyph.md"       # T1 — ALPHABET entry verbatim
+imperative = "materials/imperative.md"  # T2 — information-matched directive
+scrambled  = "materials/scrambled_glyph.md"
+off_target = "materials/off_target_glyph.md"
+
+# Sampler chain — PROTOCOL section 6, declared COMPLETE (validation refuses a
+# partial chain: an unnamed stage inherits the server binary default).
+#   temperature 0.8 — above greedy, so a graded grid is possible; seeds keep
+#     replicates varied AND reproducible.
+#   min_p 0.05 — the SOLE truncation stage; every other truncation stage disabled.
+#   all penalties OFF — a glyph scaffold induces repeated structure by design, and
+#     a live penalty would attenuate exactly the behaviour under study.
+# Qwen uses this same lab-standard sampler (PROTOCOL 6.2 decision) so the
+# T1-vs-T2 contrast stays consistent within each model.
+[sampling]
+temperature = 0.8
+seeds = [1, 2, 3, 4, 5, 6, 7, 8]
+max_tokens = 1024  # raised from 512: T2 (imperative) answers truncated at 512 mid-action in a live smoke (Qwen3.8, casg-direct). Constant across T0/T1/T2.
+
+top_n_sigma = -1.0
+top_k = 0
+typical_p = 1.0
+top_p = 1.0
+min_p = 0.05
+
+repeat_penalty = 1.0
+repeat_last_n = 0
+presence_penalty = 0.0
+frequency_penalty = 0.0
+
+xtc_probability = 0.0
+dry_multiplier = 0.0

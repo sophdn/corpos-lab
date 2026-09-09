@@ -130,6 +130,28 @@ as a commitment, but because surprise is where the learning is. Drop the
 confidence scores; they were theatre. The one real constraint: predictions never
 enter any file a subject or judge model can see.
 
+**Mechanism controls.** When a study reports that a glyph changed behaviour — a
+register shift, a suppression, a gating effect — the first question is *what about
+the glyph did it*: the three-axis structure, the comprehension of its content, or
+the recognition that it fits the scenario. Two controls, added as assay conditions
+(`scrambled_glyph`, `off_target_glyph`, already wired), separate these:
+- **scrambled_glyph** — the glyph with its three-axis shape and length preserved but
+  word order shuffled within each span into incoherence (`scripts/scramble.py`,
+  seeded). If it reproduces the effect, structure carries it; if it collapses toward
+  baseline, comprehension is required. (Note: scrambling keeps the class's own
+  vocabulary in shuffled order — it removes syntax, not topical keywords.)
+- **off_target_glyph** — a coherent glyph for a DIFFERENT decision class, paired with
+  this scenario (fixed rotation across the authored glyphs). If it reproduces the
+  effect, recognition of the scenario match is not in the loop; if it fails,
+  recognition matters.
+Run them when a format or comprehension claim is on the line, most sharply on
+register-prone classes. **The controls are class-dependent — do not generalize from
+one class.** Measured 2026-09-08/09 across four classes: on casg-direct neither
+comprehension nor recognition was needed (scrambled and off-target both reproduced);
+on formal-step comprehension mattered (scrambled failed); on parent-state recognition
+mattered (off-target failed). casg-direct alone would have said "mere structure" — and
+been wrong for the others. See `studies/matched-content-experiment/CROSS_CLASS_CONTROLS_FINDINGS.md`.
+
 ---
 
 ## What changed the method
