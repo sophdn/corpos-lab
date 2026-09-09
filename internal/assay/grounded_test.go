@@ -63,6 +63,42 @@ func TestAssemblePromptRejectsMissingImperative(t *testing.T) {
 	}
 }
 
+func TestAssemblePromptScrambledGlyphConcatsScrambledAndScenario(t *testing.T) {
+	// The scrambled glyph takes the glyph's slot — same delimiter, same shape as
+	// GlyphOnly. A real glyph present in Materials must not leak into the prompt.
+	got, err := AssemblePrompt(ScrambledGlyph, Materials{Scenario: "S", Glyph: "G", Scrambled: "SCR"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "SCR\n---\nS" {
+		t.Fatalf("got %q, want SCR\\n---\\nS", got)
+	}
+}
+
+func TestAssemblePromptRejectsMissingScrambled(t *testing.T) {
+	// A glyph present but no scrambled material must still fail: the control
+	// carries the scrambled glyph, never the real glyph as a fallback.
+	if _, err := AssemblePrompt(ScrambledGlyph, Materials{Scenario: "S", Glyph: "G"}); err == nil {
+		t.Fatal("expected error for missing scrambled glyph")
+	}
+}
+
+func TestAssemblePromptOffTargetGlyphConcatsOffTargetAndScenario(t *testing.T) {
+	got, err := AssemblePrompt(OffTargetGlyph, Materials{Scenario: "S", Glyph: "G", OffTarget: "OTG"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "OTG\n---\nS" {
+		t.Fatalf("got %q, want OTG\\n---\\nS", got)
+	}
+}
+
+func TestAssemblePromptRejectsMissingOffTarget(t *testing.T) {
+	if _, err := AssemblePrompt(OffTargetGlyph, Materials{Scenario: "S", Glyph: "G"}); err == nil {
+		t.Fatal("expected error for missing off-target glyph")
+	}
+}
+
 func TestAssemblePromptRejectsMissingGlyph(t *testing.T) {
 	if _, err := AssemblePrompt(GlyphOnly, Materials{Scenario: "S"}); err == nil {
 		t.Fatal("expected error for missing glyph")

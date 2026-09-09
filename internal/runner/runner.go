@@ -46,6 +46,8 @@ type MaterialsSpec struct {
 	Glyph      string `json:"glyph,omitempty"`
 	Ground     string `json:"ground,omitempty"`
 	Imperative string `json:"imperative,omitempty"`
+	Scrambled  string `json:"scrambled,omitempty"`
+	OffTarget  string `json:"off_target,omitempty"`
 }
 
 // StudySpec is the container's /in/study.json — a self-contained description
@@ -181,7 +183,15 @@ func (s StudySpec) loadMaterials(inDir string) (assay.Materials, error) {
 	if err != nil {
 		return assay.Materials{}, err
 	}
-	return assay.Materials{Scenario: scenario, Glyph: glyph, Ground: ground, Imperative: imperative}, nil
+	scrambled, err := read(s.Materials.Scrambled)
+	if err != nil {
+		return assay.Materials{}, err
+	}
+	offTarget, err := read(s.Materials.OffTarget)
+	if err != nil {
+		return assay.Materials{}, err
+	}
+	return assay.Materials{Scenario: scenario, Glyph: glyph, Ground: ground, Imperative: imperative, Scrambled: scrambled, OffTarget: offTarget}, nil
 }
 
 // modelMismatch compares the model the study DECLARED against the artifact the

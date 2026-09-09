@@ -29,6 +29,17 @@ const (
 	// instead of the three-axis glyph. It carries no glyph on purpose; T1 and T2
 	// are the two arms of the contrast, never combined.
 	ImperativeOnly Condition = "imperative_only"
+	// ScrambledGlyph: a glyph with the three-axis shape and length preserved but
+	// the content word-scrambled into incoherence, prepended in place of the real
+	// glyph. Mechanism control: read against GlyphOnly it separates format-structure
+	// (if the scramble reproduces the glyph's effect) from content-comprehension
+	// (if it collapses toward baseline).
+	ScrambledGlyph Condition = "scrambled_glyph"
+	// OffTargetGlyph: a coherent glyph for a DIFFERENT decision class than the
+	// scenario, prepended in place of the matching glyph. Mechanism control: read
+	// against GlyphOnly it tests whether recognition of the scenario is in the loop
+	// (equal effect on- and off-target implicates glyph structure over recognition).
+	OffTargetGlyph Condition = "off_target_glyph"
 )
 
 // Materials are the text inputs a probe assembles a prompt from. Glyph, Ground,
@@ -40,6 +51,12 @@ type Materials struct {
 	// Imperative is the matched imperative rule for the ImperativeOnly (T2)
 	// condition.
 	Imperative string
+	// Scrambled is the shape-preserved, content-scrambled glyph for the
+	// ScrambledGlyph control condition.
+	Scrambled string
+	// OffTarget is the coherent-but-off-class glyph for the OffTargetGlyph
+	// control condition.
+	OffTarget string
 }
 
 // AssemblePrompt builds the probe prompt for a condition. The "\n---\n"
@@ -50,6 +67,8 @@ type Materials struct {
 //	glyph_only      → glyph "---" scenario
 //	grounded_glyph  → glyph "---" ground "---" scenario
 //	imperative_only → imperative "---" scenario
+//	scrambled_glyph → scrambled "---" scenario
+//	off_target_glyph → off-target glyph "---" scenario
 //
 // It returns an error when a condition's required material is missing, rather
 // than silently emitting a malformed prompt.
@@ -67,6 +86,16 @@ func AssemblePrompt(cond Condition, m Materials) (string, error) {
 			return "", fmt.Errorf("assay: %s condition requires an imperative", cond)
 		}
 		return fmt.Sprintf("%s\n---\n%s", m.Imperative, m.Scenario), nil
+	case ScrambledGlyph:
+		if m.Scrambled == "" {
+			return "", fmt.Errorf("assay: %s condition requires a scrambled glyph", cond)
+		}
+		return fmt.Sprintf("%s\n---\n%s", m.Scrambled, m.Scenario), nil
+	case OffTargetGlyph:
+		if m.OffTarget == "" {
+			return "", fmt.Errorf("assay: %s condition requires an off-target glyph", cond)
+		}
+		return fmt.Sprintf("%s\n---\n%s", m.OffTarget, m.Scenario), nil
 	case GroundedGlyph:
 		if m.Glyph == "" {
 			return "", fmt.Errorf("assay: %s condition requires a glyph", cond)

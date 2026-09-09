@@ -41,6 +41,8 @@ type MaterialsDef struct {
 	Glyph      string `toml:"glyph"`
 	Ground     string `toml:"ground"`
 	Imperative string `toml:"imperative"`
+	Scrambled  string `toml:"scrambled"`
+	OffTarget  string `toml:"off_target"`
 }
 
 // SamplingDef is the study's declared sampling regime.
@@ -171,6 +173,14 @@ func (d Def) validate() error {
 		case assay.ImperativeOnly:
 			if d.Materials.Imperative == "" {
 				return fmt.Errorf("study: condition %q requires materials.imperative", c)
+			}
+		case assay.ScrambledGlyph:
+			if d.Materials.Scrambled == "" {
+				return fmt.Errorf("study: condition %q requires materials.scrambled", c)
+			}
+		case assay.OffTargetGlyph:
+			if d.Materials.OffTarget == "" {
+				return fmt.Errorf("study: condition %q requires materials.off_target", c)
 			}
 		default:
 			return fmt.Errorf("study: unknown condition %q", c)
@@ -371,6 +381,18 @@ func (d Def) Materialize(inDir string) error {
 			return err
 		}
 		mats.Imperative = "imperative.md"
+	}
+	if d.Materials.Scrambled != "" {
+		if err := d.copyMaterial(d.Materials.Scrambled, filepath.Join(inDir, "scrambled_glyph.md")); err != nil {
+			return err
+		}
+		mats.Scrambled = "scrambled_glyph.md"
+	}
+	if d.Materials.OffTarget != "" {
+		if err := d.copyMaterial(d.Materials.OffTarget, filepath.Join(inDir, "off_target_glyph.md")); err != nil {
+			return err
+		}
+		mats.OffTarget = "off_target_glyph.md"
 	}
 
 	spec := runner.StudySpec{

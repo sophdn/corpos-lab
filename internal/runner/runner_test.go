@@ -201,6 +201,72 @@ func TestExecuteReportsMissingImperativeMaterial(t *testing.T) {
 	}
 }
 
+// The mechanism-control conditions: the runner loads the scrambled and
+// off-target materials and assembles them in the glyph's slot, carrying no glyph.
+func TestExecuteRunsControlConditions(t *testing.T) {
+	spec := StudySpec{
+		Assay:       SupportedAssay,
+		ItemID:      "casg-direct",
+		Model:       ModelSpec{ModelID: "qwen"},
+		Conditions:  []assay.Condition{assay.ScrambledGlyph, assay.OffTargetGlyph},
+		RunsPerCell: 1,
+		Materials:   MaterialsSpec{Scenario: "scenario.md", Scrambled: "scrambled_glyph.md", OffTarget: "off_target_glyph.md"},
+		Sampling:    validSampling(),
+	}
+	in := writeStudy(t, spec, map[string]string{"scenario.md": "SCENARIO", "scrambled_glyph.md": "SCR", "off_target_glyph.md": "OTG"})
+	out := t.TempDir()
+
+	f := &fakeClient{text: "reply", name: "qwen"}
+	results, err := Execute(context.Background(), in, out, f)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if len(results.Rows) != 2 {
+		t.Fatalf("rows: %+v", results.Rows)
+	}
+	got := map[string]bool{}
+	for _, p := range f.gotPrompts {
+		got[p] = true
+	}
+	if !got["SCR\n---\nSCENARIO"] || !got["OTG\n---\nSCENARIO"] {
+		t.Fatalf("assembled prompts = %q", f.gotPrompts)
+	}
+	for _, name := range []string{"scrambled_glyph_1.txt", "off_target_glyph_1.txt"} {
+		if _, err := os.ReadFile(filepath.Join(out, "responses", name)); err != nil {
+			t.Fatalf("missing response %s: %v", name, err)
+		}
+	}
+}
+
+// A study that names a control condition but ships no material fails loudly.
+func TestExecuteReportsMissingControlMaterial(t *testing.T) {
+	spec := StudySpec{
+		Assay: SupportedAssay, ItemID: "i", Model: ModelSpec{ModelID: "m"},
+		Conditions: []assay.Condition{assay.ScrambledGlyph}, RunsPerCell: 1,
+		Materials: MaterialsSpec{Scenario: "scenario.md", Scrambled: "scrambled_glyph.md"},
+		Sampling:  validSampling(),
+	}
+	// scenario present, scrambled_glyph.md deliberately absent.
+	in := writeStudy(t, spec, map[string]string{"scenario.md": "S"})
+	if _, err := Execute(context.Background(), in, t.TempDir(), &fakeClient{text: "x"}); err == nil {
+		t.Fatal("expected missing-scrambled-material error")
+	}
+}
+
+// The off-target read-error branch: named off_target material absent.
+func TestExecuteReportsMissingOffTargetMaterial(t *testing.T) {
+	spec := StudySpec{
+		Assay: SupportedAssay, ItemID: "i", Model: ModelSpec{ModelID: "m"},
+		Conditions: []assay.Condition{assay.OffTargetGlyph}, RunsPerCell: 1,
+		Materials: MaterialsSpec{Scenario: "scenario.md", OffTarget: "off_target_glyph.md"},
+		Sampling:  validSampling(),
+	}
+	in := writeStudy(t, spec, map[string]string{"scenario.md": "S"})
+	if _, err := Execute(context.Background(), in, t.TempDir(), &fakeClient{text: "x"}); err == nil {
+		t.Fatal("expected missing-off-target-material error")
+	}
+}
+
 // When the client surfaces a rendered prompt (the raw /completion path), the
 // runner records it per run so the run is self-describing down to its input.
 func TestExecutePersistsRenderedPromptWhenSurfaced(t *testing.T) {

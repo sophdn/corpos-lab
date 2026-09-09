@@ -188,6 +188,16 @@ func TestValidateRejectsConditionMaterialGaps(t *testing.T) {
 	if _, err := LoadDef(writeDef(t, noImperative, map[string]string{"s.md": "S"})); err == nil {
 		t.Fatal("expected imperative-required error")
 	}
+	// scrambled_glyph without a scrambled material.
+	noScrambled := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"i\"\nimage=\"x\"\nconditions=[\"scrambled_glyph\"]\nruns_per_cell=1\n[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n[materials]\nscenario=\"s.md\"\n" + samplingBlock
+	if _, err := LoadDef(writeDef(t, noScrambled, map[string]string{"s.md": "S"})); err == nil {
+		t.Fatal("expected scrambled-required error")
+	}
+	// off_target_glyph without an off_target material.
+	noOffTarget := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"i\"\nimage=\"x\"\nconditions=[\"off_target_glyph\"]\nruns_per_cell=1\n[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n[materials]\nscenario=\"s.md\"\n" + samplingBlock
+	if _, err := LoadDef(writeDef(t, noOffTarget, map[string]string{"s.md": "S"})); err == nil {
+		t.Fatal("expected off_target-required error")
+	}
 	// unknown condition.
 	unknown := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"i\"\nimage=\"x\"\nconditions=[\"teleport\"]\nruns_per_cell=1\n[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n[materials]\nscenario=\"s.md\"\n" + samplingBlock
 	if _, err := LoadDef(writeDef(t, unknown, map[string]string{"s.md": "S"})); err == nil {
@@ -283,6 +293,38 @@ func TestMaterializeCopiesImperativeMaterial(t *testing.T) {
 	// A glyph must not have been written to the contract dir.
 	if _, err := os.Stat(filepath.Join(inDir, "glyph.md")); !os.IsNotExist(err) {
 		t.Fatal("glyph.md should not exist for an imperative_only study")
+	}
+}
+
+// The mechanism-control conditions materialize their materials into the
+// container contract as scrambled_glyph.md and off_target_glyph.md.
+func TestMaterializeCopiesControlMaterials(t *testing.T) {
+	body := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"casg-direct\"\n" +
+		"image=\"x\"\nconditions=[\"scrambled_glyph\",\"off_target_glyph\"]\nruns_per_cell=1\n" +
+		"[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n" +
+		"[materials]\nscenario=\"s.md\"\nscrambled=\"scr.md\"\noff_target=\"otg.md\"\n" + samplingBlock
+	d, err := LoadDef(writeDef(t, body, map[string]string{"s.md": "SCENARIO", "scr.md": "SCRAMBLED", "otg.md": "OFFTARGET"}))
+	if err != nil {
+		t.Fatalf("LoadDef: %v", err)
+	}
+	inDir := filepath.Join(t.TempDir(), "in")
+	if err := d.Materialize(inDir); err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
+	scr, err := os.ReadFile(filepath.Join(inDir, "scrambled_glyph.md"))
+	if err != nil || string(scr) != "SCRAMBLED" {
+		t.Fatalf("scrambled_glyph.md = %q, err %v", scr, err)
+	}
+	otg, err := os.ReadFile(filepath.Join(inDir, "off_target_glyph.md"))
+	if err != nil || string(otg) != "OFFTARGET" {
+		t.Fatalf("off_target_glyph.md = %q, err %v", otg, err)
+	}
+	spec, err := runner.LoadSpec(inDir)
+	if err != nil {
+		t.Fatalf("LoadSpec: %v", err)
+	}
+	if spec.Materials.Scrambled != "scrambled_glyph.md" || spec.Materials.OffTarget != "off_target_glyph.md" {
+		t.Fatalf("spec control materials = %q / %q", spec.Materials.Scrambled, spec.Materials.OffTarget)
 	}
 }
 
