@@ -136,10 +136,15 @@ the glyph did it*: the three-axis structure, the comprehension of its content, o
 the recognition that it fits the scenario. Two controls, added as assay conditions
 (`scrambled_glyph`, `off_target_glyph`, already wired), separate these:
 - **scrambled_glyph** — the glyph with its three-axis shape and length preserved but
-  word order shuffled within each span into incoherence (`scripts/scramble.py`,
-  seeded). If it reproduces the effect, structure carries it; if it collapses toward
-  baseline, comprehension is required. (Note: scrambling keeps the class's own
-  vocabulary in shuffled order — it removes syntax, not topical keywords.)
+  content destroyed (`scripts/scramble.py`, seeded). If it reproduces the effect,
+  structure carries it; if it collapses toward baseline, comprehension is required.
+  Default mode shuffles word order, which removes syntax but KEEPS the class's own
+  topical vocabulary in shuffled order — likely why the scrambled control still worked
+  on parent-state (the keywords survived). For a new control, prefer the stronger
+  options: `--neutralize-title` (so a descriptive class slug does not name the
+  decision) and `--vocab-swap` (replace content words with neutral lorem tokens,
+  removing topical keywords too). The default is kept unchanged for reproducibility of
+  the 2026-09 materials.
 - **off_target_glyph** — a coherent glyph for a DIFFERENT decision class, paired with
   this scenario (fixed rotation across the authored glyphs). If it reproduces the
   effect, recognition of the scenario match is not in the loop; if it fails,
