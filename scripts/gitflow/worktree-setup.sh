@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # scripts/worktree-setup.sh — make a linked corpos worktree commit-ready.
 #
-# Installs a gate-only pre-commit (the full scripts/gate.sh) for THIS worktree
-# via a per-worktree core.hooksPath, so commits here run the gate but NOT the
-# main-checkout branch guard (scripts/guard-worktree-discipline.sh). Run once
-# from inside the worktree — worktree-new.sh does this for you. Idempotent; the
-# main checkout's config is never touched. (skill: worktree-workflow)
+# Installs a gate-only pre-commit for THIS worktree via a per-worktree
+# core.hooksPath, so commits here run the gate but NOT the main-checkout branch
+# guard (scripts/guard-worktree-discipline.sh). The hook runs the COMMIT gate
+# (GITFLOW_COMMIT_GATE_CMD), which a tiered repo sets to its fast tier — a
+# worktree commit stays cheap while the merge runs the full GITFLOW_GATE_CMD.
+# Run once from inside the worktree — worktree-new.sh does this for you.
+# Idempotent; the main checkout's config is never touched. (skill: worktree-workflow)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,22 +33,23 @@ fi
 GIT_DIR="$(git rev-parse --absolute-git-dir)"
 hooks_dir="$GIT_DIR/gate-only-hooks"
 mkdir -p "$hooks_dir"
-# Generate the gate-only hook from the configured gate command. An empty
-# GITFLOW_GATE_CMD means the repo has no gate, so the hook is a no-op. Both run
-# the gate but NOT the main-checkout branch guard.
-if [ -n "$GITFLOW_GATE_CMD" ]; then
+# Generate the gate-only hook from the configured COMMIT gate command
+# (GITFLOW_COMMIT_GATE_CMD — the fast tier for a tiered repo, else the same as
+# GITFLOW_GATE_CMD). An empty value means the repo has no gate, so the hook is a
+# no-op. Either way the hook runs NO main-checkout branch guard.
+if [ -n "$GITFLOW_COMMIT_GATE_CMD" ]; then
     cat > "$hooks_dir/pre-commit" <<EOF
 #!/usr/bin/env bash
 # Gate-only pre-commit for a linked worktree (gitflow/worktree-setup.sh).
-# Runs the configured gate; deliberately NO main-checkout branch guard here.
+# Runs the configured commit gate; deliberately NO main-checkout branch guard here.
 cd "$REPO_ROOT" || exit 1
-exec bash -c '$GITFLOW_GATE_CMD' _ "\$@"
+exec bash -c '$GITFLOW_COMMIT_GATE_CMD' _ "\$@"
 EOF
 else
     cat > "$hooks_dir/pre-commit" <<'EOF'
 #!/usr/bin/env bash
 # Gate-only pre-commit for a linked worktree (gitflow/worktree-setup.sh).
-# This repo configures no gate (GITFLOW_GATE_CMD empty) — nothing to run.
+# This repo configures no commit gate (GITFLOW_COMMIT_GATE_CMD empty) — nothing to run.
 exit 0
 EOF
 fi

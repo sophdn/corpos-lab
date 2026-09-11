@@ -97,7 +97,7 @@ spawn_agent "$d1" agent-b "featureB.txt::B" "go/internal/db/migrations/081_beta.
 # Simulate the Agent-tool's core.bare flip on the shared config.
 git -C "$d1" config core.bare true
 rc=0
-( cd "$d1" && "$HELPER" --no-gate agent-a agent-b ) > "$d1/out.log" 2>&1 || rc=$?
+( cd "$d1" && "$HELPER" agent-a agent-b ) > "$d1/out.log" 2>&1 || rc=$?
 sed 's/^/    │ /' "$d1/out.log"
 assert "clean: helper exits 0" test "$rc" -eq 0
 assert "clean: core.bare reset to false" test "$(git -C "$d1" config core.bare)" = "false"
@@ -254,7 +254,7 @@ printf 'GITFLOW_POST_LAND_HOOK="scripts/hook.sh"\n' > "$d8/.gitflow"
 git -C "$d8" add -A; git -C "$d8" commit -q -m "scripts: post-land hook"
 spawn_agent "$d8" agent-a "featureA.txt::A"
 rc=0
-( cd "$d8" && "$HELPER" --no-gate --deploy agent-a ) > "$d8/out.log" 2>&1 || rc=$?
+( cd "$d8" && "$HELPER" --deploy agent-a ) > "$d8/out.log" 2>&1 || rc=$?
 sed 's/^/    │ /' "$d8/out.log"
 assert "post-land-hook: exits 0" test "$rc" -eq 0
 assert "post-land-hook: the hook ran" grep -q "HOOK RAN" "$d8/out.log"
@@ -269,7 +269,7 @@ printf 'GITFLOW_POST_LAND_HOOK="scripts/hook.sh"\n' > "$d8b/.gitflow"
 git -C "$d8b" add -A; git -C "$d8b" commit -q -m "scripts: post-land hook"
 spawn_agent "$d8b" agent-a "featureA.txt::A"
 rc=0
-( cd "$d8b" && "$HELPER" --no-gate agent-a ) > "$d8b/out.log" 2>&1 || rc=$?
+( cd "$d8b" && "$HELPER" agent-a ) > "$d8b/out.log" 2>&1 || rc=$?
 sed 's/^/    │ /' "$d8b/out.log"
 assert "no-deploy: exits 0" test "$rc" -eq 0
 assert "no-deploy: the hook ran" grep -q "HOOK RAN" "$d8b/out.log"
@@ -284,7 +284,7 @@ printf 'GITFLOW_POST_LAND_HOOK="scripts/hook.sh"\n' > "$d8c/.gitflow"
 git -C "$d8c" add -A; git -C "$d8c" commit -q -m "scripts: failing hook"
 spawn_agent "$d8c" agent-a "featureA.txt::A"
 rc=0
-( cd "$d8c" && "$HELPER" --no-gate agent-a ) > "$d8c/out.log" 2>&1 || rc=$?
+( cd "$d8c" && "$HELPER" agent-a ) > "$d8c/out.log" 2>&1 || rc=$?
 sed 's/^/    │ /' "$d8c/out.log"
 assert "hook-fail: exits nonzero" test "$rc" -ne 0
 
@@ -292,7 +292,7 @@ echo "── Scenario 9: no post-land hook configured → nothing runs ──"
 d9="$(new_repo)"
 spawn_agent "$d9" agent-a "featureA.txt::A"
 rc=0
-( cd "$d9" && "$HELPER" --no-gate agent-a ) > "$d9/out.log" 2>&1 || rc=$?
+( cd "$d9" && "$HELPER" agent-a ) > "$d9/out.log" 2>&1 || rc=$?
 sed 's/^/    │ /' "$d9/out.log"
 assert "no-hook: exits 0" test "$rc" -eq 0
 assert "no-hook: no post-land hook line" bash -c "! grep -q 'post-land hook' '$d9/out.log'"
@@ -331,7 +331,7 @@ git -C "$d10" commit -q -m "scripts: landing path"
 spawn_agent "$d10" agent-a "scripts/worktree-merge.sh::#!/usr/bin/env bash
 echo 'a much shorter worktree-merge.sh'"
 rc=0
-( cd "$d10" && "$d10/scripts/worktree-merge.sh" --no-gate agent-a ) > "$d10/out.log" 2>&1 || rc=$?
+( cd "$d10" && "$d10/scripts/worktree-merge.sh" agent-a ) > "$d10/out.log" 2>&1 || rc=$?
 sed 's/^/    │ /' "$d10/out.log"
 assert "self-rewrite: runs from a snapshot, not the repo copy it is merging into" \
     grep -q "running from a private snapshot" "$d10/out.log"
@@ -364,7 +364,7 @@ echo "── Scenario 11: refuses to run from inside a linked worktree (bug 1277
 d11="$(new_repo)"
 spawn_agent "$d11" agent-a "featureA.txt::A"
 rc=0
-( cd "$d11/.wt/agent-a" && "$HELPER" --no-gate agent-a ) > "$d11/out.log" 2>&1 || rc=$?
+( cd "$d11/.wt/agent-a" && "$HELPER" agent-a ) > "$d11/out.log" 2>&1 || rc=$?
 sed 's/^/    │ /' "$d11/out.log"
 assert "linked-worktree: exits nonzero" test "$rc" -ne 0
 assert "linked-worktree: says LINKED WORKTREE" grep -q "LINKED WORKTREE" "$d11/out.log"
@@ -376,7 +376,7 @@ d12="$(new_repo)"
 git -C "$d12" checkout -b not-main 2>/dev/null
 spawn_agent "$d12" agent-a "featureA.txt::A"
 rc=0
-( cd "$d12" && "$HELPER" --no-gate agent-a ) > "$d12/out.log" 2>&1 || rc=$?
+( cd "$d12" && "$HELPER" agent-a ) > "$d12/out.log" 2>&1 || rc=$?
 sed 's/^/    │ /' "$d12/out.log"
 assert "wrong-branch: exits nonzero" test "$rc" -ne 0
 assert "wrong-branch: names the branch" grep -q "not-main" "$d12/out.log"
@@ -391,7 +391,7 @@ printf 'GITFLOW_LANDING_BRANCH=trunk\n' > "$d13/.gitflow"
 git -C "$d13" add -A; git -C "$d13" commit -q -m "config: landing branch trunk"
 spawn_agent "$d13" agent-a "featureA.txt::A"
 rc=0
-( cd "$d13" && "$HELPER" --no-gate agent-a ) > "$d13/out.log" 2>&1 || rc=$?
+( cd "$d13" && "$HELPER" agent-a ) > "$d13/out.log" 2>&1 || rc=$?
 sed 's/^/    │ /' "$d13/out.log"
 assert "landing-branch: exits 0" test "$rc" -eq 0
 assert "landing-branch: integration target is trunk" grep -q "integration target = trunk" "$d13/out.log"
@@ -405,7 +405,7 @@ printf 'GITFLOW_LANDING_BRANCH=trunk\n' > "$d13b/.gitflow"
 git -C "$d13b" add -A; git -C "$d13b" commit -q -m "config: landing branch trunk"
 spawn_agent "$d13b" agent-a "featureA.txt::A"
 rc=0
-( cd "$d13b" && "$HELPER" --no-gate agent-a ) > "$d13b/out.log" 2>&1 || rc=$?
+( cd "$d13b" && "$HELPER" agent-a ) > "$d13b/out.log" 2>&1 || rc=$?
 sed 's/^/    │ /' "$d13b/out.log"
 assert "wrong-config-branch: exits nonzero" test "$rc" -ne 0
 assert "wrong-config-branch: names 'trunk'" grep -q "trunk" "$d13b/out.log"
@@ -430,7 +430,7 @@ git -C "$other14" push -q origin main
 # Now d14's local main is 1 behind origin/main. Add disjoint worktree work.
 spawn_agent "$d14" agent-a "featureA.txt::A"
 rc=0
-( cd "$d14" && "$HELPER" --no-gate agent-a ) > "$d14/out.log" 2>&1 || rc=$?
+( cd "$d14" && "$HELPER" agent-a ) > "$d14/out.log" 2>&1 || rc=$?
 sed 's/^/    │ /' "$d14/out.log"
 assert "non-ff: exits 0" test "$rc" -eq 0
 assert "non-ff: reconciled with origin" grep -qi "reconcil" "$d14/out.log"
@@ -500,11 +500,21 @@ git -C "$d15" remote add origin "$bare15"
 spawn_agent "$d15" agent-a "featureA.txt::A"
 rc=0
 ( cd "$d15" && GITEA_API="$B15" GITEA_OWNER=owner GITEA_REPO=repo GITEA_TOKEN=stub \
-    GITEA_CI_TIMEOUT=5 GITEA_CI_INTERVAL=1 "$HELPER" --no-gate agent-a ) > "$d15/out.log" 2>&1 || rc=$?
+    GITEA_CI_TIMEOUT=5 GITEA_CI_INTERVAL=1 "$HELPER" agent-a ) > "$d15/out.log" 2>&1 || rc=$?
 sed 's/^/    │ /' "$d15/out.log"
 assert "protected: detected the protection rejection" grep -q "push-protected" "$d15/out.log"
 assert "protected: landed via a PR" grep -qi "landing via PR" "$d15/out.log"
 assert "protected: the PR was merged through the handshake" grep -q "PR #42 merged" "$d15/out.log"
+
+echo "── Scenario 16: --no-gate is rejected (the gate has no skip — chain 475 T14) ──"
+d16="$(new_repo)"
+spawn_agent "$d16" agent-a "featureA.txt::A"
+rc=0
+( cd "$d16" && "$HELPER" --no-gate agent-a ) > "$d16/out.log" 2>&1 || rc=$?
+sed 's/^/    │ /' "$d16/out.log"
+assert "no-gate: helper exits 2 (unknown option)" test "$rc" -eq 2
+assert "no-gate: names --no-gate as unknown" grep -q "unknown option: --no-gate" "$d16/out.log"
+assert "no-gate: agent-a NOT merged (rejected before any merge)" bash -c "! test -f '$d16/featureA.txt'"
 
 echo ""
 echo "dry-run: $PASS pass, $FAIL fail"

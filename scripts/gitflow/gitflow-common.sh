@@ -9,6 +9,12 @@
 # After gitflow_load_config the caller has these exported:
 #   GITFLOW_LANDING_BRANCH   the protected/integration branch (default: main)
 #   GITFLOW_GATE_CMD         gate command, or "" for none (default: auto-detect)
+#   GITFLOW_COMMIT_GATE_CMD  gate command for the worktree pre-commit hook, or ""
+#                            for none (default: GITFLOW_GATE_CMD). A repo whose
+#                            gate has a fast tier sets this to that tier, so a
+#                            worktree commit runs the fast gate while a merge runs
+#                            the full GITFLOW_GATE_CMD. Unset means both run the
+#                            same command.
 #   GITFLOW_WORKTREE         on|off (default: on)
 #   GITFLOW_GUARD            on|off (default: on)
 #   GITFLOW_MIGRATIONS_GLOB  migration-collision glob, or "" to skip (default: "")
@@ -51,6 +57,7 @@ gitflow_load_config() {
     # it (an env value is an intentional override, e.g. from a test).
     GITFLOW_LANDING_BRANCH="${GITFLOW_LANDING_BRANCH:-$_GITFLOW_UNSET}"
     GITFLOW_GATE_CMD="${GITFLOW_GATE_CMD:-$_GITFLOW_UNSET}"
+    GITFLOW_COMMIT_GATE_CMD="${GITFLOW_COMMIT_GATE_CMD:-$_GITFLOW_UNSET}"
     GITFLOW_WORKTREE="${GITFLOW_WORKTREE:-$_GITFLOW_UNSET}"
     GITFLOW_GUARD="${GITFLOW_GUARD:-$_GITFLOW_UNSET}"
     GITFLOW_MIGRATIONS_GLOB="${GITFLOW_MIGRATIONS_GLOB:-$_GITFLOW_UNSET}"
@@ -69,11 +76,15 @@ gitflow_load_config() {
     # Apply defaults for anything the environment and the file both left unset.
     [[ "$GITFLOW_LANDING_BRANCH" == "$_GITFLOW_UNSET" ]] && GITFLOW_LANDING_BRANCH='main'
     [[ "$GITFLOW_GATE_CMD" == "$_GITFLOW_UNSET" ]] && GITFLOW_GATE_CMD="$(gitflow_autodetect_gate "$root")"
+    # The commit-hook gate defaults to the merge gate, so a repo that does not
+    # split tiers runs the same command on a worktree commit and a merge. This
+    # resolves AFTER GITFLOW_GATE_CMD so the fallback picks up the resolved value.
+    [[ "$GITFLOW_COMMIT_GATE_CMD" == "$_GITFLOW_UNSET" ]] && GITFLOW_COMMIT_GATE_CMD="$GITFLOW_GATE_CMD"
     [[ "$GITFLOW_WORKTREE" == "$_GITFLOW_UNSET" ]] && GITFLOW_WORKTREE='on'
     [[ "$GITFLOW_GUARD" == "$_GITFLOW_UNSET" ]] && GITFLOW_GUARD='on'
     [[ "$GITFLOW_MIGRATIONS_GLOB" == "$_GITFLOW_UNSET" ]] && GITFLOW_MIGRATIONS_GLOB=''
     [[ "$GITFLOW_POST_LAND_HOOK" == "$_GITFLOW_UNSET" ]] && GITFLOW_POST_LAND_HOOK=''
 
-    export GITFLOW_LANDING_BRANCH GITFLOW_GATE_CMD GITFLOW_WORKTREE \
-           GITFLOW_GUARD GITFLOW_MIGRATIONS_GLOB GITFLOW_POST_LAND_HOOK
+    export GITFLOW_LANDING_BRANCH GITFLOW_GATE_CMD GITFLOW_COMMIT_GATE_CMD \
+           GITFLOW_WORKTREE GITFLOW_GUARD GITFLOW_MIGRATIONS_GLOB GITFLOW_POST_LAND_HOOK
 }

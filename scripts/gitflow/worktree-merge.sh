@@ -25,10 +25,14 @@
 # Options:
 #   --check-only    Run steps 1-2 (core.bare reset + conflict surface) and stop.
 #                   The "dry-run" pre-spawn/pre-merge check. Exit 1 if conflicts.
-#   --no-gate       Skip the build/test gate (step 4).
 #   --no-reap       Merge but leave the worktrees/branches in place (step 5 off).
 #   --gate-cmd CMD  Override the gate command (default: the configured
-#                   GITFLOW_GATE_CMD).
+#                   GITFLOW_GATE_CMD). The gate always runs; this only changes
+#                   WHICH command runs it (tests inject a no-op gate this way).
+#
+# There is no gate skip on a merge. A merge to a protected main lands only
+# through CI, whose required ci/gate* check re-runs the gate, so a local skip
+# would buy nothing and hide a red gate behind a green landing. (chain 475 T14.)
 #   --deploy        Pass --deploy to the repo's post-land hook
 #                   (GITFLOW_POST_LAND_HOOK), so a repo that ships a deployed
 #                   artifact can rebuild it. Without --deploy the hook typically
@@ -106,7 +110,6 @@ trap '[[ "${WORKTREE_MERGE_SNAPSHOT:-}" == */worktree-merge-snapshot.* ]] && rm 
 echo "worktree-merge: running from a private snapshot ($WORKTREE_MERGE_SNAPSHOT) of ${WORKTREE_MERGE_SOURCE_DIR:-the landing path} — bug 1235."
 
 CHECK_ONLY=0
-DO_GATE=1
 DO_REAP=1
 GATE_CMD=""
 ALLOW_OPEN_LAND_PRS=0
@@ -116,7 +119,6 @@ BRANCHES=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --check-only) CHECK_ONLY=1 ;;
-        --no-gate)    DO_GATE=0 ;;
         --no-reap)    DO_REAP=0 ;;
         --gate-cmd)   shift; GATE_CMD="${1:-}" ;;
         --allow-open-land-prs) ALLOW_OPEN_LAND_PRS=1 ;;
@@ -129,7 +131,7 @@ done
 
 if [[ ${#BRANCHES[@]} -eq 0 ]]; then
     echo "worktree-merge: name at least one branch or worktree path to merge" >&2
-    echo "  usage: scripts/worktree-merge.sh [--check-only|--no-gate|--no-reap] <branch|path>..." >&2
+    echo "  usage: scripts/worktree-merge.sh [--check-only|--no-reap] <branch|path>..." >&2
     exit 2
 fi
 
@@ -441,20 +443,18 @@ for b in "${MERGE_BRANCHES[@]}"; do
     first=0
 done
 
-# ── Step 4: build/test gate ────────────────────────────────────────────
-if [[ "$DO_GATE" -eq 1 ]]; then
-    # --gate-cmd wins; otherwise the configured GITFLOW_GATE_CMD (auto-detected
-    # to scripts/precommit.sh, scripts/gate.sh, the Go build+test, or none).
-    eff_gate="${GATE_CMD:-$GITFLOW_GATE_CMD}"
-    if [[ -n "$eff_gate" ]]; then
-        echo ""
-        echo "worktree-merge: gate → $eff_gate"
-        bash -c "$eff_gate"
-    else
-        echo "worktree-merge: no gate command (GITFLOW_GATE_CMD empty, no --gate-cmd) — skipping gate."
-    fi
+# ── Step 4: build/test gate (always runs; no skip on a merge) ───────────
+# --gate-cmd wins; otherwise the configured GITFLOW_GATE_CMD (auto-detected
+# to scripts/precommit.sh, scripts/gate.sh, the Go build+test, or none). There
+# is no --no-gate: a merge to a protected main lands through CI's required
+# ci/gate* check, so a local skip would only hide a red gate. (chain 475 T14.)
+eff_gate="${GATE_CMD:-$GITFLOW_GATE_CMD}"
+if [[ -n "$eff_gate" ]]; then
+    echo ""
+    echo "worktree-merge: gate → $eff_gate"
+    bash -c "$eff_gate"
 else
-    echo "worktree-merge: --no-gate — skipping build/test gate."
+    echo "worktree-merge: no gate command (GITFLOW_GATE_CMD empty, no --gate-cmd) — nothing to run."
 fi
 
 # ── Land on origin (bug 1203) ────────────────────────────────────────────────
