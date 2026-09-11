@@ -50,4 +50,21 @@ Limitation 1 (VS-2 non-discrimination for linear causal chains).
 
 ## After scoring
 
-Compare to results. Write down the surprises.
+The verdict split by model. Mistral-7B returned no discrimination, as predicted
+(most-likely case (b)): every condition opened conclusion-first. Qwen3.8-27B
+returned strong equivalence (a), which I had called the least likely. Two
+surprises:
+
+1. **Strong equivalence reproduced on the 27B.** Both the duty and the corpus
+   converted single-turn conduct to a commitment-first structure (duty 5/8
+   cleared DP-1, corpus 8/8), and the brief never did (0/8). The single-turn
+   narrowing did not kill the effect on a capable model. I had expected the
+   narrowing to remove the multi-step scaffold the duty shaped.
+
+2. **The corpus was as strong as the duty, not weaker.** I predicted the corpus
+   would clear DP-1 less often than the duty because it describes the pattern
+   rather than instructing it. The opposite held (corpus 8/8 versus duty 5/8):
+   Qwen3.8 read the descriptive registry and enacted it, sometimes naming the
+   pattern in its own output. The prescriptive form has no advantage here.
+
+DP-2 did not discriminate on either model, as predicted (Limitation 1 recurs).
