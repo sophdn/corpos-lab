@@ -21,9 +21,10 @@ import pathlib
 HERE = pathlib.Path(__file__).resolve().parent
 OUT = HERE / "study-defs"
 
-# The CURRENT probe image (post the 2026-09-09 truncation fix). New arms use
-# this, never the older 8218... digest — see the matched-content study notes.
-IMAGE = "localhost/lab-grounded-glyph-probe@sha256:e159c2b88ce748e0c1fa7e592fa39f3c599d38d2cb2916b14e3a7f9f658dacb1"
+# The probe image rebuilt from this branch to carry the reasoning-trace capture
+# (commit b34a349). Digest recorded in deploy/IMAGE_DIGESTS.txt. Earlier digests
+# (e159..., 8218...) predate the capture change and drop the Qwen3.8 trace.
+IMAGE = "localhost/lab-grounded-glyph-probe@sha256:cdada9161d969eba17e9a253f874c3a9ef35e16e4bf25c455263f8066f436bca"
 NETWORK = "corpos-net"
 BASE_URL = "http://llama-server:8081/v1"
 
