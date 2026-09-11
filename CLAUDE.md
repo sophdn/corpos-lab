@@ -61,11 +61,13 @@ public; maturity gates sharing), FIELD_NOTES.md (verified field positioning).
 - **corpos-toolkit is reached over HTTP only** (`POST /mcp/<surface>` at
   `http://localhost:3001`). Never open the toolkit DB directly — the ledger stays owned by
   toolkit-server.
-- **Claude-family models are never a treatment condition** — contaminated subjects: this
-  corpus's terrain is in their training data and they ceiling at baseline. They may judge;
-  they are never a treatment arm. This is methodology, not ceremony, and it outlived the
-  charter that first wrote it down (INQUIRY.md §How we measure). Local shelf only for
-  treatment arms; see FIELD_NOTES.md §strand-5 for the verified shelf.
+- **Claude-family models are never a treatment condition** — the apparatus reason: treatment
+  subjects run over the one bare llama.cpp raw-completion rig, so every result reproduces on a
+  24 GB GPU with no paid API. A hosted model such as Claude cannot run that way, and including
+  one would split the apparatus and break that reproducibility. They may judge; they are never
+  a treatment arm. This is methodology, not ceremony, and it outlived the charter that first
+  wrote it down (INQUIRY.md §How we measure). Local shelf only for treatment arms; see
+  FIELD_NOTES.md §strand-5 for the verified shelf.
 - **ONE local inference portal: llama.cpp (`llama-server` :8081).** Never install, start, or
   reach for a second inference server — not Ollama, LM Studio, vLLM, or anything else. Not as
   a fallback, not "just for this run", not because a model is already pulled there, **and not

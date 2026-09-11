@@ -118,9 +118,12 @@ retirement.
 format isn't success. casg-direct baselines score ~6-7/8 on any-attempt and
 **0/8** on correct-target; the second number is the one that carries information.
 
-**Contaminated subjects.** Claude-family models have this corpus's terrain in
-training and ceiling at baseline. They may judge; they are never a treatment
-condition. This is methodology, not ceremony, and it stays.
+**Subjects run on the local apparatus.** Treatment subjects are open-weight
+models served over the one bare llama.cpp raw-completion rig, so every result
+reproduces on a 24 GB GPU with no paid API. A hosted model such as Claude cannot
+run that way; including one would split the apparatus and break that
+reproducibility, so Claude-family models are never a treatment condition. They
+may judge. This is methodology, not ceremony, and it stays.
 
 **Two substrates.** Single substrates structurally collapse for a given model —
 the FSCB series proved it. One scenario is a pilot, not a result.
