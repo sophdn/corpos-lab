@@ -1,0 +1,47 @@
+# Investigation Report: Payment Processing Failure (INV-002)
+
+## Executive Summary
+The payment processing failure was caused by an **Out of Memory (OOM) crash in the `fraud-detection` service**, triggered by a **cache explosion** following a configuration update. The volume of traffic driving this cache growth was primarily due to a **scheduled batch reconciliation job** in the `order-service`.
+
+The `fraud-detection` service is a hard dependency for the `payment-gateway`. When `fraud-detection` crashed and failed to recover, the `payment-gateway` opened its circuit breaker, causing all payment requests to fail.
+
+## Timeline of Events
+
+*   **15:18:00** – `fraud-detection:v3.8.1` is deployed with new risk scoring weights.
+*   **15:25:00** – `order-service` initiates a scheduled batch job, queuing 1,247 orders for payment revalidation.
+*   **15:25:15** – `order-service` begins submitting these requests to the `payment-gateway`.
+*   **15:25:00 – 15:33:00** – The risk assessment cache in `fraud-detection` grows steadily (8,200 → 24,600 entries). This correlates directly with the batch job traffic.
+*   **15:35:00 – 15:38:00** – Cache growth accelerates sharply (34,100 → 41,200 entries). Heap usage approaches the 512MB limit. `payment-gateway` logs show fraud-check latency spiking from 210ms to 3,800ms.
+*   **15:38:30** – **`fraud-detection` crashes** with `java.lang.OutOfMemoryError: GC overhead limit exceeded`.
+*   **15:38:35** – `payment-gateway` logs timeouts for pending fraud-check requests.
+*   **15:39:15** – `fraud-detection` restarts with a cold cache.
+*   **15:39:30** – Residual traffic from the batch job causes the cache to refill rapidly.
+*   **15:41:00** – **`fraud-detection` crashes again** with the same OOM error.
+*   **15:41:06** – `payment-gateway` marks `fraud-detection` as permanently unhealthy and **opens the circuit breaker**.
+*   **15:41:30** – All payment requests fail due to the unavailable fraud-check dependency.
+
+## Root Cause Analysis
+
+1.  **Trigger:** The `order-service` batch reconciliation job submitted a high volume of payment revalidation requests.
+2.  **Mechanism:** The newly deployed `fraud-detection:v3.8.1` service (or its interaction with this specific traffic pattern) caused the risk assessment cache to grow unbounded. The cache grew from ~8k entries to ~41k entries in just 13 minutes, exhausting the 512MB heap.
+3.  **Failure:** The cache exhaustion led to GC pressure and an `OutOfMemoryError`, crashing the `fraud-detection` service.
+4.  **Persistence:** Because the underlying traffic pattern (or a flaw in the new cache eviction logic in v3.8.1) persisted after the restart, the service crashed a second time within 2 minutes.
+5.  **Impact:** The `payment-gateway`, which relies on `fraud-detection` for every transaction, failed over to its circuit breaker state, halting all payment processing.
+
+## Contributing Factors
+*   **Lack of Cache Eviction/Limiting:** The `fraud-detection` cache did not have an effective eviction policy or hard limit that prevented it from consuming all available heap memory.
+*   **Hard Dependency:** The `payment-gateway` treats `fraud-detection` as a mandatory dependency with no fallback mechanism (e.g., allowing low-risk transactions through if the fraud service is down).
+*   **Batch Job Scheduling:** Running a large batch job during business hours without sufficient rate limiting or isolation contributed to the traffic spike.
+
+## Recommendations
+
+1.  **Immediate Mitigation:**
+    *   Roll back `fraud-detection` to the previous stable version (pre-v3.8.1).
+    *   Implement a hard limit on the risk assessment cache size with proper LRU (Least Recently Used) eviction.
+    *   Configure the `payment-gateway` circuit breaker to have a fallback strategy (e.g., manual review queue) rather than failing all transactions.
+
+2.  **Long-Term Improvements:**
+    *   **Isolate Batch Traffic:** Ensure batch jobs use a separate queue or rate limiter to prevent them from starving real-time traffic or overloading downstream services.
+    *   **Canary Deployments:** Deploy new fraud-detection versions to a small percentage of traffic first to monitor cache growth and memory usage before full rollout.
+    *   **Load Testing:** Stress test the `fraud-detection` service with realistic batch traffic patterns to identify memory bottlenecks.
+    *   **Dependency Resilience:** Evaluate making fraud-checking a soft dependency for certain transaction types, allowing the payment gateway to proceed with enhanced monitoring if the fraud service is unavailable.

@@ -1,0 +1,46 @@
+## Investigation Report: Payment Processing Failure
+
+### Overview
+The payment processing failure occurred between 15:38 and 15:41 on the afternoon in question. The failure resulted in the unavailability of the payment processing service, which was caused by multiple issues related to the `fraud-detection` service and its interaction with the `order-service` and `payment-gateway`.
+
+### Key Observations
+1. **Fraud-Detection Service (fraud-detection.log)**
+   - **Deployment and Initial State (15:18:00 - 15:35:00):**
+     - The `fraud-detection` service was deployed with a new version (v3.8.1) and a configuration update.
+     - The risk assessment cache gradually increased in size, approaching the 512MB heap limit.
+     - At 15:35:00, the cache size was 41,200 entries and 491MB heap, with GC pressure elevated and an OutOfMemoryError.
+     - The service became unresponsive and was restarted by the orchestrator.
+   - **Restart and Recurrence (15:38:30 - 15:41:00):**
+     - After the restart, the cache refilled rapidly due to continued request pressure.
+     - The service experienced another OutOfMemoryError and was marked as permanently unhealthy, removed from the load balancer.
+
+2. **Order Service (order-service.log)**
+   - **Batch Job (15:25:00 - 15:41:00):**
+     - A batch job for order reconciliation started, with 1,247 orders queued for payment revalidation.
+     - The batch progress was monitored, showing steady progress until the `payment-gateway` started returning errors.
+     - At 15:38:40, the `payment-gateway` returned errors for batch requests, causing the batch job to pause and retry.
+     - The batch job was suspended at 15:41:10 due to the `payment-gateway` becoming unavailable.
+
+3. **Payment Gateway (payment-gateway.log)**
+   - **Latency and Dependency (15:30:00 - 15:41:30):**
+     - The initial latency for fraud checks was nominal, but it increased significantly as the `fraud-detection` service experienced GC pressure.
+     - At 15:38:00, the fraud-check latency became critical at 3,800ms.
+     - The `fraud-detection` service experienced timeouts and was eventually removed from the pool due to being marked permanently unhealthy.
+     - The circuit breaker for the `fraud-detection` service was opened, resulting in all payment requests failing due to the unavailable fraud-check dependency.
+
+### Root Cause Analysis
+The primary cause of the payment processing failure was the `fraud-detection` service experiencing an OutOfMemoryError due to excessive heap usage by the risk assessment cache. This issue cascaded to the `payment-gateway` and `order-service` as follows:
+- The `fraud-detection` service became unresponsive and was restarted multiple times, leading to elevated GC pressure and heap usage.
+- The `payment-gateway` experienced increased latency and eventually timed out on fraud-check requests, marking the `fraud-detection` service as unhealthy.
+- The `order-service` batch job was suspended due to payment-gateway errors, contributing to the overall unavailability of the payment processing service.
+
+### Conclusion
+The root cause of the payment processing failure is the excessive heap usage by the `fraud-detection` service's risk assessment cache, leading to multiple OutOfMemoryErrors and subsequent service unavailability. This issue triggered a chain reaction affecting the `payment-gateway` and `order-service`, ultimately causing the payment processing service to fail.
+
+### Recommendations
+1. **Monitor Heap Usage and Cache Size:** Implement tighter monitoring and alerts for the heap usage and cache size of the `fraud-detection` service to prevent excessive memory usage.
+2. **Optimize Cache Management:** Review and optimize the cache management strategy to ensure it does not exceed the allocated heap limit under high request loads.
+3. **Circuit Breaker Configuration:** Evaluate the circuit breaker configuration in the `payment-gateway` to handle transient unavailability of the `fraud-detection` service more gracefully.
+4. **Load Testing:** Conduct load testing to simulate high request volumes and identify potential bottlenecks in the system.
+
+This structured investigation identified the key issues and provided recommendations to prevent future occurrences of similar failures.

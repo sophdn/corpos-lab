@@ -1,0 +1,78 @@
+### Investigation Report: Payment Processing Failure (INV-002)
+
+**Incident Status:** Resolved (Service removed from load balancer/Circuit Breaker Open)
+**Severity:** High (Payment processing halted)
+**Root Cause:** **Memory Exhaustion (OutOfMemoryError) in `fraud-detection` service triggered by unbounded cache growth under load, exacerbated by a scheduled batch job from `order-service`.**
+
+---
+
+### 1. Executive Summary
+At approximately 15:25, the `order-service` initiated a scheduled batch job to revalidate 1,247 unconfirmed orders. This job submitted a high volume of requests to the `payment-gateway`. The `payment-gateway` forwarded these requests to the `fraud-detection` service for risk assessment. 
+
+The `fraud-detection` service suffered from a memory leak or improper cache eviction policy. As the request volume increased, its risk assessment cache grew exponentially, consuming heap memory until it hit the 512MB limit. This caused severe Garbage Collection (GC) pressure, leading to an `OutOfMemoryError` at 15:38:30. Although the service was restarted, the high traffic rate caused the cache to refill rapidly, leading to a second OOM at 15:41:00. The service was then removed from the load balancer, triggering a circuit breaker in the `payment-gateway` and halting all payment processing.
+
+---
+
+### 2. Timeline of Events
+
+| Time (HH:MM:SS) | Component | Event |
+| :--- | :--- | :--- |
+| **15:18:00** | `fraud-detection` | Deployed v3.8.1. **Key Note:** Log mentions "config update: new risk scoring weights." This version change may have altered cache behavior or retention policies. |
+| **15:25:00** | `order-service` | **Trigger Event:** Scheduled batch job starts. Identifies 1,247 unconfirmed orders. Begins submitting revalidation requests at 50/sec. |
+| **15:25:00 - 15:35:00** | `fraud-detection` | Cache size grows steadily from 8,200 entries (124MB) to 34,100 entries (418MB). Heap usage approaches the 512MB limit. |
+| **15:35:00** | `payment-gateway` | Fraud-check latency rises to 380ms (normal is ~210ms), indicating increased load/processing time. |
+| **15:37:00** | `fraud-detection` | GC pressure elevated (890ms pause). Latency in payment-gateway hits 1,240ms. |
+| **15:38:00** | `fraud-detection` | Cache reaches 41,200 entries (491MB). **Critical state.** |
+| **15:38:30** | `fraud-detection` | **Failure 1:** `java.lang.OutOfMemoryError: GC overhead limit exceeded`. Service becomes unresponsive. |
+| **15:38:35** | `payment-gateway` | Detects timeouts from fraud-detection. 12 requests pending. |
+| **15:38:45** | `fraud-detection` | Orchestrator restarts the container. Cache is cold (45MB heap). |
+| **15:39:00** | `payment-gateway` | Fraud-detection returns. Processing resumes, but latency is still elevated (2,100ms) due to cache refilling. |
+| **15:39:30** | `fraud-detection` | **Warning:** Requests arriving at elevated rate; cache refilling rapidly. |
+| **15:41:00** | `fraud-detection` | **Failure 2:** `java.lang.OutOfMemoryError` recurrence. Cache grew too fast after restart. |
+| **15:41:01** | `fraud-detection` | Service marked permanently unhealthy and removed from load balancer. |
+| **15:41:06** | `payment-gateway` | **Circuit Breaker OPEN.** No healthy fraud-detection instances available. |
+| **15:41:30** | `payment-gateway` | All payment requests failing. Incident ends with service degradation. |
+
+---
+
+### 3. Detailed Root Cause Analysis
+
+#### A. Primary Failure: Memory Exhaustion in `fraud-detection`
+1.  **Unbounded Cache Growth:** The logs show a clear correlation between incoming request volume and cache size.
+    *   15:20: 8,200 entries / 124MB
+    *   15:35: 34,100 entries / 418MB
+    *   15:38: 41,200 entries / 491MB
+    *   The cache did not appear to evict entries based on time or size limits effectively. As the batch job sent ~50 requests/sec, the cache grew linearly until hitting the hard memory limit.
+2.  **GC Overhead Limit Exceeded:** The JVM spent too much time in garbage collection trying to free memory but failed to do so effectively due to the live object count (cache entries) being too high. This led to the OOM error.
+3.  **Failed Recovery:** After the first crash and restart, the service was immediately hit with the same high traffic rate. Because the underlying issue (cache growth vs. memory limit) was not resolved, the cache refilled to the limit within ~2.5 minutes, causing a second OOM.
+
+#### B. Contributing Factor: Load Spike from `order-service`
+1.  **Batch Job Timing:** The `order-service` initiated a batch of 1,247 revalidations starting at 15:25. This created a sustained, high-volume load on the `fraud-detection` service that likely exceeded its normal operational capacity.
+2.  **Rate Limiting:** The batch was limited to 50 requests/sec. While this is a reasonable rate for general traffic, it appears the `fraud-detection` service's memory management was not designed to handle this sustained load without evicting older cache entries.
+
+#### C. Potential Trigger: Recent Deployment
+*   At 15:18:00, `fraud-detection:v3.8.1` was deployed with "new risk scoring weights."
+*   **Hypothesis:** The new scoring weights or associated logic may have changed how long entries stay in the cache (e.g., longer TTLs, more complex data structures per entry, or disabled eviction for certain risk categories). This could explain why the cache grew to 41k entries before failing, whereas previous versions might have evicted entries sooner.
+
+---
+
+### 4. Impact
+*   **Customer Impact:** All payment requests failed from 15:41:30 onwards due to the circuit breaker opening.
+*   **Operational Impact:** 209 orders from the batch job were suspended and will need to be retried. The `fraud-detection` service was taken offline, requiring manual intervention or automatic recovery to restore service.
+
+---
+
+### 5. Recommendations
+
+1.  **Immediate Fix (Mitigation):**
+    *   **Rollback `fraud-detection` to v3.8.0** (or the last stable version prior to the 15:18 deployment) to rule out regression in cache behavior.
+    *   **Increase Heap Memory Limit:** Temporarily increase the JVM heap size for `fraud-detection` from 512MB to 1GB or more to provide headroom, allowing more time for cache eviction to occur before OOM.
+
+2.  **Long-Term Fixes (Resolution):**
+    *   **Implement Proper Cache Eviction Policy:** Review the cache implementation in `fraud-detection`. Ensure that an LRU (Least Recently Used) or TTL (Time-To-Live) based eviction policy is active and working correctly. The cache should not allow unbounded growth.
+    *   **Add Backpressure/Memory Throttling:** If the service is approaching memory limits, it should start rejecting new requests or slowing down processing (backpressure) rather than waiting for an OOM.
+    *   **Optimize Batch Job:** Consider staggering the `order-service` batch job or reducing the rate limit (e.g., 20/sec) to prevent overwhelming downstream services. Alternatively, schedule such batches during off-peak hours.
+    *   **Monitor Cache Metrics:** Add specific alerts for cache size growth rate and eviction rate, not just absolute heap usage.
+
+3.  **Verification:**
+    *   After applying fixes, re-run the batch job in a staging environment to verify that the cache grows within limits and does not trigger OOM errors under sustained load.

@@ -1,0 +1,82 @@
+Based on the provided logs and the behavioral pattern registry, here is the structured investigation.
+
+### Round 1: Hypothesis Formulation and Verification
+
+**Decision Point:** `commitment-precedes-reads`
+To maintain the predictive power of the investigation, I must establish the hypothesis space *before* analyzing the specific timestamps in the logs. I commit to the following competing hypotheses based on standard payment stack failure modes:
+1.  **H1: Network/Connectivity Failure.** A network partition or DNS issue prevented `payment-gateway` from reaching `fraud-detection`.
+2.  **H2: Resource Exhaustion in Dependency.** The `fraud-detection` service crashed or became unresponsive due to resource constraints (e.g., memory, CPU).
+3.  **H3: Configuration/Deployment Error.** A recent change to `fraud-detection` caused a logic error or infinite loop.
+
+*Commitment locked. Proceeding to evidence reading.*
+
+#### Sprint 1: Testing H1 (Network/Connectivity)
+**Evidence:**
+*   `payment-gateway.log` shows `Fraud-detection service timeout` at 15:38:35 and `removed from pool` at 15:41:05.
+*   However, `fraud-detection.log` shows the service is *running* (logging errors) up until 15:41:01, when it is explicitly removed from the load balancer.
+*   Crucially, `fraud-detection.log` at 15:38:30 shows `java.lang.OutOfMemoryError`.
+*   If it were a pure network failure, we would expect connection refused or packet loss errors, not an OOM crash on the service side. The service was alive but dying.
+**Result:** H1 is **Weak/Rejected**. The failure originates from within the `fraud-detection` service's process, not just the network link.
+
+#### Sprint 2: Testing H2 (Resource Exhaustion)
+**Evidence:**
+*   `fraud-detection.log` reveals a clear trajectory:
+    *   15:20:00: 8,200 entries, 124MB heap.
+    *   15:30:00: 12,400 entries, 189MB heap.
+    *   15:33:00: 24,600 entries, 312MB heap.
+    *   15:35:00: 34,100 entries, 418MB heap (WARN approaching limit).
+    *   15:38:00: 41,200 entries, 491MB heap (ERROR critical).
+    *   15:38:30: `java.lang.OutOfMemoryError: GC overhead limit exceeded`.
+    *   15:38:31: `Service unresponsive`.
+*   `order-service.log` shows a "Scheduled batch: order reconciliation job" starting at 15:25:00, submitting 1,247 orders to `payment-gateway` at a rate of 50/sec.
+*   This batch job likely triggered a surge in fraud-check requests, causing the cache in `fraud-detection` to grow rapidly (from 8k to 41k entries in ~18 minutes), exhausting the 512MB heap limit.
+**Result:** H2 is **Strongly Supported**. The `fraud-detection` service suffered an OutOfMemoryError due to cache growth driven by the batch job.
+
+#### Sprint 3: Testing H3 (Configuration/Deployment Error)
+**Evidence:**
+*   `fraud-detection.log` at 15:18:00 notes: `Deploying fraud-detection:v3.8.1 (config update: new risk scoring weights)`.
+*   While a deployment occurred, the failure mechanism is clearly resource exhaustion (OOM), not a logic error (e.g., NullPointerException, StackOverflow).
+*   The "new risk scoring weights" might have increased the cache size or retention, but the primary failure mode is the inability to handle the memory load.
+*   Is the deployment the *root cause*? The deployment introduced the new weights. If the new weights caused the cache to retain more data or process more entries, the deployment is the contributing factor. However, the *immediate* cause of the failure was the OOM.
+*   Comparing H2 and H3: H2 describes the mechanism (OOM). H3 describes a potential trigger (deployment). But the logs show the OOM was caused by the *volume* of requests (batch job) interacting with the service's memory limit. The deployment may have made the service *more susceptible* (e.g., larger cache per entry), but the batch job was the stressor.
+*   More importantly, the `order-service` batch job started at 15:25:00, *after* the deployment at 15:18:00. The deployment did not immediately cause a crash; the crash occurred ~20 minutes later when the batch load hit.
+**Result:** H3 is **Plausible Contributing Factor**, but H2 is the direct mechanism. The root cause is the interaction between the batch load and the memory-limited service.
+
+### Round 2: Causal Chain Synthesis
+
+**Decision Point:** `investigation-early-confirmation-stop`
+I have confirmed H2 (Resource Exhaustion/OOM) as the direct cause of the `fraud-detection` unresponsiveness. I must **not** stop here. I must verify if H1 and H3 were truly eliminated and trace the full impact chain to ensure no alternative root cause exists (e.g., did the batch job fail *because* of something else, causing the OOM? No, the batch job *caused* the load).
+
+**Verification of Elimination:**
+*   **H1 (Network):** Eliminated. The service crashed internally (OOM), it didn't get cut off by a network switch. The timeouts were a symptom of the service being unresponsive due to GC pauses and eventual crash.
+*   **H3 (Config/Deploy):** Partially valid but not the *sole* root cause. The deployment occurred, but the service remained healthy for 10 minutes (15:18-15:28). The failure only manifested when the load increased. The root cause is the **inability of the service to handle the peak load** generated by the batch job. The deployment may have lowered the threshold for this failure (by increasing cache size), but the triggering event was the batch job.
+
+**Causal Chain Reconstruction:**
+1.  **Trigger:** `order-service` initiates a scheduled reconciliation batch at 15:25:00, sending 1,247 requests to `payment-gateway` at 50/sec.
+2.  **Load Propagation:** `payment-gateway` forwards these requests to `fraud-detection` for risk assessment.
+3.  **Resource Exhaustion:** The volume of requests causes the `fraud-detection` risk assessment cache to grow rapidly (8,200 → 41,200 entries).
+4.  **Memory Limit Breach:** The heap usage in `fraud-detection` approaches and then exceeds the 512MB limit (491MB at 15:38:00).
+5.  **Service Failure:** `fraud-detection` hits `OutOfMemoryError: GC overhead limit exceeded` at 15:38:30, becoming unresponsive.
+6.  **Dependency Failure:** `payment-gateway` experiences elevated latency (1,240ms → 3,800ms) and then timeouts as `fraud-detection` becomes unresponsive.
+7.  **Circuit Breaker Trip:** At 15:41:06, `payment-gateway` opens the circuit breaker for `fraud-detection` after the service is removed from the pool.
+8.  **System-Wide Failure:** With the circuit breaker open, `payment-gateway` cannot process any payment requests that require fraud checks, resulting in `All payment requests failing`.
+9.  **Batch Job Suspension:** `order-service` detects the gateway errors and suspends the batch job at 15:41:11.
+
+### Final Report
+
+**Root Cause:**
+The payment processing failure was caused by **resource exhaustion (OutOfMemoryError)** in the `fraud-detection` service. This was triggered by a **scheduled batch reconciliation job** from `order-service`, which generated a high volume of fraud-check requests, causing the `fraud-detection` risk assessment cache to exceed its 512MB heap limit.
+
+**Contributing Factor:**
+A recent deployment of `fraud-detection:v3.8.1` (new risk scoring weights) may have increased the memory footprint per cache entry, lowering the threshold for OOM under load. However, the service remained stable for 10 minutes post-deployment, indicating the batch job was the proximate stressor.
+
+**Impact:**
+1.  `fraud-detection` crashed and was removed from the load balancer.
+2.  `payment-gateway` tripped its circuit breaker for `fraud-detection`.
+3.  All payment requests requiring fraud checks failed.
+4.  The `order-service` batch job was suspended with 209 orders remaining.
+
+**Recommendations:**
+1.  **Immediate:** Restart `fraud-detection` with a cold cache. Manually resume the suspended batch job in `order-service` at a lower rate limit to avoid re-triggering the OOM.
+2.  **Short-term:** Increase the heap limit for `fraud-detection` or implement cache eviction policies to prevent unbounded growth.
+3.  **Long-term:** Implement rate limiting or backpressure mechanisms in `payment-gateway` to prevent overwhelming `fraud-detection` during batch processing. Investigate the memory impact of the new risk scoring weights in `fraud-detection:v3.8.1`.

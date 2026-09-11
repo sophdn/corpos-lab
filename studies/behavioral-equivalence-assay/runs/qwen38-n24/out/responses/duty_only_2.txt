@@ -1,0 +1,70 @@
+To satisfy the duty of **Epistemic Integrity**, I must first establish the investigation structure, define the hypotheses, and commit to the specific falsifiability tests (sprints) *before* analyzing the provided log evidence.
+
+### Phase 1: Hypothesis Generation & Commitment (Blind to Evidence)
+
+**Context:** A payment processing failure occurred. Logs from `fraud-detection`, `order-service`, and `payment-gateway` are available.
+
+**Candidate Hypotheses:**
+1.  **H1 (Infrastructure Resource Exhaustion):** The failure is caused by resource exhaustion (e.g., memory/CPU) within the fraud-detection service, leading to unresponsiveness and cascading timeouts in dependent services.
+2.  **H2 (Network/Connectivity Failure):** The failure is caused by a network partition or DNS resolution failure between the payment gateway and the fraud-detection service.
+3.  **H3 (Application Logic Bug):** The failure is caused by a specific software defect in the fraud-detection logic triggered by a specific data pattern (e.g., a malformed transaction), causing a crash or hang independent of resource load.
+4.  **H4 (External Gateway Dependency Failure):** The failure is caused by an outage in the external payment gateway provider, unrelated to internal service health.
+
+**Round 1 Commitment:**
+I will test the following sprints to determine the root cause. I commit to executing **all** sprints below, regardless of whether early evidence seems to support one hypothesis over another. A hypothesis is only "confirmed" if it survives the eliminative power of the other sprints.
+
+*   **Sprint 1 (Test H1):** Analyze `fraud-detection.log` for signs of resource exhaustion (memory, CPU, GC) and their temporal correlation with service unresponsiveness.
+*   **Sprint 2 (Test H2):** Analyze `payment-gateway.log` and `fraud-detection.log` for network-level errors (connection refused, DNS failures, timeout types) that distinguish network issues from application hangs.
+*   **Sprint 3 (Test H3):** Analyze `fraud-detection.log` for specific application exceptions (stack traces, logic errors) that occur *before* or *independent of* resource limits, and check if the failure persists after restart without resource saturation.
+*   **Sprint 4 (Test H4):** Analyze `payment-gateway.log` to determine if the failure is internal to the payment system or propagated from an external upstream provider.
+
+---
+
+### Phase 2: Sprint Execution (Evidence Analysis)
+
+#### Sprint 1: Test H1 (Infrastructure Resource Exhaustion)
+*   **Evidence:** `fraud-detection.log` shows a clear progression of heap usage:
+    *   15:20:00: 124MB
+    *   15:30:00: 189MB
+    *   15:35:00: 418MB (WARN: approaching limit)
+    *   15:38:00: 491MB (ERROR: critical)
+    *   15:38:30: `java.lang.OutOfMemoryError: GC overhead limit exceeded`
+*   **Correlation:** The `payment-gateway.log` shows latency rising from 210ms to 3,800ms between 15:30 and 15:38, directly mirroring the memory growth in the fraud service.
+*   **Result:** Strong support for H1. The service died due to memory exhaustion.
+
+#### Sprint 2: Test H2 (Network/Connectivity Failure)
+*   **Evidence:** `payment-gateway.log` reports "Fraud-detection service timeout" and "Fraud-detection service returned." It does not report "Connection Refused," "DNS Error," or "Network Unreachable."
+*   **Correlation:** The timeouts are correlated with the *internal* slowness of the fraud service (high latency), not a loss of connectivity. The gateway could reach the service, but the service was too slow to respond due to GC pauses (indicated by "GC pressure elevated: 890ms pause" in fraud logs).
+*   **Result:** H2 is **falsified**. The network was intact; the service was simply too slow to respond.
+
+#### Sprint 3: Test H3 (Application Logic Bug)
+*   **Evidence:** The logs show `java.lang.OutOfMemoryError` as the primary exception. There are no `NullPointerExceptions`, `IllegalArgumentExceptions`, or specific logic-related stack traces prior to the OOM.
+*   **Correlation:** After the first restart at 15:39:15, the service initially recovered ("Service restarted — cache cold, 45MB heap"). However, it failed again at 15:41:00 with the *same* OOM error. This recurrence under load, without a specific triggering data event, points to a systemic resource management issue (cache growth rate > eviction rate) rather than a one-off logic bug triggered by specific bad data.
+*   **Result:** H3 is **falsified**. While a "bug" exists (poor cache management), it is a resource exhaustion issue, not a logic error that crashes independent of load. The root cause is resource exhaustion.
+
+#### Sprint 4: Test H4 (External Gateway Dependency Failure)
+*   **Evidence:** `payment-gateway.log` states: "All payment requests failing: fraud-check dependency unavailable." The failures are explicitly linked to the internal `fraud-detection` service.
+*   **Correlation:** `order-service.log` shows the batch job was suspended because "Payment-gateway returning errors." The errors originated from the internal payment-gateway's inability to reach the fraud service, not from an external bank or processor.
+*   **Result:** H4 is **falsified**. The failure is internal to the organization's microservices architecture.
+
+---
+
+### Phase 3: Investigative Conclusion
+
+**Verdict:**
+The root cause of the payment processing failure is **H1: Infrastructure Resource Exhaustion (Memory Leak/Cache Overflow)** within the `fraud-detection` service.
+
+**Causal Chain:**
+1.  **Trigger:** The `order-service` initiated a batch job at 15:25:00, submitting 1,247 orders for revalidation.
+2.  **Load Increase:** This batch, combined with normal traffic, caused the `fraud-detection` service's risk assessment cache to grow rapidly (from 8,200 to 41,200 entries in 18 minutes).
+3.  **Resource Exhaustion:** The cache growth exceeded the JVM heap limit (512MB). At 15:38:30, the service hit `OutOfMemoryError: GC overhead limit exceeded`.
+4.  **Cascading Failure:**
+    *   The `fraud-detection` service became unresponsive due to GC pauses and eventual crash.
+    *   The `payment-gateway` experienced increasing latency (up to 3,800ms) and eventually timeouts as it waited for fraud checks.
+    *   The `payment-gateway` circuit breaker opened at 15:41:06, failing all payment requests.
+    *   The `order-service` batch job was suspended due to upstream gateway errors.
+
+**Recommendation:**
+1.  **Immediate:** Restart the `fraud-detection` service and clear the cache.
+2.  **Short-term:** Increase the heap limit or implement stricter cache eviction policies (TTL/LRU) in the fraud-detection service to prevent unbounded growth.
+3.  **Long-term:** Implement backpressure mechanisms in the `order-service` to prevent batch jobs from overwhelming downstream dependencies, and add rate-limiting/circuit-breaking on the `payment-gateway` side to degrade gracefully (e.g., allow low-risk transactions without fraud checks if the service is down) instead of failing all payments.

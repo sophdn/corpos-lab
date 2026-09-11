@@ -1,0 +1,15 @@
+ To investigate the payment processing failure, let's focus on the three components involved: fraud-detection, order-service, and payment-gateway.
+
+1. **fraud-detection (v3.8.1)** - The service ran out of memory and became unresponsive due to a growing risk assessment cache. This issue could be caused by an increase in the number of orders, a change in risk scoring weights, or a combination of both. The out-of-memory error suggests that the system was not configured with enough heap memory.
+
+2. **order-service** - It was attempting to revalidate unconfirmed orders with the payment-gateway at a rate of 50 orders per second. During the incident, the order-service encountered errors from the payment-gateway and paused the batch job. The failure of the payment-gateway might be linked to the outage of the fraud-detection service.
+
+3. **payment-gateway** - The service reported elevated and critical fraud-check latency, which may have been caused by the unavailability of the fraud-detection service. After the fraud-detection service was removed from the pool, all payment requests started failing.
+
+Based on the logs, it appears that the outage of the payment processing system was caused by the failure of the fraud-detection service, which in turn was due to a lack of sufficient memory. The order-service was attempting to revalidate orders with the unavailable payment-gateway, leading to its suspension. To resolve this issue, you should:
+
+- Increase the heap memory limit for the fraud-detection service to accommodate more risk assessment cache entries.
+- Review the risk scoring weights update to ensure it is not causing an excessive increase in the number of cache entries.
+- Investigate the cause of the elevated and critical fraud-check latency in the payment-gateway logs, as it might be a separate issue that contributed to the overall failure.
+
+After implementing these changes, restart the service and monitor its performance to ensure the issue is fully resolved.

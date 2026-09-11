@@ -1,0 +1,49 @@
+## Incident Report: Payment Processing Failure (INV-002)
+
+**Root Cause:**
+The primary cause of the payment processing failure was a **`java.lang.OutOfMemoryError` (OOM)** in the `fraud-detection` service, triggered by an uncontrolled memory leak in the **Risk Assessment Cache** following a recent deployment.
+
+### Detailed Analysis
+
+**1. The Trigger: Deployment and Cache Leak (`fraud-detection.log`)**
+*   **15:18:00:** A new version (`fraud-detection:v3.8.1`) was deployed with "new risk scoring weights."
+*   **15:20:00 – 15:35:00:** The Risk Assessment Cache grew rapidly.
+    *   15:20: 8,200 entries (124MB)
+    *   15:30: 12,400 entries (189MB)
+    *   15:33: 24,600 entries (312MB)
+    *   15:35: 34,100 entries (418MB)
+*   **15:37:00:** Garbage Collection (GC) pressure elevated due to the large heap usage.
+*   **15:38:30:** The service hit the **512MB heap limit** with 41,200 cache entries, resulting in `java.lang.OutOfMemoryError: GC overhead limit exceeded`.
+*   **15:38:31:** The service became unresponsive.
+
+**2. The Cascading Failure: Payment Gateway Impact (`payment-gateway.log`)**
+*   **15:35:00 – 15:37:00:** As the fraud-detection service struggled with GC, its latency spiked from 380ms to 1,240ms.
+*   **15:38:00:** Fraud-check latency reached critical levels (3,800ms).
+*   **15:38:35:** The payment gateway started timing out on fraud-check requests.
+*   **15:39:00:** After the initial crash and restart, the service briefly recovered, but latency remained high (2,100ms) as the cache refilled rapidly.
+
+**3. The Recurrence and Final Failure (`fraud-detection.log` & `payment-gateway.log`)**
+*   **15:39:15:** The orchestrator restarted the service. The cache was cold (45MB heap), but the log notes: *"Requests still arriving at elevated rate — cache refilling rapidly."*
+*   **15:41:00:** The service hit the OOM error again (`java.lang.OutOfMemoryError: GC overhead limit exceeded (recurrence)`).
+*   **15:41:01:** The service was marked permanently unhealthy and removed from the load balancer.
+*   **15:41:05:** The payment gateway detected that **no healthy instances** of fraud-detection were available.
+*   **15:41:06:** The **Circuit Breaker OPEN** for fraud-detection.
+*   **15:41:30:** All payment requests failed because the critical dependency (fraud-check) was unavailable.
+
+**4. Contributing Factor: High Traffic Load (`order-service.log`)**
+*   **15:25:00:** A scheduled batch job started, processing 1,247 unconfirmed orders for payment revalidation.
+*   **15:25:15:** The batch was submitted at a rate of 50 requests/second.
+*   This batch job likely contributed to the "elevated rate" of requests hitting the fraud-detection service, accelerating the cache growth and memory exhaustion. The batch job was suspended at 15:41:10 when the payment gateway became unavailable.
+
+### Conclusion
+
+The payment processing failure was caused by a **memory leak in the fraud-detection service's risk assessment cache** introduced in version `v3.8.1`. The rapid growth of the cache, exacerbated by a scheduled high-volume batch job from the order service, caused the service to exceed its heap limit and crash with an `OutOfMemoryError`. The service failed to recover after restart because the high request rate caused the cache to refill and exhaust memory again within minutes. This led to the payment gateway's circuit breaker opening, halting all payment processing.
+
+### Recommendations
+
+1.  **Immediate:** Roll back `fraud-detection` to the previous stable version (`v3.8.0` or earlier) to restore service.
+2.  **Short-term:** Investigate the code changes in `v3.8.1` related to "new risk scoring weights" to identify the cause of the unbounded cache growth. Implement proper cache eviction policies (e.g., LRU, TTL) and size limits.
+3.  **Long-term:**
+    *   Implement stricter monitoring and alerting on cache size and heap usage before critical thresholds are reached.
+    *   Review and rate-limit the order-service's batch revalidation jobs to prevent overwhelming downstream services.
+    *   Consider implementing a fallback mechanism in the payment gateway for when fraud-detection is unavailable (e.g., queue requests, use a secondary fraud check, or allow with reduced limits based on risk profile), rather than failing all transactions.

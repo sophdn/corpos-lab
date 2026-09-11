@@ -1,0 +1,41 @@
+### Investigation Report for Payment Processing Failure (INV-002)
+
+#### Summary
+The payment processing failure occurred in the afternoon, specifically between 15:38 and 15:41. The failure is linked to an `OutOfMemoryError` in the `fraud-detection` service, which led to elevated latency and timeouts in the `payment-gateway` and eventually caused the `order-service` to suspend its batch job.
+
+#### Hypothesis Testing
+
+1. **Hypothesis: `OutOfMemoryError` in `fraud-detection` service caused the failure**
+   
+   - **Evidence from `fraud-detection.log`:**
+     - At 15:38:30, the service reported a `java.lang.OutOfMemoryError: GC overhead limit exceeded`.
+     - The `Risk assessment cache` had reached critical levels (41,200 entries, 491MB heap), leading to elevated GC pressure and eventually causing the service to become unresponsive.
+     - The service was restarted at 15:39:15, but it failed again shortly after due to the high request rate, leading to a recurrence of the `OutOfMemoryError`.
+
+   - **Evidence from `payment-gateway.log`:**
+     - At 15:38:35, the `payment-gateway` reported a timeout with the `fraud-detection` service due to the high latency and unresponsive state of the service.
+     - The latency in fraud-check increased to critical levels (3,800ms), causing the payment gateway to fail all payment requests due to the dependency on the `fraud-detection` service.
+
+   - **Evidence from `order-service.log`:**
+     - The `order-service` was attempting to revalidate a batch of 1,247 orders, but after 1,005 orders, it started receiving errors from the `payment-gateway`.
+     - The service paused and then suspended the batch job after the `payment-gateway` became unavailable.
+
+2. **Hypothesis: `order-service` batch job caused elevated load on `payment-gateway`**
+   
+   - **Evidence from `order-service.log`:**
+     - The `order-service` was submitting 50 revalidation requests per second to the `payment-gateway`, which may have contributed to the elevated load on the `payment-gateway` and the `fraud-detection` service.
+
+   - **Evidence from `payment-gateway.log`:**
+     - The `payment-gateway` reported elevated fraud-check latency, which suggests that the increased load from the `order-service` batch job may have exacerbated the situation.
+
+#### Conclusion
+The root cause of the payment processing failure is the `OutOfMemoryError` in the `fraud-detection` service, which led to elevated latency and timeouts. The failure was exacerbated by the high request rate from the `order-service` batch job, which increased the load on the `payment-gateway` and the `fraud-detection` service.
+
+#### Recommendations
+1. **Increase Memory Allocation:** Increase the heap size for the `fraud-detection` service to prevent it from reaching the critical threshold. Alternatively, consider optimizing the cache eviction policy to manage the size of the risk assessment cache more efficiently.
+   
+2. **Rate Limiting:** Implement rate limiting or backoff strategies in the `order-service` batch job to reduce the load on the `fraud-detection` service and the `payment-gateway` during peak times.
+
+3. **Monitoring and Alerting:** Enhance monitoring and alerting to catch elevated latency and GC pressure issues early, enabling proactive intervention before the service becomes unresponsive.
+
+By addressing these recommendations, the risk of similar failures can be mitigated, ensuring more stable and reliable payment processing.

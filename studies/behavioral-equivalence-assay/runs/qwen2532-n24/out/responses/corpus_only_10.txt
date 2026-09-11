@@ -1,0 +1,44 @@
+### Investigation Report: Payment Processing Failure
+
+#### **Overview**
+The payment processing failure occurred between 15:38 and 15:41. The logs from the `fraud-detection`, `order-service`, and `payment-gateway` components provide insights into the sequence of events that led to the failure.
+
+#### **Hypothesis Testing:**
+
+1. **Hypothesis 1: Out-of-Memory (OOM) Error in `fraud-detection` Service**
+   - **Commitment**: `fraud-detection` service experienced an OOM error due to excessive heap usage and high GC pressure.
+   - **Sprint 1: Review `fraud-detection` log**
+     - **Observations**:
+       - At 15:38:30, the `fraud-detection` service experienced an OOM error.
+       - The heap usage reached 491MB, nearing the limit of 512MB.
+       - The service was restarted by the orchestrator at 15:39:15, but it failed again at 15:41:00.
+     - **Conclusion**: The `fraud-detection` service was indeed experiencing an OOM error due to high heap usage and frequent GC pauses.
+
+2. **Hypothesis 2: `order-service` Batch Processing Issue**
+   - **Commitment**: The batch processing job in the `order-service` could have contributed to the payment processing failure.
+   - **Sprint 2: Review `order-service` log**
+     - **Observations**:
+       - The `order-service` was sending revalidation requests to the `payment-gateway` in batches.
+       - At 15:38:40, the `payment-gateway` started returning errors, and the `order-service` paused.
+       - At 15:41:10, the batch job was suspended due to the `payment-gateway` being unavailable.
+     - **Conclusion**: The `order-service` batch processing did not cause the failure but was affected by it.
+
+3. **Hypothesis 3: Dependency Failure in `payment-gateway`**
+   - **Commitment**: The `payment-gateway` experienced critical latency issues due to the unavailability of the `fraud-detection` service.
+   - **Sprint 3: Review `payment-gateway` log**
+     - **Observations**:
+       - At 15:38:35, the `payment-gateway` reported that 12 requests were pending due to the `fraud-detection` service timeout.
+       - At 15:41:05, the `payment-gateway` removed the `fraud-detection` service from its pool due to unavailability.
+       - At 15:41:06, the circuit breaker for the `fraud-detection` service was opened, leading to all payment requests failing.
+     - **Conclusion**: The `payment-gateway` was unable to process payments due to the unavailability of the `fraud-detection` service.
+
+#### **Root Cause Analysis**
+The root cause of the payment processing failure is the **Out-of-Memory (OOM) error in the `fraud-detection` service**. This issue caused the service to become unresponsive, triggering a chain reaction that led to the `payment-gateway` and `order-service` also experiencing failures.
+
+#### **Recommendations**
+1. **Increase Heap Limit**: Consider increasing the heap limit for the `fraud-detection` service to handle higher cache loads.
+2. **Optimize Cache Usage**: Evaluate the cache eviction policies to prevent excessive heap usage.
+3. **Monitor GC Overhead**: Implement more granular monitoring and alerts for GC overhead to preemptively address issues.
+4. **Circuit Breaker Configuration**: Review and configure the circuit breaker settings in the `payment-gateway` to better handle dependency failures.
+
+By addressing these recommendations, the likelihood of similar failures in the future can be significantly reduced.

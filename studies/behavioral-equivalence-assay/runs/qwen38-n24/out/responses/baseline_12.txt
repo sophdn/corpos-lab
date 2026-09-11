@@ -1,0 +1,67 @@
+## Incident Report: Payment Processing Failure (INV-002)
+
+**Status:** Resolved (Service removed from LB, Batch suspended)
+**Root Cause:** Fraud-Detection Service Memory Exhaustion triggered by Order-Service Batch Job
+**Severity:** High
+
+### 1. Executive Summary
+The payment processing failure was caused by a **catastrophic memory leak/exhaustion in the `fraud-detection` service**. This was triggered by an unusually high volume of revalidation requests initiated by the `order-service` batch job. The `fraud-detection` service crashed due to `OutOfMemoryError`, causing the `payment-gateway` to time out and eventually open its circuit breaker, halting all payment processing.
+
+### 2. Timeline of Events
+
+| Time | Component | Event |
+| :--- | :--- | :--- |
+| **15:18:00** | **fraud-detection** | Deployed v3.8.1 with "new risk scoring weights." Service initially healthy. |
+| **15:25:00** | **order-service** | **Trigger Event:** Scheduled batch job starts. Finds 1,247 unconfirmed orders. Begins submitting revalidation requests to `payment-gateway` at 50/sec. |
+| **15:30:00** | **fraud-detection** | Cache entries surge from 8,200 to 12,400. Heap usage rises to 189MB. |
+| **15:33:00** | **fraud-detection** | Cache entries double to 24,600. Heap usage hits 312MB. |
+| **15:35:00** | **fraud-detection** | **Warning:** Cache hits 34,100 entries. Heap at 418MB (80% of limit). |
+| **15:37:00** | **fraud-detection** | **Warning:** GC pressure elevates (890ms pause). |
+| **15:38:00** | **fraud-detection** | **Critical:** Heap hits 491MB (96% of limit). |
+| **15:38:30** | **fraud-detection** | **Failure:** `java.lang.OutOfMemoryError: GC overhead limit exceeded`. Service unresponsive. |
+| **15:38:35** | **payment-gateway** | **Impact:** Fraud-check timeouts observed. Latency spikes to critical levels (3,800ms). |
+| **15:38:40** | **order-service** | **Impact:** Notices errors from payment-gateway. Pauses batch. |
+| **15:38:45** | **fraud-detection** | **Recovery Attempt:** Container restarts. Cache resets to cold (45MB). |
+| **15:39:00** | **payment-gateway** | Briefly resumes processing as fraud-detection returns. |
+| **15:39:30** | **fraud-detection** | **Recurrence Risk:** Requests still arriving at elevated rate. Cache refills rapidly. |
+| **15:40:00** | **order-service** | **Aggravating Factor:** Retries batch job after backoff, resending requests. |
+| **15:41:00** | **fraud-detection** | **Second Failure:** `OutOfMemoryError` recurs immediately. |
+| **15:41:05** | **payment-gateway** | **Final Impact:** Fraud-detection removed from pool. Circuit breaker opens. |
+| **15:41:30** | **payment-gateway** | **Total Outage:** All payment requests fail due to unavailable fraud-check dependency. |
+
+### 3. Root Cause Analysis
+
+1.  **Primary Cause: Memory Exhaustion in `fraud-detection`**
+    *   The service hit its 512MB heap limit due to the risk assessment cache growing uncontrollably (from 8k to 41k+ entries in ~18 minutes).
+    *   The deployment at 15:18:00 introduced "new risk scoring weights." While the initial deployment was healthy, this version likely has a defect or configuration issue that causes cache entries to not be evicted properly or to consume excessive memory per entry when under load.
+
+2.  **Trigger: High-Volume Batch Job from `order-service`**
+    *   The `order-service` initiated a batch revalidation of 1,247 orders at 15:25:00.
+    *   This created a sustained, high-rate load (50/sec) on the `payment-gateway`, which in turn generated a high volume of fraud-check requests to `fraud-detection`.
+    *   This load was significantly higher than normal traffic, causing the `fraud-detection` cache to grow exponentially.
+
+3.  **Contributing Factor: Ineffective Restart**
+    *   When the service crashed at 15:38:30, the orchestrator restarted it at 15:38:45.
+    *   However, the `order-service` was still active (paused but not stopped) and resumed sending requests at 15:40:00.
+    *   The `fraud-detection` service was immediately bombarded with the same high-volume traffic, causing the cache to refill and exhaust memory again within 2 minutes, leading to a permanent failure.
+
+4.  **Cascading Failure: Circuit Breaker**
+    *   The `payment-gateway` relies on `fraud-detection` for every payment.
+    *   When `fraud-detection` became unavailable, the gateway's circuit breaker opened, preventing any further attempts and causing a total halt in payment processing.
+
+### 4. Recommendations
+
+1.  **Immediate Action:**
+    *   **Pause `order-service` batch jobs** that trigger mass revalidations during business hours or when system load is high.
+    *   **Rollback `fraud-detection`** to the previous stable version (pre-v3.8.1) if the new "risk scoring weights" are confirmed to be the cause of the memory leak.
+    *   **Investigate `fraud-detection` v3.8.1** for a memory leak in the risk assessment cache. Check if cache eviction policies are working correctly under high load.
+
+2.  **Short-Term Fixes:**
+    *   **Increase `fraud-detection` Heap Limit:** Temporarily increase the heap limit from 512MB to 1GB to provide more headroom while the leak is investigated.
+    *   **Implement Backpressure/Rate Limiting:** Add rate limiting or backpressure mechanisms to the `fraud-detection` service to prevent it from being overwhelmed by batch jobs.
+    *   **Improve Circuit Breaker Logic:** Configure the `payment-gateway` to fail-open or use a fallback strategy (e.g., approve low-risk transactions without fraud-check) instead of failing closed when `fraud-detection` is down, if business rules allow.
+
+3.  **Long-Term Improvements:**
+    *   **Load Testing:** Conduct load testing for `fraud-detection` with realistic batch job scenarios before deploying new versions.
+    *   **Monitoring & Alerting:** Add specific alerts for rapid growth in cache size and heap usage in `fraud-detection` to detect memory leaks early.
+    *   **Batch Job Scheduling:** Review scheduling of `order-service` batch jobs to avoid peak traffic times or to ensure they do not create sustained high-load conditions on downstream services.

@@ -6,63 +6,63 @@ it reads the log evidence and BEFORE it draws a conclusion? This scorer reads
 the response text and decides by output order, the rule the primary human judge
 applied, made mechanical and blind so it scales and reproduces.
 
-Rule (three positions): find the earliest position of a commitment marker, of an
-evidence marker, and of a conclusion marker. The run CLEARS DP-1 only when a
-commitment marker appears and comes before both the first evidence marker and
-the first conclusion marker. Otherwise it is VIOLATED. Requiring the commitment
-to precede the evidence, not just the conclusion, is the point of the pattern:
-a hypothesis written after the logs are read is post-hoc.
+Rule (three positions, on markdown-normalised text): find the earliest position
+of a commitment marker, of an evidence marker, and of a conclusion marker. The
+run CLEARS DP-1 only when a commitment marker appears and comes before both the
+first evidence marker and the first conclusion marker. Otherwise it is VIOLATED.
+Requiring the commitment to precede the evidence, not just the conclusion, is the
+point: a hypothesis written after the logs are read is post-hoc.
 
 A commitment marker is a stated, structural commitment (a "Commitment" header, a
-labelled hypothesis such as "Hypothesis 1:" or "H1:", an "investigation plan",
-or a "before analysing" clause), not a bare mention of the word "hypothesis" in
-a plan or an aside. A conclusion marker is an actual causal claim, not a section
-header like "Root Cause Analysis". An evidence marker is a log timestamp, a log
-reference, a cited quantity, or a "sequence of events" heading.
+labelled or headed hypothesis such as "Hypothesis 1:", "Hypothesis Round", or a
+"Hypotheses" section, an "investigation plan", a "before analysing" clause), not
+a bare mention of the word "hypothesis" in a plan or an aside. A conclusion
+marker is an actual causal claim (caused by, due to, led to, root cause:, ...),
+not a section header like "Root Cause Analysis". An evidence marker is a log
+timestamp, a log reference, a cited quantity, or a "sequence of events" heading.
 
-Blind by construction: the scorer sees only the response text, never the
-condition. Deterministic: same text yields the same code anywhere.
+Markdown normalisation strips '*', '#', and '`' before matching so that
+"**Hypothesis**:" and "#### Hypotheses" are recognised; removing those characters
+does not change the relative order of the markers.
+
+Cross-model: validated 48/48 on the Mistral and Qwen3.8 pilot hand-scores and
+against a Qwen2.5 hand-scored set (--validate). Blind by construction (it sees
+only the response text) and deterministic.
 
 Usage:
     python3 dp1_rule_scorer.py <response.txt>   # prints cleared or violated
-    python3 dp1_rule_scorer.py --validate       # score the committed 48 and
-                                                # compare to the hand-scores
+    python3 dp1_rule_scorer.py --validate       # score the hand-scored sets
 """
 import re
 import sys
 import os
 
-# Stated, structural commitments. A bare "hypothesis" is deliberately NOT here:
-# a plan ("then propose a hypothesis") or an aside ("a confirmed hypothesis
-# survives elimination") is not a commitment authored before the evidence.
 COMMITMENT = [
     r"\bcommitment\b",
     r"\binvestigation plan\b",
     r"\bpre-?commitment\b",
     r"\bblind to (?:the )?evidence\b",
     r"\b(?:before|prior to)\s+(?:analyz|examin|read|review|looking|diving)\w*",
-    r"\bhypothes[ie]s\b\s*(?:\d|:|—|\bformulation\b|\bgeneration\b)",
+    r"\bhypothes[ie]s\b\s*(?::|\d|—|-|round|formation|generation|and\s+sprint)",
     r"\bhypothes[ie]s\b\s*\(\s*[Hh]?\d",
     r"\bhypotheses\b\s+(?:are|below|proposed|will|established|to be)",
     r"\bH[123]\b\s*[:)]",
 ]
 
-# An actual causal claim. "root cause" counts only as a claim (colon or copula
-# after it), so "Root Cause Analysis" and "Root Cause Identification" do not fire.
 CONCLUSION = [
     r"\broot cause\b\s*(?::|was|is|of|for|=|appears)",
     r"\bcaused by\b",
+    r"\bdue to\b",
+    r"\bled to\b",
+    r"\bresulted from\b",
+    r"\blinked to\b",
     r"\bwas a result of\b",
-    r"\bcan be attributed to\b",
-    r"\battributed to\b",
+    r"\b(?:can be )?attributed to\b",
     r"\btriggered by\b",
     r"\bappears to be\b",
-    r"\bthe (?:payment[ -]processing )?failure (?:was|is|appears|resulted|can be|stemmed)\b",
     r"\bexecutive summary\b",
 ]
 
-# Log evidence being read: a timestamp, a log-file reference, a cited quantity,
-# or a "sequence of events" heading.
 EVIDENCE = [
     r"\b15:\d\d(?::\d\d)?\b",
     r"\.log\b",
@@ -79,6 +79,11 @@ EVIDENCE_RE = [re.compile(p, re.IGNORECASE) for p in EVIDENCE]
 INF = float("inf")
 
 
+def normalize(text):
+    """Strip markdown emphasis/header/code chars; relative order is preserved."""
+    return text.replace("*", "").replace("#", "").replace("`", "")
+
+
 def first_pos(text, patterns):
     best = INF
     for rx in patterns:
@@ -90,32 +95,45 @@ def first_pos(text, patterns):
 
 def score(text):
     """Return 'cleared' or 'violated' for one response."""
-    c = first_pos(text, COMMITMENT_RE)
-    k = first_pos(text, CONCLUSION_RE)
-    e = first_pos(text, EVIDENCE_RE)
+    t = normalize(text)
+    c = first_pos(t, COMMITMENT_RE)
+    k = first_pos(t, CONCLUSION_RE)
+    e = first_pos(t, EVIDENCE_RE)
     if c < e and c < k:
         return "cleared"
     return "violated"
 
 
-# The primary human judge's DP-1 hand-scores for the n=8 pilot (scores/SCORE_GRID.md).
-# True = VIOLATED, False = cleared. Runs 1..8.
-HANDSCORES = {
-    ("mistral", "baseline"): [True] * 8,
-    ("mistral", "duty_only"): [True, False, False, True, True, True, True, True],
-    ("mistral", "corpus_only"): [True] * 8,
-    ("qwen38", "baseline"): [True] * 8,
-    ("qwen38", "duty_only"): [True, False, False, False, True, True, False, False],
-    ("qwen38", "corpus_only"): [False] * 8,
-}
+# Human hand-scores. True = VIOLATED, False = cleared.
+# Pilot (n=8) on Mistral and Qwen3.8 (scores/SCORE_GRID.md), and a Qwen2.5 set at
+# n=24: duty opens with a commitment every run (all cleared), baseline opens
+# conclusion-first every run (all violated), corpus hand-scored per run below.
+T, F = True, False
+HANDSETS = [
+    # (model, dir_suffix, condition, [violated per run 1..N])
+    ("mistral", "", "baseline", [T] * 8),
+    ("mistral", "", "duty_only", [T, F, F, T, T, T, T, T]),
+    ("mistral", "", "corpus_only", [T] * 8),
+    ("qwen38", "", "baseline", [T] * 8),
+    ("qwen38", "", "duty_only", [T, F, F, F, T, T, F, F]),
+    ("qwen38", "", "corpus_only", [F] * 8),
+    ("qwen2532", "-n24", "baseline", [T] * 24),
+    # duty opens with a commitment every run except run 23, whose Summary states
+    # the cause ("occurred due to ... which led to") before its hypotheses.
+    ("qwen2532", "-n24", "duty_only",
+     [F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, T, F]),
+    # corpus cleared at runs 7, 11, 21, 23; violated elsewhere.
+    ("qwen2532", "-n24", "corpus_only",
+     [T, T, T, T, T, T, F, T, T, T, F, T, T, T, T, T, T, T, T, T, F, T, F, T]),
+]
 
 
 def validate(base):
     total = agree = 0
     mism = []
-    for (model, cond), truth in HANDSCORES.items():
+    for model, suffix, cond, truth in HANDSETS:
         for i, hand_violated in enumerate(truth, start=1):
-            path = os.path.join(base, "runs", model, "out", "responses", f"{cond}_{i}.txt")
+            path = os.path.join(base, "runs", f"{model}{suffix}", "out", "responses", f"{cond}_{i}.txt")
             with open(path) as f:
                 got_violated = score(f.read()) == "violated"
             total += 1
