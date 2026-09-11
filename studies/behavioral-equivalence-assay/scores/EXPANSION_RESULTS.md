@@ -1,7 +1,7 @@
 # Expansion results — behavioral-equivalence, n=24, three models
 
 Primary scorer: the deterministic DP-1 rule (`dp1_rule_scorer.py`), validated
-120/120 against human hand-scores across all three models and re-frozen. Second
+120/120 against the operator's hand-scores across all three models and re-frozen. Second
 rater: phi-4-14B, blind (`DOUBLE_SCORE_n24.md`). Stopped at n=24 by decision;
 no confirmatory large-n run. Analysis by `analyze.py -n24`.
 

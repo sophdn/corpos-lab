@@ -1,6 +1,6 @@
 # Double-score (n=24) — second rater phi-4-14B
 
-Primary scorer: the deterministic DP-1 rule (human-validated 120/120). Second
+Primary scorer: the deterministic DP-1 rule (validated 120/120 against the operator's hand-scores). Second
 rater: phi-4-14B, blind to condition (it sees only the response text), temperature
 0.0, fixed rubric (`double_score.py`). phi-4 is not a treatment arm. Raw output:
 `DOUBLE_SCORE_n24.json`.
@@ -29,7 +29,7 @@ a response the rule cleared. The disagreements:
 phi-4 is a lenient independent rater: it agrees on the clear cases and errs toward
 "cleared" on responses that state the cause before or inside a hypothesis heading
 (two such Qwen2.5 Summary cases and one Qwen3.8 Hypothesis-heading case). The
-primary deterministic rule, validated against human hand-scores across
+primary deterministic rule, validated against the operator's hand-scores across
 all three models, is the trustworthy scorer. phi-4's leniency would, if anything,
 shrink the duty-versus-corpus gap on Qwen2.5, so the headline finding is robust to
 the choice of scorer.

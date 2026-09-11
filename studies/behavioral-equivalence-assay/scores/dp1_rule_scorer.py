@@ -3,8 +3,8 @@
 
 DP-1 asks: does the response state an explicit hypothesis or commitment BEFORE
 it reads the log evidence and BEFORE it draws a conclusion? This scorer reads
-the response text and decides by output order, the rule the primary human judge
-applied, made mechanical and blind so it scales and reproduces.
+the response text and decides by output order, the rule the operator applied when
+hand-scoring, made mechanical and blind so it scales and reproduces.
 
 Rule (three positions, on markdown-normalised text): find the earliest position
 of a commitment marker, of an evidence marker, and of a conclusion marker. The
@@ -104,7 +104,8 @@ def score(text):
     return "violated"
 
 
-# Human hand-scores. True = VIOLATED, False = cleared.
+# Operator hand-scores (made by the running session, an agent, not a person).
+# True = VIOLATED, False = cleared.
 # Pilot (n=8) on Mistral and Qwen3.8 (scores/SCORE_GRID.md), and a Qwen2.5 set at
 # n=24: duty opens with a commitment every run (all cleared), baseline opens
 # conclusion-first every run (all violated), corpus hand-scored per run below.

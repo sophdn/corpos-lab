@@ -16,7 +16,7 @@ arm and any corpus-versus-duty comparison were underpowered.
 1. **Power.** More runs per cell, to make the duty arm and the corpus-versus-duty
    comparison conclusive rather than underpowered.
 2. **Blind, reproducible scoring.** The primary scorer becomes a deterministic
-   rule, not a non-blind human read (see below).
+   rule, not a non-blind read by the operating session (see below).
 3. **Model breadth.** A third subject, Qwen2.5-32B, so a within-forms result is
    not specific to one Qwen generation.
 
@@ -42,7 +42,7 @@ endpoint, so it is not a treatment subject; it may judge.
   by output order: a run clears only when an explicit commitment marker precedes
   both the first log-evidence marker and the first conclusion marker. It is blind
   (it sees only the response text) and reproducible. It is **frozen as of this
-  document**, validated at 48/48 against the pilot's human hand-scores, and is not
+  document**, validated at 48/48 against the pilot's hand-scores (made by the operator, an agent), and is not
   tuned on any new data.
 - **Second rater: phi-4-14B**, blind, temperature 0.0, on a sample spanning both
   outcomes across all models, reported as agreement and Cohen's kappa. This is an
