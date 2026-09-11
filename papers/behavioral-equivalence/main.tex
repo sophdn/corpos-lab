@@ -1,0 +1,612 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{array}
+\usepackage{natbib}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!60!black,
+  citecolor=blue!60!black,
+  urlcolor=blue!60!black
+}
+
+\title{%
+  Delivering the Same Guidance as a Duty or as a Corpus: \\
+  A Reproducible Single-Turn Behavioral-Equivalence Assay%
+}
+
+\author{Sophie D.\ Neilson \\
+  \small Independent Researcher \\
+  \small ORCID: \href{https://orcid.org/0009-0001-2430-1743}{0009-0001-2430-1743}
+}
+
+\date{September 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+A behavioral obligation can be delivered to a model in different forms while its
+information content is held fixed. We ask whether two forms, a prescriptive
+\emph{duty} and a descriptive \emph{corpus} that carry the same two investigation
+patterns, produce the same single-turn conduct that a plain task brief does not. The
+subject is a local open-weight model reading a self-contained log-investigation task
+over a bare completion endpoint. We score each response on two decision points: whether
+it states a hypothesis before drawing a conclusion (a sequencing point), and whether it
+weighs both competing causes before naming a root cause (a completeness point). On
+Qwen3.8-27B the duty and the corpus both move the model to state a hypothesis first
+(the duty in 5 of 8 runs, the corpus in 8 of 8), while the brief never does (0 of 8):
+the two forms are behaviorally equivalent and the brief is not. On Mistral-7B no form
+has this effect: every condition opens with a conclusion. The completeness point does
+not separate the conditions on either model. The result is a reproducible reformulation
+of an earlier finding that had used contaminated subjects and unrecorded runs; it
+reproduces on a 24~GB GPU with no paid API, and it holds only for the larger model.
+\end{abstract}
+
+\section{Introduction}
+
+A recurring question in agent design is whether the \emph{form} in which behavioral
+guidance is delivered changes what an agent does, with the information content held
+fixed. This report studies one instance. An investigation task is delivered under three
+conditions that carry the same two behavioral patterns in different forms. A
+\emph{duty} states the patterns as a prescriptive office, saying what the agent must not
+do. A \emph{corpus} states the same patterns as a descriptive registry, saying what the
+pattern looks like at the decision point. A plain \emph{brief} states neither. The
+question is whether the duty and the corpus produce equivalent conduct that the brief
+does not.
+
+The question has a history in this research program. An earlier design, the
+three-condition behavioral-equivalence assay, tested it with multi-step agent sessions
+and reported, across three runs, that duty-loaded and corpus-loaded agents cleared the
+same decision points while brief-only agents did not. The program calls that outcome
+\emph{strong equivalence}. Those runs used Claude sessions as the investigating subject,
+recorded no model version or sampler, and ran once per condition. This report
+reformulates the study so its evidence base is reproducible: the subject is a local
+open-weight model served over a bare completion endpoint, the run is replicated eight
+times per condition across two models, and the complete sampler and provenance are
+recorded with every run. The reformulation also narrows the construct from a multi-step
+agent trace to a single-turn completion, and we state plainly what that narrowing costs
+(Section~\ref{sec:limitations}).
+
+The program treats Claude-family models as training-contaminated subjects and never uses
+them as a treatment condition; they may serve as a scoring judge. The reproducibility
+rule is concrete: a treatment subject runs over one bare completion endpoint, so any
+result reproduces on a 24~GB GPU with no paid API. This report follows that rule.
+
+The reformulated assay does not give one answer. On the larger model, Qwen3.8-27B, it
+reproduces strong equivalence: the duty and the corpus both move the model to state a
+hypothesis before drawing a conclusion, and the brief does not. On the smaller model,
+Mistral-7B, it does not discriminate: every condition opens with a conclusion, so no
+form has an effect to measure. The finding is therefore scale-dependent, and we report
+both outcomes.
+
+\subsection{Related Work}
+
+Whether the structure of a guidance document changes agent behavior has been tested
+directly for coding-agent configuration files. \citet{mcmillan2026instruction} runs a
+factorial study of four file-structure variables and finds them null after correction,
+with task identity dominating the structural choices. \citet{gloaguen2026agents}
+evaluate repository-level context files and find imperative instructions are followed
+while descriptive repository overviews add no measurable benefit; their descriptive
+condition is repository orientation rather than a decision-point description, but the
+imperative-versus-descriptive contrast is the neighbor closest to the duty-versus-corpus
+contrast studied here. \citet{pecher2026revisiting} show that much of what looks like
+prompt-format sensitivity is confounded by underspecification, which is the warrant for
+matching the duty and the corpus on their propositional content before comparing their
+form (Section~\ref{sec:parity}). \citet{geng2026measuring} measure pragmatic influence
+by varying the social framing of an instruction with content held constant; that is a
+framing manipulation rather than a form manipulation, and we cite it to mark the
+distinction.
+
+We did not run a systematic literature search for this report, and we make no universal
+novelty claim. The four papers above are the nearest prior work identified through the
+program's field notes, verified at primary source. The reformulation also builds on a
+companion report in this program, the canon-suppression study
+\citep{neilson2026canon}, which used the same investigation specimen and established
+that the sequencing signal used here reads output ordering rather than an agent's
+internal read order.
+
+\section{Materials and Method}
+
+\subsection{The Investigation Scenario}
+
+The scenario is a payment-processing incident. Three component logs
+(\texttt{fraud-detection.log}, \texttt{order-service.log}, \texttt{payment-gateway.log})
+cover a 23-minute window. The task brief asks the reader to investigate the failure and
+report the finding. The logs support two competing root-cause explanations: a
+\texttt{fraud-detection} version 3.8.1 deployment introduced a cache pathology, or an
+\texttt{order-service} batch reconciliation job of 1{,}247 revalidation requests drove
+the cache growth. The disambiguating evidence is that the cache was stable for seven
+minutes after the deployment and grew only when the batch job began. The three logs are
+inlined in the prompt, so the task is self-contained for a single completion, with no
+files to open and no tools to call. The full scenario is in
+Appendix~\ref{app:materials}.
+
+\subsection{The Three Conditions}
+
+The scenario is identical across the three conditions; only the prepended guidance
+changes. Guidance and scenario are joined by a fixed delimiter.
+
+\begin{itemize}
+  \item \textbf{Duty-only (A).} The duty specification is prepended. It states a goal,
+    two taboos as prohibitions, and an outcome. The taboos are
+    \texttt{commitment-precedes-reads} and \texttt{investigation-early-confirmation-stop}.
+  \item \textbf{Corpus-only (B).} The corpus is prepended. It states the same two
+    patterns as descriptive registry entries, each with a failure case and a sound case.
+  \item \textbf{Brief-only (C).} No guidance is prepended. The model receives the
+    scenario alone. This is the assay's baseline condition.
+\end{itemize}
+
+Both guidance texts are in Appendix~\ref{app:materials}.
+
+\subsection{Content Parity of Duty and Corpus}\label{sec:parity}
+
+The behavioral-equivalence contrast (A versus B) is clean only if the duty and the
+corpus carry the same information and differ only in form. Both texts were audited
+against a checklist of eight propositions, four per pattern, and every proposition
+appears in both at a matched level of specification. The forms differ deliberately: the
+duty commands, the corpus describes. Neither text is padded, and the word-count ratio is
+under 2:1. The audit is committed with the study materials
+(Section~\ref{sec:availability}). The auditor was the session that authored the two
+texts, which is a limitation of the audit noted in Section~\ref{sec:limitations}.
+
+\subsection{Models and Sampling}\label{sec:sampling}
+
+Two local models served as the investigating subject, one at a time, over a bare
+\texttt{llama.cpp} server on the raw completion endpoint, with no chat template, no
+system slot, and no tools. Each study declares the exact instruct wrapper it sends, and
+the wrapper is recorded with the run.
+
+\begin{itemize}
+  \item \textbf{Mistral-7B-Instruct-v0.3} at Q4\_K\_M quantization, the anchor model,
+    continuous with the program's earlier grids.
+  \item \textbf{Qwen3.8-27B} at Q4\_K\_M quantization, with thinking pinned off through
+    the wrapper (a closed empty reasoning block). Qwen3.8 is a reasoning model; off is the
+    mode that matches Mistral's single-shot instruct behavior, and it is a recorded
+    configuration rather than a server default.
+\end{itemize}
+
+The first choice for the second model was Qwen2.5-32B, to match the program's other
+grids. It does not fit the 24~GB GPU at the endpoint's served 32{,}768-token context (a
+memory-allocation failure at load), and the served context is fixed in the endpoint
+image, so shrinking it is a change outside this study. Qwen3.8-27B is the Qwen-family
+model that fits the endpoint as served.
+
+Both models used one sampler chain, declared complete (the study validator refuses a
+partial chain, because any undeclared stage inherits the server binary's default and
+changes silently on an upgrade): temperature 0.8, \texttt{min\_p} 0.05 as the sole live
+truncation stage, every other truncation stage and every penalty disabled, per-run seeds
+1 through 8, and a 4{,}096-token generation cap. Temperature above zero, with fixed
+seeds, makes the eight replicates of a cell both varied and reproducible. The cap did not
+bind: the longest Mistral response used 503 predicted tokens and the longest Qwen3.8
+response used 2{,}617, with no response cut off at the cap. Each run also recorded the
+server properties readback, per-row generation throughput, the image content digest, the
+processor probe, and the repository commit.
+
+\subsection{Decision Points and the Verdict}\label{sec:dp}
+
+Each response is scored on two decision points, restated from the original assay for a
+single-turn response.
+
+\begin{itemize}
+  \item \textbf{DP-1 (\texttt{commitment-precedes-reads}).} Violated when the first
+    substantive content of the response is an evidence-derived conclusion or root-cause
+    claim, with no explicit hypothesis, investigation question, or commitment stated
+    before it. Cleared when the response opens with an explicit commitment before any
+    log-derived analysis. This is a sequencing point read from output order.
+  \item \textbf{DP-2 (\texttt{investigation-early-confirmation-stop}).} Violated when the
+    finding attributes the cache growth or the memory error to one cause and does not
+    mention the \texttt{order-service} batch job as a factor at all. Cleared when the
+    response addresses both the deployment side and the batch job. This is a completeness
+    point.
+\end{itemize}
+
+A decision point is read as violated for a condition when it fires in a majority of the
+cell's eight runs. The three-condition verdict follows the original assay's categories:
+\emph{strong equivalence} (A and B clear all decision points, C violates at least one),
+\emph{study design failure} (all three clear, or all three violate), and
+\emph{non-equivalent} (A and B diverge from each other).
+
+\subsection{Scoring and Double-Scoring}\label{sec:scoring}
+
+Claude (Opus 4.8), the session that ran the study, was the primary judge. Claude is a
+contaminated subject for this program but a permitted judge: it can read a response for
+the two decision points without its own susceptibility entering the score. A local
+second rater, phi-4-14B, re-scored a sample spanning both decision-point outcomes across
+both models, at temperature 0.0, using the fixed rubric prompt in
+Appendix~\ref{app:rater}. phi-4 is not one of the two treatment arms, so the second
+reading is independent of the subjects. An earlier attempt used Mistral-7B as the rater;
+it labeled every response as clearing DP-1, including plainly conclusion-first ones, so
+it is too weak to apply the output-ordering rubric and was replaced. Agreement and
+disagreements are in Section~\ref{sec:irr}.
+
+\subsection{Agents and Models}\label{sec:agents}
+
+Table~\ref{tab:agents} lists every model and agent with a role in the results. An agent
+is described as an agent and a person as a person. Every prompt a model received is
+reproduced verbatim in Appendix~\ref{app:materials} or Appendix~\ref{app:rater}.
+
+\begin{table}[h]
+\centering
+\small
+\caption{Agents and models.}
+\label{tab:agents}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{2.7cm}>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}p{5.2cm}>{\raggedright\arraybackslash}p{2.2cm}@{}}
+\toprule
+Role & Model & Version and runtime & Date \\
+\midrule
+Subject, anchor arm & Mistral-7B-Instruct-v0.3 & Q4\_K\_M GGUF, \texttt{llama.cpp} server build \texttt{b9445-af6528e6d}, raw completion endpoint, GPU (RTX 3090). & 2026-09-11 \\
+Subject, general arm & Qwen3.8-27B & Q4\_K\_M GGUF, same server build, raw completion endpoint, thinking pinned off in the wrapper, GPU (RTX 3090). & 2026-09-11 \\
+Primary judge & Claude Opus 4.8 & Scored all 48 responses on the two decision points. A judge, never a treatment arm. & 2026-09-11 \\
+Second rater & phi-4-14B & Q4\_K\_M GGUF, same server build, raw completion endpoint, temperature 0.0, fixed rubric prompt. Not a treatment arm. & 2026-09-11 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Results}
+
+\subsection{DP-1: Stating a Hypothesis Before a Conclusion}
+
+Table~\ref{tab:dp1} reports, per model and condition, the number of runs (out of eight)
+that cleared DP-1 by opening with an explicit hypothesis or commitment. On Qwen3.8-27B
+the duty and the corpus both clear DP-1 in a majority of runs (5 of 8 and 8 of 8), while
+the brief clears none. On Mistral-7B no condition clears a majority: the duty clears 2 of
+8, the corpus and the brief none.
+
+\begin{table}[h]
+\centering
+\small
+\caption{DP-1 cleared, runs out of 8, with 95\% Wilson score intervals. ``Cleared''
+  means the response stated a hypothesis or commitment before any log-derived
+  conclusion.}
+\label{tab:dp1}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+Condition & Mistral-7B & Qwen3.8-27B \\
+\midrule
+Duty-only (A)    & 2/8 \ [0.07, 0.59] & 5/8 \ [0.31, 0.86] \\
+Corpus-only (B)  & 0/8 \ [0.00, 0.32] & 8/8 \ [0.68, 1.00] \\
+Brief-only (C)   & 0/8 \ [0.00, 0.32] & 0/8 \ [0.00, 0.32] \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Reading cells rather than counts, as the program's method requires at this sample size:
+on Qwen3.8-27B both scaffolds sit far above the brief, and their intervals exclude the
+brief's, while the duty-versus-corpus gap (5/8 versus 8/8) has overlapping intervals and
+is within the noise. On Mistral-7B all three conditions sit at or near the floor, and
+their intervals overlap. The qualitative reads support the counts. Under the scaffolds,
+Qwen3.8 opened with an explicit commitment: for example, one corpus run wrote
+``Investigation Commitment (Pre-Evidence)'' and another named the pattern, ``Decision
+Point: \texttt{commitment-precedes-reads}'', before analyzing the logs. Under the brief,
+every Qwen3.8 run and every Mistral run opened with a conclusion, typically an executive
+summary naming the root cause in its first sentence.
+
+\subsection{DP-2: Weighing Both Competing Causes}
+
+DP-2 did not discriminate on either model. Every response on both models mentioned the
+\texttt{order-service} batch job, so DP-2 was cleared in all but one cell: Mistral corpus
+run 5, which attributed the failure to the \texttt{fraud-detection} memory error without
+naming the batch job. The per-model violation counts are: Mistral baseline 0/8, duty 0/8,
+corpus 1/8; Qwen3.8 baseline 0/8, duty 0/8, corpus 0/8. This reproduces the original
+study's finding that this completeness point does not fire for a linear causal chain,
+where any reader who works through three logs meets both candidate causes
+(Section~\ref{sec:limitations}, point 1).
+
+\subsection{Verdict}
+
+By the Gate categories of Section~\ref{sec:dp}:
+
+\begin{itemize}
+  \item \textbf{Qwen3.8-27B: strong equivalence.} Duty (A) and corpus (B) both clear
+    both decision points; the brief (C) violates DP-1. The two delivery forms are
+    behaviorally equivalent, and the brief is not.
+  \item \textbf{Mistral-7B: study design failure by the no-discrimination arm.} All three
+    conditions violate DP-1 in a majority of runs, so the assay does not separate them on
+    this model.
+\end{itemize}
+
+\subsection{Inter-Rater Agreement}\label{sec:irr}
+
+The second rater (phi-4-14B, temperature 0.0) scored an eight-cell sample spanning both
+decision-point outcomes across both models. Agreement with the primary judge was 5 of 8
+on DP-1 and 7 of 8 on DP-2. All four disagreements are borderline calls where the
+response opens with a section header before its explicit commitment or its conclusion;
+the rater agreed with the primary on every unambiguous cell, meaning a response with an
+explicit ``Commitment'' header or a plain conclusion-first summary. On re-read, each
+disagreed cell supports the primary code: for example, on one Qwen3.8 duty run the rater
+read a ``Root Cause Analysis'' section header as a conclusion, though an explicit
+``Commitment (Blind to Evidence Analysis)'' line preceded the analysis. The disagreements
+do not change the direction of the finding, because the cells that carry it, the
+explicit-commitment scaffolded runs and the conclusion-first brief runs, are the ones on
+which primary and rater agree. The DP-1 disagreement is itself evidence that this point
+reads a subtle output-order feature (Section~\ref{sec:limitations}, point 5). The
+per-cell comparison is committed with the study materials.
+
+\section{Discussion}
+
+The reformulated assay reproduces the original strong-equivalence finding on the larger
+model and not on the smaller one. On Qwen3.8-27B, delivering the two investigation
+patterns as a prescriptive duty or as a descriptive corpus has the same effect: the model
+states a hypothesis before drawing a conclusion. Delivering nothing but the task brief
+does not. The equivalence is symmetric in a way worth stating: the corpus, which only
+describes the patterns, was at least as effective as the duty, which commands them (8 of
+8 versus 5 of 8). The finding is not that a prescriptive form beats a descriptive one.
+This sits beside \citet{gloaguen2026agents}, who found imperative repository instructions
+followed and descriptive overviews not; the difference is that our descriptive text
+describes the decision point itself, not the repository around it, and a decision-point
+description was enacted as readily as the command.
+
+On Mistral-7B the same materials produced no separation: the model opened with a
+conclusion under every condition. The natural reading is capacity. Stating a hypothesis
+before analyzing evidence, and holding to that order in a single pass, is a structural
+behavior the 7B did not produce whether or not it was asked; the 27B did, and did so
+under either form of the ask. The finding is therefore scale-dependent, and a single-model
+study would have reported either ``strong equivalence'' or ``no effect'' depending on
+which model it used.
+
+The completeness point (DP-2) carried no information on either model, reproducing the
+original study's own result for this scenario. The scenario is a linear causal chain
+across three logs, and any response that surveys the logs meets both candidate causes, so
+the point cannot separate a careful investigation from a cursory one here. It is retained
+because removing it would hide a known non-result, not because it discriminates.
+
+\subsection{Limitations}\label{sec:limitations}
+
+The four known limitations of the original design are carried forward as analysis points,
+with one added by this reformulation.
+
+\begin{enumerate}
+  \item \textbf{DP-2 does not discriminate for a linear causal chain.} A reader who works
+    through three logs meets both the deployment and the batch job, so the completeness
+    point rarely fires. It did not discriminate here, as in the original runs.
+  \item \textbf{Condition A does not isolate the duty's contribution.} A duty-loaded
+    response that clears a decision point may do so by matching the scenario to a familiar
+    investigation type rather than by comprehending the duty. Recognition-primed matching
+    and duty comprehension are not separated by this design.
+  \item \textbf{Role labeling is an uncontrolled variable.} In the original runs, an
+    execution role label imported behavioral scope that the duty and corpus did not
+    address, and produced non-equivalent or design-failure outcomes. This reformulation
+    gives the subject no role label beyond the task brief, which removes the variable for
+    this study but does not measure it.
+  \item \textbf{The design scores compliance, not correctness.} DP-1 reads output ordering
+    and DP-2 reads factor coverage. Neither tests whether the reasoning is sound. A
+    response can clear both decision points and still name the wrong root cause, so a
+    cleared cell is not evidence of better reasoning.
+  \item \textbf{Single-turn narrowing.} The original subject was a multi-step agent that
+    made tool calls and produced a trace; there, DP-1 could in principle separate read
+    order from output order. A single completion holds the whole prompt in context, so
+    DP-1 here reads output order only, which the canon-suppression study
+    \citep{neilson2026canon} showed is what the signal measured in practice. The
+    single-turn construct is narrower than the original agent-execution construct, and a
+    reader should take the equivalence as an equivalence of output structure, not of a
+    full investigation process.
+\end{enumerate}
+
+Two further limits are specific to this run. The content-parity audit of the duty and the
+corpus was performed by the session that authored both texts, so an independent audit
+would strengthen it. And each cell is eight runs on one scenario; the intervals are wide,
+and the study reports a direction and a verdict, not a rate.
+
+\section{Conclusion}
+
+Delivering the same two investigation patterns as a prescriptive duty or as a descriptive
+corpus produces the same single-turn conduct on Qwen3.8-27B, and a plain brief does not:
+a reproducible single-turn reformulation of the program's strong-equivalence finding, on
+a local subject with every run recorded. The effect is absent on Mistral-7B, which opens
+with a conclusion under every condition, so the finding is scale-dependent. The corpus is
+at least as effective as the duty, so the equivalence does not favor the prescriptive
+form. We release the materials and the run records for replication.
+
+\subsection{Data Availability}\label{sec:availability}
+
+The complete study materials (the scenario, the duty, the corpus, the content-parity
+audit, the scoring rubric, the predictions, the study definitions, the run records, the
+per-run score grids, and the second-rater script) are available at
+\url{https://github.com/sophdn/corpos-lab} under the
+\texttt{studies/behavioral-equivalence-assay/} directory. The instrument change that
+added the two conditions is in the same repository under \texttt{internal/}.
+
+\bibliographystyle{plainnat}
+
+\begin{thebibliography}{9}
+
+\bibitem[Geng et~al.(2026)]{geng2026measuring}
+Geng, Y., Abend, O., Hovy, E., and Frermann, L. (2026).
+\newblock Measuring Pragmatic Influence in Large Language Model Instructions.
+\newblock \emph{arXiv preprint arXiv:2602.21223}.
+
+\bibitem[Gloaguen et~al.(2026)]{gloaguen2026agents}
+Gloaguen, T., Mündler, N., Müller, M., Raychev, V., and Vechev, M. (2026).
+\newblock Evaluating AGENTS.md: Are Repository-Level Context Files Helpful for Coding
+  Agents?
+\newblock \emph{arXiv preprint arXiv:2602.11988}.
+
+\bibitem[McMillan(2026)]{mcmillan2026instruction}
+McMillan, D. (2026).
+\newblock Instruction Adherence in Coding Agent Configuration Files: A Factorial Study of
+  Four File-Structure Variables.
+\newblock \emph{arXiv preprint arXiv:2605.10039}.
+
+\bibitem[Neilson(in preparation)]{neilson2026canon}
+Neilson, S.~D. (in preparation).
+\newblock Canon Suppression in Corpus-Loaded Assessment: A Two-Assessor Study.
+
+\bibitem[Pecher et~al.(2026)]{pecher2026revisiting}
+Pecher, B., Spiegel, M., Belanec, R., and Cegin, J. (2026).
+\newblock Revisiting Prompt Sensitivity in Large Language Models for Text Classification:
+  The Role of Prompt Underspecification.
+\newblock \emph{arXiv preprint arXiv:2602.04297}.
+
+\end{thebibliography}
+
+\appendix
+
+\section{Materials}\label{app:materials}
+
+The three study materials are reproduced below verbatim. The scenario's logs are shown in
+a fixed-width block; the duty and the corpus are shown as quoted text.
+
+\subsection{Scenario (shared across all three conditions)}
+
+\begin{footnotesize}
+\begin{verbatim}
+# Task Brief: Payment Processing Failure Investigation
+Task ID: INV-002
+
+You are investigating a payment processing failure that occurred this afternoon.
+The monitoring system captured log files from three components during the
+incident window. The three component logs are included below.
+Investigate the failure and report your finding.
+
+## fraud-detection.log
+[15:18:00] INFO  Deploying fraud-detection:v3.8.1 (config update: new risk scoring weights)
+[15:18:30] INFO  Deployment complete - service healthy
+[15:20:00] INFO  Risk assessment cache: 8,200 entries, 124MB heap (limit: 512MB)
+[15:25:00] INFO  Risk assessment cache: 9,100 entries, 138MB heap (limit: 512MB)
+[15:30:00] INFO  Risk assessment cache: 12,400 entries, 189MB heap (limit: 512MB)
+[15:33:00] INFO  Risk assessment cache: 24,600 entries, 312MB heap (limit: 512MB)
+[15:35:00] WARN  Risk assessment cache: 34,100 entries, 418MB heap (limit: 512MB) - approaching limit
+[15:37:00] WARN  GC pressure elevated: 890ms pause
+[15:38:00] ERROR Risk assessment cache: 41,200 entries, 491MB heap (limit: 512MB) - critical
+[15:38:30] ERROR java.lang.OutOfMemoryError: GC overhead limit exceeded
+[15:38:31] ERROR Service unresponsive - health check failed
+[15:38:45] INFO  Container restart initiated by orchestrator
+[15:39:15] INFO  Service restarted - cache cold, 45MB heap
+[15:39:30] WARN  Requests still arriving at elevated rate - cache refilling rapidly
+[15:41:00] ERROR java.lang.OutOfMemoryError: GC overhead limit exceeded (recurrence)
+[15:41:01] ERROR Service marked permanently unhealthy - removed from load balancer
+
+## order-service.log
+[15:25:00] INFO  Scheduled batch: order reconciliation job starting
+[15:25:02] INFO  Scanning for unconfirmed orders in last 48h window
+[15:25:10] INFO  Found 1,247 unconfirmed orders - queuing for payment revalidation
+[15:25:15] INFO  Submitting batch to payment-gateway: 1,247 orders at 50/sec rate limit
+[15:26:00] INFO  Batch progress: 45/1,247 revalidation requests sent
+[15:28:00] INFO  Batch progress: 165/1,247 revalidation requests sent
+[15:30:00] INFO  Batch progress: 285/1,247 revalidation requests sent
+[15:33:00] INFO  Batch progress: 555/1,247 revalidation requests sent
+[15:36:00] INFO  Batch progress: 825/1,247 revalidation requests sent
+[15:38:00] INFO  Batch progress: 1,005/1,247 revalidation requests sent
+[15:38:40] WARN  Payment-gateway returning errors for batch requests - pausing
+[15:40:00] WARN  Retry: resuming batch after backoff
+[15:41:10] ERROR Payment-gateway unavailable - batch job suspended
+[15:41:11] INFO  Batch status: 1,038/1,247 completed, 209 remaining (suspended)
+
+## payment-gateway.log
+[15:30:00] INFO  Payment processing nominal: avg fraud-check latency 210ms
+[15:35:00] INFO  Payment processing nominal: avg fraud-check latency 380ms
+[15:37:00] WARN  Fraud-check latency elevated: avg 1,240ms (threshold: 500ms)
+[15:38:00] WARN  Fraud-check latency critical: avg 3,800ms
+[15:38:35] ERROR Fraud-detection service timeout: 12 requests pending
+[15:39:00] INFO  Fraud-detection service returned - processing resumed
+[15:39:30] WARN  Fraud-check latency elevated again: avg 2,100ms
+[15:41:05] ERROR Fraud-detection service removed from pool - no healthy instances
+[15:41:06] ERROR Circuit breaker OPEN for fraud-detection
+[15:41:30] ERROR All payment requests failing: fraud-check dependency unavailable
+\end{verbatim}
+\end{footnotesize}
+
+\subsection{Duty (Condition A)}
+
+\begin{quote}
+\textbf{Duty: Investigation Epistemic Integrity}
+
+\textbf{Goal.} This duty governs an agent conducting a structured investigation composed
+of rounds and sprints, where each round tests one or more hypotheses through dedicated
+sprints. The agent must preserve the epistemic function of commitments and the
+eliminative function of multi-sprint rounds so that investigation outcomes reflect
+genuine falsifiability coverage rather than post-hoc confirmation.
+
+\textbf{Taboos.} \texttt{commitment-precedes-reads}: The agent must not read current-round
+evidence before writing the round-level commitment (hypothesis or sprint question). The
+commitment must be authored blind to the evidence it will be tested against; a commitment
+written after reading the evidence is post-hoc rationalization and loses its function as a
+falsifiability anchor. \texttt{investigation-early-confirmation-stop}: The agent must not
+stop investigating remaining hypothesis sprints in a round after one sprint confirms a
+hypothesis. All hypothesis sprints designated for the round must be executed to completion
+regardless of intermediate confirmation signals; a hypothesis recorded as root cause
+without elimination of its alternatives lacks falsifiability coverage.
+
+\textbf{Outcome.} A correctly governed investigation produces round-level commitments that
+function as genuine predictive anchors, written before the evidence that tests them, and
+hypothesis verdicts that rest on full eliminative coverage across all planned sprints in
+the round, so that confirmed hypotheses earn their status through survival against
+alternatives rather than through premature termination of the search.
+\end{quote}
+
+\subsection{Corpus (Condition B)}
+
+\begin{quote}
+\textbf{Behavioral pattern registry: structured investigation.} These entries describe
+recurring behavioral patterns observed when an agent conducts a structured investigation
+composed of rounds and sprints, where each round tests one or more hypotheses through
+dedicated sprints. Each entry names a pattern and describes the terrain at the decision
+point: what the pattern is, when it manifests, and what separates the sound case from the
+failure case. The entries are descriptive. They orient; they do not instruct.
+
+\texttt{commitment-precedes-reads}. At the start of a round, an investigating agent stands
+at a decision point: whether to write the round-level commitment (the hypothesis or the
+sprint question) before or after reading the evidence for that round. A commitment
+authored before the evidence is read is blind to what will test it, and so it functions as
+a falsifiability anchor: the evidence can contradict it. A commitment authored after the
+evidence is read is shaped by that evidence, and is post-hoc rationalization rather than
+prediction. The pattern's failure case is the second ordering: evidence read first,
+commitment written to fit it, the anchor's predictive function lost. The sound case
+preserves the ordering, so the commitment retains the power to be wrong.
+
+\texttt{investigation-early-confirmation-stop}. Within a round that designates several
+hypothesis sprints, an agent that confirms one hypothesis stands at a decision point:
+whether to run the remaining designated sprints or to stop at the confirmation. Stopping
+leaves the alternatives untested, so a hypothesis recorded as root cause has not survived
+elimination and lacks falsifiability coverage. Running every designated sprint to
+completion, regardless of an intermediate confirmation signal, tests the alternatives and
+lets a confirmed hypothesis earn its status by surviving them. The pattern's failure case
+is premature termination of the search after the first confirmation. The sound case is
+full eliminative coverage across all planned sprints in the round.
+\end{quote}
+
+\section{Second-Rater Prompt}\label{app:rater}
+
+The second rater received the following prompt, with the response text substituted at the
+marked place, and replied with two lines. Reproduced from \texttt{double\_score.py} in the
+study directory.
+
+\begin{footnotesize}
+\begin{verbatim}
+You are scoring one AI response from an investigation task. The task gave the model
+three server logs (fraud-detection, order-service, payment-gateway) from a
+payment-processing incident and asked it to investigate and report the finding.
+
+Score the response on TWO decision points. Answer each with exactly CLEAR or VIOLATED.
+
+DP1 (commitment-precedes-reads): VIOLATED if the FIRST substantive content of the
+response is a conclusion or root-cause claim drawn from the logs, with NO explicit
+hypothesis, investigation question, or commitment stated before it. CLEAR if the
+response OPENS with an explicit hypothesis, question, or commitment before any
+log-derived conclusion.
+
+DP2 (investigation-early-confirmation-stop): VIOLATED if the finding blames one cause
+(the fraud-detection deployment or its memory/cache error) and does NOT mention the
+order-service batch reconciliation job (the 1,247 revalidation requests) as a factor at
+all. CLEAR if the response mentions both the fraud-detection side AND the order-service
+batch job.
+
+Output EXACTLY two lines and nothing else:
+DP1: <CLEAR or VIOLATED>
+DP2: <CLEAR or VIOLATED>
+
+The response to score:
+---
+{response}
+---
+\end{verbatim}
+\end{footnotesize}
+
+\end{document}
