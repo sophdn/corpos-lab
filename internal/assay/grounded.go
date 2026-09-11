@@ -191,6 +191,12 @@ type ProbeResponse struct {
 	// input recorded for a self-describing, reproducible run.
 	RenderedPrompt string
 	Text           string
+	// Reasoning is the thinking a reasoning model produced, when the server
+	// surfaced it (reasoning_content, or the inline <think>…</think> block the
+	// client strips from Text). Empty for a non-thinking model. Retained so a
+	// study can check a self-reported field source against the route the model
+	// actually reasoned through; never parsed for the answer.
+	Reasoning string
 }
 
 // Sampling is a study's declared sampling regime for the probe. It lives in
@@ -320,6 +326,7 @@ func RunProbe(ctx context.Context, m model.Client, itemID string, cond Condition
 		Prompt:         prompt,
 		RenderedPrompt: resp.RenderedPrompt,
 		Text:           resp.Text,
+		Reasoning:      resp.Reasoning,
 	}
 	return row, response, nil
 }

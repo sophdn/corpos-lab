@@ -290,6 +290,86 @@ func TestExecutePersistsRenderedPromptWhenSurfaced(t *testing.T) {
 	}
 }
 
+// When the client surfaces a reasoning trace (a thinking model), the runner
+// records it per run so a study can check the self-reported field source against
+// the route the model actually reasoned through.
+func TestExecutePersistsReasoningWhenSurfaced(t *testing.T) {
+	spec := StudySpec{
+		Assay: SupportedAssay, ItemID: "i", Model: ModelSpec{ModelID: "m", Endpoint: "completion"},
+		Conditions: []assay.Condition{assay.Baseline}, RunsPerCell: 1,
+		Materials: MaterialsSpec{Scenario: "scenario.md"}, Sampling: validSampling(),
+	}
+	in := writeStudy(t, spec, map[string]string{"scenario.md": "S"})
+	out := t.TempDir()
+	f := &fakeClient{resp: &model.Response{Text: "VERDICT: yes", Reasoning: "walked the scope check"}}
+	if _, err := Execute(context.Background(), in, out, f); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(out, "reasoning", "baseline_1.txt"))
+	if err != nil {
+		t.Fatalf("read recorded reasoning: %v", err)
+	}
+	if string(got) != "walked the scope check" {
+		t.Fatalf("recorded reasoning = %q, want 'walked the scope check'", got)
+	}
+}
+
+// A non-thinking model surfaces no reasoning, so the runner writes no reasoning
+// file rather than an empty one that would read as a captured blank trace.
+func TestExecuteWritesNoReasoningFileForNonThinkingModel(t *testing.T) {
+	spec := StudySpec{
+		Assay: SupportedAssay, ItemID: "i", Model: ModelSpec{ModelID: "m"},
+		Conditions: []assay.Condition{assay.Baseline}, RunsPerCell: 1,
+		Materials: MaterialsSpec{Scenario: "scenario.md"}, Sampling: validSampling(),
+	}
+	in := writeStudy(t, spec, map[string]string{"scenario.md": "S"})
+	out := t.TempDir()
+	if _, err := Execute(context.Background(), in, out, &fakeClient{text: "VERDICT: no"}); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(out, "reasoning", "baseline_1.txt")); !os.IsNotExist(err) {
+		t.Fatal("a non-thinking model must not leave a reasoning file")
+	}
+}
+
+// A reasoning trace that cannot be written aborts the run rather than dropping
+// the trace silently — the same fail-loud contract as the response and prompt
+// writes. Here the target path is pre-made a directory so WriteFile fails.
+func TestExecuteReportsReasoningWriteError(t *testing.T) {
+	spec := StudySpec{
+		Assay: SupportedAssay, ItemID: "i", Model: ModelSpec{ModelID: "m"},
+		Conditions: []assay.Condition{assay.Baseline}, RunsPerCell: 1,
+		Materials: MaterialsSpec{Scenario: "scenario.md"}, Sampling: validSampling(),
+	}
+	in := writeStudy(t, spec, map[string]string{"scenario.md": "S"})
+	out := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(out, "reasoning", "baseline_1.txt"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	f := &fakeClient{resp: &model.Response{Text: "VERDICT: yes", Reasoning: "trace"}}
+	if _, err := Execute(context.Background(), in, out, f); err == nil {
+		t.Fatal("expected a reasoning write error")
+	}
+}
+
+// The reasoning directory cannot be created when its path is already a file; the
+// run fails at setup rather than proceeding with nowhere to record traces.
+func TestExecuteReportsReasoningDirError(t *testing.T) {
+	spec := StudySpec{
+		Assay: SupportedAssay, ItemID: "i", Model: ModelSpec{ModelID: "m"},
+		Conditions: []assay.Condition{assay.Baseline}, RunsPerCell: 1,
+		Materials: MaterialsSpec{Scenario: "scenario.md"}, Sampling: validSampling(),
+	}
+	in := writeStudy(t, spec, map[string]string{"scenario.md": "S"})
+	out := t.TempDir()
+	if err := os.WriteFile(filepath.Join(out, "reasoning"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Execute(context.Background(), in, out, &fakeClient{text: "reply"}); err == nil {
+		t.Fatal("expected a reasoning dir creation error")
+	}
+}
+
 // A truncated reply (stopped at the token cap) is recorded on the row's Observed
 // and flagged in the rationale, so a cut-off answer is a visible fact.
 func TestExecuteRecordsTruncationOnTheRow(t *testing.T) {

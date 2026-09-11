@@ -215,7 +215,10 @@ func modelMismatch(declared string, props model.ServerProps) string {
 }
 
 // Execute runs the study described by inDir/study.json against client and
-// writes outDir/results.json plus outDir/responses/<condition>_<run>.txt.
+// writes outDir/results.json plus outDir/responses/<condition>_<run>.txt. A
+// thinking model's reasoning trace, when the client surfaces one, is written to
+// outDir/reasoning/<condition>_<run>.txt so a study can check a self-reported
+// field source against the route the model actually reasoned through.
 // It fails fast: the first probe error aborts the run (a partial results.json
 // would misrepresent a study cell).
 func Execute(ctx context.Context, inDir, outDir string, client model.Client) (Results, error) {
@@ -240,6 +243,13 @@ func Execute(ctx context.Context, inDir, outDir string, client model.Client) (Re
 	if err := os.MkdirAll(promptsDir, 0o755); err != nil {
 		return Results{}, fmt.Errorf("runner: create prompts dir: %w", err)
 	}
+	// A thinking model's reasoning trace is recorded per run when the client
+	// surfaces one. Written only when non-empty — a non-thinking model produces
+	// none, and an empty file would misrepresent that as a captured blank trace.
+	reasoningDir := filepath.Join(outDir, "reasoning")
+	if err := os.MkdirAll(reasoningDir, 0o755); err != nil {
+		return Results{}, fmt.Errorf("runner: create reasoning dir: %w", err)
+	}
 
 	rows := []assay.ScoreRow{}
 	for _, cond := range spec.Conditions {
@@ -258,6 +268,12 @@ func Execute(ctx context.Context, inDir, outDir string, client model.Client) (Re
 				promptPath := filepath.Join(promptsDir, fmt.Sprintf("%s_%d.txt", cond, run))
 				if err := os.WriteFile(promptPath, []byte(resp.RenderedPrompt), 0o644); err != nil {
 					return Results{}, fmt.Errorf("runner: write prompt %s: %w", promptPath, err)
+				}
+			}
+			if resp.Reasoning != "" {
+				reasoningPath := filepath.Join(reasoningDir, fmt.Sprintf("%s_%d.txt", cond, run))
+				if err := os.WriteFile(reasoningPath, []byte(resp.Reasoning), 0o644); err != nil {
+					return Results{}, fmt.Errorf("runner: write reasoning %s: %w", reasoningPath, err)
 				}
 			}
 		}

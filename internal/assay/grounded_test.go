@@ -215,6 +215,36 @@ func TestRunProbeCapturesRowIdentityAndResponse(t *testing.T) {
 	}
 }
 
+// A thinking model's reasoning reaches the response so a study can check a
+// self-reported field source against the route the model actually reasoned
+// through. The client surfaces it; the probe carries it verbatim.
+func TestRunProbeCapturesReasoningTrace(t *testing.T) {
+	f := &fakeClient{resp: &model.Response{
+		Text:      "VERDICT: yes\nFIELD SOURCE: Scope — operative when",
+		Reasoning: "The scope check: no companion update in the trace, so it fires.",
+	}}
+	_, resp, err := RunProbe(context.Background(), f, "i", GroundedGlyph, 1,
+		Materials{Scenario: "S", Glyph: "G", Ground: "R"}, testSampling())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Reasoning != "The scope check: no companion update in the trace, so it fires." {
+		t.Fatalf("reasoning not carried onto the response: %q", resp.Reasoning)
+	}
+}
+
+// A non-thinking model produces no reasoning, and the probe must not invent one.
+func TestRunProbeLeavesReasoningEmptyForNonThinkingModel(t *testing.T) {
+	f := &fakeClient{text: "VERDICT: no"}
+	_, resp, err := RunProbe(context.Background(), f, "i", Baseline, 1, Materials{Scenario: "S"}, testSampling())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Reasoning != "" {
+		t.Fatalf("expected empty reasoning, got %q", resp.Reasoning)
+	}
+}
+
 // The probe must never invent a code. These are the exact reply shapes that
 // previously came back a spurious fail: behavioral prose opens with neither
 // PASS nor FAIL because the probe never asks for either.
