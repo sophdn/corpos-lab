@@ -109,12 +109,15 @@ descriptive one.
 
 A local 14B model that is not one of the two treatment arms re-scored an
 eight-cell sample spanning both decision-point outcomes across both models
-(`double_score.py`, `DOUBLE_SCORE.json`). Agreement with the primary judge:
-DP-1 5/8, DP-2 7/8. The DP-1 disagreements are on borderline output-ordering
-calls where the response opens with a section header before its explicit
-commitment or conclusion; the rater agreed with the primary on every
+(`double_score.py`, `DOUBLE_SCORE.json`). phi-4 was blind to condition (it saw
+only the response text). Agreement with the primary judge: DP-1 5/8 (Cohen's
+kappa 0.25, fair, unstable at n=8), DP-2 7/8. Three of the four disagreements are
+DP-1 output-ordering calls where the response opens with a section header before
+its explicit commitment or conclusion; the fourth is a DP-2 call where the rater
+missed a batch-job mention. The rater agreed with the primary on every
 unambiguous cell (an explicit "Commitment" header, or a plain conclusion-first
-summary). The disagreements do not change the direction of the finding: the
-strongest cells, on which primary and rater agree, are what carry it. The
-noise is itself evidence for the limitation that DP-1 reads a subtle output-order
-feature (`DESIGN.md`, analysis point 5).
+summary). Because DP-2 clears in nearly every cell, the finding rests on DP-1,
+and the weak kappa means only the corpus-versus-brief separation is reliably
+established by the second rater; the duty arm clears DP-1 only by the majority
+rule. The noise is itself evidence for the limitation that DP-1 reads a subtle
+output-order feature (`DESIGN.md`, analysis point 5).

@@ -26,12 +26,14 @@ violated, `.` = cleared. Raw rater output is in `DOUBLE_SCORE.json`.
 | qwen38 duty 4       | . | V | . | . |
 | qwen38 corpus 5     | . | . | . | . |
 
-Agreement: **DP-1 5/8, DP-2 7/8.**
+Agreement: **DP-1 5/8 (Cohen's kappa 0.25, fair, unstable at n=8), DP-2 7/8.**
 
 ## Disagreements
 
-All four disagreements are borderline calls where the response opens with a
-section header before its explicit commitment or its conclusion:
+Three of the four disagreements are DP-1 output-ordering calls where the response
+opens with a section header before its explicit commitment or its conclusion.
+The fourth (mistral duty 2) is a DP-2 completeness call, where the rater missed
+the response's mention of the batch job:
 
 - **mistral baseline 1 (DP-1).** Primary V (opens "the payment processing
   failure appears to be a result of a combination of issues", a conclusion).

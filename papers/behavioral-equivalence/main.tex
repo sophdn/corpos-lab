@@ -35,18 +35,22 @@
 A behavioral obligation can be delivered to a model in different forms while its
 information content is held fixed. We ask whether two forms, a prescriptive
 \emph{duty} and a descriptive \emph{corpus} that carry the same two investigation
-patterns, produce the same single-turn conduct that a plain task brief does not. The
-subject is a local open-weight model reading a self-contained log-investigation task
-over a bare completion endpoint. We score each response on two decision points: whether
-it states a hypothesis before drawing a conclusion (a sequencing point), and whether it
-weighs both competing causes before naming a root cause (a completeness point). On
-Qwen3.8-27B the duty and the corpus both move the model to state a hypothesis first
-(the duty in 5 of 8 runs, the corpus in 8 of 8), while the brief never does (0 of 8):
-the two forms are behaviorally equivalent and the brief is not. On Mistral-7B no form
-has this effect: every condition opens with a conclusion. The completeness point does
-not separate the conditions on either model. The result is a reproducible reformulation
-of an earlier finding that had used contaminated subjects and unrecorded runs; it
-reproduces on a 24~GB GPU with no paid API, and it holds only for the larger model.
+patterns, move a model to state a hypothesis before drawing a conclusion, where a plain
+task brief does not. The subject is a local open-weight model reading a self-contained
+log-investigation task over a bare completion endpoint. We score each response on two
+decision points: whether it states a hypothesis before a conclusion (a sequencing
+point), and whether it weighs both competing causes before naming a root cause (a
+completeness point). On Qwen3.8-27B the corpus clears the sequencing point in all 8 runs
+and the duty in 5 of 8, while the brief clears none of 8. Only the corpus separates from
+the brief at 95\% confidence; the study is underpowered at eight runs per cell to
+establish that the two forms are equivalent rather than merely both above the brief. By
+the assay's majority-count rule the run lands in its strong-equivalence category. On
+Mistral-7B no condition clears the sequencing point in a majority of runs. The
+completeness point does not separate the conditions on either model, and the primary
+judge was not blind to condition. The result is a reproducible reformulation of an
+earlier finding that had used contaminated subjects and unrecorded runs; it reproduces
+on a 24~GB GPU with no paid API, and the sequencing effect appears only on the larger
+model.
 \end{abstract}
 
 \section{Introduction}
@@ -79,12 +83,15 @@ them as a treatment condition; they may serve as a scoring judge. The reproducib
 rule is concrete: a treatment subject runs over one bare completion endpoint, so any
 result reproduces on a 24~GB GPU with no paid API. This report follows that rule.
 
-The reformulated assay does not give one answer. On the larger model, Qwen3.8-27B, it
-reproduces strong equivalence: the duty and the corpus both move the model to state a
-hypothesis before drawing a conclusion, and the brief does not. On the smaller model,
-Mistral-7B, it does not discriminate: every condition opens with a conclusion, so no
-form has an effect to measure. The finding is therefore scale-dependent, and we report
-both outcomes.
+The reformulated assay does not give one answer. On the larger model, Qwen3.8-27B, both
+scaffolds move the model to state a hypothesis before drawing a conclusion and the brief
+does not, so the run lands in the assay's strong-equivalence category by its
+majority-count rule. We are careful with the word: at eight runs per cell the study
+shows that both forms clear the sequencing point more than the brief does, not that the
+two forms are statistically equivalent to each other (Section~\ref{sec:dp1}). On the
+smaller model, Mistral-7B, no condition clears the sequencing point in a majority of
+runs, so the assay does not separate the forms. The finding is therefore scale-dependent,
+and we report both outcomes.
 
 \subsection{Related Work}
 
@@ -184,10 +191,12 @@ changes silently on an upgrade): temperature 0.8, \texttt{min\_p} 0.05 as the so
 truncation stage, every other truncation stage and every penalty disabled, per-run seeds
 1 through 8, and a 4{,}096-token generation cap. Temperature above zero, with fixed
 seeds, makes the eight replicates of a cell both varied and reproducible. The cap did not
-bind: the longest Mistral response used 503 predicted tokens and the longest Qwen3.8
+bind: the longest Mistral response used 752 predicted tokens and the longest Qwen3.8
 response used 2{,}617, with no response cut off at the cap. Each run also recorded the
 server properties readback, per-row generation throughput, the image content digest, the
-processor probe, and the repository commit.
+processor probe, and the repository commit. The working tree was dirty at run time, so
+the recorded commit is the nearest committed state rather than a byte-exact snapshot; the
+committed materials and the study definition are identical to what ran.
 
 \subsection{Decision Points and the Verdict}\label{sec:dp}
 
@@ -251,7 +260,7 @@ Second rater & phi-4-14B & Q4\_K\_M GGUF, same server build, raw completion endp
 
 \section{Results}
 
-\subsection{DP-1: Stating a Hypothesis Before a Conclusion}
+\subsection{DP-1: Stating a Hypothesis Before a Conclusion}\label{sec:dp1}
 
 Table~\ref{tab:dp1} reports, per model and condition, the number of runs (out of eight)
 that cleared DP-1 by opening with an explicit hypothesis or commitment. On Qwen3.8-27B
@@ -278,17 +287,23 @@ Brief-only (C)   & 0/8 \ [0.00, 0.32] & 0/8 \ [0.00, 0.32] \\
 \end{table}
 
 Reading cells rather than counts, as the program's method requires at this sample size:
-on Qwen3.8-27B both scaffolds sit far above the brief, and their intervals exclude the
-brief's, while the duty-versus-corpus gap (5/8 versus 8/8) has overlapping intervals and
-is within the noise. On Mistral-7B all three conditions sit at or near the floor, and
-their intervals overlap. The qualitative reads support the counts. Under the scaffolds,
+on Qwen3.8-27B the corpus (8 of 8) is the one condition whose interval excludes the
+brief's, so the corpus separates from the brief at 95\% confidence. The duty (5 of 8,
+$[0.31, 0.86]$) does not separate: its interval overlaps both the brief's
+($[0.00, 0.32]$) and the corpus's ($[0.68, 1.00]$), so at this sample size the duty is
+statistically indistinguishable from either. The duty clears the point only under the
+categorical majority rule, with three violations of eight. The study is therefore not
+powered to establish that the duty and the corpus are equivalent to each other; it
+establishes that the corpus, and by the majority rule the duty, clear the point where the
+brief does not. On Mistral-7B all three conditions sit at or near the floor with
+overlapping intervals. The qualitative reads support the counts. Under the scaffolds,
 Qwen3.8 opened with an explicit commitment: for example, one corpus run wrote
 ``Investigation Commitment (Pre-Evidence)'' and another named the pattern, ``Decision
 Point: \texttt{commitment-precedes-reads}'', before analyzing the logs. Under the brief,
 every Qwen3.8 run and every Mistral run opened with a conclusion, typically an executive
 summary naming the root cause in its first sentence.
 
-\subsection{DP-2: Weighing Both Competing Causes}
+\subsection{DP-2: Weighing Both Competing Causes}\label{sec:dp2}
 
 DP-2 did not discriminate on either model. Every response on both models mentioned the
 \texttt{order-service} batch job, so DP-2 was cleared in all but one cell: Mistral corpus
@@ -304,52 +319,65 @@ where any reader who works through three logs meets both candidate causes
 By the Gate categories of Section~\ref{sec:dp}:
 
 \begin{itemize}
-  \item \textbf{Qwen3.8-27B: strong equivalence.} Duty (A) and corpus (B) both clear
-    both decision points; the brief (C) violates DP-1. The two delivery forms are
-    behaviorally equivalent, and the brief is not.
-  \item \textbf{Mistral-7B: study design failure by the no-discrimination arm.} All three
-    conditions violate DP-1 in a majority of runs, so the assay does not separate them on
-    this model.
+  \item \textbf{Qwen3.8-27B: the strong-equivalence category.} By the majority-count
+    rule, duty (A) and corpus (B) clear both decision points and the brief (C) violates
+    DP-1, so the run lands in category (a). This is the categorical verdict, not a
+    statistical equivalence claim: as Section~\ref{sec:dp1} sets out, only the corpus
+    separates from the brief at 95\% confidence, the duty clears DP-1 only by the majority
+    rule, and the study is underpowered to establish that the two forms are equivalent to
+    each other.
+  \item \textbf{Mistral-7B: study design failure by the no-discrimination arm.} No
+    condition clears DP-1 in a majority of runs, so the assay does not separate the forms
+    on this model.
 \end{itemize}
 
 \subsection{Inter-Rater Agreement}\label{sec:irr}
 
-The second rater (phi-4-14B, temperature 0.0) scored an eight-cell sample spanning both
-decision-point outcomes across both models. Agreement with the primary judge was 5 of 8
-on DP-1 and 7 of 8 on DP-2. All four disagreements are borderline calls where the
-response opens with a section header before its explicit commitment or its conclusion;
-the rater agreed with the primary on every unambiguous cell, meaning a response with an
-explicit ``Commitment'' header or a plain conclusion-first summary. On re-read, each
-disagreed cell supports the primary code: for example, on one Qwen3.8 duty run the rater
-read a ``Root Cause Analysis'' section header as a conclusion, though an explicit
-``Commitment (Blind to Evidence Analysis)'' line preceded the analysis. The disagreements
-do not change the direction of the finding, because the cells that carry it, the
-explicit-commitment scaffolded runs and the conclusion-first brief runs, are the ones on
-which primary and rater agree. The DP-1 disagreement is itself evidence that this point
-reads a subtle output-order feature (Section~\ref{sec:limitations}, point 5). The
-per-cell comparison is committed with the study materials.
+The second rater (phi-4-14B, temperature 0.0, blind to condition: it received only the
+response text and the rubric, never the condition label) scored an eight-cell sample
+spanning both decision-point outcomes across both models. Raw agreement with the primary
+judge was 5 of 8 on DP-1 and 7 of 8 on DP-2. Because DP-2 clears in nearly every cell
+(Section~\ref{sec:dp2}), the finding rests on DP-1, where 5 of 8 corresponds to a
+chance-corrected Cohen's $\kappa$ of 0.25, which is only fair agreement and is unstable
+at $n=8$. This is weak, so we scope the reliable reading accordingly. Primary and rater
+agree on every unambiguous cell, an explicit ``Commitment'' header scored as cleared or a
+plain conclusion-first summary scored as violated, and those are the corpus and brief
+cells that carry the result. Of the four disagreements, three are DP-1 output-ordering
+calls on responses that open with a section header before an explicit commitment or a
+conclusion; on re-read each supports the primary code (for example, on one Qwen3.8 duty
+run the rater read a ``Root Cause Analysis'' header as a conclusion, though an explicit
+``Commitment (Blind to Evidence Analysis)'' line preceded the analysis). The fourth is a
+DP-2 completeness call on a Mistral duty run, where the rater missed the response's
+mention of the batch job. The disagreements do not change the direction of the finding,
+but the low $\kappa$ means the duty arm and any fine duty-versus-corpus comparison are
+not reliably established by an independent rater; only the corpus-versus-brief separation
+is. The per-cell comparison is committed with the study materials.
 
 \section{Discussion}
 
-The reformulated assay reproduces the original strong-equivalence finding on the larger
-model and not on the smaller one. On Qwen3.8-27B, delivering the two investigation
-patterns as a prescriptive duty or as a descriptive corpus has the same effect: the model
-states a hypothesis before drawing a conclusion. Delivering nothing but the task brief
-does not. The equivalence is symmetric in a way worth stating: the corpus, which only
-describes the patterns, was at least as effective as the duty, which commands them (8 of
-8 versus 5 of 8). The finding is not that a prescriptive form beats a descriptive one.
-This sits beside \citet{gloaguen2026agents}, who found imperative repository instructions
-followed and descriptive overviews not; the difference is that our descriptive text
-describes the decision point itself, not the repository around it, and a decision-point
-description was enacted as readily as the command.
+On the larger model the reformulated assay lands in the original's strong-equivalence
+category, and on the smaller one it does not. The well-supported half of the Qwen3.8-27B
+result is that the corpus moves the model to state a hypothesis before drawing a
+conclusion, and the plain brief does not, at 95\% confidence. The duty points the same
+way (5 of 8) but does not separate from the brief at this sample size, so we do not
+claim the duty and the corpus are equivalent to each other, only that both clear the
+point more than the brief and that the corpus does so reliably. The direction that does
+hold is worth stating: the corpus, which only describes the patterns, was at least as
+effective as the duty, which commands them (8 of 8 versus 5 of 8), so the effect is not
+that a prescriptive form beats a descriptive one. This sits beside
+\citet{gloaguen2026agents}, who found imperative repository instructions followed and
+descriptive overviews not; the difference is that our descriptive text describes the
+decision point itself, not the repository around it, and a decision-point description was
+enacted at least as readily as the command.
 
-On Mistral-7B the same materials produced no separation: the model opened with a
-conclusion under every condition. The natural reading is capacity. Stating a hypothesis
-before analyzing evidence, and holding to that order in a single pass, is a structural
-behavior the 7B did not produce whether or not it was asked; the 27B did, and did so
-under either form of the ask. The finding is therefore scale-dependent, and a single-model
-study would have reported either ``strong equivalence'' or ``no effect'' depending on
-which model it used.
+On Mistral-7B the same materials produced no separation: no condition cleared DP-1 in a
+majority of runs, and the model opened with a conclusion in most runs, clearing under the
+duty in only two of eight and never under the corpus or the brief. The natural reading is
+capacity. Stating a hypothesis before analyzing evidence, and holding to that order in a
+single pass, is a structural behavior the 7B produced only sporadically whether or not it
+was asked; the 27B produced it under either form of the ask. The finding is therefore
+scale-dependent, and a single-model study would have reported either the
+strong-equivalence category or no effect depending on which model it used.
 
 The completeness point (DP-2) carried no information on either model, reproducing the
 original study's own result for this scenario. The scenario is a linear causal chain
@@ -389,20 +417,42 @@ with one added by this reformulation.
     full investigation process.
 \end{enumerate}
 
-Two further limits are specific to this run. The content-parity audit of the duty and the
-corpus was performed by the session that authored both texts, so an independent audit
-would strengthen it. And each cell is eight runs on one scenario; the intervals are wide,
-and the study reports a direction and a verdict, not a rate.
+Three further limits are specific to this run.
+
+First, the study is underpowered to establish equivalence. Eight runs per cell cannot
+show that the duty and the corpus are equivalent to each other; a non-significant
+difference (5 of 8 versus 8 of 8) is absence of power, not evidence of sameness. The
+result that the evidence carries is that the corpus clears DP-1 where the brief does not,
+with the duty pointing the same way. An equivalence claim between the two forms would
+need a pre-specified margin and more runs.
+
+Second, the primary judge was not blind. Claude scored from response files named by
+condition, and the same session authored the duty and the corpus and wrote the
+predictions. On a signal this subtle that is an observer-bias risk. Two facts bound it:
+the independent second rater (phi-4) was blind to condition and agreed on the unambiguous
+cells, and the primary scored the two duty runs that open with a root-cause summary as
+violations despite their later ``Commitment'' sections, which is the conservative call
+and shows no pro-hypothesis inflation on the duty arm. A blinded, shuffled re-score would
+still strengthen the DP-1 calls.
+
+Third, the content-parity audit of the duty and the corpus was performed by the session
+that authored both texts, so an independent audit would strengthen it; and each cell is
+eight runs on one scenario, so the intervals are wide and the study reports a direction
+and a categorical verdict, not a rate.
 
 \section{Conclusion}
 
-Delivering the same two investigation patterns as a prescriptive duty or as a descriptive
-corpus produces the same single-turn conduct on Qwen3.8-27B, and a plain brief does not:
-a reproducible single-turn reformulation of the program's strong-equivalence finding, on
-a local subject with every run recorded. The effect is absent on Mistral-7B, which opens
-with a conclusion under every condition, so the finding is scale-dependent. The corpus is
-at least as effective as the duty, so the equivalence does not favor the prescriptive
-form. We release the materials and the run records for replication.
+On Qwen3.8-27B, a descriptive corpus of two investigation patterns moves the model to
+state a hypothesis before drawing a conclusion where a plain brief does not, and a
+prescriptive duty carrying the same patterns points the same way; by the assay's
+majority-count rule the run lands in its strong-equivalence category. The study does not
+establish that the two forms are equivalent to each other, only that both clear the point
+more than the brief, and only the corpus does so at 95\% confidence. On Mistral-7B no form
+has this effect in a majority of runs, so the result is scale-dependent. The corpus is at
+least as effective as the duty, so the effect does not favor the prescriptive form. This
+is a reproducible single-turn reformulation of an earlier agent-execution finding, run on
+a local subject with every run recorded; we release the materials and the run records for
+replication.
 
 \subsection{Data Availability}\label{sec:availability}
 
