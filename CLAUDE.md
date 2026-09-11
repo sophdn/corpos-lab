@@ -107,6 +107,19 @@ learn better. It replaced `lab-app/resumption/CHARTER.md`, retired 2026-07-14.
   direction; the exact count does not and should not be expected to.
 - Thinking-mode-capable models (Qwen3.6) have thinking explicitly pinned or treated as a
   condition — never left to default.
+- **The container runs the image, not your working tree.** The assay executes inside the probe
+  image (`cmd/lab-assay`). A change to `internal/assay` or `internal/runner` does nothing to a
+  run until you rebuild the image (`scripts/build-lab-images.sh`) and re-pin the study to the
+  new digest. On 2026-09-11 a runner change that captured the reasoning trace was live on the
+  host binary but absent from the pinned image; the study ran on the old image and dropped the
+  trace. Rebuild, re-pin, then run.
+- **Smoke one cell before batching.** Run a single cell end-to-end and read its output — results,
+  responses, and for a thinking model the reasoning trace — before launching the full grid. One
+  cell costs seconds; a full grid costs the whole run.
+- **Swap once, then poll health.** `swap-model.sh` restarts the one container and polls `/health`
+  to completion. Do not re-invoke it while a load is in flight — a second restart mid-load makes
+  a restart storm. A 32B model can exceed the 24 GB GPU at the baked 32768 context (a KV-cache
+  OOM crash-loop); shrink the served context for that model rather than fighting the loop.
 
 ## Layout
 
