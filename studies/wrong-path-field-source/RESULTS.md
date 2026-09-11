@@ -12,106 +12,112 @@ status: deterministic layer scored; judge layer (observable/evidence) not yet sc
 576 runs: 3 subjects × 2 arms × 6 glyphs × 2 scenarios × 8 runs. Zero truncated,
 zero declared-vs-served model mismatches. Subjects: Mistral-7B-Instruct-v0.3
 (non-thinking), Qwen2.5-32B-Instruct (non-thinking), Qwen3.8-27B (thinking on).
-Raw `/completion` on llama.cpp, probe image
-`sha256:cdada916…`, full sampler chain declared (temperature 0.8, min_p 0.05
-sole truncation, penalties off, seeds 1–8).
+Raw `/completion` on llama.cpp, probe image `sha256:cdada916…`, full sampler chain
+declared (temperature 0.8, min_p 0.05 sole truncation, penalties off, seeds 1–8).
 
-Two recorded deviations, both on the record in each run's `/props` readback:
+Two recorded deviations, on the record in each run's `/props` readback:
 
-- **Qwen2.5-32B ran at context 8192**, not 32768. The 32B weights plus an 8 GB
-  KV cache at 32768 overrun the 24 GB GPU. Our prompts are ~3800 tokens plus
-  ≤1024 generated, so 8192 has ample headroom and no run truncated. The other
-  arms ran at 32768.
-- **Qwen3.8 reasoning traces are captured** in each cell's `reasoning/` directory
-  (the runner change made for this study); the non-thinking models produce none.
+- **Qwen2.5-32B ran at context 8192**, not 32768 (32B weights + 8 GB KV at 32768
+  overrun the 24 GB GPU). Prompts are ~3800 tokens + ≤1024 generated, so 8192 has
+  ample headroom; no run truncated. The other arms ran at 32768.
+- **Qwen3.8 reasoning traces are captured** in each cell's `reasoning/` directory;
+  the non-thinking models produce none.
 
-The scores below are the deterministic layer only: verdict correctness and the
-field-source class, both parsed from the four-line response. The judge layer
-(observable and evidence quality) is not yet scored.
+Scores below are the deterministic layer (verdict correctness and field-source
+class, parsed from the four-line response) plus a keyword check of the recorded
+reasoning traces. The judge layer (observable/evidence quality) is not yet scored.
+Field-source class = first field-family keyword named: Scope, Marker, Aim, Pull,
+Rest, or other.
 
-## H1 — verdict accuracy and terrain-field engagement are dissociable: CONFIRMED
+## H1 — the cited field is usually not the scope field: CONFIRMED
 
-Verdict accuracy is at or near ceiling for every subject, while the share of
-correct verdicts that cite the mandated Scope field is far lower. The models
-reach the right answer largely through the Marker or Aim axis — the fields the
-terrain does not designate as the decision route.
+Verdict accuracy is at or near ceiling, while the share of correct verdicts that
+CITE the scope field (the field the terrain designates as the decision route) is
+far lower. FIELD SOURCE is a self-report of the field the model NAMES.
 
-Base arm, per subject (over the 12 cells = 96 runs each):
+Base arm, per subject (12 cells = 96 runs each):
 
-| Subject | Verdict accuracy | Scope-cited / correct | Wrong-path / correct |
-|---------|------------------|-----------------------|----------------------|
+| Subject | Verdict accuracy | Scope-cited / correct | Non-scope / correct |
+|---------|------------------|-----------------------|---------------------|
 | Mistral-7B | 0.96 (92/96) | 0.66 | 0.34 |
-| Qwen2.5-32B | 1.00 (96/96) | **0.05** | **0.95** |
+| Qwen2.5-32B | 1.00 (96/96) | 0.04 | 0.96 |
 | Qwen3.8 | 1.00 (96/96) | 0.66 | 0.34 |
 
-Qwen2.5-32B is the sharpest case: it answers correctly every time and cites the
-Marker axis almost every time (marker 88, scope 5, other 3 across all 96 runs).
-A grader who scored only its verdicts would credit the terrain's scope field for
-a result the model attributes to a different field entirely.
+Qwen2.5-32B answered correctly in all 96 runs and named the Marker axis in 88, the
+scope field in four.
 
-By scenario polarity (base arm, all subjects pooled):
+By scenario polarity (base arm, pooled): firing (a, yes) accuracy 0.99 (142/144),
+scope-cited/correct 0.27; carve-out (b, no) accuracy 0.99 (142/144),
+scope-cited/correct 0.63.
 
-| Scenario | Verdict accuracy | Scope-cited / correct |
-|----------|------------------|-----------------------|
-| firing (a, ground truth yes) | 0.99 (142/144) | 0.27 |
-| carve-out (b, ground truth no) | 0.99 (142/144) | 0.64 |
+The non-scope citation is model-specific. Among correct FIRING runs: Qwen2.5-32B
+names the Marker axis in all 48; Qwen3.8 names the Marker axis in 32 of 48 (scope
+15, other 1); Mistral names the Pull character in 14 of 46, the Marker axis in 8,
+the scope field in 23 (aim 1).
 
-The dissociation is widest on the firing scenarios: only about a quarter of
-correct "yes" verdicts cite the Scope field; the rest route through the Marker
-axis's firing condition.
+## H1b — the cited field is not the reasoning (thinking model)
 
-**Reading:** verdict accuracy is not evidence that the intended terrain field was
-engaged. Field-source tracking is required to tell genuine scope engagement from
-a shortcut. This holds across three subjects spanning two families, two scales,
-and both reasoning modes.
+For Qwen3.8 the reasoning trace is recorded. In the base arm, 33 of its 96 correct
+runs cited a non-scope field (32 Marker, 1 other). In all 33, the trace works the
+scope condition before naming a different field. Example (cas-a, run 4): the trace
+states "So scope IS met. The glyph may fire.", then "The scope check is necessary
+but it's a gate. The actual firing determination comes from the Marker axis firing
+condition." and cites the Marker axis. The self-report is unfaithful to the
+reasoning.
 
-## H2 — a wrong-path success is brittle: NOT SUPPORTED (null)
+## H2 — brittleness: NULL, and the pre-registered test is uninformative
 
-The perturbation arm removed the Marker and Aim axes. If a correct verdict
-depended on the shortcut field, ablating it should collapse that cell. It did
-not. Accuracy held at ceiling in every arm; the base-vs-ablated differential
-(shortcut-routing cells minus scope-routing cells) is ~0.00 for all three
-subjects. The only movements are two small *improvements* under ablation
-(Mistral cgu-b 6→8, fsb-a 6→7).
+Ablating the Marker and Aim axes did not reduce verdict accuracy (at ceiling in
+both arms). The pre-registered differential (shortcut-citing minus scope-citing
+cell accuracy drop) is ~0.00 for all subjects — but with accuracy at ceiling in
+both arms there is nothing to differentiate, so the accuracy test is uninformative,
+not a clean demonstration of robustness. For Qwen2.5-32B only 1 of 12 base cells
+was scope-citing. The only accuracy movements are two Mistral improvements under
+ablation (cgu-b 6/8→8/8, fsb-a 6/8→7/8).
 
-Instead of collapsing, the models re-routed to the Scope field and stayed
-correct. The field-source distribution shifts decisively toward Scope when the
-axes are gone:
+What moves is the cited field. Field-source class over all 96 runs per subject per
+arm (the ablation removes Marker and Aim; the Scope fields, Pull, and Rest axis
+remain):
 
-| Subject | Base (all runs) | Ablated (all runs) |
-|---------|-----------------|--------------------|
-| Mistral-7B | scope 63, pull 15, marker 9, aim 1, other 8 | scope 73, pull 21, other 2 |
-| Qwen2.5-32B | marker 88, scope 5, other 3 | **scope 65, other 31** |
-| Qwen3.8 | marker 32, scope 63, other 1 | **scope 96** |
+| Subject | Base arm | Ablation arm |
+|---------|----------|--------------|
+| Mistral-7B | scope 63, pull 15, marker 9, aim 1, rest 7, other 1 | scope 73, pull 21, rest 2 |
+| Qwen2.5-32B | marker 88, scope 4, rest 4 | scope 65, rest 30, other 1 |
+| Qwen3.8 | marker 32, scope 63, other 1 | scope 96 |
 
-Qwen3.8 cites the Scope field in all 96 ablated runs; Qwen2.5-32B moves from 5
-to 65. Accuracy does not drop.
+Qwen3.8 cites the scope field in all 96 ablation runs (up from 63). Qwen2.5-32B
+splits between the scope field (65) and the surviving Rest axis (30). The named
+field tracks the fields present, not a fixed dependency.
 
-**Reading:** the wrong-path route is a *preference*, not a crutch. The scope path
-was available underneath all along; when the shortcut fields are removed, the
-models use it and remain correct. Attribution is dissociable from capability: the
-field a model *cites* is not the only field it *can* use.
+## Reading
 
-This contradicts the orientation observation (v11, n=4, retired runtime) where an
-intervention drove `cas-a` to 0/4 and was read as "no reliable correct path
-underneath". That intervention *added* structure (a Navigate block, a coupling
-block); this one *removes* the shortcut. Removing the shortcut does not break the
-answer. The clean study corrects the earlier small-n reading.
+Attribution (the cited field) is dissociable from the verdict, from the reasoning
+(the trace works scope even when a non-scope field is named), and from capability
+(the scope field is usable throughout, per the ablation). A verdict-only assay, or
+one that trusts the self-reported field, sees none of this.
+
+This corrects the orientation observation (v11, n=4, retired runtime), where an
+intervention that *added* structure drove cas-a to 0/4 and was read as "no reliable
+path underneath". Removing the shortcut does not break the answer; the earlier
+collapse was an effect of the added structure.
 
 ## Verification state
 
-- H1 dissociation, verdict and field-source counts: **verified** against the
-  parsed responses (`score.py`, deterministic).
-- H2 null and the ablation re-routing: **verified** against the parsed responses.
-- The `other` field-source bucket (31 of Qwen2.5's ablated runs): **partial** —
-  counted as non-Scope, not yet read to see which named field they cite. Does not
-  change H1 (they are non-Scope in the base arm too) or the H2 accuracy result.
-- Observable and evidence quality (the judge layer): **not_checked**.
+- H1 counts, per-model and per-polarity field-source: **verified** (score.py, deterministic).
+- H1b trace check (33/33): **verified** by a keyword scan (scope/operative) of the recorded
+  traces; the example quote is verbatim from cas-a run 4.
+- H2 null and the citation shift: **verified** (score.py). The differential is **uninformative**
+  (ceiling accuracy), stated as such, not as a positive robustness claim.
+- Observable/evidence quality (judge layer): **not_checked**.
 
 ## Caveats
 
-- n = 8 per cell. Read cells and direction, not exact counts.
-- Qwen2.5-32B ran at context 8192 (recorded). The prompts fit well within it, so
-  the served context does not affect the responses; it bounds only the unused tail.
-- Claude-family models are not subjects (contaminated corpus); the panel is the
-  local shelf only.
+- n=8 per cell (read cells, not counts).
+- No no-terrain baseline: we do not claim the terrain is necessary for the verdict, only which
+  field a correct verdict is attributed to given the terrain.
+- No Scope-removed ablation: the intended field and the Rest axis are both available and named;
+  we do not claim the scope field is uniquely the fallback.
+- Qwen2.5-32B ran at ctx 8192 (recorded); others 32768.
+- The cas class is a known compound entry flagged for terrain-format issues; reused verbatim
+  from the orientation study for continuity.
+- Materials call the rubric a "glyph specification"; the paper uses "rubric"/"decision terrain".

@@ -31,7 +31,8 @@ AB = ["a", "b"]
 GT = {"a": "yes", "b": "no"}
 
 # Field-source families, checked by earliest occurrence in the cited string.
-FAMILIES = ["scope", "marker", "aim", "pull"]
+# "rest" resolves the Rest axis, which the ablation leaves in place.
+FAMILIES = ["scope", "marker", "aim", "pull", "rest"]
 
 
 def parse_verdict(text: str) -> str | None:
@@ -153,6 +154,37 @@ def main() -> None:
             for rf in glob.glob(os.path.join(RUNS, arm, model, "*", "out", "responses", "grounded_glyph_*.txt")):
                 c[classify_field(open(rf).read())] += 1
             print(f"  {arm:8} {model:9} {dict(c)}")
+
+    # Per-model, per-polarity field-source among CORRECT verdicts (base arm). The
+    # non-scope route differs by model: a recognition axis for the Qwen models,
+    # the Pull character for Mistral.
+    print("\n== Field-source among correct verdicts, by model and polarity (BASE arm) ==")
+    for model in MODELS:
+        for ab in AB:
+            c = collections.Counter()
+            for glyph in GLYPHS:
+                out = cell_dir("base", model, glyph, ab)
+                for rf in glob.glob(os.path.join(out, "responses", "grounded_glyph_*.txt")):
+                    text = open(rf).read()
+                    if parse_verdict(text) == GT[ab]:
+                        c[classify_field(text)] += 1
+            print(f"  {model:9} {ab} ({GT[ab]:3}) {dict(c)}")
+
+    # W1/W2: does the thinking model's reasoning engage scope even when it cites a
+    # non-scope field? Among Qwen3.8 base runs with a non-scope FIELD SOURCE, the
+    # fraction whose reasoning trace mentions the scope check. A self-report that
+    # names a non-scope field over reasoning that worked the scope condition is an
+    # unfaithful self-report, not an unengaged field.
+    print("\n== Qwen3.8 base: scope worked in the trace despite a non-scope citation ==")
+    nonscope = mention = 0
+    for rf in glob.glob(os.path.join(RUNS, "base", "qwen38", "*", "out", "responses", "grounded_glyph_*.txt")):
+        if classify_field(open(rf).read()) == "scope":
+            continue
+        nonscope += 1
+        reas = rf.replace("/responses/", "/reasoning/")
+        if os.path.isfile(reas) and ("scope" in open(reas).read().lower() or "operative" in open(reas).read().lower()):
+            mention += 1
+    print(f"  non-scope-cited base runs: {nonscope}; trace mentions scope/operative: {mention}")
 
 
 if __name__ == "__main__":

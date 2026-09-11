@@ -47,6 +47,7 @@ keyword it contains:
 | Marker | `marker` | no (shortcut) |
 | Aim | `aim` | no (shortcut) |
 | Pull | `pull` | no |
+| Rest | `rest` (the Rest axis, which the ablation leaves in place) | no |
 | Other | anything else, including a bare invariant restatement | no |
 | None | no parseable field source | — |
 
