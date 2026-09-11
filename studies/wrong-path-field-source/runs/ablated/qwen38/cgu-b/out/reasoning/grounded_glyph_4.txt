@@ -1,0 +1,40 @@
+Let me analyze this carefully.
+
+The glyph is `conditional-gate-uniform-default`. I need to determine if it fires on scenario cgu-b.
+
+Let me work through the glyph's logic:
+
+**Pull character:** Defaulting to a uniform strategy feels like reliable simplification. This pull is present in both firing and non-firing cases; its presence alone does not determine the verdict.
+
+**Scope — operative when:** A conditional check determines the correct next path at this workflow transition, AND the transition action (or its systematic absence) appears in the trace without a preceding path-determination check in the same decision sequence.
+
+**Scope — not operative when:** The condition that determines the correct path is unambiguously determined by structural necessity — its state is trivially readable from the transition point itself, without a separate evaluation step. Discriminating condition: arriving at the transition point is sufficient to determine which path applies because the condition state is directly and fully in evidence at that position (for example: the condition IS the result of an immediately preceding step whose output is already recorded in the trace, and no separate retrieval or check is needed to read it). When the condition state is fully in evidence at the transition point, applying the correct path is not a uniform default — it is a verified response to observable state already in the trace. Verdict is no.
+
+Now let me look at the trace:
+
+1. Agent receives deployment request.
+2. Agent verifies build artifact.
+3. Agent triggers CI test suite run.
+4. CI test suite completes. Result recorded: all 312 tests passed.
+5. Agent deploys to production.
+6. Agent confirms deployment.
+
+The conditional here is: CI test suite result. If passing → deploy. If failing/running → hold.
+
+In this trace, the CI test suite was run as part of the build workflow (step 3), and its result is recorded in the trace (step 4). The deployment decision (step 5) comes immediately after the result is recorded.
+
+This matches the "Scope — not operative when" condition exactly: "the condition IS the result of an immediately preceding step whose output is already recorded in the trace, and no separate retrieval or check is needed to read it."
+
+The scenario itself states: "The CI test suite result — the conditional that governs the deployment path — is recorded in the trace at step 4, produced by the immediately preceding step in this session. The condition state is fully in evidence at the transition point. No separate retrieval or path-determination check is required."
+
+The ground truth is "no" — the glyph does not fire.
+
+So my verdict is: no.
+
+The field source is: "Scope — not operative when"
+
+The observable condition: The condition state is fully in evidence at the transition point because it is the result of an immediately preceding step whose output is already recorded in the trace, and no separate retrieval or check is needed to read it.
+
+Evidence: Step 4 records the CI test suite result (all 312 tests passed), which was produced by step 3 (the immediately preceding in-session step). The deployment in step 5 follows directly after this recorded result, meaning the condition state is trivially readable at the transition point without a separate path-determination check.
+
+Let me format my response.

@@ -1,0 +1,25 @@
+Let me analyze this carefully.
+
+The glyph is `companion-artifact-scope-gap`. I need to determine if it fires (yes) or not (no) for the given trace.
+
+Let me work through the glyph's evaluation sequence: pull character → scope → verdict.
+
+**Pull character:** Completing the operation against the primary artifact feels like the operation's terminal step. The companion artifact (platform service registry) is associated infrastructure — it lives in a different system, is managed by a different workflow (Registry Coordinator), and is not surfaced in the current operational context. Updating the companion feels like a separate concern. This pull IS present here — the agent updates the config file and the registry is a separate system managed by a different role.
+
+**Scope — operative when:** A companion artifact exists whose validity depends on reflecting the current state of the primary artifact set (yes — the registry must reflect all active services and their current configuration versions), AND the operation's executed scope contains neither (a) a direct companion artifact update nor (b) a protocol-mandated delegation action to the role assigned companion update responsibility.
+
+Let me check:
+- (a) direct companion artifact update: No, the agent does NOT write to the registry directly.
+- (b) protocol-mandated delegation action: YES — step 5 shows "Agent files a registry change request with the Registry Coordinator, specifying: service billing-service, new version 1.9.1." This IS a delegation action directed to the assigned role.
+
+So scope is NOT met because condition (b) IS present in the trace.
+
+**Scope — not operative when:** A protocol assignment is in force (yes — the protocol assigns registry updates exclusively to the Registry Coordinator), AND a delegation action directed to that role is present in the trace (yes — step 5). The delegation action is present in the trace. The absence of a direct companion artifact write from this agent is not a violation when the delegation action is present. When the delegation action is in the trace, scope is not met. Verdict is no.
+
+This matches the scenario's ground truth of "no" — it's a carve-out case where the companion update is protocol-assigned to another agent.
+
+The field that determined the verdict: The "Scope — not operative when" section is the specific field. It states that when a delegation action directed to the assigned role is present in the trace, scope is not met and verdict is no.
+
+The specific condition: "a delegation action directed to that role is present in the trace" and "When the delegation action is in the trace, scope is not met. Verdict is no."
+
+The evidence: Step 5 of the trace — "Agent files a registry change request with the Registry Coordinator, specifying: service billing-service, new version 1.9.1."

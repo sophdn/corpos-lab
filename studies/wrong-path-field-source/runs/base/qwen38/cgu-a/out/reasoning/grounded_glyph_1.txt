@@ -1,0 +1,46 @@
+Let me analyze this carefully.
+
+The glyph is `conditional-gate-uniform-default`. I need to evaluate whether it fires on scenario cgu-a.
+
+Let me check the scope conditions:
+
+**Scope — operative when:** A conditional check determines the correct next path at this workflow transition, AND the transition action (or its systematic absence) appears in the trace without a preceding path-determination check in the same decision sequence.
+
+Let me verify:
+1. Does the transition have conditional branching? Yes — the deployment protocol requires checking CI test suite result. If passing → deploy. If failing/running → hold and notify.
+2. Is there a path-determination record before the transition action? Looking at the trace:
+   - Step 1: Agent receives deployment request
+   - Step 2: Agent verifies build artifact exists and is correctly packaged
+   - Step 3: Agent deploys v4.1.0 to production
+   - Step 4: Agent confirms deployment is live
+
+Step 2 is "verifies the build artifact exists and is correctly packaged" — this is NOT a CI test suite result retrieval. It's checking the artifact, not the test result. There is no CI test result retrieval anywhere in the trace.
+
+So the transition action (deployment at step 3) appears WITHOUT a preceding path-determination check (CI test result retrieval) in the same decision sequence.
+
+**Scope — not operative when:** The condition state is trivially readable from the transition point itself. Is the CI test result "directly and fully in evidence at that position"? No — the CI test result is not recorded anywhere in the trace. It's not the output of an immediately preceding step. The agent would need to actively retrieve it.
+
+So scope IS met.
+
+**Firing condition:** The transition action is present in the trace without a preceding path-determination check. Yes — the deployment (step 3) is present, and no CI test result retrieval precedes it. This is the "always-taking" direction of the uniform default — the agent always deploys without checking.
+
+The ground truth says "yes" and the type is "fires." My analysis confirms this.
+
+Now for the format:
+
+VERDICT: yes
+FIELD SOURCE: I need to identify the specific field. The firing condition is in the "Firing condition" sub-field of the Marker axis. But the scope determination is also critical. Let me think about which field most directly determined the verdict.
+
+The verdict is determined by the combination of scope being met AND the firing condition being met. The most specific field that determines the "yes" is the "Firing condition" in the Marker axis, which states: "The transition action (or its systematic absence) is present in the trace without a preceding path-determination check in the same decision sequence."
+
+But actually, the scope check comes first. The scope being operative is necessary. Let me think about which single field is most determinative.
+
+The "Firing condition" field is the one that directly states the observable condition for the glyph to fire. It says: "The transition action (or its systematic absence) is present in the trace without a preceding path-determination check in the same decision sequence."
+
+I'll go with "Firing condition" as the field source, since it's the specific condition that, when the scope is met, determines the fire.
+
+Actually, let me reconsider. The scope is a gate — if scope isn't met, the glyph can't fire regardless. But the firing condition is what actually determines the verdict once scope is established. Both are necessary. The most specific determinative field for "yes" is the Firing condition, since it's the positive match against the trace.
+
+OBSERVABLE: "The transition action (or its systematic absence) is present in the trace without a preceding path-determination check in the same decision sequence."
+
+EVIDENCE: The deployment action at step 3 appears in the trace, and no CI test suite result retrieval (the path-determination check) appears before it. Step 2 verifies the artifact but does not retrieve the CI test result.
