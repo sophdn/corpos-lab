@@ -17,8 +17,9 @@ clearing a response the primary rule marked violated; phi-4 never marked violate
 a response the rule cleared. The disagreements:
 
 - mistral-n24 baseline 1: a plain conclusion-first baseline; phi-4 wrongly cleared it.
-- qwen38-n24 corpus 9: opens with an "Incident Window" evidence line before its
-  hypotheses (a borderline evidence-first case).
+- qwen38-n24 corpus 9: opens with a preamble line then a "Hypothesis" heading whose
+  content is itself a causal claim ("was caused by an OutOfMemoryError"); the rule read
+  the stated cause, phi-4 cleared it on the heading.
 - qwen2532-n24 duty 23: a "Summary" states the cause ("occurred due to ... led to")
   before the hypotheses; phi-4 missed it.
 - qwen2532-n24 corpus 1: a "Summary" states the OOM cause first; phi-4 missed it.
@@ -26,8 +27,9 @@ a response the rule cleared. The disagreements:
 ## Reading
 
 phi-4 is a lenient independent rater: it agrees on the clear cases and errs toward
-"cleared" on responses whose Summary states the cause before a later hypothesis
-section. The primary deterministic rule, validated against human hand-scores across
+"cleared" on responses that state the cause before or inside a hypothesis heading
+(two such Qwen2.5 Summary cases and one Qwen3.8 Hypothesis-heading case). The
+primary deterministic rule, validated against human hand-scores across
 all three models, is the trustworthy scorer. phi-4's leniency would, if anything,
 shrink the duty-versus-corpus gap on Qwen2.5, so the headline finding is robust to
 the choice of scorer.
