@@ -19,10 +19,10 @@ equivalence (Runs 2, 5, 6), meeting the program's stopping criterion.
 
 That evidence base is not publication-grade for three reasons:
 
-1. **The subject was Claude.** Claude-family models are training-contaminated
-   subjects for the glyph corpus and are never a treatment arm (CLAUDE.md
-   invariant; INQUIRY.md). A published behavioral result must reproduce on the
-   one bare llama.cpp rig with no paid API.
+1. **The subject was Claude, a hosted model.** A published behavioral result
+   must reproduce on the one bare llama.cpp rig with no paid API; a hosted model
+   cannot run there, so Claude-family models are never a treatment arm (CLAUDE.md
+   invariant; INQUIRY.md).
 2. **The runs were unrecorded.** No model version, no sampler, no substrate.
    The conditions are unrecoverable (the same gap that voided casg-direct v3).
 3. **n=1 per condition, single scorer.** One specimen, one canon-carrying
@@ -56,9 +56,9 @@ instruct behavior. Thinking-off is a recorded configuration, not a default.
 response against the two decision points. Claude judges; it is never a treatment
 arm. A **local second rater** double-scores a sample spanning the outcome range
 (the other treatment model, run over the same portal), and disagreements are
-reported (INQUIRY.md "Double-score"). This is the contamination-safe split: a
-contaminated model may judge, and the reproducible subject path carries the
-treatment.
+reported (INQUIRY.md "Double-score"). This is the judge/subject split: a model
+that cannot be a reproducible subject may still judge, and the reproducible
+subject path carries the treatment.
 
 ## The three conditions
 
