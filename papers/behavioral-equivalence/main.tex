@@ -35,10 +35,11 @@
 A behavioral obligation can be delivered to a model in different forms while its
 information content is held fixed. We ask whether two forms, a prescriptive
 \emph{duty} and a descriptive \emph{corpus} that carry the same two investigation
-patterns, move a model to state a hypothesis before drawing a conclusion, where a plain
-task brief does not. The subject is a local open-weight model reading a self-contained
-log-investigation task over a bare completion endpoint; the primary scorer is a
-deterministic, blind rule, validated against human hand-scores across all three models.
+patterns, move a model to state a hypothesis before it reads the log evidence and draws a
+conclusion, where a plain task brief does not. The subject is a local open-weight model
+reading a self-contained log-investigation task over a bare completion endpoint; the
+primary scorer is a deterministic rule that reads only the response text, and for the
+model that carries the headline the effect is visible directly in the raw responses.
 Whether the form matters is itself model-dependent. On Qwen2.5-32B the prescriptive duty
 clears the sequencing point in 23 of 24 runs and the descriptive corpus in only 4 of 24:
 the duty decisively beats the corpus (Fisher p=2.3e-8). On Qwen3.8-27B the two forms are
@@ -98,8 +99,10 @@ see on two of our three models. \citet{gloaguen2026agents} evaluate repository-l
 context files and find imperative instructions are followed while descriptive repository
 overviews add no measurable benefit; that imperative-beats-descriptive result is what we
 see on Qwen2.5-32B, where the prescriptive duty beats the descriptive corpus, and their
-contrast is the neighbor closest to ours, the difference being that our descriptive text
-describes the decision point itself, not the repository around it.
+contrast is the neighbor closest to ours. The parallel is suggestive rather than exact:
+their descriptive condition is a repository overview, different in content from their
+imperative instructions, so their result may be a content effect, whereas our duty and
+corpus are matched on content and differ only in form.
 \citet{pecher2026revisiting} show that much of what looks like prompt-format sensitivity
 is confounded by underspecification, which is the warrant for matching the duty and the
 corpus on their propositional content before comparing their form
@@ -225,13 +228,21 @@ The primary scorer is a deterministic rule (\texttt{dp1\_rule\_scorer.py}). It s
 by output order: a run clears only when an explicit commitment marker precedes both the
 first log-evidence marker and the first conclusion marker. It is blind by construction (it
 reads only the response text, never the condition) and reproducible (the same text yields
-the same code on any machine). It was validated against human hand-scores: 120 of 120,
-comprising the 48 pilot responses on Mistral and Qwen3.8 and a 72-response Qwen2.5 set.
-The rule was first written and validated on the two smaller models; a cross-model check
-found it mis-scored Qwen2.5's markdown emphasis and its ``due to'' and ``led to'' causal
+the same code on any machine). It was checked against human hand-scores made by the
+study's author: the 48 pilot responses on Mistral and Qwen3.8, and the 72 Qwen2.5
+responses. The rule was first written on the two smaller models; a cross-model check found
+it mis-scored Qwen2.5's markdown emphasis and its ``due to'' and ``led to'' causal
 phrasing, so it was repaired (markdown normalization, broader hypothesis-header forms,
-causal-verb conclusion markers) and re-validated to 120 of 120 before scoring. DP-2 is
-scored by a deterministic check for a mention of the batch job.
+causal-verb conclusion markers) and brought to full agreement with those hand-scores.
+This check is in-sample, not held-out, and the distinction matters for the headline model:
+the Qwen2.5 responses used to validate the rule are the responses it then scores, and the
+hand-scores were made by the author, not blind to condition. So on Qwen2.5 the rule is a
+reproducible mechanization of the author's reading, not an independent verification of it.
+The Qwen2.5 result rests instead on the raw responses (duty responses open with a
+commitment, corpus responses open with a Summary that states the cause) and on the size
+of the gap; the blind second rater below is the independent check, and its errors run only
+toward clearing, which would shrink the gap. DP-2 is scored by a deterministic check for a
+mention of the batch job.
 
 A local second rater, phi-4-14B, re-scored a 15-response sample spanning both outcomes
 across the three models, blind to condition, at temperature 0.0, using the fixed rubric
@@ -258,7 +269,7 @@ Role & Model & Version and runtime & Date \\
 Subject, anchor arm & Mistral-7B-Instruct-v0.3 & Q4\_K\_M GGUF, \texttt{llama.cpp} build \texttt{b9445-af6528e6d}, raw completion, GPU (RTX 3090), context 32768. & 2026-09-11 \\
 Subject, reasoning arm & Qwen3.8-27B & Q4\_K\_M GGUF, same build, thinking pinned off, GPU, context 32768. & 2026-09-11 \\
 Subject, instruct arm & Qwen2.5-32B-Instruct & Q4\_K\_M GGUF, same build, GPU, context 8192 (fits the 24 GB GPU). & 2026-09-11 \\
-Primary scorer & Deterministic rule & \texttt{dp1\_rule\_scorer.py}; blind; validated 120/120 against human hand-scores. & 2026-09-11 \\
+Primary scorer & Deterministic rule & \texttt{dp1\_rule\_scorer.py}; reads only the response text; reproduces the author's hand-scores (in-sample for Qwen2.5). & 2026-09-11 \\
 Second rater & phi-4-14B & Q4\_K\_M GGUF, same build, temperature 0.0, blind to condition. Not a treatment arm. & 2026-09-11 \\
 Author and operator & Claude Opus 4.8 & Authored the materials, ran the study, made the validation hand-scores. Not a treatment subject. & 2026-09-11 \\
 \bottomrule
@@ -321,7 +332,9 @@ causes (Section~\ref{sec:limitations}, point 1).
 \subsection{Verdict}
 
 The same assay returns three different verdict categories, one per model
-(Section~\ref{sec:dp}):
+(Section~\ref{sec:dp}). That the three fall into three distinct categories is a
+consequence of the three models chosen, not a necessary structure; the Mistral category
+is a floor outcome, where no condition works.
 
 \begin{itemize}
   \item \textbf{Qwen2.5-32B: (c) non-equivalent.} A (duty, 23/24) clears DP-1; B (corpus,
@@ -337,6 +350,11 @@ The same assay returns three different verdict categories, one per model
     model.
 \end{itemize}
 
+We report about fifteen tests across the three models without a multiple-comparison
+correction. This changes no conclusion: the headline is at p=2.3e-8, the null results stay
+null, and the one borderline test (corpus versus brief on Qwen2.5, p=0.055) is already
+reported as not significant.
+
 \subsection{Inter-Rater Agreement}\label{sec:irr}
 
 The blind second rater (phi-4-14B) agreed with the primary rule on DP-1 in 11 of 15
@@ -344,10 +362,11 @@ sampled responses, a Cohen's $\kappa$ of 0.50 (moderate). All four disagreements
 phi-4 clearing a response the rule marked violated; phi-4 never marked violated a response
 the rule cleared. Three of the four are responses whose ``Summary'' states the cause
 before a later hypothesis section, which phi-4 read as cleared; the fourth is a plain
-conclusion-first baseline. phi-4 is therefore a lenient independent rater. Its leniency
-would, if anything, shrink the duty-versus-corpus gap on Qwen2.5, so the headline finding
-is robust to the choice of scorer, and the primary rule, validated against human
-hand-scores across all three models, is the reliable one. The per-cell comparison is
+conclusion-first baseline. phi-4 is therefore a lenient independent rater, and its
+disagreements cluster on exactly the pattern that drives the Qwen2.5 result. The rule
+marks those responses violated and the raw text agrees, so the finding is robust not
+because the two raters agree but because the rule's stricter reading is the correct one;
+phi-4's leniency would only shrink the duty-versus-corpus gap. The per-cell comparison is
 committed with the study materials.
 
 \section{Discussion}
@@ -415,19 +434,28 @@ thinking off; Qwen2.5 is an instruct model). The two Qwen models, which give opp
 form effects, are the same family but different generations, so the duty-beats-corpus
 result on one and the equivalence on the other cannot be pinned to a single variable.
 
-Second, the Qwen3.8 forms are not shown equivalent, only not distinguished. At 24 runs per
-cell the corpus-minus-duty 90\% CI is $[-0.18, +0.26]$, wider than the 0.15 margin. A
-pre-registered escalation to a larger n was available and was not taken: the decision was
-to stop at 24 runs, because the headline findings (the Qwen2.5 divergence, the
-scaffold-versus-brief separation, the Mistral null) are conclusive at this n and the one
-open question, Qwen3.8 equivalence within a tight margin, is the least consequential. The
-larger run remains future work.
+Second, this run deviates from its own pre-registration, and we label the deviation rather
+than smooth it. The pre-registration specified n=24 as an estimation stage with no
+significance test, and a single confirmatory test at a powered target n, which its own
+ladder places at n=100 (the equivalence test needs about 58 runs per cell). We instead
+report the Fisher and interval tests at n=24 and did not run the larger confirmatory
+stage. The reported p-values are therefore single-look tests at n=24, off the
+pre-registered protocol; because they are a single look and not iterative peeking they
+carry no type-I inflation, but they are not the pre-registered confirmatory tests. The
+escalation existed to resolve one question, whether the Qwen3.8 forms are equivalent within
+the 0.15 margin (the corpus-minus-duty 90\% CI is $[-0.18, +0.26]$, wider than the
+margin), and that is the question we leave open; the choice to treat it as the least
+consequential finding was made after seeing the n=24 data. The headline findings (the
+Qwen2.5 divergence at p=2.3e-8, the scaffold-versus-brief separations, the Mistral null)
+do not depend on the larger n. The confirmatory run at n=100 remains future work.
 
-Third, the primary scorer is a rule, and its validity rests on human hand-scores that the
-study's author made. The rule is blind and deterministic, and an independent local model
-corroborates it on the clear cases, but an independent human hand-score set would
-strengthen the validation. The rule reads output order, not reasoning, so it inherits
-limitation 4 and 5.
+Third, the primary scorer is a rule whose validation is in-sample for the headline model.
+Its calls were checked against hand-scores the author made, and for Qwen2.5 the validated
+responses are the scored responses, so there the rule mechanizes rather than independently
+verifies the author's reading (Section~\ref{sec:scoring}). The rule is blind and
+deterministic and a blind local model corroborates it on the clear cases, but an
+independent, held-out, blind human hand-score set would strengthen the validation. The
+rule reads output order, not reasoning, so it inherits limitations 4 and 5.
 
 Fourth, the content-parity audit of the duty and the corpus was performed by the session
 that authored both texts, so an independent audit would strengthen it; and each cell is
