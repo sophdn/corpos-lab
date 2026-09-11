@@ -267,6 +267,64 @@ func TestExecuteReportsMissingOffTargetMaterial(t *testing.T) {
 	}
 }
 
+// The behavioral-equivalence conditions read the duty and corpus materials and
+// assemble them into the guidance slot, and brief-only (baseline) carries no
+// guidance. This exercises the duty/corpus reads in loadMaterials end-to-end.
+func TestExecuteAssemblesBehavioralEquivalenceConditions(t *testing.T) {
+	spec := StudySpec{
+		Assay: SupportedAssay, ItemID: "behavioral-equivalence", Model: ModelSpec{ModelID: "m"},
+		Conditions:  []assay.Condition{assay.Baseline, assay.DutyOnly, assay.CorpusOnly},
+		RunsPerCell: 1,
+		Materials:   MaterialsSpec{Scenario: "scenario.md", Duty: "duty.md", Corpus: "corpus.md"},
+		Sampling:    validSampling(),
+	}
+	in := writeStudy(t, spec, map[string]string{
+		"scenario.md": "SCENARIO", "duty.md": "DUTY", "corpus.md": "CORPUS",
+	})
+	f := &fakeClient{text: "reply"}
+	results, err := Execute(context.Background(), in, t.TempDir(), f)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if len(results.Rows) != 3 {
+		t.Fatalf("want 3 rows, got %d", len(results.Rows))
+	}
+	// Prompts are recorded in condition order: baseline (scenario only), then
+	// duty and corpus each in the guidance slot.
+	want := []string{"SCENARIO", "DUTY\n---\nSCENARIO", "CORPUS\n---\nSCENARIO"}
+	for i, w := range want {
+		if f.gotPrompts[i] != w {
+			t.Fatalf("prompt %d = %q, want %q", i, f.gotPrompts[i], w)
+		}
+	}
+}
+
+func TestExecuteReportsMissingDutyMaterial(t *testing.T) {
+	spec := StudySpec{
+		Assay: SupportedAssay, ItemID: "i", Model: ModelSpec{ModelID: "m"},
+		Conditions: []assay.Condition{assay.DutyOnly}, RunsPerCell: 1,
+		Materials: MaterialsSpec{Scenario: "scenario.md", Duty: "duty.md"},
+		Sampling:  validSampling(),
+	}
+	in := writeStudy(t, spec, map[string]string{"scenario.md": "S"})
+	if _, err := Execute(context.Background(), in, t.TempDir(), &fakeClient{text: "x"}); err == nil {
+		t.Fatal("expected missing-duty-material error")
+	}
+}
+
+func TestExecuteReportsMissingCorpusMaterial(t *testing.T) {
+	spec := StudySpec{
+		Assay: SupportedAssay, ItemID: "i", Model: ModelSpec{ModelID: "m"},
+		Conditions: []assay.Condition{assay.CorpusOnly}, RunsPerCell: 1,
+		Materials: MaterialsSpec{Scenario: "scenario.md", Corpus: "corpus.md"},
+		Sampling:  validSampling(),
+	}
+	in := writeStudy(t, spec, map[string]string{"scenario.md": "S"})
+	if _, err := Execute(context.Background(), in, t.TempDir(), &fakeClient{text: "x"}); err == nil {
+		t.Fatal("expected missing-corpus-material error")
+	}
+}
+
 // When the client surfaces a rendered prompt (the raw /completion path), the
 // runner records it per run so the run is self-describing down to its input.
 func TestExecutePersistsRenderedPromptWhenSurfaced(t *testing.T) {

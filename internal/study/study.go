@@ -43,6 +43,8 @@ type MaterialsDef struct {
 	Imperative string `toml:"imperative"`
 	Scrambled  string `toml:"scrambled"`
 	OffTarget  string `toml:"off_target"`
+	Duty       string `toml:"duty"`
+	Corpus     string `toml:"corpus"`
 }
 
 // SamplingDef is the study's declared sampling regime.
@@ -181,6 +183,14 @@ func (d Def) validate() error {
 		case assay.OffTargetGlyph:
 			if d.Materials.OffTarget == "" {
 				return fmt.Errorf("study: condition %q requires materials.off_target", c)
+			}
+		case assay.DutyOnly:
+			if d.Materials.Duty == "" {
+				return fmt.Errorf("study: condition %q requires materials.duty", c)
+			}
+		case assay.CorpusOnly:
+			if d.Materials.Corpus == "" {
+				return fmt.Errorf("study: condition %q requires materials.corpus", c)
 			}
 		default:
 			return fmt.Errorf("study: unknown condition %q", c)
@@ -393,6 +403,18 @@ func (d Def) Materialize(inDir string) error {
 			return err
 		}
 		mats.OffTarget = "off_target_glyph.md"
+	}
+	if d.Materials.Duty != "" {
+		if err := d.copyMaterial(d.Materials.Duty, filepath.Join(inDir, "duty.md")); err != nil {
+			return err
+		}
+		mats.Duty = "duty.md"
+	}
+	if d.Materials.Corpus != "" {
+		if err := d.copyMaterial(d.Materials.Corpus, filepath.Join(inDir, "corpus.md")); err != nil {
+			return err
+		}
+		mats.Corpus = "corpus.md"
 	}
 
 	spec := runner.StudySpec{

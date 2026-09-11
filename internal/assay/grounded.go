@@ -40,6 +40,18 @@ const (
 	// against GlyphOnly it tests whether recognition of the scenario is in the loop
 	// (equal effect on- and off-target implicates glyph structure over recognition).
 	OffTargetGlyph Condition = "off_target_glyph"
+	// DutyOnly: a duty specification prepended, no glyph. The behavioral-equivalence
+	// assay's Condition A — the investigation duty (role file) delivered as the sole
+	// guidance. It takes the same guidance slot as GlyphOnly, with the same delimiter
+	// and shape; the two conditions never combine (a run is duty-only or glyph-only,
+	// never both).
+	DutyOnly Condition = "duty_only"
+	// CorpusOnly: a corpus prepended, no glyph. The behavioral-equivalence assay's
+	// Condition B — the same behavioral guidance delivered as a corpus of named
+	// patterns instead of a duty specification. Read against DutyOnly it is the
+	// behavioral-equivalence contrast: do two delivery routes for the same guidance
+	// produce equivalent conduct? Baseline is the assay's Condition C (brief only).
+	CorpusOnly Condition = "corpus_only"
 )
 
 // Materials are the text inputs a probe assembles a prompt from. Glyph, Ground,
@@ -57,6 +69,12 @@ type Materials struct {
 	// OffTarget is the coherent-but-off-class glyph for the OffTargetGlyph
 	// control condition.
 	OffTarget string
+	// Duty is the duty specification for the DutyOnly (Condition A) condition of
+	// the behavioral-equivalence assay.
+	Duty string
+	// Corpus is the corpus of named behavioral patterns for the CorpusOnly
+	// (Condition B) condition of the behavioral-equivalence assay.
+	Corpus string
 }
 
 // AssemblePrompt builds the probe prompt for a condition. The "\n---\n"
@@ -69,6 +87,8 @@ type Materials struct {
 //	imperative_only → imperative "---" scenario
 //	scrambled_glyph → scrambled "---" scenario
 //	off_target_glyph → off-target glyph "---" scenario
+//	duty_only       → duty "---" scenario
+//	corpus_only     → corpus "---" scenario
 //
 // It returns an error when a condition's required material is missing, rather
 // than silently emitting a malformed prompt.
@@ -96,6 +116,16 @@ func AssemblePrompt(cond Condition, m Materials) (string, error) {
 			return "", fmt.Errorf("assay: %s condition requires an off-target glyph", cond)
 		}
 		return fmt.Sprintf("%s\n---\n%s", m.OffTarget, m.Scenario), nil
+	case DutyOnly:
+		if m.Duty == "" {
+			return "", fmt.Errorf("assay: %s condition requires a duty specification", cond)
+		}
+		return fmt.Sprintf("%s\n---\n%s", m.Duty, m.Scenario), nil
+	case CorpusOnly:
+		if m.Corpus == "" {
+			return "", fmt.Errorf("assay: %s condition requires a corpus", cond)
+		}
+		return fmt.Sprintf("%s\n---\n%s", m.Corpus, m.Scenario), nil
 	case GroundedGlyph:
 		if m.Glyph == "" {
 			return "", fmt.Errorf("assay: %s condition requires a glyph", cond)

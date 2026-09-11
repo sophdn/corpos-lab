@@ -198,10 +198,59 @@ func TestValidateRejectsConditionMaterialGaps(t *testing.T) {
 	if _, err := LoadDef(writeDef(t, noOffTarget, map[string]string{"s.md": "S"})); err == nil {
 		t.Fatal("expected off_target-required error")
 	}
+	// duty_only without a duty material.
+	noDuty := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"i\"\nimage=\"x\"\nconditions=[\"duty_only\"]\nruns_per_cell=1\n[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n[materials]\nscenario=\"s.md\"\n" + samplingBlock
+	if _, err := LoadDef(writeDef(t, noDuty, map[string]string{"s.md": "S"})); err == nil {
+		t.Fatal("expected duty-required error")
+	}
+	// corpus_only without a corpus material.
+	noCorpus := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"i\"\nimage=\"x\"\nconditions=[\"corpus_only\"]\nruns_per_cell=1\n[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n[materials]\nscenario=\"s.md\"\n" + samplingBlock
+	if _, err := LoadDef(writeDef(t, noCorpus, map[string]string{"s.md": "S"})); err == nil {
+		t.Fatal("expected corpus-required error")
+	}
 	// unknown condition.
 	unknown := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"i\"\nimage=\"x\"\nconditions=[\"teleport\"]\nruns_per_cell=1\n[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n[materials]\nscenario=\"s.md\"\n" + samplingBlock
 	if _, err := LoadDef(writeDef(t, unknown, map[string]string{"s.md": "S"})); err == nil {
 		t.Fatal("expected unknown-condition error")
+	}
+}
+
+// The behavioral-equivalence conditions materialize their guidance into the
+// container contract as duty.md and corpus.md, alongside the scenario, with no
+// glyph. Baseline (Condition C, brief-only) carries neither.
+func TestMaterializeCopiesBehavioralEquivalenceMaterials(t *testing.T) {
+	body := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"behavioral-equivalence\"\n" +
+		"image=\"x\"\nconditions=[\"baseline\",\"duty_only\",\"corpus_only\"]\nruns_per_cell=1\n" +
+		"[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n" +
+		"[materials]\nscenario=\"s.md\"\nduty=\"duty.md\"\ncorpus=\"corpus.md\"\n" + samplingBlock
+	d, err := LoadDef(writeDef(t, body, map[string]string{"s.md": "SCENARIO", "duty.md": "DUTY", "corpus.md": "CORPUS"}))
+	if err != nil {
+		t.Fatalf("LoadDef: %v", err)
+	}
+	inDir := filepath.Join(t.TempDir(), "in")
+	if err := d.Materialize(inDir); err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
+	duty, err := os.ReadFile(filepath.Join(inDir, "duty.md"))
+	if err != nil || string(duty) != "DUTY" {
+		t.Fatalf("duty.md = %q, err %v", duty, err)
+	}
+	corpus, err := os.ReadFile(filepath.Join(inDir, "corpus.md"))
+	if err != nil || string(corpus) != "CORPUS" {
+		t.Fatalf("corpus.md = %q, err %v", corpus, err)
+	}
+	spec, err := runner.LoadSpec(inDir)
+	if err != nil {
+		t.Fatalf("LoadSpec: %v", err)
+	}
+	if spec.Materials.Duty != "duty.md" || spec.Materials.Corpus != "corpus.md" {
+		t.Fatalf("spec behavioral-equivalence materials = %q / %q", spec.Materials.Duty, spec.Materials.Corpus)
+	}
+	if spec.Materials.Glyph != "" {
+		t.Fatalf("behavioral-equivalence study must carry no glyph, got %q", spec.Materials.Glyph)
+	}
+	if _, err := os.Stat(filepath.Join(inDir, "glyph.md")); !os.IsNotExist(err) {
+		t.Fatal("glyph.md should not exist for a behavioral-equivalence study")
 	}
 }
 
@@ -568,5 +617,30 @@ func TestMaterializeReportsMissingMaterialFile(t *testing.T) {
 	}
 	if err := d.Materialize(filepath.Join(t.TempDir(), "in")); err == nil {
 		t.Fatal("expected missing-material error")
+	}
+}
+
+// A behavioral-equivalence def that names duty.md and corpus.md but leaves one
+// off disk fails at Materialize, through the duty/corpus copy branches — a
+// named-but-missing material is an error, never a silent empty guidance block.
+func TestMaterializeReportsMissingBehavioralEquivalenceFiles(t *testing.T) {
+	body := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"i\"\nimage=\"x\"\n" +
+		"conditions=[\"duty_only\",\"corpus_only\"]\nruns_per_cell=1\n[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n" +
+		"[materials]\nscenario=\"s.md\"\nduty=\"duty.md\"\ncorpus=\"corpus.md\"\n" + samplingBlock
+	// duty present, corpus absent.
+	d, err := LoadDef(writeDef(t, body, map[string]string{"s.md": "S", "duty.md": "DUTY"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Materialize(filepath.Join(t.TempDir(), "in")); err == nil {
+		t.Fatal("expected missing-corpus-material error")
+	}
+	// corpus present, duty absent.
+	d2, err := LoadDef(writeDef(t, body, map[string]string{"s.md": "S", "corpus.md": "CORPUS"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := d2.Materialize(filepath.Join(t.TempDir(), "in")); err == nil {
+		t.Fatal("expected missing-duty-material error")
 	}
 }

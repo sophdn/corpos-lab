@@ -1,0 +1,68 @@
+# Behavioral-equivalence assay — reformulated — general model: Qwen3.8-27B Q4_K_M (thinking OFF)
+#
+# Second substrate for the behavioral-equivalence contrast (INQUIRY.md "Two
+# substrates"). Same design, materials, and sampler as the Mistral arm; only the
+# model and its instruct wrapper differ.
+#
+# WHY NOT Qwen2.5-32B. The first choice for the general arm was Qwen2.5-32B, to
+# match the matched-content grids. Qwen2.5-32B plus a 32768-token KV cache
+# exceeds the 24 GB GPU on the one portal (a cudaMalloc OOM at load), and the
+# served context is baked into the portal image — shrinking it is a change to a
+# different repo's image, out of scope here (CLAUDE.md "Swap once"; the memory
+# note one-local-inference-portal). Qwen3.8-27B is the general Qwen arm that fits
+# the portal as served, so the study stays "Mistral and Qwen" on one portal.
+#
+# Qwen3.8 is a THINKING model; thinking is pinned OFF in the wrapper (the closed
+# empty <think> block), never left to default (CLAUDE.md study discipline). Off is
+# the mode that matches the Mistral arm's single-shot instruct behavior.
+#
+# Run: corpos-lab run-study studies/behavioral-equivalence-assay/study.qwen38.toml \
+#        -work studies/behavioral-equivalence-assay/runs/qwen38
+# Material paths resolve relative to THIS file.
+
+name = "behavioral-equivalence-qwen38"
+assay = "grounded-glyph-probe"
+item_id = "behavioral-equivalence"
+
+image = "localhost/lab-grounded-glyph-probe@sha256:d420b80f40889fec709f15067f5eccd8ad8219d3b616c7d53f2be45ec284f792"
+network = "corpos-net"
+
+conditions = ["baseline", "duty_only", "corpus_only"]
+runs_per_cell = 8
+
+[model]
+# Reached over corpos-net by container DNS. SWAP on llama-server (:8081) via
+# sophdn-llama-server/scripts/swap-model.sh — never a second inference server.
+base_url = "http://llama-server:8081/v1"
+model_id = "Qwen3.8-27B-Q4_K_M.gguf"
+version = "q4km"
+# Raw /completion, Qwen3.x chatml wrapper with thinking pinned OFF (the closed
+# empty <think></think> block, per studies/REPRODUCIBILITY.md). Same no-tools
+# notice as the Mistral arm so the prompt body is matched across models.
+endpoint = "completion"
+prompt_template = "<|im_start|>user\n{prompt}\n\n---\nNote: You are running as a single completion. There is no harness, no tools, no filesystem, no shell. You cannot call functions or read files. Give your answer directly as text.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+
+[materials]
+scenario = "materials/scenario.md"
+duty     = "materials/duty.md"
+corpus   = "materials/corpus.md"
+
+# Sampler chain — lab-standard, byte-identical to the Mistral arm.
+[sampling]
+temperature = 0.8
+seeds = [1, 2, 3, 4, 5, 6, 7, 8]
+max_tokens = 4096
+
+top_n_sigma = -1.0
+top_k = 0
+typical_p = 1.0
+top_p = 1.0
+min_p = 0.05
+
+repeat_penalty = 1.0
+repeat_last_n = 0
+presence_penalty = 0.0
+frequency_penalty = 0.0
+
+xtc_probability = 0.0
+dry_multiplier = 0.0

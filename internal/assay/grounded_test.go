@@ -156,6 +156,44 @@ func TestAssemblePromptRejectsUnknownCondition(t *testing.T) {
 	}
 }
 
+// Behavioral-equivalence Condition A: the duty specification takes the guidance
+// slot — same delimiter and shape as GlyphOnly, no glyph. A glyph present in
+// Materials must not leak into the prompt.
+func TestAssemblePromptDutyOnlyConcatsDutyAndScenario(t *testing.T) {
+	got, err := AssemblePrompt(DutyOnly, Materials{Scenario: "S", Glyph: "G", Duty: "DUTY"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "DUTY\n---\nS" {
+		t.Fatalf("got %q, want DUTY\\n---\\nS", got)
+	}
+}
+
+func TestAssemblePromptRejectsMissingDuty(t *testing.T) {
+	// A glyph present but no duty must still fail: Condition A carries the duty,
+	// never the glyph as a fallback.
+	if _, err := AssemblePrompt(DutyOnly, Materials{Scenario: "S", Glyph: "G"}); err == nil {
+		t.Fatal("expected error for missing duty")
+	}
+}
+
+// Behavioral-equivalence Condition B: the corpus takes the guidance slot.
+func TestAssemblePromptCorpusOnlyConcatsCorpusAndScenario(t *testing.T) {
+	got, err := AssemblePrompt(CorpusOnly, Materials{Scenario: "S", Duty: "DUTY", Corpus: "CORPUS"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "CORPUS\n---\nS" {
+		t.Fatalf("got %q, want CORPUS\\n---\\nS", got)
+	}
+}
+
+func TestAssemblePromptRejectsMissingCorpus(t *testing.T) {
+	if _, err := AssemblePrompt(CorpusOnly, Materials{Scenario: "S", Duty: "DUTY"}); err == nil {
+		t.Fatal("expected error for missing corpus")
+	}
+}
+
 // testSampling is a sampled (non-greedy) regime with one seed per replicate —
 // the shape a real graded study declares. The chain is complete and neutral:
 // min_p is the only live truncation stage, every other stage pinned to its
