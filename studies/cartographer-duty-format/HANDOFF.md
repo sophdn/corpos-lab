@@ -54,10 +54,17 @@ scores/ANALYSIS_DUTY.txt, scores/IRR.md.
      the program's word for a hazard, or change "per-taboo" to "per-hazard" and
      keep "meta-taboo scan" as the antecedent study's proper name with a one-clause
      gloss.
-   - **Reader A (record-facing) was still running when we paused** — read its
-     findings (scratchpad task `a595d06cd39b962f9`) or just re-run Reader A on the
-     fixed commit. Both readers must return "None" on the SAME commit; a pass that
-     ends in a fix is not clean.
+   - **Reader A (record-facing) round 1 is complete: NOT CLEAN, one low finding.**
+     Every coverage count, per-duty mean, per-taboo count, p-value, IRR figure,
+     slug count, sampler parameter, and all provenance fields recompute and MATCH.
+     - **F4** The Agents table gives the Subject run date as 2026-09-11, but the
+       run record's only timestamps are 2026-09-12 UTC (started 01:07Z, finished
+       02:35Z). Reconcilable only under an unstated local timezone (UTC-2 or
+       further west). Fix: change the Subject date to 2026-09-12, or add a note
+       that study dates are in the operator's local timezone (the record stores
+       UTC). Consider aligning the other Agents-table dates too.
+   Both readers must return "None" on the SAME commit; a pass that ends in a fix
+   is not clean, so after fixing F1-F4 re-run BOTH Reader A and Reader B.
 2. **Bibliography gate is blocked, not failing.** `paper_gate.py` passes every
    check except the arXiv metadata fetch, which returns HTTP 429 (rate-limited)
    for three of four entries; `gloaguen2026agents` verified this session. The four
