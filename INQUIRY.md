@@ -147,6 +147,13 @@ as a commitment, but because surprise is where the learning is. Drop the
 confidence scores; they were theatre. The one real constraint: predictions never
 enter any file a subject or judge model can see.
 
+**Reconcile library predictions at study close.** A study that proves or disproves
+a claim a library entry makes records the verdict (confirmed / refuted / partially
+held) and cites, updates, promotes, or retires the entry before the result is
+filed — the library must not drift from the evidence it was built to predict.
+`paper-authoring` item 9 carries the paper-time half (cite what the paper
+confirms); this covers the studies that never become a paper.
+
 **Mechanism controls.** When a study reports that a glyph changed behaviour — a
 register shift, a suppression, a gating effect — the first question is *what about
 the glyph did it*: the three-axis structure, the comprehension of its content, or
