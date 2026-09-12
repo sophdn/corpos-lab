@@ -45,6 +45,11 @@ type MaterialsDef struct {
 	OffTarget  string `toml:"off_target"`
 	Duty       string `toml:"duty"`
 	Corpus     string `toml:"corpus"`
+	// Annotated, Cartographer, and CartographerScan are the design instruments for
+	// the cartographer-duty-format assay's three format conditions.
+	Annotated        string `toml:"annotated"`
+	Cartographer     string `toml:"cartographer"`
+	CartographerScan string `toml:"cartographer_scan"`
 }
 
 // SamplingDef is the study's declared sampling regime.
@@ -191,6 +196,18 @@ func (d Def) validate() error {
 		case assay.CorpusOnly:
 			if d.Materials.Corpus == "" {
 				return fmt.Errorf("study: condition %q requires materials.corpus", c)
+			}
+		case assay.AnnotatedInstrument:
+			if d.Materials.Annotated == "" {
+				return fmt.Errorf("study: condition %q requires materials.annotated", c)
+			}
+		case assay.CartographerInstrument:
+			if d.Materials.Cartographer == "" {
+				return fmt.Errorf("study: condition %q requires materials.cartographer", c)
+			}
+		case assay.CartographerScanInstrument:
+			if d.Materials.CartographerScan == "" {
+				return fmt.Errorf("study: condition %q requires materials.cartographer_scan", c)
 			}
 		default:
 			return fmt.Errorf("study: unknown condition %q", c)
@@ -415,6 +432,24 @@ func (d Def) Materialize(inDir string) error {
 			return err
 		}
 		mats.Corpus = "corpus.md"
+	}
+	if d.Materials.Annotated != "" {
+		if err := d.copyMaterial(d.Materials.Annotated, filepath.Join(inDir, "annotated.md")); err != nil {
+			return err
+		}
+		mats.Annotated = "annotated.md"
+	}
+	if d.Materials.Cartographer != "" {
+		if err := d.copyMaterial(d.Materials.Cartographer, filepath.Join(inDir, "cartographer.md")); err != nil {
+			return err
+		}
+		mats.Cartographer = "cartographer.md"
+	}
+	if d.Materials.CartographerScan != "" {
+		if err := d.copyMaterial(d.Materials.CartographerScan, filepath.Join(inDir, "cartographer_scan.md")); err != nil {
+			return err
+		}
+		mats.CartographerScan = "cartographer_scan.md"
 	}
 
 	spec := runner.StudySpec{
