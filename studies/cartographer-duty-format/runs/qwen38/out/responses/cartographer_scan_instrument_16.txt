@@ -1,0 +1,148 @@
+# Duty: `repair-duty`
+
+**Scope:** This duty governs the repair of a confirmed software defect with a known locus. The executor receives this text and the specific defect context (e.g., file path, line number, description of failure). The executor must not consult external registries, style guides, or historical canon at runtime.
+
+**Principle:** The repair act is a state transition from *broken* to *functionally correct* without introducing new divergences. The gates below are derived from first-principles analysis of that transition.
+
+---
+
+## Phase 1: Pre-Repair Verification (Upstream Routing)
+
+*This phase addresses routing-class hazards. It verifies that the act is a repair, not a redesign, refactor, or feature addition, and that the locus is valid.*
+
+### Gate 1.1: Locus Confirmation
+- **Verifies:** The defect’s locus is precisely identified and reproducible.
+- **Requires Completion Of:**
+  1. The executor can state the exact file path and line number(s) where the defect manifests.
+  2. The executor has reproduced the defect in isolation (e.g., via a minimal test case or direct execution) that triggers the specific failure described (e.g., `ZeroDivisionError` for empty input).
+  3. The executor confirms that the failure is not due to environment misconfiguration, dependency mismatch, or transient state, but is inherent to the code at the locus.
+
+### Gate 1.2: Intent Boundary Check
+- **Verifies:** The scope of work is strictly limited to fixing the defect, not altering unrelated behavior.
+- **Requires Completion Of:**
+  1. The executor has identified the minimal set of code changes required to resolve the defect.
+  2. The executor has explicitly listed any code *not* to be changed, even if it appears stylistically inconsistent or suboptimal.
+  3. The executor confirms that the repair does not alter the public API, function signatures, or return types unless the defect *is* a type/API mismatch. In the case of `calculate_average([])`, the signature `def calculate_average(values: list) -> float` must remain unchanged unless the defect is defined as a type error. Here, the defect is a runtime error, so the signature is preserved.
+
+---
+
+## Phase 2: Repair Execution
+
+*This phase addresses the core act of modification. It ensures the change is correct, minimal, and handles edge cases implied by the defect.*
+
+### Gate 2.1: Edge-Case Enumeration
+- **Verifies:** The repair accounts for all input conditions that could trigger the defect or related failures.
+- **Requires Completion Of:**
+  1. The executor has enumerated all boundary conditions relevant to the defect. For a division-by-zero error on empty list, this includes:
+     - Empty input (`[]`)
+     - Single-element input (`[1]`)
+     - Multi-element input (`[1, 2]`)
+     - Input with `None` or non-numeric elements (if applicable to the domain; if the type hint is `list`, the executor must decide whether to validate types or let them propagate. *First-principles note: if the original code did not validate types, the repair should not add validation unless the defect is a type error. Here, the defect is division by zero, so type validation is out of scope unless it causes the zero division.*)
+  2. The executor has determined the expected behavior for each boundary condition. For `calculate_average([])`, the expected behavior must be defined. *First-principles note: A repair must define what "correct" means. If the domain expects an error for empty input, the repair is to raise a custom exception. If it expects a default value, the repair is to return that value. If it expects `None`, the repair is to return `None`. The executor must choose based on the defect’s context. In the absence of a specified domain contract, the safest repair is to preserve the function’s contract by raising a clear, informative error or returning a neutral value. However, since the locus is the division, the minimal repair is to guard the division. The executor must decide: raise `ValueError("Cannot average empty list")` or return `0.0`? *First-principles analysis: Returning `0.0` is mathematically misleading. Raising `ValueError` is explicit. The defect is an unhandled `ZeroDivisionError`. The repair should replace the implicit `ZeroDivisionError` with an explicit, domain-appropriate error. Thus, the repair is to check for empty list and raise `ValueError`.*
+
+### Gate 2.2: Minimal Change Application
+- **Verifies:** The code change is minimal and directly addresses the defect.
+- **Requires Completion Of:**
+  1. The executor modifies only the lines necessary to handle the edge case(s) identified in Gate 2.1.
+  2. The change does not introduce new variables, functions, or imports unless strictly necessary for the guard clause.
+  3. The change preserves the original code structure and indentation.
+  4. For the domain anchor (`calculator.py`), the repair must replace the direct division with a guarded operation. Example:
+     ```python
+     def calculate_average(values: list) -> float:
+         if not values:
+             raise ValueError("Cannot calculate average of an empty list")
+         return sum(values) / len(values)
+     ```
+  5. The executor ensures that the new code does not alter the behavior for non-empty lists.
+
+### Gate 2.3: Consistency Check
+- **Verifies:** The repair is consistent with the surrounding code.
+- **Requires Completion Of:**
+  1. The error message (if any) follows the convention of other error messages in the file or module, if discernible. If no convention exists, the message should be clear and descriptive.
+  2. The variable names and function names are unchanged.
+  3. The docstring (if present) is updated if the behavior has changed. In this case, if there was no docstring, none is added unless required by the duty’s context. If there was a docstring stating "Returns the average of values," it may need a note about empty lists. *First-principles note: If the original code had no docstring, adding one is a non-minimal change. The duty requires minimal change. Thus, no docstring is added unless it already exists and needs correction.*
+
+---
+
+## Phase 3: Post-Repair Verification
+
+*This phase addresses the confirmation of correctness. It ensures the repair works and does not break existing functionality.*
+
+### Gate 3.1: Regression Test Execution
+- **Verifies:** The repair fixes the defect and does not introduce new failures.
+- **Requires Completion Of:**
+  1. The executor runs the original failing test case (e.g., `calculate_average([])`) and confirms that the expected new behavior occurs (e.g., `ValueError` is raised).
+  2. The executor runs a set of passing test cases that were previously working (e.g., `calculate_average([1, 2, 3])` returns `2.0`, `calculate_average([1])` returns `1.0`) and confirms they still pass.
+  3. The executor confirms that no new exceptions are raised for any input that was previously valid.
+
+### Gate 3.2: Edge-Case Validation
+- **Verifies:** The repair handles all enumerated edge cases correctly.
+- **Requires Completion Of:**
+  1. The executor tests the boundary conditions identified in Gate 2.1.
+  2. For the domain anchor, the executor confirms:
+     - `calculate_average([])` raises `ValueError`.
+     - `calculate_average([1])` returns `1.0`.
+     - `calculate_average([1, 2])` returns `1.5`.
+  3. If the repair introduced type validation (which it should not, per Gate 1.2), the executor would test `None` inputs. Since it did not, this is skipped.
+
+---
+
+## Phase 4: Session Close-Out
+
+*This phase addresses session-close-obligation hazards. It ensures that all discoveries and context are recorded before the session ends, preventing loss of knowledge or incomplete handover.*
+
+### Gate 4.1: Discovery Log
+- **Verifies:** All non-obvious insights, assumptions, or deviations from expected behavior are documented.
+- **Requires Completion Of:**
+  1. The executor records any assumptions made during the repair (e.g., "Assumed that empty list should raise ValueError, not return 0.0, based on mathematical convention").
+  2. The executor records any code that was intentionally *not* changed despite appearing suboptimal (e.g., "Did not add type checking for `values` because the defect was only division by zero").
+  3. The executor records any potential risks or follow-ups (e.g., "This repair does not handle `None` in the list; if `None` is a valid input, a separate defect should be filed").
+
+### Gate 4.2: Handover Summary
+- **Verifies:** The repair is fully described for future maintainers.
+- **Requires Completion Of:**
+  1. The executor writes a brief summary of the change, including:
+     - The file and lines changed.
+     - The reason for the change (defect description).
+     - The expected new behavior.
+     - Any tests that were run.
+  2. The executor confirms that the code is ready for review or commit. No temporary debugging code, print statements, or comments are left in the final code.
+
+### Gate 4.3: Canonical State Check
+- **Verifies:** The repository is left in a clean state.
+- **Requires Completion Of:**
+  1. The executor confirms that no untracked files (e.g., test scripts, backup files) are left in the workspace.
+  2. The executor confirms that the code is formatted according to the project’s standard (if discernible from existing code). If no standard is discernible, the executor preserves the original formatting.
+  3. The executor confirms that the defect is no longer reproducible in the final state of the code.
+
+---
+
+## Meta-Taboo Scan
+
+*This section explicitly scans for hazards that are not derived from the repair act itself but from the execution environment and session lifecycle. These hazards are encoded as structural gates above.*
+
+### Routing-Class Hazards (Upstream)
+- **Hazard:** The executor might start repairing without confirming that a repair is the correct action. For example, the situation might call for a feature addition, a configuration change, or a data migration, not a code fix.
+- **Structural Gate:** **Gate 1.1 (Locus Confirmation)** and **Gate 1.2 (Intent Boundary Check)**. These gates force the executor to confirm the defect is real, reproducible, and located in code, and to define the scope as a repair, not a redesign.
+
+### Session-Close-Obligation Hazards (Downstream)
+- **Hazard:** The executor might complete the repair but fail to record assumptions, edge cases, or follow-ups, leading to loss of context when the session ends. Future maintainers may not understand why a certain choice was made or may reintroduce the defect.
+- **Structural Gate:** **Gate 4.1 (Discovery Log)** and **Gate 4.2 (Handover Summary)**. These gates require the executor to document all non-obvious decisions and provide a clear summary of the change before the session closes.
+
+### Additional Meta-Taboo: Implicit Context
+- **Hazard:** The executor might rely on implicit context (e.g., "everyone knows that empty lists should raise ValueError") without explicitly stating it, leading to divergent repairs in different contexts.
+- **Structural Gate:** **Gate 2.1 (Edge-Case Enumeration)** and **Gate 4.1 (Discovery Log)**. These gates force the executor to explicitly enumerate edge cases and record assumptions, making the repair self-contained and auditable.
+
+---
+
+## Execution Summary for Executor
+
+1. **Confirm** the defect is real and located at the stated locus.
+2. **Define** the scope as a minimal repair, not a refactor.
+3. **Enumerate** all edge cases that could trigger the defect or related failures.
+4. **Apply** the minimal code change to handle the edge cases.
+5. **Test** the repair against the original failure and existing passing cases.
+6. **Document** all assumptions, decisions, and follow-ups.
+7. **Clean** the workspace and confirm the defect is no longer reproducible.
+
+**End of Duty**

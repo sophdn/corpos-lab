@@ -1,0 +1,90 @@
+# repair-duty
+
+## 1. Taboos
+
+The following taboos from the registry apply to this duty. Each maps to a specific gate in Section 2 that prevents the divergence point described in the registry.
+
+| Taboo | Application to this Duty |
+|-------|--------------------------|
+| `triggers-routing` | The duty must prevent execution of a repair workflow if the incoming prompt has not been confirmed as a repair task requiring a known locus, rather than an investigation or other action. |
+| `explicit-prerequisite-gate` | The duty must prevent repair steps from beginning unless a confirmed locus record (file, line, failure mode) exists and is explicitly cited. |
+| `investigation-fix-criterion-predeclaration` | The duty must prevent any code modification from occurring before a specific, observable passing criterion for the fix is declared. |
+| `investigation-fix-scope-boundary` | The duty must prevent the fix from touching lines outside the confirmed locus, preventing opportunistic refactoring or adjacent edits. |
+| `fix-locus-identification` | The duty must prevent the application of the fix to a consumer (caller) rather than the canonical source location defined by the locus. |
+| `fix-attempt-root-cause-reassessment` | The duty must prevent a second repair attempt if the first fails, unless the root cause analysis is revised and re-cited. |
+| `investigation-advisory-fix-durability` | The duty must prevent the acceptance of non-structural fixes (comments, docs) without a check confirming they cannot be bypassed by the caller. |
+| `completion-evidence-required` | The duty must prevent declaring the repair complete without a co-located verification artifact (e.g., test output). |
+| `document-claim-verification` | The duty must prevent verification from relying on written assertions of success rather than observed execution results. |
+| `known-constraint-documentation` | The duty must prevent session closure if environmental constraints discovered during repair are not recorded. |
+
+## 2. Gates
+
+### Gate 1: Routing Confirmation
+*Taboo: `triggers-routing`*
+
+*   **When the gate fires:** Upon receipt of a prompt requesting action on a software defect.
+*   **When the gate does not fire:** If the prompt explicitly defines a routing context that has already been validated by an upstream process not covered by this duty.
+*   **Rejection clause:** Reject execution if the prompt is not confirmed as a repair task with a known locus. If the prompt requires diagnosis of an unknown failure mode, the duty halts and redirects to an investigation protocol. This blocks the divergence where a repair execution begins before routing is confirmed, preventing a misrouted prompt from running a repair where an investigation was needed, or the reverse.
+
+### Gate 2: Locus Record Verification
+*Taboo: `explicit-prerequisite-gate`*
+
+*   **When the gate fires:** Immediately after routing confirmation, before any repair planning or code access.
+*   **When the gate does not fire:** Never. This gate is mandatory for all repair duties.
+*   **Rejection clause:** Reject entry into the repair phase if a confirmed locus record is not present. The record must explicitly name the file path, the specific line number(s), and the failure mode (e.g., `ZeroDivisionError`). This blocks the divergence where repair begins without a confirmed locus record, ensuring the anchor to the root cause is established before any change is considered.
+
+### Gate 3: Passing Criterion Declaration
+*Taboo: `investigation-fix-criterion-predeclaration`*
+
+*   **When the gate fires:** After the locus record is verified, but before any modification of code.
+*   **When the gate does not fire:** Never. This gate is mandatory for all repair duties.
+*   **Rejection clause:** Reject any code modification if a specific, observable passing criterion has not been declared. The criterion must define the exact input (e.g., `calculate_average([])`) and the expected output/behavior (e.g., "Returns 0.0" or "Raises ValueError") that constitutes a fix. This blocks the divergence where a fix attempt begins before a passing criterion is declared, preventing the criterion from being fitted to whatever change was made.
+
+### Gate 4: Scope Boundary Check
+*Taboo: `investigation-fix-scope-boundary`*
+
+*   **When the gate fires:** During the drafting of the proposed change, before application.
+*   **When the gate does not fire:** If the change is strictly confined to the lines named in the confirmed locus record.
+*   **Rejection clause:** Reject the proposed change if it touches any lines not explicitly named in the confirmed locus record. This includes refactoring adjacent functions, adding imports unrelated to the fix, or modifying comments on non-target lines. This blocks the divergence where a change touches lines the confirmed locus did not name, preventing opportunistic adjacent edits that break the anchor to the root cause.
+
+### Gate 5: Canonical Source Verification
+*Taboo: `fix-locus-identification`*
+
+*   **When the gate fires:** During the review of the proposed change, before application.
+*   **When the gate does not fire:** If the change is applied directly to the function definition or logic block identified in the locus record.
+*   **Rejection clause:** Reject the fix if it is applied to a call site, consumer, or wrapper rather than the canonical source location defined by the locus. For example, wrapping `calculate_average` in a try/except block at the call site is rejected; the fix must modify `calculate_average` itself. This blocks the divergence where the fix is applied to a call site or consumer, leaving the canonical source location unchanged and potentially masking the defect.
+
+### Gate 6: Attempt Limit and Root-Cause Reassessment
+*Taboo: `fix-attempt-root-cause-reassessment`*
+
+*   **When the gate fires:** If the first fix attempt fails to meet the passing criterion declared in Gate 3.
+*   **When the gate does not fire:** If the first fix attempt succeeds.
+*   **Rejection clause:** Reject any second fix attempt unless a revised root-cause citation is provided. The executor must explicitly state why the initial root-cause analysis was incorrect and what new evidence supports the revised analysis. This blocks the divergence where a second fix attempt follows a failed one without a revised root-cause citation, preventing blind trial-and-error that obscures the true defect.
+
+### Gate 7: Advisory Fix Durability Check
+*Taboo: `investigation-advisory-fix-durability`*
+
+*   **When the gate fires:** If the proposed fix is non-structural (e.g., adding a comment, docstring warning, or logging message) rather than a code logic change.
+*   **When the gate does not fire:** If the fix is a structural change to code logic that prevents the failure mode.
+*   **Rejection clause:** Reject the fix if it is an advisory measure (comment, docstring, warning) without a durability check confirming that a caller cannot bypass it. For example, a comment saying "Pass non-empty lists" is rejected because a caller can still pass an empty list. This blocks the divergence where an advisory fix is accepted without a durability check, recognizing that advisory-versus-structural durability is a distinction learned from accumulated observation, not derived from the defect.
+
+### Gate 8: Co-located Verification Artifact
+*Taboo: `completion-evidence-required`*
+
+*   **When the gate fires:** After the fix has been applied and the code is ready for final review.
+*   **When the gate does not fire:** Never. This gate is mandatory for all repair duties.
+*   **Rejection clause:** Reject the declaration of completion if a co-located verification artifact is not present. The artifact must be a test case, script output, or log entry that demonstrates the specific passing criterion from Gate 3 has been met. This blocks the divergence where the repair is declared complete without a co-located verification artifact.
+
+### Gate 9: Observed Result Verification
+*Taboo: `document-claim-verification`*
+
+*   **When the gate fires:** During the final review of the verification artifact provided in Gate 8.
+*   **When the gate does not fire:** Never. This gate is mandatory for all repair duties.
+*   **Rejection clause:** Reject the verification if it consists solely of a written claim (e.g., "The fix should work") without an observed test result or output. The executor must provide the actual output from running the verification artifact. This blocks the divergence where verification is by written claim rather than an observed test result or output, ensuring that success is empirically demonstrated.
+
+### Gate 10: Environmental Constraint Documentation
+*Taboo: `known-constraint-documentation`*
+
+*   **When the gate fires:** Before the session is closed or the duty is marked as complete.
+*   **When the gate does not fire:** If no new environmental constraints were discovered during the repair process.
+*   **Rejection clause:** Reject session closure if any environmental constraints (e.g., "Python version 3.10 required for this fix," "Test suite must be run in isolated environment") discovered during repair are not recorded in the duty log or adjacent documentation. This blocks the divergence where an environmental constraint is not recorded before the session closes, ensuring that future repairs have the necessary context.
