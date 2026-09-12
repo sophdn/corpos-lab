@@ -1,0 +1,143 @@
+# Duty: `repair-duty`
+
+**Scope**: This duty governs the act of repairing a confirmed software defect at a known locus. It applies to any office executing a repair. The executor holds only this text; no external registry, canon, or prior context is required.
+
+**Prerequisites**:
+1. The defect is confirmed (the failure is reproducible and understood).
+2. The locus is known (the specific file and line where the defect manifests is identified).
+
+---
+
+## Phase 1: Locus Confirmation and Context Isolation
+
+The repair act begins by verifying that the executor is looking at the correct artifact and that the defect is real. A repair that targets the wrong line, or a defect that is not actually present, is a divergence from the start.
+
+### Gate 1.1: Verify Locus Identity
+**What it verifies**: That the file, line number, and function signature cited in the defect report match the actual source code.
+**What completing it requires**:
+- Open the file specified in the defect report.
+- Locate the line specified.
+- Confirm that the code at that line is the code described in the defect report (e.g., the function name, the expression, the operator).
+- If the code does not match, the locus is invalid. Halt. Do not proceed.
+
+### Gate 1.2: Verify Defect Reproduction
+**What it verifies**: That the defect actually occurs when the code at the locus is executed with the failing input.
+**What completing it requires**:
+- Execute the function at the locus with the input that triggers the defect (e.g., `calculate_average([])`).
+- Observe the failure (e.g., `ZeroDivisionError`).
+- Confirm that the failure originates from the locus (the stack trace or error message points to the line identified in Gate 1.1).
+- If the defect does not reproduce, the defect is not confirmed. Halt. Do not proceed.
+
+### Gate 1.3: Isolate the Locus from Side Effects
+**What it verifies**: That the locus is the *only* place in the codebase that needs to change to fix this specific defect, and that changing it will not inadvertently alter unrelated behavior.
+**What completing it requires**:
+- Identify all callers of the function at the locus.
+- Determine if any caller relies on the *current* defective behavior (e.g., a caller that explicitly catches the exception and handles it as a valid state).
+- If any caller relies on the defective behavior, the defect is not a simple repair; it is a design conflict. Halt. Escalate. Do not proceed.
+- If no caller relies on the defective behavior, the locus is isolated. Proceed.
+
+---
+
+## Phase 2: Pre-Change Baseline and Specification
+
+Before changing anything, the executor must establish what "correct" looks like and what the current state is, so that the change can be measured against a standard.
+
+### Gate 2.1: Define the Expected Correct Behavior
+**What it verifies**: That there is a clear, unambiguous definition of what the function *should* do when given the failing input.
+**What completing it requires**:
+- State the expected output for the failing input (e.g., "For an empty list, the function should return 0.0" or "For an empty list, the function should raise a `ValueError` with a specific message").
+- If the expected behavior is not explicitly defined in the defect report, derive it from the function's contract (docstring, type hints, or surrounding usage) or from standard library conventions.
+- If the expected behavior is ambiguous, the repair is not ready. Halt. Escalate. Do not proceed.
+
+### Gate 2.2: Capture the Current Defective State
+**What it verifies**: That the executor has a precise record of the current code at the locus, so that the change can be diffed and reviewed.
+**What completing it requires**:
+- Record the exact code at the locus (e.g., `return sum(values) / len(values)`).
+- This record serves as the "before" state for the change log.
+
+### Gate 2.3: Define the Minimal Change
+**What it verifies**: That the proposed change is the smallest possible modification to the locus that achieves the expected behavior defined in Gate 2.1.
+**What completing it requires**:
+- Propose the exact new code for the locus (e.g., `if not values: return 0.0; return sum(values) / len(values)`).
+- Verify that the proposed change does not alter any other part of the function.
+- Verify that the proposed change does not introduce new dependencies (e.g., importing a new module).
+- If the proposed change is not minimal, simplify it. Proceed only when the change is minimal.
+
+---
+
+## Phase 3: Execution of the Change
+
+The repair act now modifies the code. This is the only phase where the file is written to.
+
+### Gate 3.1: Apply the Change
+**What it verifies**: That the code at the locus is exactly the code proposed in Gate 2.3.
+**What completing it requires**:
+- Edit the file at the locus.
+- Replace the old code (Gate 2.2) with the new code (Gate 2.3).
+- Save the file.
+- Re-read the file to confirm the edit was applied correctly.
+
+### Gate 3.2: Verify Syntax and Compilation
+**What it verifies**: That the change has not introduced a syntax error or compilation failure.
+**What completing it requires**:
+- Run a syntax check or compile the file (e.g., `python -m py_compile calculator.py`).
+- If there is a syntax error, the change is invalid. Revert to the state in Gate 2.2. Halt. Do not proceed.
+- If the file compiles, proceed.
+
+---
+
+## Phase 4: Verification of the Repair
+
+The repair is not complete until the defect is gone and no new defects have been introduced.
+
+### Gate 4.1: Verify the Defect is Resolved
+**What it verifies**: That the failing input now produces the expected behavior defined in Gate 2.1.
+**What completing it requires**:
+- Execute the function with the failing input (e.g., `calculate_average([])`).
+- Confirm that the output matches the expected behavior (e.g., returns `0.0` or raises `ValueError` as specified).
+- If the output does not match, the repair failed. Revert to the state in Gate 2.2. Halt. Do not proceed.
+
+### Gate 4.2: Verify No Regressions
+**What it verifies**: That the repair has not broken existing functionality.
+**What completing it requires**:
+- Execute the function with a set of known-good inputs (e.g., `calculate_average([1, 2, 3])`).
+- Confirm that the output matches the expected behavior for these inputs.
+- If any known-good input produces an unexpected result, the repair has introduced a regression. Revert to the state in Gate 2.2. Halt. Do not proceed.
+
+### Gate 4.3: Verify Edge Cases
+**What it verifies**: That the repair handles other edge cases that may be related to the defect.
+**What completing it requires**:
+- Identify other edge cases that could interact with the change (e.g., `calculate_average([0])`, `calculate_average([None])` if type checking is not enforced).
+- Execute the function with these edge cases.
+- Confirm that the behavior is consistent with the function's contract.
+- If an edge case reveals an unintended side effect of the repair, the repair is incomplete. Revert to the state in Gate 2.2. Halt. Do not proceed.
+
+---
+
+## Phase 5: Closure and Documentation
+
+The repair act concludes by recording what was done and why, so that the change is auditable.
+
+### Gate 5.1: Record the Change Log
+**What it verifies**: That there is a clear record of the defect, the locus, the change, and the verification.
+**What completing it requires**:
+- Write a short note containing:
+  - The defect description (e.g., "ZeroDivisionError on empty list").
+  - The locus (e.g., "calculator.py:2").
+  - The change made (e.g., "Added guard clause for empty list").
+  - The verification results (e.g., "Empty list now returns 0.0; no regressions detected").
+
+### Gate 5.2: Confirm Completion
+**What it verifies**: That all gates in Phases 1 through 4 have been passed without halting.
+**What completing it requires**:
+- Review the gates from 1.1 to 4.3.
+- Confirm that each gate was completed as specified.
+- If any gate was halted or skipped, the repair is not complete. Revert to the state in Gate 2.2. Halt. Do not proceed.
+- If all gates are passed, the repair is complete. Proceed to handoff.
+
+### Gate 5.3: Handoff
+**What it verifies**: That the repaired artifact is ready for use by other offices.
+**What completing it requires**:
+- Submit the repaired file to the designated location (e.g., commit to version control, upload to the repository).
+- Notify the requesting office that the repair is complete.
+- The duty is now closed.

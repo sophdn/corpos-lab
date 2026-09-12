@@ -50,6 +50,11 @@ type MaterialsSpec struct {
 	OffTarget  string `json:"off_target,omitempty"`
 	Duty       string `json:"duty,omitempty"`
 	Corpus     string `json:"corpus,omitempty"`
+	// Annotated, Cartographer, and CartographerScan are the design instruments for
+	// the cartographer-duty-format assay's format conditions.
+	Annotated        string `json:"annotated,omitempty"`
+	Cartographer     string `json:"cartographer,omitempty"`
+	CartographerScan string `json:"cartographer_scan,omitempty"`
 }
 
 // StudySpec is the container's /in/study.json — a self-contained description
@@ -201,9 +206,22 @@ func (s StudySpec) loadMaterials(inDir string) (assay.Materials, error) {
 	if err != nil {
 		return assay.Materials{}, err
 	}
+	annotated, err := read(s.Materials.Annotated)
+	if err != nil {
+		return assay.Materials{}, err
+	}
+	cartographer, err := read(s.Materials.Cartographer)
+	if err != nil {
+		return assay.Materials{}, err
+	}
+	cartographerScan, err := read(s.Materials.CartographerScan)
+	if err != nil {
+		return assay.Materials{}, err
+	}
 	return assay.Materials{
 		Scenario: scenario, Glyph: glyph, Ground: ground, Imperative: imperative,
 		Scrambled: scrambled, OffTarget: offTarget, Duty: duty, Corpus: corpus,
+		Annotated: annotated, Cartographer: cartographer, CartographerScan: cartographerScan,
 	}, nil
 }
 

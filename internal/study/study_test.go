@@ -208,10 +208,55 @@ func TestValidateRejectsConditionMaterialGaps(t *testing.T) {
 	if _, err := LoadDef(writeDef(t, noCorpus, map[string]string{"s.md": "S"})); err == nil {
 		t.Fatal("expected corpus-required error")
 	}
+	// cartographer format conditions without their instruments.
+	noAnnotated := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"i\"\nimage=\"x\"\nconditions=[\"annotated_instrument\"]\nruns_per_cell=1\n[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n[materials]\nscenario=\"s.md\"\n" + samplingBlock
+	if _, err := LoadDef(writeDef(t, noAnnotated, map[string]string{"s.md": "S"})); err == nil {
+		t.Fatal("expected annotated-required error")
+	}
+	noCart := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"i\"\nimage=\"x\"\nconditions=[\"cartographer_instrument\"]\nruns_per_cell=1\n[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n[materials]\nscenario=\"s.md\"\n" + samplingBlock
+	if _, err := LoadDef(writeDef(t, noCart, map[string]string{"s.md": "S"})); err == nil {
+		t.Fatal("expected cartographer-required error")
+	}
+	noScan := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"i\"\nimage=\"x\"\nconditions=[\"cartographer_scan_instrument\"]\nruns_per_cell=1\n[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n[materials]\nscenario=\"s.md\"\n" + samplingBlock
+	if _, err := LoadDef(writeDef(t, noScan, map[string]string{"s.md": "S"})); err == nil {
+		t.Fatal("expected cartographer_scan-required error")
+	}
 	// unknown condition.
 	unknown := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"i\"\nimage=\"x\"\nconditions=[\"teleport\"]\nruns_per_cell=1\n[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n[materials]\nscenario=\"s.md\"\n" + samplingBlock
 	if _, err := LoadDef(writeDef(t, unknown, map[string]string{"s.md": "S"})); err == nil {
 		t.Fatal("expected unknown-condition error")
+	}
+}
+
+// The cartographer-duty-format conditions materialize their three design
+// instruments into the container contract as annotated.md, cartographer.md, and
+// cartographer_scan.md, alongside the scenario, with no glyph.
+func TestMaterializeCopiesCartographerMaterials(t *testing.T) {
+	body := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"cartographer-duty-format\"\n" +
+		"image=\"x\"\nconditions=[\"baseline\",\"annotated_instrument\",\"cartographer_instrument\",\"cartographer_scan_instrument\"]\nruns_per_cell=1\n" +
+		"[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n" +
+		"[materials]\nscenario=\"s.md\"\nannotated=\"a.md\"\ncartographer=\"c.md\"\ncartographer_scan=\"cs.md\"\n" + samplingBlock
+	d, err := LoadDef(writeDef(t, body, map[string]string{"s.md": "SCENARIO", "a.md": "ANN", "c.md": "CART", "cs.md": "SCAN"}))
+	if err != nil {
+		t.Fatalf("LoadDef: %v", err)
+	}
+	inDir := filepath.Join(t.TempDir(), "in")
+	if err := d.Materialize(inDir); err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
+	for name, want := range map[string]string{"annotated.md": "ANN", "cartographer.md": "CART", "cartographer_scan.md": "SCAN"} {
+		got, err := os.ReadFile(filepath.Join(inDir, name))
+		if err != nil || string(got) != want {
+			t.Fatalf("%s = %q, err %v", name, got, err)
+		}
+	}
+	spec, err := runner.LoadSpec(inDir)
+	if err != nil {
+		t.Fatalf("LoadSpec: %v", err)
+	}
+	if spec.Materials.Annotated != "annotated.md" || spec.Materials.Cartographer != "cartographer.md" || spec.Materials.CartographerScan != "cartographer_scan.md" {
+		t.Fatalf("spec cartographer materials = %q / %q / %q",
+			spec.Materials.Annotated, spec.Materials.Cartographer, spec.Materials.CartographerScan)
 	}
 }
 

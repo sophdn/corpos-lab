@@ -194,6 +194,54 @@ func TestAssemblePromptRejectsMissingCorpus(t *testing.T) {
 	}
 }
 
+func TestAssemblePromptAnnotatedInstrumentConcatsAnnotatedAndScenario(t *testing.T) {
+	got, err := AssemblePrompt(AnnotatedInstrument, Materials{Scenario: "S", Annotated: "ANN"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "ANN\n---\nS" {
+		t.Fatalf("got %q, want ANN\\n---\\nS", got)
+	}
+}
+
+func TestAssemblePromptRejectsMissingAnnotated(t *testing.T) {
+	if _, err := AssemblePrompt(AnnotatedInstrument, Materials{Scenario: "S"}); err == nil {
+		t.Fatal("expected error for missing annotated instrument")
+	}
+}
+
+func TestAssemblePromptCartographerInstrumentConcatsCartographerAndScenario(t *testing.T) {
+	got, err := AssemblePrompt(CartographerInstrument, Materials{Scenario: "S", Cartographer: "CART"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "CART\n---\nS" {
+		t.Fatalf("got %q, want CART\\n---\\nS", got)
+	}
+}
+
+func TestAssemblePromptRejectsMissingCartographer(t *testing.T) {
+	if _, err := AssemblePrompt(CartographerInstrument, Materials{Scenario: "S"}); err == nil {
+		t.Fatal("expected error for missing cartographer instrument")
+	}
+}
+
+func TestAssemblePromptCartographerScanConcatsScanAndScenario(t *testing.T) {
+	got, err := AssemblePrompt(CartographerScanInstrument, Materials{Scenario: "S", CartographerScan: "SCAN"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "SCAN\n---\nS" {
+		t.Fatalf("got %q, want SCAN\\n---\\nS", got)
+	}
+}
+
+func TestAssemblePromptRejectsMissingCartographerScan(t *testing.T) {
+	if _, err := AssemblePrompt(CartographerScanInstrument, Materials{Scenario: "S"}); err == nil {
+		t.Fatal("expected error for missing cartographer-scan instrument")
+	}
+}
+
 // testSampling is a sampled (non-greedy) regime with one seed per replicate —
 // the shape a real graded study declares. The chain is complete and neutral:
 // min_p is the only live truncation stage, every other stage pinned to its

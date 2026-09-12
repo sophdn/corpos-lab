@@ -1,0 +1,143 @@
+# Duty: repair-duty
+
+**Scope:** This duty governs the act of repairing a confirmed software defect where the locus (file and line) is already known. It applies to any office of the Agentic Order performing this specific act. It does not govern diagnosis, discovery of the locus, or architectural refactoring.
+
+**Premise:** The executor possesses only this text. The executor must navigate the repair without consulting an external registry or canon. The executor must avoid divergence by following the structural gates below.
+
+---
+
+## Phase 1: Pre-Action Verification
+*Gates addressing Routing-class hazards. These verify that the act of repair is the correct response to the current state before any code is touched.*
+
+### Gate 1: Confirm Defect Validity
+**Verifies:** That the reported behavior is a genuine defect and not expected behavior, a feature request, or a user error.
+**Requires for completion:**
+1. Review the reported symptom (e.g., `ZeroDivisionError`) against the system’s documented intent or obvious functional requirements.
+2. Confirm that the symptom represents a failure to perform the intended function.
+3. If the behavior is intentional (e.g., a documented guard against empty input), halt. This duty does not apply. Proceed to the appropriate rejection or documentation workflow.
+
+### Gate 2: Confirm Locus Accuracy
+**Verifies:** That the identified locus (file:line) is the actual origin of the defect, not merely the site where the symptom manifests.
+**Requires for completion:**
+1. Trace the execution path from the entry point to the locus.
+2. Confirm that the logic error resides at the cited location.
+3. If the locus is incorrect (e.g., the error is thrown at line 2 but caused by bad input at line 10), halt. This duty assumes a *known* locus. Return to the diagnostic phase to establish the correct locus before resuming this duty.
+
+### Gate 3: Confirm Absence of Alternate Remediation
+**Verifies:** That a simple repair is the appropriate scope of work, and that the defect does not require a broader architectural change or refactoring that falls outside the scope of a "repair."
+**Requires for completion:**
+1. Assess whether the fix can be contained within the local logic of the locus without altering public interfaces, data schemas, or external dependencies.
+2. If the fix requires changing the API contract, altering database structures, or modifying unrelated modules, halt. This duty does not apply. Escalate to a broader engineering task.
+
+---
+
+## Phase 2: Context Establishment
+*Gates addressing the "what it must establish before it changes anything" principle. These ensure the executor understands the environment before modifying it.*
+
+### Gate 4: Map Input/Output Contracts
+**Verifies:** That the executor understands the valid input space and the expected output space for the function at the locus.
+**Requires for completion:**
+1. Identify all possible input types and values that the function at the locus accepts.
+2. Identify the expected return value for each valid input class.
+3. Identify the specific edge cases (e.g., empty lists, nulls, extreme values) that must be handled or rejected.
+4. Document this contract mentally or in scratch space. This prevents the repair from introducing new contract violations.
+
+### Gate 5: Identify Side Effects
+**Verifies:** That the executor is aware of any side effects the current code has on external state (databases, network calls, file systems, global variables).
+**Requires for completion:**
+1. Trace the code at the locus for any mutations of external state.
+2. Confirm that the proposed repair will not inadvertently remove or alter necessary side effects.
+3. If the locus has no side effects, confirm this explicitly.
+
+---
+
+## Phase 3: Implementation
+*Gates addressing "what a correct change looks like." These govern the act of modification itself.*
+
+### Gate 6: Define the Correction Logic
+**Verifies:** That a specific, logical correction has been formulated before code is written.
+**Requires for completion:**
+1. Determine the precise logical operation that is missing or incorrect.
+   - *Example:* If the defect is a `ZeroDivisionError` on an empty list, the correction logic is "handle the empty case."
+2. Decide on the handling strategy:
+   - Return a default value?
+   - Raise a more specific, custom error?
+   - Return `None`?
+   - Filter invalid inputs?
+3. Select the strategy that aligns with the Input/Output Contracts established in Gate 4. Do not invent new behavior; select from the established intent.
+
+### Gate 7: Apply Minimal Change
+**Verifies:** That the code modification is minimal and focused solely on correcting the defect.
+**Requires for completion:**
+1. Modify the code at the locus to implement the Correction Logic from Gate 6.
+2. Ensure no unrelated code is refactored, renamed, or reformatted.
+3. Ensure no new dependencies are introduced unless strictly necessary for the correction.
+4. The diff must be explainable solely by the need to fix the confirmed defect.
+
+---
+
+## Phase 4: Verification
+*Gates addressing "how completion is confirmed." These verify the repair works before closing the act.*
+
+### Gate 8: Reproduce the Original Failure
+**Verifies:** That the defect can still be triggered before the fix is applied, establishing a baseline.
+**Requires for completion:**
+1. Execute the code path that triggered the original defect (e.g., call `calculate_average([])`).
+2. Confirm the original error or incorrect behavior occurs.
+3. If the defect does not reproduce, halt. The premise of this duty (confirmed defect) is false. Return to Phase 1.
+
+### Gate 9: Validate the Fix
+**Verifies:** That the corrected code handles the defect case correctly and does not break existing valid cases.
+**Requires for completion:**
+1. Execute the code path that triggered the original defect.
+   - Confirm the error is resolved or handled according to the Correction Logic.
+2. Execute at least one valid, non-edge-case input (e.g., `calculate_average([1, 2, 3])`).
+   - Confirm the result is still correct.
+3. Execute any other edge cases identified in Gate 4.
+   - Confirm they are handled as per the established contract.
+
+### Gate 10: Check for Regression
+**Verifies:** That the repair has not introduced new bugs in adjacent logic.
+**Requires for completion:**
+1. Review the modified code for syntactic correctness.
+2. Review the surrounding code (functions called by or calling the locus) to ensure the change does not break their assumptions.
+3. If available, run existing unit tests associated with the module.
+4. Confirm no new warnings or errors are generated.
+
+---
+
+## Phase 5: Session Closure
+*Gates addressing Session-close-obligation hazards. These fire after the act, on session close.*
+
+### Gate 11: Record the Repair
+**Verifies:** That the act of repair is documented for future reference.
+**Requires for completion:**
+1. Create a commit or change log entry.
+2. The entry must state:
+   - The defect fixed (e.g., `ZeroDivisionError` on empty list).
+   - The locus corrected (e.g., `calculator.py:2`).
+   - The nature of the fix (e.g., "Added guard clause for empty list").
+3. Ensure the entry is associated with the correct ticket or issue ID if one exists.
+
+### Gate 12: Close the Loop
+**Verifies:** That the session is formally closed and no loose ends remain.
+**Requires for completion:**
+1. Confirm that all temporary artifacts (scratch files, debug prints) are removed.
+2. Confirm that the codebase is in a clean, committable state.
+3. If the repair revealed a deeper systemic issue (e.g., many functions lack empty-list guards), note this for future work but do not attempt to fix it now. Record this observation in the session log.
+4. Mark the session as complete.
+
+---
+
+## Meta-Taboo Scan Justification
+
+This duty was derived by analyzing the repair act itself. The following hazards were identified via first-principles analysis of the act and explicitly encoded as structural gates:
+
+1.  **Routing-Class Hazard (Upstream):** The act of "repair" assumes a defect exists and that repair is the correct solution. An executor might attempt to "repair" a feature request or a non-defect. **Gate 1** and **Gate 3** address this by forcing confirmation of defect validity and scope appropriateness before any code change.
+2.  **Locus-Class Hazard (Upstream):** The act assumes the locus is known and correct. If the locus is wrong, the repair will fail or mask the real issue. **Gate 2** addresses this by forcing verification of the locus origin before proceeding.
+3.  **Context-Class Hazard (Mid-Act):** An executor might fix the symptom without understanding the contract, breaking other parts of the system. **Gate 4** and **Gate 5** address this by forcing establishment of input/output contracts and side effects before modification.
+4.  **Change-Class Hazard (Mid-Act):** An executor might introduce scope creep or unrelated refactoring. **Gate 7** addresses this by enforcing minimal change.
+5.  **Verification-Class Hazard (Mid-Act):** An executor might assume the fix works without testing. **Gate 8**, **Gate 9**, and **Gate 10** address this by forcing reproduction, validation, and regression checks.
+6.  **Session-Close-Obligation Hazard (Downstream):** An executor might fix the code but fail to document it or leave the session in a dirty state. **Gate 11** and **Gate 12** address this by forcing documentation and cleanup upon session close.
+
+No taboo slugs are cited. Each gate stands on its own words, derived from the analysis of the repair act. The duty is self-sufficient.

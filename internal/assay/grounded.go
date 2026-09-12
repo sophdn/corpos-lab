@@ -52,6 +52,26 @@ const (
 	// behavioral-equivalence contrast: do two delivery routes for the same guidance
 	// produce equivalent conduct? Baseline is the assay's Condition C (brief only).
 	CorpusOnly Condition = "corpus_only"
+	// AnnotatedInstrument: the annotated duty-writing instrument prepended as the
+	// guidance. The cartographer-duty-format assay's Condition A — the design
+	// instrument that directs the writer to cite taboo slugs per gate and explain
+	// failure modes inline, so the produced duty carries the canon as a runtime
+	// dependency. It takes the same guidance slot and delimiter as DutyOnly.
+	AnnotatedInstrument Condition = "annotated_instrument"
+	// CartographerInstrument: the cartographer duty-writing instrument prepended
+	// as the guidance. The assay's Condition B — the design instrument that directs
+	// the writer to encode avoidance structurally from first-principles failure-mode
+	// analysis and cite no slugs. Read against AnnotatedInstrument it is the
+	// cartographer-format contrast: does the structural form still cover the
+	// corpus-empirical taboos the slug citations transmit?
+	CartographerInstrument Condition = "cartographer_instrument"
+	// CartographerScanInstrument: the cartographer instrument augmented with an
+	// explicit Phase 3 meta-taboo scan — a named check for routing-class and
+	// session-close-obligation-class taboos that first-principles defect analysis
+	// does not surface. The assay's Condition D, testing whether the proposed fix
+	// recovers corpus-empirical coverage without reintroducing slug citations. The
+	// original study specified this scan but never ran it.
+	CartographerScanInstrument Condition = "cartographer_scan_instrument"
 )
 
 // Materials are the text inputs a probe assembles a prompt from. Glyph, Ground,
@@ -75,6 +95,15 @@ type Materials struct {
 	// Corpus is the corpus of named behavioral patterns for the CorpusOnly
 	// (Condition B) condition of the behavioral-equivalence assay.
 	Corpus string
+	// Annotated is the annotated duty-writing instrument for the
+	// AnnotatedInstrument condition of the cartographer-duty-format assay.
+	Annotated string
+	// Cartographer is the cartographer duty-writing instrument for the
+	// CartographerInstrument condition of the cartographer-duty-format assay.
+	Cartographer string
+	// CartographerScan is the cartographer instrument plus the Phase 3 meta-taboo
+	// scan for the CartographerScanInstrument condition.
+	CartographerScan string
 }
 
 // AssemblePrompt builds the probe prompt for a condition. The "\n---\n"
@@ -89,6 +118,9 @@ type Materials struct {
 //	off_target_glyph → off-target glyph "---" scenario
 //	duty_only       → duty "---" scenario
 //	corpus_only     → corpus "---" scenario
+//	annotated_instrument         → annotated "---" scenario
+//	cartographer_instrument      → cartographer "---" scenario
+//	cartographer_scan_instrument → cartographer-scan "---" scenario
 //
 // It returns an error when a condition's required material is missing, rather
 // than silently emitting a malformed prompt.
@@ -126,6 +158,21 @@ func AssemblePrompt(cond Condition, m Materials) (string, error) {
 			return "", fmt.Errorf("assay: %s condition requires a corpus", cond)
 		}
 		return fmt.Sprintf("%s\n---\n%s", m.Corpus, m.Scenario), nil
+	case AnnotatedInstrument:
+		if m.Annotated == "" {
+			return "", fmt.Errorf("assay: %s condition requires an annotated instrument", cond)
+		}
+		return fmt.Sprintf("%s\n---\n%s", m.Annotated, m.Scenario), nil
+	case CartographerInstrument:
+		if m.Cartographer == "" {
+			return "", fmt.Errorf("assay: %s condition requires a cartographer instrument", cond)
+		}
+		return fmt.Sprintf("%s\n---\n%s", m.Cartographer, m.Scenario), nil
+	case CartographerScanInstrument:
+		if m.CartographerScan == "" {
+			return "", fmt.Errorf("assay: %s condition requires a cartographer-scan instrument", cond)
+		}
+		return fmt.Sprintf("%s\n---\n%s", m.CartographerScan, m.Scenario), nil
 	case GroundedGlyph:
 		if m.Glyph == "" {
 			return "", fmt.Errorf("assay: %s condition requires a glyph", cond)

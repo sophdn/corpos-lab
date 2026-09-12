@@ -1,0 +1,123 @@
+# Duty: repair-duty
+
+**Authority**: The Agentic Order
+**Subject**: Repair of confirmed software defect with known locus
+**Preconditions**:
+1. A defect has been confirmed to exist.
+2. The locus of the defect is known and fixed (e.g., `calculator.py:2`).
+3. The executing office has write access to the source code at the locus.
+
+## Preamble
+
+This duty governs the mechanical and logical process by which an office repairs a confirmed defect at a known locus. The executor must not deviate from the sequence of gates below. Each gate is a checkpoint: the executor must verify the stated condition before proceeding to the next gate. If a gate fails, the executor must halt, record the failure, and escalate to the supervising office. The executor is prohibited from refactoring surrounding code, changing function signatures, or altering behavior beyond the specific defect repair unless explicitly authorized by a higher duty.
+
+## Gate 1: Locus Verification
+
+**Verification**:
+The executor must confirm that the file and line number specified in the defect report correspond to the current state of the codebase. The executor must read the file at the specified path and inspect the line(s) around the known locus.
+
+**Requirements for Completion**:
+- The file exists at the specified path.
+- The code at the specified line matches the defective code described in the defect report or is logically equivalent to it.
+- If the code has been modified since the defect was reported, the executor must re-locate the defective logic. If the defective logic cannot be found, the executor halts and escalates.
+
+**Output**:
+A boolean confirmation that the locus is valid and the defective code is present.
+
+## Gate 2: Root Cause Isolation
+
+**Verification**:
+The executor must isolate the exact expression or statement within the locus that causes the defect. The executor must identify why the defect occurs (e.g., division by zero, null pointer, off-by-one error).
+
+**Requirements for Completion**:
+- The specific operator, function call, or control flow statement responsible for the exception or incorrect behavior is identified.
+- The cause is understood in terms of input conditions (e.g., empty list, null value, boundary condition).
+- The executor documents the root cause in a repair note.
+
+**Output**:
+A brief description of the root cause (e.g., "Division by zero when `len(values)` is 0").
+
+## Gate 3: Repair Strategy Formulation
+
+**Verification**:
+The executor must formulate a minimal repair strategy that addresses the root cause without altering the function’s intended contract for valid inputs. The strategy must handle the defective input condition.
+
+**Requirements for Completion**:
+- A specific code change is proposed (e.g., add a guard clause, return a default value, raise a custom exception, or handle the edge case).
+- The proposed change does not alter the function’s behavior for inputs that were previously correct.
+- The proposed change is minimal and localized to the locus or immediately adjacent lines.
+- The executor considers whether the repair should raise an exception, return a sentinel value, or handle the case gracefully, based on the function’s contract.
+
+**Output**:
+A proposed code diff or pseudo-code for the repair.
+
+## Gate 4: Implementation
+
+**Verification**:
+The executor must apply the repair strategy to the source code at the locus.
+
+**Requirements for Completion**:
+- The code is modified exactly as proposed in Gate 3.
+- No extraneous changes are made to the file (e.g., no formatting changes, no renaming of variables, no addition of unrelated comments).
+- The code compiles/parses correctly.
+
+**Output**:
+The modified file content.
+
+## Gate 5: Local Verification
+
+**Verification**:
+The executor must verify that the repair resolves the defect for the specific input that caused it and does not break valid inputs.
+
+**Requirements for Completion**:
+- The executor constructs a test case that triggers the original defect (e.g., `calculate_average([])`).
+- The executor executes the repaired code with the defect-triggering input.
+- The defect is no longer raised (or is handled as specified in Gate 3).
+- The executor executes the repaired code with at least one valid input (e.g., `calculate_average([1, 2, 3])`).
+- The valid input produces the expected correct result.
+
+**Output**:
+A record of test results confirming the defect is resolved and valid inputs still work.
+
+## Gate 6: Regression Check
+
+**Verification**:
+The executor must ensure that the repair does not introduce new defects or side effects.
+
+**Requirements for Completion**:
+- If existing unit tests exist for the function, the executor must run them.
+- If no existing tests exist, the executor must manually verify that the repair does not alter behavior for edge cases adjacent to the defect (e.g., single-element list, negative numbers).
+- The executor confirms that the function’s return type and exception behavior for valid inputs remain unchanged.
+
+**Output**:
+A confirmation that no regressions were detected.
+
+## Gate 7: Documentation and Closure
+
+**Verification**:
+The executor must document the repair and close the defect report.
+
+**Requirements for Completion**:
+- The executor updates the defect report with a link to the code change (e.g., commit hash, diff).
+- The executor records the root cause, the repair strategy, and the verification results.
+- The defect is marked as "Resolved" or "Repaired" in the tracking system.
+- The executor notifies the supervising office of completion.
+
+**Output**:
+A closed defect report with full documentation of the repair.
+
+## Escalation Protocol
+
+If any gate fails, the executor must:
+1. Halt the repair process.
+2. Record the gate that failed and the reason for failure.
+3. Escalate to the supervising office with the failure report.
+4. Await further instructions from the supervising office.
+
+## Prohibitions
+
+- The executor must not refactor code beyond the locus.
+- The executor must not change function signatures.
+- The executor must not ignore the root cause and apply a band-aid fix.
+- The executor must not skip any gate.
+- The executor must not assume the defect is fixed without verification.
