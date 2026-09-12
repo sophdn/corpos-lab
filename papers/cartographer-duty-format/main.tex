@@ -159,7 +159,7 @@ copied the observation-only hazards and the effect vanished.
 
 The shared task names one defect: \texttt{calculate\_average} divides by
 \texttt{len(values)} and raises on an empty list, locus confirmed. The writing
-methods and the registry are reproduced verbatim in Appendix~\ref{app:materials}.
+methods and the registry are reproduced in Appendix~\ref{app:materials}.
 
 \subsection{The ten hazards and the pre-registered split}
 
@@ -423,8 +423,9 @@ artifact name. And of the earlier study's added criteria, C5 (a coverage-map
 slug leak in the cartographer output) is answered by the slug count: no
 cartographer or scan duty cited any slug (0 of 30 each), so there is no leak.
 C8 (a patchover check for proxy completion conditions) requires a separate
-judgment we did not perform and is retired here, as C7 was retired as not
-applicable to single-turn generation.
+judgment we did not perform and is retired here, as C7 (an instrument-read
+carve-out, a self-reference gate specific to the original multi-turn
+duty-writing setup) was retired as not applicable to single-turn generation.
 
 The pre-registered derivable split is imperfect for two hazards, disclosed above
 and not re-labelled.
@@ -483,12 +484,181 @@ Pecher, B., Spiegel, M., Belanec, R., and Cegin, J. (2026).
 \appendix
 \section{Materials}\label{app:materials}
 
-The writing methods (annotated, cartographer, cartographer+scan), the shared
-scenario with the defect, and the ten-hazard registry are reproduced verbatim in
-the study directory named in Data Availability
-(\texttt{studies/cartographer-duty-format/materials/}). The pre-registered hazard
-split and the scan-target flags are in the same directory's
-\texttt{taboo\_set.json}, and the coverage judging brief is in
-\texttt{scores/JUDGE\_BRIEF.md}.
+The shared task and defect, the three writing methods, and the ten-hazard
+registry carried by the annotated method are reproduced below, as handed to the
+model. The writing-method prose is reproduced verbatim; the registry, a Markdown
+table in the source, is rendered here as Table~\ref{tab:registry} with the same
+ten entries and text. The pre-registered derivable/non-derivable split and the
+scan-target flags are in \texttt{taboo\_set.json}, and the coverage judging brief
+in \texttt{scores/JUDGE\_BRIEF.md}, both under the study directory named in Data
+Availability.
+
+\subsection{Shared task and defect}
+\begin{footnotesize}
+\begin{verbatim}
+# Task: write a repair-duty
+
+Write a duty named `repair-duty` that governs how any office of the Agentic
+Order repairs a confirmed software defect with a known locus. A duty is a Rule
+made navigable: a sequence of gates an executing office passes through, where
+each gate states what it verifies and what completing it requires. The duty you
+write will be handed to a future executor who has only the duty text.
+
+Use the following defect as the domain anchor. It is context, not the object of
+the task; do not fix it yourself.
+
+```python
+# calculator.py
+def calculate_average(values: list) -> float:
+    return sum(values) / len(values)
+```
+
+`calculate_average([])` raises `ZeroDivisionError`. The locus is confirmed at
+`calculator.py:2`.
+
+## Output format
+
+You are running as a single completion. There is no harness, no tools, no
+filesystem, no shell, and no second turn. You cannot read files, run code, or
+consult anything beyond this prompt. Produce the complete `repair-duty` document
+now, as your entire reply, in Markdown. Write the duty itself, not a plan to
+write it.
+\end{verbatim}
+\end{footnotesize}
+
+\subsection{Annotated method}
+
+The annotated method reads the registry and writes one gate per entry. Its prose
+is reproduced verbatim here; the registry it carries is Table~\ref{tab:registry}.
+
+\begin{footnotesize}
+\begin{verbatim}
+# Method for writing a duty: the annotated form
+
+Write the duty by mapping the canon onto gates. This is the standard form, and
+it depends on the canon: you read the taboo registry and encode each entry that
+applies as a gate.
+
+## The taboo registry (the canon)
+
+Each taboo names a divergence point a repair can cross.
+\end{verbatim}
+\end{footnotesize}
+
+\begin{table}[h]
+\centering
+\scriptsize
+\begin{tabular}{p{4cm} p{10.5cm}}
+\toprule
+\textbf{Taboo} & \textbf{Divergence point} \\
+\midrule
+\texttt{triggers-routing} & Repair execution begins before routing is confirmed; a misrouted prompt runs a repair where an investigation was needed, or the reverse. \\
+\texttt{explicit-prerequisite-gate} & Repair begins without a confirmed locus record naming file, line, and failure mode. \\
+\texttt{investigation-fix-criterion-predeclaration} & A fix attempt begins before a passing criterion is declared, so the criterion can be fitted to whatever change was made. \\
+\texttt{investigation-fix-scope-boundary} & A change touches lines the confirmed locus did not name; opportunistic adjacent edits break the anchor to root cause. \\
+\texttt{fix-locus-identification} & The fix is applied to a call site or consumer, leaving the canonical source location unchanged. \\
+\texttt{fix-attempt-root-cause-reassessment} & A second fix attempt follows a failed one without a revised root-cause citation. \\
+\texttt{investigation-advisory-fix-durability} & An advisory fix (comment, docstring, warning) is accepted without a durability check confirming a caller cannot bypass it. Advisory-versus-structural durability is a distinction learned from accumulated observation, not derived from the defect. \\
+\texttt{completion-evidence-required} & The repair is declared complete without a co-located verification artifact. \\
+\texttt{document-claim-verification} & Verification is by written claim rather than an observed test result or output. \\
+\texttt{known-constraint-documentation} & An environmental constraint discovered during repair is not recorded before the session closes. \\
+\bottomrule
+\end{tabular}
+\caption{The ten-hazard taboo registry carried by the annotated method,
+reproduced from \texttt{materials/annotated.md}.}
+\label{tab:registry}
+\end{table}
+
+\begin{footnotesize}
+\begin{verbatim}
+## The method
+
+1. **Read the registry above.** For every taboo whose divergence point a repair
+   could cross, the duty must carry a gate that prevents it.
+2. **Open with a Taboos table.** List each relevant taboo slug and one line
+   saying why it applies to this duty.
+3. **Write one gate per divergence point.** Each gate is stamped with the taboo
+   slug it enforces, in the form `*Taboo: \`slug\`*`. State when the gate fires,
+   when it does not, and the rejection clause that names the failure it blocks.
+4. **Cite the slug in the gate body.** The gate names the canon entry it
+   enforces so an executor can trace the gate to its taboo. The canon is a
+   runtime dependency: an executor who does not know what a cited slug means
+   consults the registry.
+5. **Cover every registered taboo that applies.** Completeness is measured
+   against the registry: a taboo with no gate is a hole.
+
+Produce the duty in this annotated form. Cite the slugs.
+\end{verbatim}
+\end{footnotesize}
+
+\subsection{Cartographer method}
+\begin{footnotesize}
+\begin{verbatim}
+# Method for writing a duty: the cartographer form
+
+Write the duty as a map an executor can follow without knowing the canon. The
+executor who receives this duty has only its text; the duty must let them avoid
+every divergence point without reading any registry at runtime.
+
+1. **Derive the failure modes from first principles.** Analyze the repair act
+   itself. Ask what an office doing this work could get wrong: where the act
+   begins, what it must establish before it changes anything, what a correct
+   change looks like, and how completion is confirmed. Build the gate list from
+   that analysis of the act.
+2. **Encode avoidance structurally.** Each gate states what it verifies and what
+   completing it requires. A gate is a checkable step, not a description of a
+   hazard.
+3. **Cite no taboo slugs.** You have no registry; there is no canon to cite. Do
+   not open with a taboo table. Each gate stands on its own words, derived from
+   your analysis of the act. The duty must be self-sufficient: an executor
+   needs no canon to run it.
+4. **Group the gates into phases** that follow the shape of the work, from
+   confirming the locus through to closing out the repair.
+
+Produce the duty in this cartographer form. Derive the gates from the act; cite
+no slugs.
+\end{verbatim}
+\end{footnotesize}
+
+\subsection{Cartographer method with the meta-taboo scan}
+\begin{footnotesize}
+\begin{verbatim}
+# Method for writing a duty: the cartographer form with a meta-taboo scan
+
+Write the duty as a map an executor can follow without knowing the canon. The
+executor who receives this duty has only its text; the duty must let them avoid
+every divergence point without reading any registry at runtime.
+
+1. **Derive the failure modes from first principles.** Analyze the repair act
+   itself. Ask what an office doing this work could get wrong: where the act
+   begins, what it must establish before it changes anything, what a correct
+   change looks like, and how completion is confirmed. Build the gate list from
+   that analysis of the act.
+2. **Encode avoidance structurally.** Each gate states what it verifies and what
+   completing it requires. A gate is a checkable step, not a description of a
+   hazard.
+3. **Cite no taboo slugs.** You have no registry; there is no canon to cite. Do
+   not open with a taboo table. Each gate stands on its own words, derived from
+   your analysis of the act. The duty must be self-sufficient: an executor
+   needs no canon to run it.
+4. **Group the gates into phases** that follow the shape of the work, from
+   confirming the locus through to closing out the repair.
+5. **Run a meta-taboo scan.** First-principles analysis of the repair act
+   surfaces the hazards inside the act, but two classes of hazard sit outside
+   it and will not surface from that analysis alone. Scan explicitly for both
+   and add a structural gate for each that applies:
+   - **Routing-class hazards** — obligations that sit *upstream* of the act.
+     Before the repair runs, was it confirmed that a repair, and not some other
+     work, is what this situation calls for?
+   - **Session-close-obligation hazards** — obligations that fire *after* the
+     act, on session close rather than on the repair itself. Was anything
+     discovered during the repair that must be recorded before the session ends?
+   Encode these structurally as well; still cite no slugs.
+
+Produce the duty in this cartographer form with the meta-taboo scan. Derive the
+gates from the act, run the scan for upstream and session-close hazards, and
+cite no slugs.
+\end{verbatim}
+\end{footnotesize}
 
 \end{document}
