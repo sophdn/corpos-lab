@@ -92,6 +92,55 @@ func TestFileProfileReaderReadsAndErrors(t *testing.T) {
 	}
 }
 
+func TestFileRegistryReaderReadsIdentitiesAbsentAndEmpty(t *testing.T) {
+	dir := t.TempDir()
+	// Absent file: a verified-empty registry, not an error.
+	absent := FileRegistryReader{Path: filepath.Join(dir, "no-alphabet.md")}
+	if ids, err := absent.RegistryIdentities(); err != nil || len(ids) != 0 {
+		t.Fatalf("absent registry should be empty/no-error, got %v,%v", ids, err)
+	}
+	// Empty path: also empty.
+	if ids, err := (FileRegistryReader{}).RegistryIdentities(); err != nil || len(ids) != 0 {
+		t.Fatalf("empty path should be empty/no-error, got %v,%v", ids, err)
+	}
+	// Populated file: identities extracted with the shared rule.
+	p := filepath.Join(dir, "ALPHABET.md")
+	if err := os.WriteFile(p, []byte("# ALPHABET\n\n**Glyph:** `casg-delegate`\n\n**Glyph:** `casg-direct`\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ids, err := (FileRegistryReader{Path: p}).RegistryIdentities()
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if len(ids) != 2 || ids[0] != "casg-delegate" || ids[1] != "casg-direct" {
+		t.Fatalf("got %v", ids)
+	}
+}
+
+func TestRunFailsItem3OnRegistryDuplicate(t *testing.T) {
+	// completeCandidate's identity is "test" (# Glyph Candidate: test). A registry
+	// carrying that identity makes Item 3 fail; the run stops there.
+	dir := t.TempDir()
+	regPath := filepath.Join(dir, "ALPHABET.md")
+	if err := os.WriteFile(regPath, []byte("**Glyph:** `test`\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	entryPath := writeCandidate(t, completeCandidate, completeProfile)
+	deps := okDeps()
+	deps.Registry = FileRegistryReader{Path: regPath}
+	res, err := Run(context.Background(), entryPath, "test", fakeClient{text: "PASS"}, deps, Options{})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if res.Sequence.Passed {
+		t.Fatal("expected the run to fail on the item-3 duplicate")
+	}
+	failing := res.Sequence.StepResults[res.Sequence.ExitIndex]
+	if failing.StepName != "item3-duplicate-check" {
+		t.Fatalf("expected the run to stop at item 3, stopped at %q", failing.StepName)
+	}
+}
+
 func TestRunPassesMechanizedItemsAndCapturesProvenance(t *testing.T) {
 	entryPath := writeCandidate(t, completeCandidate, completeProfile)
 	res, err := Run(context.Background(), entryPath, "test-item", fakeClient{text: "PASS"}, okDeps(), Options{})

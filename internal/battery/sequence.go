@@ -43,6 +43,7 @@ type Input struct {
 	Model     model.Client
 	EntryPath string
 	Profiles  ProfileReader
+	Registry  RegistryReader
 	// ContinueOnFail runs every remaining step after a Fail verdict instead of
 	// stopping at it. The run verdict is unchanged — the sequence still does not
 	// pass, and FailureReason still carries the FIRST failure — but the later
@@ -98,6 +99,7 @@ func RunSequence(ctx context.Context, seq *Sequence, input Input) Result {
 		Model:     input.Model,
 		EntryPath: input.EntryPath,
 		Profiles:  input.Profiles,
+		Registry:  input.Registry,
 	}
 
 	failed := false

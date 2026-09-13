@@ -3,16 +3,18 @@
 // the battery package is sans-IO, so the filesystem read of the entry and its
 // fallout-profile referent, and the capture of run provenance, live here.
 //
-// It runs only the mechanized items (1, 2, 4, 9, 10, 15); the nine judged items
-// register as Deferred stubs in the sequence and are resolved by an assessor
-// working the prose spec, in a separate context. The sequence fails fast on the
-// first mechanized FAIL, so a candidate that fails early carries a recorded FAIL
-// at that item rather than a full sweep.
+// It runs the mechanized items (1, 2, 3, 4, 6, 9, 10, 11, 12, 13, 15); items 5,
+// 7, 8, and 14 register as Deferred stubs in the sequence and are resolved by an
+// assessor working the prose spec, in a separate context. The sequence fails
+// fast on the first mechanized FAIL, so a candidate that fails early carries a
+// recorded FAIL at that item rather than a full sweep.
 package batteryrun
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 
 	"corpos-lab/internal/battery"
@@ -34,6 +36,35 @@ func (FileProfileReader) ReadProfile(path string) (string, error) {
 		return "", err
 	}
 	return string(b), nil
+}
+
+// FileRegistryReader satisfies battery.RegistryReader against the real
+// filesystem: it reads the ALPHABET registry file and extracts the identity of
+// every promoted entry, so Item 3 can dedupe the candidate against it. It is the
+// IO edge Item 3 needs, kept out of the sans-IO battery package.
+//
+// An ABSENT registry file (Path unset, or ALPHABET.md not created yet) is a
+// verified-empty registry: it returns no identities and no error, so Item 3
+// passes a clean candidate. Only a real read failure returns an error, which
+// Item 3 fails closed on. It reads the file's bytes mechanically to list
+// identities — it does not load entry terrain into an agent's context.
+type FileRegistryReader struct{ Path string }
+
+// RegistryIdentities returns the promoted-entry identities in the registry file,
+// parsed with battery.GlyphIdentity's rule so they compare against the candidate
+// identically.
+func (r FileRegistryReader) RegistryIdentities() ([]string, error) {
+	if r.Path == "" {
+		return nil, nil
+	}
+	b, err := os.ReadFile(r.Path) //nolint:gosec // path is the operator-supplied registry location
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return battery.RegistryIdentitiesFrom(string(b)), nil
 }
 
 // RunProvenance is the run-level record of what the mechanized battery ran
@@ -92,6 +123,11 @@ type Deps struct {
 	Substrate  func(ctx context.Context) substrate.Info
 	Provenance func(ctx context.Context) (provenance.Stamp, error)
 	Props      func(ctx context.Context) (model.ServerProps, error)
+	// Registry is the reader Item 3 dedupes the candidate against. When nil it
+	// defaults to an empty FileRegistryReader — a verified-empty registry, so a
+	// clean candidate passes Item 3. A caller points it at the real ALPHABET.md to
+	// get a real duplicate check.
+	Registry battery.RegistryReader
 }
 
 // Run executes the mechanized battery against the candidate at candidatePath.
@@ -106,12 +142,18 @@ func Run(ctx context.Context, candidatePath, itemID string, client model.Client,
 		return Result{}, fmt.Errorf("batteryrun: read candidate %s: %w", candidatePath, err)
 	}
 
+	registry := deps.Registry
+	if registry == nil {
+		registry = FileRegistryReader{}
+	}
+
 	seq := battery.RunSequence(ctx, battery.BuildBattery(), battery.Input{
 		ItemID:         itemID,
 		Content:        string(content),
 		Model:          client,
 		EntryPath:      candidatePath,
 		Profiles:       FileProfileReader{},
+		Registry:       registry,
 		ContinueOnFail: opts.AllItems,
 	})
 

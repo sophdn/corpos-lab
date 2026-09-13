@@ -69,6 +69,7 @@ func runBattery(args []string) int {
 	modelName := "qwen3.6-27b"
 	version := ""
 	repoDir := "."
+	registryPath := "corpus/glyph-model/ALPHABET.md"
 	allItems := false
 	rest := []string{}
 	for i := 0; i < len(args); i++ {
@@ -111,6 +112,12 @@ func runBattery(args []string) int {
 				return 2
 			}
 			repoDir = v
+		case "-registry":
+			v, ok := needsValue()
+			if !ok {
+				return 2
+			}
+			registryPath = v
 		case "-all-items":
 			allItems = true
 		default:
@@ -118,7 +125,7 @@ func runBattery(args []string) int {
 		}
 	}
 	if len(rest) != 1 {
-		fmt.Fprintln(os.Stderr, "usage: corpos-lab battery <candidate.md> [-out FILE] [-model NAME] [-base URL] [-repo DIR] [-all-items]")
+		fmt.Fprintln(os.Stderr, "usage: corpos-lab battery <candidate.md> [-out FILE] [-model NAME] [-base URL] [-repo DIR] [-registry ALPHABET.md] [-all-items]")
 		return 2
 	}
 	candidatePath := rest[0]
@@ -133,6 +140,7 @@ func runBattery(args []string) int {
 		Substrate:  substrateProbe,
 		Provenance: repoStamp(repoDir),
 		Props:      client.Props,
+		Registry:   batteryrun.FileRegistryReader{Path: registryPath},
 	}, batteryrun.Options{AllItems: allItems})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "corpos-lab: %v\n", err)

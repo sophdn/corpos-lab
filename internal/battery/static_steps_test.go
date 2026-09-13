@@ -2,6 +2,7 @@ package battery
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -52,18 +53,9 @@ func TestItem4AlwaysEmitsNotApplicable(t *testing.T) {
 	}
 }
 
-func TestDeferredItem3EmitsDeferredWithPendingReason(t *testing.T) {
-	out := DeferredStep(3)(context.Background(), staticState("ignored"))
-	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindDeferred {
-		t.Fatalf("expected deferred, got %+v", out)
-	}
-	if !strings.Contains(out.Verdict.Pending, "item 3") || !strings.Contains(out.Verdict.Pending, "corpus") {
-		t.Fatalf("pending should mention item 3 and corpus, got %q", out.Verdict.Pending)
-	}
-}
-
 func TestEveryDeferredStubEmitsDeferred(t *testing.T) {
-	for _, item := range []int{3, 5, 6, 7, 8, 11, 12, 13, 14} {
+	// Only items 5, 7, 8, 14 remain deferred; 3, 6, 11, 12, 13 are mechanized.
+	for _, item := range []int{5, 7, 8, 14} {
 		out := DeferredStep(item)(context.Background(), staticState("ignored"))
 		if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindDeferred {
 			t.Fatalf("stub %d emitted non-Deferred: %+v", item, out)
@@ -253,6 +245,180 @@ func TestItem15ResolvesReferenceRelativeToEntryFile(t *testing.T) {
 	}
 	if len(fp.seen) != 1 || fp.seen[0] != wantPath {
 		t.Fatalf("expected reader to receive %q, got %v", wantPath, fp.seen)
+	}
+}
+
+// --- Item 3: duplicate check (deterministic) ---
+
+func regState(content string, reg RegistryReader) *State {
+	return &State{ItemID: "test", Content: content, Registry: reg}
+}
+
+func TestItem3PassesAgainstEmptyRegistry(t *testing.T) {
+	out := Item3DuplicateCheck(context.Background(),
+		regState("**Glyph:** `unique-slug`\n", &fakeRegistry{}))
+	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindPass {
+		t.Fatalf("clean candidate against empty registry should pass, got %+v", out)
+	}
+}
+
+func TestItem3PassesWhenIdentityNotInPopulatedRegistry(t *testing.T) {
+	reg := &fakeRegistry{identities: []string{"casg-delegate", "casg-direct"}}
+	out := Item3DuplicateCheck(context.Background(), regState("**Glyph:** `new-glyph`\n", reg))
+	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindPass {
+		t.Fatalf("non-colliding identity should pass, got %+v", out)
+	}
+}
+
+func TestItem3FailsOnDuplicateCaseInsensitive(t *testing.T) {
+	reg := &fakeRegistry{identities: []string{"CASG-Delegate"}}
+	out := Item3DuplicateCheck(context.Background(), regState("**Glyph:** `casg-delegate`\n", reg))
+	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindFail {
+		t.Fatalf("expected duplicate fail, got %+v", out)
+	}
+	if out.Verdict.Item == nil || *out.Verdict.Item != 3 {
+		t.Fatalf("expected item 3, got %v", out.Verdict.Item)
+	}
+	if !strings.Contains(out.Verdict.Reason, "duplicate identity") {
+		t.Fatalf("reason should report a duplicate, got %q", out.Verdict.Reason)
+	}
+}
+
+func TestItem3FailsWhenEntryHasNoIdentity(t *testing.T) {
+	out := Item3DuplicateCheck(context.Background(),
+		regState("Some entry text with no glyph field or candidate heading.\n", &fakeRegistry{}))
+	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindFail {
+		t.Fatalf("an entry with no identity must fail the duplicate check, got %+v", out)
+	}
+	if !strings.Contains(out.Verdict.Reason, "no glyph identity") {
+		t.Fatalf("got %q", out.Verdict.Reason)
+	}
+}
+
+func TestItem3FailsClosedOnNilRegistry(t *testing.T) {
+	// Parity with Item 15: a check the battery cannot run must not pass.
+	out := Item3DuplicateCheck(context.Background(), regState("**Glyph:** `x`\n", nil))
+	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindFail {
+		t.Fatalf("nil registry must fail closed, got %+v", out)
+	}
+	if !strings.Contains(out.Verdict.Reason, "no registry reader") {
+		t.Fatalf("got %q", out.Verdict.Reason)
+	}
+}
+
+func TestItem3FailsWhenRegistryUnreadable(t *testing.T) {
+	reg := &fakeRegistry{err: errors.New("permission denied")}
+	out := Item3DuplicateCheck(context.Background(), regState("**Glyph:** `x`\n", reg))
+	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindFail {
+		t.Fatalf("an unreadable registry must fail closed, got %+v", out)
+	}
+	if !strings.Contains(out.Verdict.Reason, "registry unreadable") {
+		t.Fatalf("got %q", out.Verdict.Reason)
+	}
+}
+
+func TestItem3UsesCandidateHeadingWhenNoGlyphField(t *testing.T) {
+	reg := &fakeRegistry{identities: []string{"test"}}
+	out := Item3DuplicateCheck(context.Background(),
+		regState("# Glyph Candidate: test\n\nbody\n", reg))
+	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindFail {
+		t.Fatalf("heading identity should be read and deduped, got %+v", out)
+	}
+}
+
+func TestGlyphIdentity(t *testing.T) {
+	if id, ok := GlyphIdentity("**Glyph:** `alpha-beta`\n"); !ok || id != "alpha-beta" {
+		t.Fatalf("glyph field: got %q,%v", id, ok)
+	}
+	if id, ok := GlyphIdentity("# Glyph Candidate: gamma\n"); !ok || id != "gamma" {
+		t.Fatalf("heading fallback: got %q,%v", id, ok)
+	}
+	// The glyph field wins over a candidate heading when both are present.
+	both := "# Glyph Candidate: heading-slug\n\n**Glyph:** `field-slug`\n"
+	if id, ok := GlyphIdentity(both); !ok || id != "field-slug" {
+		t.Fatalf("glyph field should win: got %q,%v", id, ok)
+	}
+	if _, ok := GlyphIdentity("no identity here\n"); ok {
+		t.Fatal("expected no identity")
+	}
+}
+
+func TestRegistryIdentitiesFrom(t *testing.T) {
+	doc := "# ALPHABET\n\n**Glyph:** `slug`\n\n**Glyph:** `casg-delegate`\n\n**Glyph:** `casg-direct`\n"
+	got := RegistryIdentitiesFrom(doc)
+	if len(got) != 3 || got[1] != "casg-delegate" || got[2] != "casg-direct" {
+		t.Fatalf("got %v", got)
+	}
+	if len(RegistryIdentitiesFrom("no entries here")) != 0 {
+		t.Fatal("expected no identities from an entry-free doc")
+	}
+}
+
+// --- Item 13: contamination radius (deterministic) ---
+
+func TestItem13PassesWithNoDependencySurface(t *testing.T) {
+	out := Item13ContaminationRadius(context.Background(),
+		staticState("**Glyph:** `standalone`\n\nNo other glyph references here.\n"))
+	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindPass {
+		t.Fatalf("expected pass, got %+v", out)
+	}
+}
+
+func TestItem13PassesAtThresholdBoundary(t *testing.T) {
+	// Exactly five referenced glyphs is at the threshold, not over it.
+	content := "**Glyph:** `subject`\n" +
+		"Depends on `a-one`, `b-two`, `c-three`, `d-four`, `e-five`.\n"
+	out := Item13ContaminationRadius(context.Background(), staticState(content))
+	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindPass {
+		t.Fatalf("five deps is at threshold, should pass, got %+v", out)
+	}
+}
+
+func TestItem13FailsAboveThreshold(t *testing.T) {
+	content := "**Glyph:** `subject`\n" +
+		"Depends on `a-one`, `b-two`, `c-three`, `d-four`, `e-five`, `f-six`.\n"
+	out := Item13ContaminationRadius(context.Background(), staticState(content))
+	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindFail {
+		t.Fatalf("six deps exceeds threshold, should fail, got %+v", out)
+	}
+	if out.Verdict.Item == nil || *out.Verdict.Item != 13 {
+		t.Fatalf("expected item 13, got %v", out.Verdict.Item)
+	}
+	if !strings.Contains(out.Verdict.Reason, "dependency surface has 6") {
+		t.Fatalf("reason should report the count, got %q", out.Verdict.Reason)
+	}
+}
+
+func TestItem13ExcludesOwnIdentityFromCount(t *testing.T) {
+	// The entry's own slug repeated many times is not a dependency on another
+	// glyph and must not push the count over threshold.
+	content := "**Glyph:** `self-ref`\n" +
+		"`self-ref` `self-ref` `self-ref` `self-ref` `self-ref` `self-ref` `self-ref`\n"
+	out := Item13ContaminationRadius(context.Background(), staticState(content))
+	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindPass {
+		t.Fatalf("own-identity references must be excluded, got %+v", out)
+	}
+}
+
+func TestItem13FlagsHighRiskCategory(t *testing.T) {
+	content := "**Glyph:** `guarded`\n\nThis governs a trust-class decision point.\n"
+	out := Item13ContaminationRadius(context.Background(), staticState(content))
+	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindFlag {
+		t.Fatalf("high-risk category should FLAG, got %+v", out)
+	}
+	if !strings.Contains(out.Verdict.Reason, "trust-class") {
+		t.Fatalf("flag should name the category, got %q", out.Verdict.Reason)
+	}
+}
+
+func TestItem13IgnoresBacktickedFilePaths(t *testing.T) {
+	// A backtick-quoted file path is Item 9's concern, not a glyph dependency:
+	// six of them must not be counted as six referenced glyphs.
+	content := "**Glyph:** `subject`\n" +
+		"See `a/b.md`, `c/d.md`, `e/f.md`, `g/h.md`, `i/j.md`, `k/l.md`.\n"
+	out := Item13ContaminationRadius(context.Background(), staticState(content))
+	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindPass {
+		t.Fatalf("file paths must not count as dependency references, got %+v", out)
 	}
 }
 

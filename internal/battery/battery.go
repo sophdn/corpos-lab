@@ -3,9 +3,14 @@ package battery
 // The ALPHABET Entry Battery (Phase-1 subset), ported from
 // lab-app-server/src/sequences/battery.rs.
 //
-// In scope (implemented): items 1, 2, 4, 9, 10, 15.
-// Deferred (register as Deferred stubs, exactly as in the source):
-// items 3, 5, 6, 7, 8, 11, 12, 13, 14 — reasons in DeferredPending.
+// In scope (implemented): items 1, 2, 3, 4, 6, 9, 10, 11, 12, 13, 15.
+//   - Deterministic (no model call): items 3 and 13 — structural checks the
+//     archived structural-prober covered, where a reproducible count/lookup beats
+//     a non-reproducible LLM verdict (sub-decision recorded on each function).
+//   - Model-assessed verdict steps: items 6, 11, 12 — semantic checks, on the
+//     item 1/9 pattern with the injectable model.Client.
+// Deferred (register as Deferred stubs): items 5, 7, 8, 14 — reasons in
+// DeferredPending; a separate task decides these.
 
 // StepVersion returns the per-step implementation version persisted
 // alongside each step's outcome. Deferred items carry "0.0.0-deferred" so a
@@ -31,16 +36,20 @@ func StepVersion(stepName string) string {
 		return "0.2.0"
 	case "item2-intent-language-scan",
 		"item4-na",
-		"item10-axis-presence":
-		return "0.1.0"
-	case "item3-duplicate-check",
-		"item5-y-not-fire",
+		"item10-axis-presence",
+		"item3-duplicate-check",
 		"item6-entry-coherence",
-		"item7-sister-mirror",
-		"item8-phenomenological",
 		"item11-safety-class",
 		"item12-default-alignment",
-		"item13-contamination-radius",
+		"item13-contamination-radius":
+		// Items 3, 6, 11, 12, 13 mechanized under port-structural-prober-items:
+		// 3 and 13 deterministic (structural-prober logic), 6/11/12 model-assessed
+		// verdict steps. They join the 0.1.0 cohort — first real logic, no prior
+		// repaired-vs-pre-repair split to encode.
+		return "0.1.0"
+	case "item5-y-not-fire",
+		"item7-sister-mirror",
+		"item8-phenomenological",
 		"item14-globality-demand":
 		return "0.0.0-deferred"
 	default:
@@ -59,10 +68,10 @@ func BuildBattery() *Sequence {
 	// Stratum: Mechanical (Items 1–6)
 	seq.AddStep("item1-xyz-specificity", Item1XYZSpecificity)
 	seq.AddStep("item2-intent-language-scan", Item2IntentLanguageScan)
-	seq.AddStep("item3-duplicate-check", DeferredStep(3))
+	seq.AddStep("item3-duplicate-check", Item3DuplicateCheck)
 	seq.AddStep("item4-na", Item4NA)
 	seq.AddStep("item5-y-not-fire", DeferredStep(5))
-	seq.AddStep("item6-entry-coherence", DeferredStep(6))
+	seq.AddStep("item6-entry-coherence", Item6EntryCoherence)
 
 	// Stratum: Structural-behavioral (Items 7–10)
 	seq.AddStep("item7-sister-mirror", DeferredStep(7))
@@ -71,11 +80,11 @@ func BuildBattery() *Sequence {
 	seq.AddStep("item10-axis-presence", Item10AxisPresence)
 
 	// Stratum: Interpretive (Items 11–12)
-	seq.AddStep("item11-safety-class", DeferredStep(11))
-	seq.AddStep("item12-default-alignment", DeferredStep(12))
+	seq.AddStep("item11-safety-class", Item11SafetyClass)
+	seq.AddStep("item12-default-alignment", Item12DefaultAlignment)
 
 	// Stratum: Systemic (Items 13–15)
-	seq.AddStep("item13-contamination-radius", DeferredStep(13))
+	seq.AddStep("item13-contamination-radius", Item13ContaminationRadius)
 	seq.AddStep("item14-globality-demand", DeferredStep(14))
 	seq.AddStep("item15-fallout-profile", Item15FalloutProfile)
 

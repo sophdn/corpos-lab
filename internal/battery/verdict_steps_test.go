@@ -262,6 +262,83 @@ func TestItem9AssessesLabelledCalibrationInstanceAsFail(t *testing.T) {
 	}
 }
 
+// --- Items 6, 11, 12: model-assessed verdict steps ---
+
+// verdictStepCase drives the shared Pass/Fail/Error/Garbage assertions across
+// the three new verdict steps so each item's polarity and item-number tagging is
+// checked without repeating the boilerplate.
+type verdictStepCase struct {
+	name string
+	item int
+	fn   func(context.Context, *State) StepOutcome
+	// framing is a phrase the item's prompt must carry (item identity).
+	framing string
+}
+
+func TestNewVerdictSteps(t *testing.T) {
+	cases := []verdictStepCase{
+		{"item6", 6, Item6EntryCoherence, "retrosynthetic"},
+		{"item11", 11, Item11SafetyClass, "safety-class boundaries"},
+		{"item12", 12, Item12DefaultAlignment, "trained defaults"},
+	}
+	for _, c := range cases {
+		t.Run(c.name+"/pass", func(t *testing.T) {
+			out := c.fn(context.Background(), &State{Content: "entry", Model: &fakeClient{text: "PASS"}})
+			if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindPass {
+				t.Fatalf("expected pass, got %+v", out)
+			}
+		})
+		t.Run(c.name+"/fail", func(t *testing.T) {
+			out := c.fn(context.Background(), &State{Content: "entry", Model: &fakeClient{text: "FAIL because reasons"}})
+			if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindFail {
+				t.Fatalf("expected fail, got %+v", out)
+			}
+			if out.Verdict.Item == nil || *out.Verdict.Item != c.item {
+				t.Fatalf("expected item %d, got %v", c.item, out.Verdict.Item)
+			}
+		})
+		t.Run(c.name+"/error", func(t *testing.T) {
+			out := c.fn(context.Background(), &State{Content: "entry", Model: &fakeClient{err: errors.New("timeout")}})
+			if out.Kind != OutcomeError {
+				t.Fatalf("expected error outcome, got %+v", out)
+			}
+			if !strings.Contains(out.Message, "model error:") {
+				t.Fatalf("got %q", out.Message)
+			}
+		})
+		t.Run(c.name+"/garbage", func(t *testing.T) {
+			out := c.fn(context.Background(), &State{Content: "entry", Model: &fakeClient{text: "maybe"}})
+			if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindFail {
+				t.Fatalf("garbage should map to fail, got %+v", out)
+			}
+		})
+		t.Run(c.name+"/prompt", func(t *testing.T) {
+			f := &fakeClient{text: "PASS"}
+			c.fn(context.Background(), &State{Content: "UNIQUE-SENTINEL-6-11-12", Model: f})
+			if len(f.prompts) != 1 || !strings.Contains(f.prompts[0], "UNIQUE-SENTINEL-6-11-12") {
+				t.Fatal("prompt should embed the entry content")
+			}
+			if !strings.Contains(f.prompts[0], c.framing) {
+				t.Fatalf("prompt should carry the item framing %q", c.framing)
+			}
+		})
+	}
+}
+
+// Item 12's polarity is inverted from the others: an entry that merely restates
+// trained defaults must FAIL ("no friction = fail"), and the prompt must carry
+// that instruction so the assessor scores in the right direction.
+func TestItem12PromptCarriesNoFrictionIsFail(t *testing.T) {
+	f := &fakeClient{text: "PASS"}
+	Item12DefaultAlignment(context.Background(), &State{Content: "entry", Model: f})
+	if !strings.Contains(f.prompts[0], "no friction = fail") {
+		t.Fatal("item-12 prompt must state that no friction is a failure")
+	}
+	if !strings.Contains(f.prompts[0], "distinguishable from") {
+		t.Fatal("item-12 prompt must frame the distinguishable-from-default test")
+	}
+}
+
 func TestVerdictGenParamsPinDeterministicSampling(t *testing.T) {
 	p := verdictGenParams()
 	if p.Temperature == nil || *p.Temperature != 0.0 {

@@ -83,6 +83,20 @@ type ProfileReader interface {
 	ReadProfile(path string) (string, error)
 }
 
+// RegistryReader is the sans-IO seam for Item 3: it returns the identities
+// (glyph slugs) of the entries already promoted to the ALPHABET registry, so
+// the duplicate check can be run without the battery package touching the
+// filesystem. The injected reader is the only thing that reads the registry
+// file; tests substitute an in-memory fake.
+//
+// An ABSENT registry (no ALPHABET.md on disk yet) is reported as an empty slice
+// with a nil error — a verified-empty registry genuinely has no duplicates. A
+// real read failure returns the error, which Item 3 fails closed on rather than
+// manufacturing a pass it could not verify.
+type RegistryReader interface {
+	RegistryIdentities() ([]string, error)
+}
+
 // State is the sequence execution context steps receive: the item under
 // evaluation, its content, the inference client, and the results of every
 // step run so far (observation → judge patterns read prior results).
@@ -91,13 +105,16 @@ type ProfileReader interface {
 // resolves the entry's "**Fallout profile:**" reference relative to it.
 // Profiles is the injected reader Item 15 uses to open that referent — nil
 // unless the caller wired one, in which case Item 15 fails closed rather than
-// manufacturing a pass it cannot verify.
+// manufacturing a pass it cannot verify. Registry is the injected reader Item 3
+// uses to list the promoted-entry identities it dedupes the candidate against —
+// nil unless the caller wired one, in which case Item 3 also fails closed.
 type State struct {
 	ItemID      string
 	Content     string
 	Model       model.Client
 	EntryPath   string
 	Profiles    ProfileReader
+	Registry    RegistryReader
 	StepResults []StepResult
 }
 

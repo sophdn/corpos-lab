@@ -55,11 +55,32 @@ func TestEveryRegisteredStepHasAVersion(t *testing.T) {
 	if v := StepVersion("not-a-step"); v != "0.0.0" {
 		t.Fatalf("unknown step should be 0.0.0, got %q", v)
 	}
-	if v := StepVersion("item3-duplicate-check"); v != "0.0.0-deferred" {
-		t.Fatalf("deferred step should be 0.0.0-deferred, got %q", v)
-	}
 	if v := StepVersion("item2-intent-language-scan"); v != "0.1.0" {
 		t.Fatalf("implemented step should be 0.1.0, got %q", v)
+	}
+	// Items 3, 6, 11, 12, 13 mechanized under port-structural-prober-items now
+	// carry a real 0.1.0 version, no longer "0.0.0-deferred".
+	for _, name := range []string{
+		"item3-duplicate-check",
+		"item6-entry-coherence",
+		"item11-safety-class",
+		"item12-default-alignment",
+		"item13-contamination-radius",
+	} {
+		if v := StepVersion(name); v != "0.1.0" {
+			t.Fatalf("mechanized step %s should be 0.1.0, got %q", name, v)
+		}
+	}
+	// Only items 5, 7, 8, 14 remain deferred (a separate task decides them).
+	for _, name := range []string{
+		"item5-y-not-fire",
+		"item7-sister-mirror",
+		"item8-phenomenological",
+		"item14-globality-demand",
+	} {
+		if v := StepVersion(name); v != "0.0.0-deferred" {
+			t.Fatalf("deferred step %s should be 0.0.0-deferred, got %q", name, v)
+		}
 	}
 	// The item-9/15 repairs (task 3586) and the item-1 resolved-reading repair
 	// (task 3588) bump those three past the 0.1.0 cohort so a post-hoc query
@@ -105,6 +126,7 @@ func TestKnownPassItemPassesFullBattery(t *testing.T) {
 		Content:  content,
 		Model:    &fakeClient{text: "PASS"},
 		Profiles: knownPassProfiles(),
+		Registry: &fakeRegistry{},
 	})
 
 	if !result.Passed {
@@ -149,21 +171,22 @@ func TestKnownFailItem2FailsAtIntentLanguage(t *testing.T) {
 }
 
 func TestFullBatteryComposeOnKnownPassIsDefer(t *testing.T) {
-	// The 15-item run on a passing entry still carries 9 Deferred stubs, so
-	// the composed run verdict is Defer (not Promote) until the deferred
-	// items land — exactly the source's compose semantics.
+	// The 15-item run on a passing entry now carries 4 Deferred stubs (items 5,
+	// 7, 8, 14 — items 3, 6, 11, 12, 13 were mechanized), so the composed run
+	// verdict is Defer (not Promote) until those four land.
 	content := fixture(t, "known_pass.md")
 	result := RunSequence(context.Background(), BuildBattery(), Input{
 		ItemID:   "known-pass",
 		Content:  content,
 		Model:    &fakeClient{text: "PASS"},
 		Profiles: knownPassProfiles(),
+		Registry: &fakeRegistry{},
 	})
 	composed := ComposeRunVerdict(result.ItemVerdicts())
 	if composed.Kind != RunDefer {
-		t.Fatalf("expected Defer (9 deferred stubs), got %+v", composed)
+		t.Fatalf("expected Defer (4 deferred stubs), got %+v", composed)
 	}
-	if len(composed.Pending) != 9 {
-		t.Fatalf("expected 9 pending reasons, got %d", len(composed.Pending))
+	if len(composed.Pending) != 4 {
+		t.Fatalf("expected 4 pending reasons, got %d", len(composed.Pending))
 	}
 }

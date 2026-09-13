@@ -64,6 +64,23 @@ func (f *fakeProfiles) ReadProfile(path string) (string, error) {
 	return doc, nil
 }
 
+// fakeRegistry is the in-memory RegistryReader for battery tests: identities is
+// the list of promoted-entry identities to dedupe against; err, when set, is
+// returned for every read (the unreadable-registry case). A zero fakeRegistry is
+// a verified-empty registry — no identities, no error — so a clean candidate
+// passes Item 3.
+type fakeRegistry struct {
+	identities []string
+	err        error
+}
+
+func (f *fakeRegistry) RegistryIdentities() ([]string, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.identities, nil
+}
+
 func testInput() Input {
 	return Input{
 		ItemID:  "test-item",
