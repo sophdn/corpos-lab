@@ -6,9 +6,9 @@ date: 2026-09-11
 
 # assay-blank-claude-definition-work (v10, v11a, v11b, v12) — orientation records
 
-These four versions are copied byte-verbatim from the archived `lab-app/corpus`
-tree. They are **orientation only**, not a published result and not a parity
-target.
+These four versions are copied byte-verbatim from the ancestor corpus (now under
+`corpus/private/`; history in `~/dev/archives/lab-app-<date>.bundle`). They are
+**orientation only**, not a published result and not a parity target.
 
 They ran on the **retired ollama runtime** (`mistral:latest` via
 `ollama /api/generate`), which applies a hidden chat template and an unrecorded

@@ -121,7 +121,7 @@ func Item1XYZSpecificity(ctx context.Context, st *State) StepOutcome {
 // Item9Universality — the model checks whether structural fields contain
 // project-specific references (file paths, protocol slugs, artifact names,
 // project vocabulary). The prompt carries the 2026-04-23 calibration-instance
-// ruling (lab-app/fidelity/item9-criterion-ruling.md): a calibration instance
+// ruling (docs/archive/fidelity/item9-criterion-ruling.md): a calibration instance
 // labelled "recognition illustration" or "does not define scope" gets no
 // exemption from the scan, so project-specific vocabulary inside such a
 // labelled instance is still a FAIL. Before this the runner embodied the

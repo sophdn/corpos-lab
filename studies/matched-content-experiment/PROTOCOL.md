@@ -117,7 +117,7 @@ ALPHABET holds 8 entries spanning 7 distinct decision classes (promoted
 
 Select decision classes that:
 
-1. **Have existing scenario infrastructure.** lab-app/corpus/studies/ contains
+1. **Have existing scenario infrastructure.** corpus/private/studies/ contains
    ecological and grounded scenarios for most classes. Adapting existing
    scenarios is faster and less error-prone than authoring from scratch.
 2. **Calibrate.** The model exhibits the target failure at T0 (baseline). A
@@ -171,7 +171,7 @@ and T2. Requirements:
 
 For each selected class:
 
-1. Read the existing ecological/grounded scenario in lab-app.
+1. Read the existing ecological/grounded scenario in corpus/private/studies/.
 2. Adapt it for single-turn completion in the corpos-lab assay format.
 3. Verify the scenario is self-contained: a model with no prior context can
    understand and act on it.
@@ -312,7 +312,7 @@ Secondary. Must not compromise the main contrast's cleanliness.
 ### 9.1 Design
 
 One decision class from the main grid. One novel scenario that was NOT used in
-the main grid and is NOT adapted from existing lab-app infrastructure. Same
+the main grid and is NOT adapted from existing ancestor-corpus infrastructure. Same
 three conditions (T0, T1, T2). Same scoring. 8 runs per cell.
 
 The probe tests whether any observed format effect transfers to a novel

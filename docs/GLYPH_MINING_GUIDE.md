@@ -9,7 +9,7 @@ happening in structurally different places. This is the same pipeline the lab
 runs, compressed into something you can apply to your own agents.
 
 **Canonical sources of truth** (this guide summarises them; when they disagree,
-they win): `~/dev/lab-app/corpus/glyph-model/GLYPH_DEFINITION.md`,
+they win): `corpus/glyph-model/GLYPH_DEFINITION.md`,
 `GLYPH_DECOMPOSITION_PROCESS.md`, `ALPHABET_ENTRY_BATTERY.md`,
 `GLYPH_WRITING_SPEC.md`.
 

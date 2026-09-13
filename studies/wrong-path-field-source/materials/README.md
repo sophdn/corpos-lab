@@ -11,7 +11,7 @@ All materials are fixed before any run and used byte-verbatim as the model's pro
 ## `base/` — the base arm terrain
 
 Copied verbatim from `assay-blank-claude-definition-work/v10`, the last orientation study before
-this reformulation. Source repository: the archived `lab-app/corpus` tree; the relevant versions
+this reformulation. Source: the ancestor corpus (now in this repo; history in `~/dev/archives/lab-app-<date>.bundle`); the relevant versions
 (v10, v11a, v11b, v12) are also copied into this repository under
 `studies/assay-blank-claude-definition-work/` as orientation records.
 
@@ -19,7 +19,7 @@ this reformulation. Source repository: the archived `lab-app/corpus` tree; the r
   (Y-Terrain format: Y-Decision block, Marker axis, Aim axis, Rest axis).
 - `SCENARIO_{glyph}-{a,b}.md` — twelve scenarios, one firing (a, ground truth yes) and one
   carve-out (b, ground truth no) per glyph.
-- `GLYPH_DEFINITION.md` — the shared glyph-definition document (from `lab-app/corpus/glyph-model`).
+- `GLYPH_DEFINITION.md` — the shared glyph-definition document (from `corpus/glyph-model`).
 - `INSTRUCTION.md` — the fixed four-field response instruction. Adapted from v10 in one clause:
   v10 read "the glyph above and the trace below", which is wrong for the assembly order (glyph
   and trace both precede the instruction), so it now reads "the glyph and the trace above". The

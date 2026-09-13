@@ -112,8 +112,10 @@ included, and the shared fixtures agree end-to-end.
 
 ## Promotion & rollback
 
-- Source stays runnable at `~/dev/lab-app` (untouched, read-only during this
-  port); archive happens in `archive-ancestor-repos` AFTER the parity chain
-  reproduces casg-direct v3 on this instrument.
-- Rollback: revert the merge commit of branch `port-battery-runner`; the Rust
-  battery remains at `lab-app/crates/` with its own test suite.
+- Source (lab-app @ `ae6611d`) was untouched and read-only during the port; the
+  parity chain reproduced casg-direct v3 on this instrument. lab-app was then
+  dissolved into corpos-lab (chain `dissolve-lab-app-into-corpos-lab`); its full
+  history — including the Rust battery at `lab-app/crates/` — is preserved in the
+  cold bundle `~/dev/archives/lab-app-<date>.bundle`.
+- Rollback: revert the merge commit of branch `port-battery-runner`; restore the
+  Rust battery from the bundle above.

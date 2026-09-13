@@ -2,7 +2,7 @@
 
 ## What this reformulates
 
-An earlier two-run study (lab-app `corpus/studies/cartographer-duty-test/`)
+An earlier two-run study (`corpus/private/studies/cartographer-duty-test/`, from the ancestor corpus)
 found that the **cartographer** way of writing a duty covers the failure modes
 a designer can derive from first principles but structurally misses the
 **corpus-empirical** ones — the hazards whose badness is only apparent from
