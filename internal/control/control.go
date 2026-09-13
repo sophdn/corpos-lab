@@ -136,6 +136,13 @@ type SubstrateProbe func(ctx context.Context) substrate.Info
 // ProvenanceReader stamps the instrument's repo state.
 type ProvenanceReader func(ctx context.Context) (provenance.Stamp, error)
 
+// PreflightProbe returns non-blocking warnings about a run before it launches —
+// for example, that the pinned assay image predates the assay code. It never
+// errors and never blocks: a warning is recorded on the run, and the run
+// proceeds. This is the observe-don't-assert counterpart to the hard failures
+// (an absent image, a malformed result) the controller raises elsewhere.
+type PreflightProbe func(ctx context.Context, def study.Def) []string
+
 // Deps are the seams RunStudy reaches the world through. They are a struct
 // rather than positional params because every one of them is a place the run
 // observes something, and this list grows: keeping them named means adding an
@@ -150,6 +157,7 @@ type Deps struct {
 	DigestOf   DigestReader
 	Substrate  SubstrateProbe
 	Provenance ProvenanceReader
+	Preflight  PreflightProbe
 }
 
 // Status is a study run's terminal state.
@@ -185,6 +193,10 @@ type StudyRun struct {
 	// ProvenanceError records why Provenance is empty, when it is. A run is
 	// not voided for failing to describe itself.
 	ProvenanceError string `json:"provenance_error,omitempty"`
+	// Warnings are non-blocking preflight observations recorded before launch —
+	// for example, that the pinned image predates the assay code. Recorded, never
+	// enforced: a warning describes the run, it does not refuse it.
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 // ContainerExitError is a non-zero container exit — including the
@@ -234,6 +246,10 @@ func RunStudy(ctx context.Context, def study.Def, workDir string, deps Deps) (St
 	} else {
 		run.Provenance = stamp
 	}
+
+	// Preflight warnings are recorded on the run and never block it — a run that
+	// can flag its own staleness is still a run.
+	run.Warnings = deps.Preflight(ctx, def)
 
 	// Any exit path writes the record; a failure records the error first.
 	finish := func(status Status, err error) (StudyRun, error) {

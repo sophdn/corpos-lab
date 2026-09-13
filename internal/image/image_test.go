@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 )
 
 func fakeRunner(out string, err error) Runner {
@@ -79,6 +80,51 @@ func TestParseDigestList(t *testing.T) {
 	}
 	if ParseDigestList([]byte("\n<none>\n")) != nil {
 		t.Fatal("expected nil for a list with no real digests")
+	}
+}
+
+func TestCreatedParsesEpoch(t *testing.T) {
+	got, err := Created(context.Background(), fakeRunner("1757640000\n", nil), "ref")
+	if err != nil {
+		t.Fatalf("Created: %v", err)
+	}
+	if want := time.Unix(1757640000, 0).UTC(); !got.Equal(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestCreatedRejectsBadTimeAndPropagatesError(t *testing.T) {
+	if _, err := Created(context.Background(), fakeRunner("not-a-number", nil), "ref"); err == nil {
+		t.Fatal("expected error for unparseable created time")
+	}
+	if _, err := Created(context.Background(), fakeRunner("", errors.New("no such image")), "ref"); err == nil {
+		t.Fatal("expected runner error to propagate")
+	}
+}
+
+func TestStaleImageWarning(t *testing.T) {
+	built := time.Unix(1000, 0)
+	older := time.Unix(500, 0)
+	newer := time.Unix(2000, 0)
+
+	if msg, stale := StaleImageWarning("repo@sha256:x", built, newer); !stale {
+		t.Fatal("image built before a later code change must warn")
+	} else if !strings.Contains(msg, "repo@sha256:x") || !strings.Contains(msg, "rebuild") {
+		t.Fatalf("warning must name the ref and say rebuild: %q", msg)
+	}
+
+	if _, stale := StaleImageWarning("ref", built, older); stale {
+		t.Fatal("image built after the last code change must not warn")
+	}
+	if _, stale := StaleImageWarning("ref", built, built); stale {
+		t.Fatal("equal times must not warn")
+	}
+	// Zero on either side means the signal is unavailable — do not guess.
+	if _, stale := StaleImageWarning("ref", time.Time{}, newer); stale {
+		t.Fatal("zero image time must not warn")
+	}
+	if _, stale := StaleImageWarning("ref", built, time.Time{}); stale {
+		t.Fatal("zero code-change time must not warn")
 	}
 }
 

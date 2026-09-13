@@ -10,7 +10,9 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // Runner executes an image-inspect command and returns its stdout. The
@@ -32,6 +34,39 @@ func Digest(ctx context.Context, run Runner, ref string) (string, error) {
 		return "", fmt.Errorf("image: %s produced malformed digest %q", ref, digest)
 	}
 	return digest, nil
+}
+
+// Created returns the build time of the image at ref, read from podman's
+// `{{.Created.Unix}}` (epoch seconds, unambiguous across podman versions,
+// unlike the default time rendering). It is the signal for whether a pinned
+// image predates the assay code the operator likely means to run.
+func Created(ctx context.Context, run Runner, ref string) (time.Time, error) {
+	out, err := run(ctx, ref)
+	if err != nil {
+		return time.Time{}, err
+	}
+	secs, err := strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("image: %s produced unparseable created time %q: %w", ref, strings.TrimSpace(string(out)), err)
+	}
+	return time.Unix(secs, 0).UTC(), nil
+}
+
+// StaleImageWarning reports whether the assay image at ref, built at imageBuilt,
+// predates the most recent assay/runner code change at codeChanged — meaning a
+// run on it executes stale assay code, because the container runs the image, not
+// the working tree. It returns a recorded, non-blocking warning; the run still
+// proceeds (observe, don't assert). A zero imageBuilt or codeChanged means the
+// signal could not be read, so it returns no warning rather than guessing.
+func StaleImageWarning(ref string, imageBuilt, codeChanged time.Time) (string, bool) {
+	if imageBuilt.IsZero() || codeChanged.IsZero() || !imageBuilt.Before(codeChanged) {
+		return "", false
+	}
+	msg := fmt.Sprintf(
+		"pinned assay image %s was built %s, but internal/assay or internal/runner changed later, at %s — "+
+			"the run uses the image's assay code, not the working tree; rebuild (scripts/build-lab-images.sh) and re-pin to run the current code",
+		ref, imageBuilt.Format(time.RFC3339), codeChanged.Format(time.RFC3339))
+	return msg, true
 }
 
 // isSHA256 reports whether s has the exact shape "sha256:" + 64 chars. It does

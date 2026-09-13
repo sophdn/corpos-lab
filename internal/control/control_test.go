@@ -87,7 +87,16 @@ func testDeps(l Launcher, d DigestReader) Deps {
 		Provenance: func(context.Context) (provenance.Stamp, error) {
 			return provenance.Stamp{CommitSHA: "0123456789abcdef0123456789abcdef01234567"}, nil
 		},
+		Preflight: func(context.Context, study.Def) []string { return nil },
 	}
+}
+
+// depsWithPreflight is testDeps with a custom preflight probe, for asserting
+// that warnings reach the run record.
+func depsWithPreflight(l Launcher, d DigestReader, warnings []string) Deps {
+	deps := testDeps(l, d)
+	deps.Preflight = func(context.Context, study.Def) []string { return warnings }
+	return deps
 }
 
 // fakeLauncher writes a canned /out (results.json + manifest.json) and returns
@@ -176,6 +185,36 @@ func TestRunStudyCompletesAndRecords(t *testing.T) {
 	}
 	if back.Status != StatusCompleted {
 		t.Fatalf("recorded status = %s", back.Status)
+	}
+}
+
+func TestRunStudyRecordsPreflightWarnings(t *testing.T) {
+	def := loadTestDef(t)
+	work := t.TempDir()
+	warn := "pinned assay image predates internal/assay"
+	run, err := RunStudy(context.Background(), def, work,
+		depsWithPreflight(&fakeLauncher{exitCode: 0, writeResults: true, rows: 2}, fixedDigest, []string{warn}))
+	if err != nil {
+		t.Fatalf("RunStudy: %v", err)
+	}
+	// A warning never blocks the run.
+	if run.Status != StatusCompleted {
+		t.Fatalf("status = %s, want completed", run.Status)
+	}
+	if len(run.Warnings) != 1 || run.Warnings[0] != warn {
+		t.Fatalf("Warnings = %v, want [%q]", run.Warnings, warn)
+	}
+	// The warning is persisted, not just returned.
+	raw, err := os.ReadFile(filepath.Join(work, "run-record.json"))
+	if err != nil {
+		t.Fatalf("run record not written: %v", err)
+	}
+	var back StudyRun
+	if err := json.Unmarshal(raw, &back); err != nil {
+		t.Fatalf("run record invalid: %v", err)
+	}
+	if len(back.Warnings) != 1 || back.Warnings[0] != warn {
+		t.Fatalf("recorded Warnings = %v, want [%q]", back.Warnings, warn)
 	}
 }
 

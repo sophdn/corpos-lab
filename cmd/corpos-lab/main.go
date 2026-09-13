@@ -282,7 +282,13 @@ func runStudy(args []string) int {
 		DigestOf:   digestReader,
 		Substrate:  substrateProbe,
 		Provenance: provenanceReader(defPath),
+		Preflight:  preflightProbe(defPath),
 	})
+	// Preflight warnings are recorded on the run; surface them to the operator
+	// too, on success or failure.
+	for _, w := range runResult.Warnings {
+		fmt.Fprintf(os.Stderr, "corpos-lab: WARN: %s\n", w)
+	}
 	recordPath := filepath.Join(workDir, "run-record.json")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "corpos-lab: study FAILED: %v\n", err)
@@ -338,6 +344,39 @@ func digestReader(ctx context.Context, ref string) (string, error) {
 // podmanInspectDigest reads one image's content digest via rootless podman.
 func podmanInspectDigest(ctx context.Context, ref string) ([]byte, error) {
 	return exec.CommandContext(ctx, "podman", "image", "inspect", "--format", "{{.Digest}}", ref).Output()
+}
+
+// preflightProbe warns when the pinned assay image predates the assay/runner
+// code, so a run on it silently executes stale code. It compares the image's
+// build time against the last git change to internal/assay or internal/runner.
+// Every arm that cannot read a signal returns no warning rather than guessing —
+// observe, don't assert — and it never blocks the run. The comparison logic
+// lives in internal/image and internal/provenance (tested); this is exec glue.
+func preflightProbe(defPath string) control.PreflightProbe {
+	return func(ctx context.Context, def study.Def) []string {
+		built, err := image.Created(ctx, podmanInspectCreated, def.Image)
+		if err != nil {
+			return nil
+		}
+		repoDir, err := filepath.Abs(filepath.Dir(defPath))
+		if err != nil {
+			return nil
+		}
+		changed, err := provenance.LastChange(ctx, repoDir, "internal/assay", "internal/runner")
+		if err != nil {
+			return nil
+		}
+		if msg, stale := image.StaleImageWarning(def.Image, built, changed); stale {
+			return []string{msg}
+		}
+		return nil
+	}
+}
+
+// podmanInspectCreated reads one image's build time (epoch seconds) via rootless
+// podman.
+func podmanInspectCreated(ctx context.Context, ref string) ([]byte, error) {
+	return exec.CommandContext(ctx, "podman", "image", "inspect", "--format", "{{.Created.Unix}}", ref).Output()
 }
 
 // substrateProbe identifies the processor the inference server is running on.

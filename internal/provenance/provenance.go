@@ -17,7 +17,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // Stamp identifies the repo state a run executed from.
@@ -48,6 +50,32 @@ func Capture(ctx context.Context, repoDir string) (Stamp, error) {
 		CommitSHA: sha,
 		Dirty:     status != "",
 	}, nil
+}
+
+// LastChange returns the commit time of the most recent commit that touched any
+// of paths, where paths are repo-root-relative (e.g. "internal/assay"). repoDir
+// may be any directory inside the repo: the paths are matched against the repo
+// root via git's top-level magic pathspec, so a caller passing a study
+// subdirectory still resolves them correctly. It fails when repoDir is not a git
+// repo; it returns a zero time and no error when no commit touches paths, so a
+// caller treats "cannot tell" as "do not warn" rather than as a failure.
+func LastChange(ctx context.Context, repoDir string, paths ...string) (time.Time, error) {
+	args := []string{"log", "-1", "--format=%ct", "--"}
+	for _, p := range paths {
+		args = append(args, ":/"+p)
+	}
+	out, err := gitOutput(ctx, repoDir, args...)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("provenance: git log for %v in %s: %w", paths, repoDir, err)
+	}
+	if out == "" {
+		return time.Time{}, nil
+	}
+	secs, err := strconv.ParseInt(out, 10, 64)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("provenance: unparseable commit time %q: %w", out, err)
+	}
+	return time.Unix(secs, 0).UTC(), nil
 }
 
 func gitOutput(ctx context.Context, repoDir string, args ...string) (string, error) {
