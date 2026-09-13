@@ -46,15 +46,22 @@ func Item2IntentLanguageScan(_ context.Context, st *State) StepOutcome {
 // 11, and 12 are model-assessed verdict steps. A separate task decides 5, 7, 8,
 // and 14.
 func DeferredPending(item int) string {
+	// Items 5, 7, 8, 14 (2026-09-13 decision, chain run-the-science): judged by
+	// Opus 4.8 from the ALPHABET battery rubric during re-validation (the canonical
+	// judge until a local model is validated to take over — see memory
+	// opus-4-8-is-the-canonical-battery-judge). A LOCAL verdict step for each is
+	// deferred to that future handover, not built now: these four have no
+	// structural-prober reference and are judgment-heavy, so a local verdict step
+	// could not be validated against the canonical judge yet.
 	switch item {
 	case 5:
-		return "item 5: Y-not-fire positive terrain — complex multi-sub-check, decomposition cross-reference to GLYPH_DECOMPOSITION_PROCESS.md pending"
+		return "item 5: Y-not-fire positive terrain — Opus-judged from the rubric in re-validation; local verdict step deferred to the local-judge handover. Complex multi-sub-check (cross-references GLYPH_DECOMPOSITION_PROCESS.md)"
 	case 7:
-		return "item 7: sister/mirror check — corpus-wide scan pending (corpus access)"
+		return "item 7: sister/mirror — Opus-judged from the rubric in re-validation; local verdict step deferred. Needs a registry-wide scan"
 	case 8:
-		return "item 8: phenomenological grounding — multi-faceted judgment across Y-fire, Y-not-fire, and three axes; underspecified for single-agent step"
+		return "item 8: phenomenological grounding — Opus-judged from the rubric in re-validation; local verdict step deferred. Multi-faceted judgment across Y-fire, Y-not-fire, and the three axes"
 	case 14:
-		return "item 14: globality demand — judgment-heavy, underspecified for single-agent step"
+		return "item 14: globality demand — Opus-judged from the rubric in re-validation; local verdict step deferred. Judgment-heavy"
 	default:
 		return "item deferred pending integration"
 	}
