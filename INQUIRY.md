@@ -141,6 +141,13 @@ that single-integer comparisons between grids are noise. Read cells, not counts.
 
 **Double-score.** Primary scorer plus a local second rater on a sample spanning
 the code range. Report disagreements and say whether the reading survives them.
+The second rater must clear a capability floor first: before its agreement
+counts, calibrate it on a few known-positive and known-negative responses and
+confirm it discriminates on the rubric. A rater that labels everything the same
+way carries no information — its agreement is not evidence. The default second
+rater is **phi-4-14B**, which cleared this floor in the 2026-09-11
+behavioral-equivalence-assay run; **Mistral-7B failed it** there, passing every
+response including plainly conclusion-first ones, so do not use it as a rater.
 
 **Predictions, kept honestly.** Write down what you expect before you look — not
 as a commitment, but because surprise is where the learning is. Drop the
