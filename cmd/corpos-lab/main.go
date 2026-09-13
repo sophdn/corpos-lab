@@ -310,10 +310,34 @@ func runStudy(args []string) int {
 }
 
 // digestReader reads an image content digest via rootless podman.
+//
+// When the ref is digest-pinned and the read fails — the shape that means a
+// rebuild orphaned the pinned digest — it returns an *image.AbsentPinError that
+// names the missing digest and the digests currently present for the repo,
+// instead of the opaque podman "exit status 125" the raw failure produces. The
+// enrichment logic lives in internal/image (tested); this stays exec glue.
 func digestReader(ctx context.Context, ref string) (string, error) {
-	return image.Digest(ctx, func(ctx context.Context, r string) ([]byte, error) {
-		return exec.CommandContext(ctx, "podman", "image", "inspect", "--format", "{{.Digest}}", r).Output()
-	}, ref)
+	digest, err := image.Digest(ctx, podmanInspectDigest, ref)
+	if err == nil {
+		return digest, nil
+	}
+	repo, missing, ok := image.ParsePinnedDigest(ref)
+	if !ok {
+		return "", err
+	}
+	// Best-effort: list what IS present for the repo. A failure here (podman
+	// missing, no such repo) just yields an empty Available, which the error
+	// message renders as "rebuild it".
+	var available []string
+	if out, listErr := exec.CommandContext(ctx, "podman", "images", "--format", "{{.Digest}}", repo).Output(); listErr == nil {
+		available = image.ParseDigestList(out)
+	}
+	return "", &image.AbsentPinError{Ref: ref, Repo: repo, Digest: missing, Available: available}
+}
+
+// podmanInspectDigest reads one image's content digest via rootless podman.
+func podmanInspectDigest(ctx context.Context, ref string) ([]byte, error) {
+	return exec.CommandContext(ctx, "podman", "image", "inspect", "--format", "{{.Digest}}", ref).Output()
 }
 
 // substrateProbe identifies the processor the inference server is running on.
