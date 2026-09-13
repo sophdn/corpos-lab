@@ -60,3 +60,14 @@ earlier repos.
 
 Requires Go 1.26+, a local llama.cpp server, and (for persistence) the companion toolkit
 service. Study definitions, batteries, and the demo profile land as the port progresses.
+
+## License
+
+This repository holds both software and research material, licensed separately.
+
+- **Code** (Go sources, scripts, tooling) is licensed under the GNU Affero
+  General Public License v3.0 (AGPL-3.0). See [LICENSE](LICENSE).
+- **Papers and datasets** — the contents of the `papers/` and `studies/`
+  directories — are licensed under the Creative Commons Attribution 4.0
+  International License (CC-BY-4.0). See
+  [LICENSE-docs-CC-BY-4.0.txt](LICENSE-docs-CC-BY-4.0.txt).
