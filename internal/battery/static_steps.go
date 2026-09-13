@@ -276,6 +276,13 @@ func RegistryIdentitiesFrom(content string) []string {
 // a duplicate check it could not run. The reader reports an ABSENT registry as
 // an empty identity list with no error (a verified-empty registry has no
 // duplicates); only a real read failure returns an error, which fails the item.
+//
+// Self-exclusion: a glyph is never a duplicate of itself. Re-certifying a
+// candidate already promoted to the registry finds its OWN identity there, which
+// must not false-fail as a duplicate. So the first registry occurrence of the
+// candidate's identity is skipped as the candidate's own entry; the item fails
+// only if a SECOND occurrence remains — a genuinely distinct entry sharing the
+// identity.
 func Item3DuplicateCheck(_ context.Context, st *State) StepOutcome {
 	id, ok := GlyphIdentity(st.Content)
 	if !ok {
@@ -292,11 +299,18 @@ func Item3DuplicateCheck(_ context.Context, st *State) StepOutcome {
 			fmt.Sprintf("registry unreadable, cannot verify %q is unique: %v", id, err))
 	}
 	want := normalizeIdentity(id)
+	selfExcluded := false
 	for _, existing := range identities {
-		if normalizeIdentity(existing) == want {
-			return FailItemOutcome(3,
-				fmt.Sprintf("duplicate identity %q already present in the ALPHABET registry", id))
+		if normalizeIdentity(existing) != want {
+			continue
 		}
+		if !selfExcluded {
+			// The candidate's own promoted entry — not a duplicate of itself.
+			selfExcluded = true
+			continue
+		}
+		return FailItemOutcome(3,
+			fmt.Sprintf("duplicate identity %q already present in the ALPHABET registry as a distinct entry", id))
 	}
 	return PassOutcome()
 }

@@ -270,8 +270,22 @@ func TestItem3PassesWhenIdentityNotInPopulatedRegistry(t *testing.T) {
 	}
 }
 
-func TestItem3FailsOnDuplicateCaseInsensitive(t *testing.T) {
-	reg := &fakeRegistry{identities: []string{"CASG-Delegate"}}
+func TestItem3PassesOnSelfCertification(t *testing.T) {
+	// Re-certifying an already-promoted glyph: its own identity is the only match
+	// in the registry, so self-exclusion makes item 3 pass. A glyph is never a
+	// duplicate of itself.
+	reg := &fakeRegistry{identities: []string{"casg-direct"}}
+	out := Item3DuplicateCheck(context.Background(), regState("**Glyph:** `casg-direct`\n", reg))
+	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindPass {
+		t.Fatalf("re-certification should pass via self-exclusion, got %+v", out)
+	}
+}
+
+func TestItem3FailsOnDistinctDuplicateCaseInsensitive(t *testing.T) {
+	// The identity appears twice: one occurrence is the candidate's own entry
+	// (self-excluded), the second is a distinct entry sharing the identity, which
+	// is a genuine duplicate. Case-insensitive matching is covered here too.
+	reg := &fakeRegistry{identities: []string{"CASG-Delegate", "casg-delegate"}}
 	out := Item3DuplicateCheck(context.Background(), regState("**Glyph:** `casg-delegate`\n", reg))
 	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindFail {
 		t.Fatalf("expected duplicate fail, got %+v", out)
@@ -318,7 +332,10 @@ func TestItem3FailsWhenRegistryUnreadable(t *testing.T) {
 }
 
 func TestItem3UsesCandidateHeadingWhenNoGlyphField(t *testing.T) {
-	reg := &fakeRegistry{identities: []string{"test"}}
+	// The identity comes from the candidate heading; it appears twice in the
+	// registry (own entry + a distinct duplicate), so after self-exclusion the
+	// second occurrence fails the item — proving the heading identity was read.
+	reg := &fakeRegistry{identities: []string{"test", "test"}}
 	out := Item3DuplicateCheck(context.Background(),
 		regState("# Glyph Candidate: test\n\nbody\n", reg))
 	if out.Kind != OutcomeVerdict || out.Verdict.Kind != KindFail {

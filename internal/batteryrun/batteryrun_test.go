@@ -118,11 +118,13 @@ func TestFileRegistryReaderReadsIdentitiesAbsentAndEmpty(t *testing.T) {
 }
 
 func TestRunFailsItem3OnRegistryDuplicate(t *testing.T) {
-	// completeCandidate's identity is "test" (# Glyph Candidate: test). A registry
-	// carrying that identity makes Item 3 fail; the run stops there.
+	// completeCandidate's identity is "test" (# Glyph Candidate: test). The
+	// registry carries that identity TWICE — one is the candidate's own entry
+	// (self-excluded), the second is a distinct duplicate — so Item 3 fails and
+	// the run stops there.
 	dir := t.TempDir()
 	regPath := filepath.Join(dir, "ALPHABET.md")
-	if err := os.WriteFile(regPath, []byte("**Glyph:** `test`\n"), 0o600); err != nil {
+	if err := os.WriteFile(regPath, []byte("**Glyph:** `test`\n\n**Glyph:** `test`\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	entryPath := writeCandidate(t, completeCandidate, completeProfile)
@@ -138,6 +140,29 @@ func TestRunFailsItem3OnRegistryDuplicate(t *testing.T) {
 	failing := res.Sequence.StepResults[res.Sequence.ExitIndex]
 	if failing.StepName != "item3-duplicate-check" {
 		t.Fatalf("expected the run to stop at item 3, stopped at %q", failing.StepName)
+	}
+}
+
+func TestRunPassesItem3OnSelfCertification(t *testing.T) {
+	// Re-certification: the registry holds the candidate's own identity once. Self
+	// exclusion makes Item 3 pass — a glyph is never a duplicate of itself. This
+	// is the false-fail the fix targets (verified with casg-direct against the
+	// real ALPHABET registry).
+	dir := t.TempDir()
+	regPath := filepath.Join(dir, "ALPHABET.md")
+	if err := os.WriteFile(regPath, []byte("**Glyph:** `test`\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	entryPath := writeCandidate(t, completeCandidate, completeProfile)
+	deps := okDeps()
+	deps.Registry = FileRegistryReader{Path: regPath}
+	res, err := Run(context.Background(), entryPath, "test", fakeClient{text: "PASS"}, deps, Options{})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if !res.Sequence.Passed {
+		t.Fatalf("re-certification should pass, failed at step %d: %q",
+			res.Sequence.ExitIndex, res.Sequence.FailureReason)
 	}
 }
 
