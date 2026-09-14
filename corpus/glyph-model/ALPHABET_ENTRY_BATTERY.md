@@ -1,17 +1,21 @@
 ---
 type: reference
-last_updated: 2026-04-11
+last_updated: 2026-09-13
 ---
 
 # ALPHABET Entry Battery
 
-> **Definition-only.** This file defines the 15 battery items and their semantics. Execution authority has moved to typed implementations:
-> - **Items 1, 2, 3, 6, 9, 11, 12, 13** — `tools/structural-prober/` (general probes, applicable to any structured definition)
-> - **Items 4, 5, 7, 8, 10, 14, 15** — battery runner (glyph-domain-bound checks, composed with the general probes)
->
-> Revise item semantics here, then update the typed implementation to match.
+> **Definition-only.** This file defines the 15 battery items and their semantics. Execution authority is the corpos-lab battery (`internal/battery`), driven by `cmd/corpos-lab battery`. Revise item semantics here, then update the battery code to match.
 
-Gate procedure for promoting a glyph entry to `process-docs/glyph-model/ALPHABET.md`. All 15 items must pass or be resolved before promotion. One entry at a time — complete the full battery before beginning the next entry.
+## Where a glyph lives, and what the battery reads
+
+A glyph's canonical **definition** is the AC-4 assembled-glyph block in its candidate working-doc, `corpus/private/glyph-model/candidates/CANDIDATE_<slug>_<date>.md`. That is the one definition source.
+
+`corpus/private/glyph-model/ALPHABET.md` is a certification **registry**, not the glyph corpus. It carries no glyph text — one row per certified glyph (slug, candidate file, cert date, judge, battery version, verdict, and the sha256 digest of the AC-4 block). Promotion **registers** a glyph: it adds a row, it does not paste the entry into ALPHABET.md.
+
+The battery reads the candidate's AC-4 block directly (`battery.ExtractEntry` — the fallout line plus the AC-4 block). There is no separate extract copy. Certified glyphs are **frozen**: the private repo's pre-commit gate rejects a commit that changes a certified glyph's AC-4 digest. To change one, de-promote it first (remove its ALPHABET row), then edit and re-certify.
+
+Gate procedure for promoting a glyph: all 15 items must pass or be resolved before promotion. One glyph at a time — complete the full battery before beginning the next.
 
 ---
 
@@ -54,25 +58,25 @@ Do not invest in Items 11–12 if any of Items 7–10 fails. Do not invest in It
 **Item 2 — Firing condition observability.** The Marker firing condition is checkable from observable artifacts without modeling agent intent.
 - Check: can an assessor determine whether the condition fired by reading documents, examining tool call sequences, or inspecting output content — without asking "what did the agent intend" or "what did the agent believe"?
 - Reject any firing condition containing: "when the agent decides", "when the agent believes", "when the agent thinks", "when the agent is confused", "when the agent is under pressure" — these require intent modeling.
-- **Sub-check (provenance):** When the firing condition involves the agent relying on contextually-held information: does the firing condition name the provenance type of that information? Apply the discriminating condition from `process-docs/glyph-model/GLYPH_PROVENANCE_TYPES.md`. If the information-substitution mechanism is present and no provenance type is stated: FLAG. The firing condition is structurally incomplete — the mechanism is observable but unnamed.
+- **Sub-check (provenance):** When the firing condition involves the agent relying on contextually-held information: does the firing condition name the provenance type of that information? Apply the discriminating condition from `GLYPH_PROVENANCE_TYPES.md`. If the information-substitution mechanism is present and no provenance type is stated: FLAG. The firing condition is structurally incomplete — the mechanism is observable but unnamed.
 
-**Item 3 — Duplicate check.** A duplicate check against `process-docs/glyph-model/ALPHABET.md` was completed and the result is explicitly noted.
+**Item 3 — Duplicate check.** A duplicate check against `corpus/private/glyph-model/ALPHABET.md` was completed and the result is explicitly noted.
 - Check: scan `ALPHABET.md` for any semantically equivalent entry — an entry covering the same decision class and failure direction.
 - "No duplicate found" is an acceptable result — but it must be stated. Unstated means unchecked.
 - A narrower or rephrased version of a promoted glyph is a duplicate.
 - Also scan for pending glyphs (if a GLYPH_REGISTRY.md exists) for semantic duplicates in progress.
 - Status: DEFERRED when registry access is not available in the current context. Resolve at promotion time.
 
-**Item 4 — N/A for glyph entries.** The registry summary requirement (invariant-anchored behavioral summary for a separate registry index) applies to `TABOO_REGISTRY.md` entries. Glyph entries in `ALPHABET.md` carry no separate summary field — the entry is the record. Record as N/A. If a `GLYPH_REGISTRY.md` is later created with a summary field, this item requires reassessment.
+**Item 4 — N/A for glyph entries.** The registry summary requirement (invariant-anchored behavioral summary for a separate registry index) applies to `TABOO_REGISTRY.md` entries. A glyph carries no separate summary field — its candidate AC-4 block is the definition of record, and `ALPHABET.md` registers it by digest rather than restating it. Record as N/A. If a `GLYPH_REGISTRY.md` is later created with a summary field, this item requires reassessment.
 
-**Item 5 — Y-not-fire positive terrain.** Before assessing Y-not-fire content, verify structural integrity: read the Y-fire block and the Y-not-fire block and confirm that Y-not-fire describes the same agent at the same structural position with a discriminating condition — not a different agent making a different choice. If the Y-not-fire territory is a different decision class, the entry is compound — apply Step 0 of `process-docs/glyph-model/GLYPH_DECOMPOSITION_PROCESS.md` and do not run Items 5–14 until the compound entry is decomposed. For entries that pass this check: Y-not-fire exists as a separate positive-terrain block and names the terrain state that distinguishes non-firing from firing.
+**Item 5 — Y-not-fire positive terrain.** Before assessing Y-not-fire content, verify structural integrity: read the Y-fire block and the Y-not-fire block and confirm that Y-not-fire describes the same agent at the same structural position with a discriminating condition — not a different agent making a different choice. If the Y-not-fire territory is a different decision class, the entry is compound — apply Step 0 of `GLYPH_DECOMPOSITION_PROCESS.md` and do not run Items 5–14 until the compound entry is decomposed. For entries that pass this check: Y-not-fire exists as a separate positive-terrain block and names the terrain state that distinguishes non-firing from firing.
 - Reject: any Y-not-fire written as a negation of Y-fire ("does not fire when X is absent", "Y-not-fire is the state where the ceiling is not exceeded"). The distinguishing condition must be named as a present state.
 - Reject: Y-not-fire that describes territory where the decision class itself is absent — that is Rest territory, not Y-not-fire.
 - Accept: a Y-not-fire that names a concrete present-state description matching the same decision class as Y-fire, with the discriminating condition stated as what IS present (not what is absent).
-- Check (calibration instance): when the discriminating condition names an abstract category — a class of actions, artifacts, or relationships admitting multiple concrete instances rather than a directly observable artifact property — does at least one calibration instance exist, labeled explicitly as an illustration? Reject: abstract discriminating condition with no concrete anchor. An abstract condition without an instance anchor places the instance-recognition step on the navigating agent silently — the category is present in the glyph text but the bridge to specific trace actions is not. See `process-docs/glyph-model/GLYPH_WRITING_SPEC.md` (Y-fire and Y-not-fire section) for the calibration instance requirement.
+- Check (calibration instance): when the discriminating condition names an abstract category — a class of actions, artifacts, or relationships admitting multiple concrete instances rather than a directly observable artifact property — does at least one calibration instance exist, labeled explicitly as an illustration? Reject: abstract discriminating condition with no concrete anchor. An abstract condition without an instance anchor places the instance-recognition step on the navigating agent silently — the category is present in the glyph text but the bridge to specific trace actions is not. See `GLYPH_WRITING_SPEC.md` (Y-fire and Y-not-fire section) for the calibration instance requirement.
 - Check (Marker/Y-not-fire competition): when the entry contains both Marker "does-not-fire-on" entries and Y-not-fire conditions, are the two structures functionally distinguishable? Marker "does-not-fire-on" covers structural exclusions — the decision class does not fully apply because the structural basis for the glyph is absent. Y-not-fire covers scope carve-outs — the decision class fully applies (same pull, same choice), but the firing condition does not obtain. Fail if a Marker "does-not-fire-on" entry provides an available path to a "no" verdict without requiring engagement with the Y-not-fire scope field — the structures are competing and one is misplaced.
 
-**Item 6 — Entry coherence (retrosynthetic check).** Every structural field in the entry traces back to a rule or specification in `process-docs/glyph-model/GLYPH_DEFINITION.md`.
+**Item 6 — Entry coherence (retrosynthetic check).** Every structural field in the entry traces back to a rule or specification in `GLYPH_DEFINITION.md`.
 - Procedure: for each field (Y marker, each axis, firing condition, does-not-fire-on, violation signal), identify which definition rule produces it. This is field-tracing, not full reconstruction.
 - Pass condition: every field has a traceable definition source.
 - FLAG: any field that cannot be traced to a definition rule. Annotate with the field name and what rule is missing or unclear. The FLAG may indicate either an entry revision is needed or a definition gap has been found — record which.
@@ -97,7 +101,7 @@ Do not invest in Items 11–12 if any of Items 7–10 fails. Do not invest in It
 - Item 2 and Item 8 both examine the Y-fire block from different directions — Item 2 as a structural requirement (observable without intent modeling), Item 8 as a recognition quality requirement (matchable without register conversion). A candidate can pass Item 2 and fail Item 8. Both failures stop promotion.
 - Check (violation signal — assessor-impact): If Z-marker names a configuration outside the executor's immediate operational scope — a downstream system, companion artifact, or artifact the executor cannot observe from their current position — verify that the violation signal's trace-form statement describes an executor-observable pattern (presence or absence in the executor's own trace) rather than a description of Z's downstream state. FLAG if the violation signal for an assessor-impact glyph does not provide executor-observable recognition content.
 
-**Item 9 — Universality.** Verify that the entry satisfies the universality criterion in `process-docs/glyph-model/GLYPH_DEFINITION.md`: the decision class and its structural fields are written in project-agnostic terms, and the load-bearing character of the violation holds for any agent system with this decision class — not only within this project's infrastructure.
+**Item 9 — Universality.** Verify that the entry satisfies the universality criterion in `GLYPH_DEFINITION.md`: the decision class and its structural fields are written in project-agnostic terms, and the load-bearing character of the violation holds for any agent system with this decision class — not only within this project's infrastructure.
 
 *Sub-check A (scan first):* Does the entry contain explicit project-specific references in its structural fields — file paths, protocol slugs by name, artifact names, project-specific vocabulary — in the Y marker, invariants, firing condition, does-not-fire-on, or violation signal? If yes: FAIL. No carve-outs: calibration instances in the violation signal and illustrative carve-outs in does-not-fire-on are structural fields and must meet the same universality standard. A label marking a calibration instance as "recognition illustration" or "does not define scope" describes its evidentiary function — it does not exempt the instance from Sub-check A. Ruled 2026-04-23; see lab-repo/fidelity/item9-criterion-ruling.md.
 
