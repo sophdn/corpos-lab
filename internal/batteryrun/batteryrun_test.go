@@ -30,15 +30,30 @@ func (f fakeClient) Props(_ context.Context) (model.ServerProps, error) {
 	return model.ServerProps{}, nil
 }
 
-// completeCandidate satisfies every mechanized static item: a Y marker with all
-// three axes (item 10), no intent-modeling language (item 2), and a fallout
-// field (item 15) pointing at profile.md alongside it.
-const completeCandidate = "# Glyph Candidate: test\n\n" +
+// completeCandidate is a candidate working-doc, not a pre-cleaned entry. Its
+// AC-3 specimen carries item-2 intent language and a project path that WOULD
+// trip the intent and universality items if assessed; extraction must drop it.
+// The AC-4 block it extracts to satisfies every mechanized static item: a Y
+// marker with all three axes (item 10), no intent-modeling language (item 2),
+// and a fallout field (item 15) pointing at profile.md alongside it. Its
+// identity is "test" (**Glyph:** `test`).
+const completeCandidate = "# Glyph Candidate: test\n" +
+	"\n" +
+	"**Fallout profile:** profile.md\n" +
+	"\n" +
+	"## AC-3 — Decomp source material\n" +
+	"\n" +
+	"Specimen: when the agent decides, at /home/foo/project/x.md.\n" +
+	"\n" +
+	"## AC-4 — Assembled glyph\n" +
+	"\n" +
+	"[Executor: fill the template below.]\n" +
+	"\n" +
+	"**Glyph:** `test`\n" +
 	"**Y — Decision terrain**\nSome terrain description.\n" +
 	"**Marker axis:** the failure direction.\n" +
 	"**Aim axis:** the correct path.\n" +
-	"**Rest axis:** irrelevant territory.\n" +
-	"**Fallout profile:** profile.md\n"
+	"**Rest axis:** irrelevant territory.\n"
 
 const completeProfile = "## Analysis\n" +
 	"**Attentional shift.** a.\n" +
@@ -248,6 +263,32 @@ func TestRunErrorsWhenCandidateUnreadable(t *testing.T) {
 	_, err := Run(context.Background(), filepath.Join(t.TempDir(), "nope.md"), "x", fakeClient{text: "PASS"}, okDeps(), Options{})
 	if err == nil {
 		t.Fatal("expected an error reading a missing candidate")
+	}
+}
+
+// The battery assesses the extracted clean entry, not the whole working-doc.
+// completeCandidate's AC-3 specimen carries item-2 intent language ("when the
+// agent decides") and a project path; both sit outside the AC-4 block. The run
+// passes because extraction drops them. Without extraction, item 2 would fail
+// on that text — this test is the regression guard for the one-step path.
+func TestRunAssessesExtractedEntryNotWholeDoc(t *testing.T) {
+	entryPath := writeCandidate(t, completeCandidate, completeProfile)
+	res, err := Run(context.Background(), entryPath, "test", fakeClient{text: "PASS"}, okDeps(), Options{AllItems: true})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if !res.Sequence.Passed {
+		t.Fatalf("the run must pass on the extracted entry; failed at step %d: %q",
+			res.Sequence.ExitIndex, res.Sequence.FailureReason)
+	}
+}
+
+func TestRunErrorsWhenCandidateHasNoGlyphBlock(t *testing.T) {
+	// A file with no AC-4 **Glyph:** line is not a candidate working-doc.
+	entryPath := writeCandidate(t, "# Just a note\n\nNo glyph block here.\n", "")
+	_, err := Run(context.Background(), entryPath, "x", fakeClient{text: "PASS"}, okDeps(), Options{})
+	if err == nil {
+		t.Fatal("expected an extraction error for a doc with no glyph block")
 	}
 }
 

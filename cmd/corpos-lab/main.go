@@ -63,13 +63,18 @@ func run(args []string) int {
 // writes the JSON result (the mechanized item verdicts, the Deferred stubs for
 // the judged items, and run-level provenance). The judged items are resolved
 // separately by an assessor; this surface produces only the measured half.
+//
+// It takes the candidate working-doc directly: batteryrun.Run extracts the
+// assessable clean entry (the fallout line plus the AC-4 assembled-glyph block)
+// from it, so there is no separate extract copy to keep in sync. Point
+// <candidate.md> at corpus/private/glyph-model/candidates/CANDIDATE_<slug>_*.md.
 func runBattery(args []string) int {
 	outPath := ""
 	base := "http://localhost:8081/v1"
 	modelName := "qwen3.6-27b"
 	version := ""
 	repoDir := "."
-	registryPath := "corpus/glyph-model/ALPHABET.md"
+	registryPath := "corpus/private/glyph-model/ALPHABET.md"
 	allItems := false
 	rest := []string{}
 	for i := 0; i < len(args); i++ {

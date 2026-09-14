@@ -131,15 +131,26 @@ type Deps struct {
 }
 
 // Run executes the mechanized battery against the candidate at candidatePath.
-// It reads the candidate as the entry content and passes its path as EntryPath,
-// so Item 15 resolves the fallout reference relative to it. The only hard error
-// is failing to read the candidate itself; a failed provenance or props
-// readback is recorded as a gap, never a reason to abort — a run that cannot
-// fully describe itself is still a run.
+// It reads the candidate working-doc, extracts the assessable clean entry from
+// it (battery.ExtractEntry: the fallout line plus the AC-4 assembled-glyph
+// block, dropping the metadata header body, the AC-1/AC-2 derivation, and the
+// project-scoped AC-3 specimen), and assesses that. It passes candidatePath as
+// EntryPath, so Item 15 resolves the fallout reference relative to the
+// candidate's own directory. This is the one-step path: the battery reads the
+// canonical candidate definition directly, with no separate extract copy.
+//
+// The hard errors are failing to read the candidate and a candidate with no
+// AC-4 glyph block; a failed provenance or props readback is recorded as a gap,
+// never a reason to abort — a run that cannot fully describe itself is still a
+// run.
 func Run(ctx context.Context, candidatePath, itemID string, client model.Client, deps Deps, opts Options) (Result, error) {
-	content, err := os.ReadFile(candidatePath) //nolint:gosec // candidatePath is the corpus entry under assessment
+	raw, err := os.ReadFile(candidatePath) //nolint:gosec // candidatePath is the corpus entry under assessment
 	if err != nil {
 		return Result{}, fmt.Errorf("batteryrun: read candidate %s: %w", candidatePath, err)
+	}
+	content, err := battery.ExtractEntry(string(raw))
+	if err != nil {
+		return Result{}, fmt.Errorf("batteryrun: extract entry from %s: %w", candidatePath, err)
 	}
 
 	registry := deps.Registry
@@ -149,7 +160,7 @@ func Run(ctx context.Context, candidatePath, itemID string, client model.Client,
 
 	seq := battery.RunSequence(ctx, battery.BuildBattery(), battery.Input{
 		ItemID:         itemID,
-		Content:        string(content),
+		Content:        content,
 		Model:          client,
 		EntryPath:      candidatePath,
 		Profiles:       FileProfileReader{},
