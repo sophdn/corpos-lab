@@ -39,7 +39,11 @@ answer, not a failure** — "content, not format, carries it" is a finding, and 
 would make the delivery-register work (Q2) the story instead. We say that now so
 that nobody has to be brave about it later.
 
-**Currently:** untested. Needs a populated ALPHABET to draw glyphs from.
+**Currently:** a preliminary null. The matched-content grid found the three-axis
+format does not beat an information-matched imperative — a content effect, not a
+format effect (`studies/matched-content-experiment/RECONCILIATION.md`, 2026-09-08).
+ALPHABET is populated (8 glyphs certified 2026-09-13, under re-validation), so
+follow-up Q1 work can draw from it.
 
 ### Q2 — Is analysis-mode a register phenomenon?
 
@@ -231,9 +235,12 @@ memory `one-local-inference-portal-llama-cpp`.
 
 ## Open
 
-- ALPHABET is **empty** (all 8 candidates suspended 2026-04-03 when the battery
-  tightened — honest bookkeeping, not damage). Q1 and Q3 need a populated corpus;
-  the decomposition campaign is upstream of the science, not beside it.
+- ALPHABET holds **8 certified glyphs** (emptied by the 2026-04-03 demotion when
+  the battery tightened, repromoted 2026-09-06, recertified 2026-09-13 under the
+  full 15-item battery with Opus 4.8 as judge). The corpus is small but no longer
+  empty, so Q1 follow-up and Q3 can draw from it. The decomposition campaign
+  continues, to grow the corpus beyond these 8 — still upstream of the science,
+  not beside it.
 - Q2's scope limit: one glyph, one scenario, one model. The shelf sweep is what
   turns it into a claim.
 - `casg-direct-v3-repro` is void — see its tombstone.
