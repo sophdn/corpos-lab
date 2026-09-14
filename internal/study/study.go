@@ -37,14 +37,15 @@ type ModelDef struct {
 // file (or absolute). Glyph, Ground, and Imperative are optional for conditions
 // that don't use them.
 type MaterialsDef struct {
-	Scenario   string `toml:"scenario"`
-	Glyph      string `toml:"glyph"`
-	Ground     string `toml:"ground"`
-	Imperative string `toml:"imperative"`
-	Scrambled  string `toml:"scrambled"`
-	OffTarget  string `toml:"off_target"`
-	Duty       string `toml:"duty"`
-	Corpus     string `toml:"corpus"`
+	Scenario       string `toml:"scenario"`
+	Glyph          string `toml:"glyph"`
+	Ground         string `toml:"ground"`
+	Imperative     string `toml:"imperative"`
+	Scrambled      string `toml:"scrambled"`
+	OffTarget      string `toml:"off_target"`
+	GlyphMinusRest string `toml:"glyph_minus_rest"`
+	Duty           string `toml:"duty"`
+	Corpus         string `toml:"corpus"`
 	// Annotated, Cartographer, and CartographerScan are the design instruments for
 	// the cartographer-duty-format assay's three format conditions.
 	Annotated        string `toml:"annotated"`
@@ -188,6 +189,10 @@ func (d Def) validate() error {
 		case assay.OffTargetGlyph:
 			if d.Materials.OffTarget == "" {
 				return fmt.Errorf("study: condition %q requires materials.off_target", c)
+			}
+		case assay.GlyphMinusRest:
+			if d.Materials.GlyphMinusRest == "" {
+				return fmt.Errorf("study: condition %q requires materials.glyph_minus_rest", c)
 			}
 		case assay.DutyOnly:
 			if d.Materials.Duty == "" {
@@ -420,6 +425,12 @@ func (d Def) Materialize(inDir string) error {
 			return err
 		}
 		mats.OffTarget = "off_target_glyph.md"
+	}
+	if d.Materials.GlyphMinusRest != "" {
+		if err := d.copyMaterial(d.Materials.GlyphMinusRest, filepath.Join(inDir, "glyph_minus_rest.md")); err != nil {
+			return err
+		}
+		mats.GlyphMinusRest = "glyph_minus_rest.md"
 	}
 	if d.Materials.Duty != "" {
 		if err := d.copyMaterial(d.Materials.Duty, filepath.Join(inDir, "duty.md")); err != nil {

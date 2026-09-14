@@ -198,6 +198,11 @@ func TestValidateRejectsConditionMaterialGaps(t *testing.T) {
 	if _, err := LoadDef(writeDef(t, noOffTarget, map[string]string{"s.md": "S"})); err == nil {
 		t.Fatal("expected off_target-required error")
 	}
+	// glyph_minus_rest without a glyph_minus_rest material.
+	noGMR := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"i\"\nimage=\"x\"\nconditions=[\"glyph_minus_rest\"]\nruns_per_cell=1\n[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n[materials]\nscenario=\"s.md\"\n" + samplingBlock
+	if _, err := LoadDef(writeDef(t, noGMR, map[string]string{"s.md": "S"})); err == nil {
+		t.Fatal("expected glyph_minus_rest-required error")
+	}
 	// duty_only without a duty material.
 	noDuty := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"i\"\nimage=\"x\"\nconditions=[\"duty_only\"]\nruns_per_cell=1\n[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n[materials]\nscenario=\"s.md\"\n" + samplingBlock
 	if _, err := LoadDef(writeDef(t, noDuty, map[string]string{"s.md": "S"})); err == nil {
@@ -394,10 +399,10 @@ func TestMaterializeCopiesImperativeMaterial(t *testing.T) {
 // container contract as scrambled_glyph.md and off_target_glyph.md.
 func TestMaterializeCopiesControlMaterials(t *testing.T) {
 	body := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"casg-direct\"\n" +
-		"image=\"x\"\nconditions=[\"scrambled_glyph\",\"off_target_glyph\"]\nruns_per_cell=1\n" +
+		"image=\"x\"\nconditions=[\"scrambled_glyph\",\"off_target_glyph\",\"glyph_minus_rest\"]\nruns_per_cell=1\n" +
 		"[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n" +
-		"[materials]\nscenario=\"s.md\"\nscrambled=\"scr.md\"\noff_target=\"otg.md\"\n" + samplingBlock
-	d, err := LoadDef(writeDef(t, body, map[string]string{"s.md": "SCENARIO", "scr.md": "SCRAMBLED", "otg.md": "OFFTARGET"}))
+		"[materials]\nscenario=\"s.md\"\nscrambled=\"scr.md\"\noff_target=\"otg.md\"\nglyph_minus_rest=\"gmr.md\"\n" + samplingBlock
+	d, err := LoadDef(writeDef(t, body, map[string]string{"s.md": "SCENARIO", "scr.md": "SCRAMBLED", "otg.md": "OFFTARGET", "gmr.md": "MINUSREST"}))
 	if err != nil {
 		t.Fatalf("LoadDef: %v", err)
 	}
@@ -412,6 +417,10 @@ func TestMaterializeCopiesControlMaterials(t *testing.T) {
 	otg, err := os.ReadFile(filepath.Join(inDir, "off_target_glyph.md"))
 	if err != nil || string(otg) != "OFFTARGET" {
 		t.Fatalf("off_target_glyph.md = %q, err %v", otg, err)
+	}
+	gmr, err := os.ReadFile(filepath.Join(inDir, "glyph_minus_rest.md"))
+	if err != nil || string(gmr) != "MINUSREST" {
+		t.Fatalf("glyph_minus_rest.md = %q, err %v", gmr, err)
 	}
 	spec, err := runner.LoadSpec(inDir)
 	if err != nil {

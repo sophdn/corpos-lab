@@ -40,6 +40,12 @@ const (
 	// against GlyphOnly it tests whether recognition of the scenario is in the loop
 	// (equal effect on- and off-target implicates glyph structure over recognition).
 	OffTargetGlyph Condition = "off_target_glyph"
+	// GlyphMinusRest: the glyph with its Rest axis block removed and nothing else
+	// changed, prepended in place of the full glyph. The rest-axis overhead
+	// benchmark's ablation arm (Q3): read against GlyphOnly on a NEUTRAL scenario it
+	// isolates the Rest axis — whether naming where the decision class does not apply
+	// reduces false-positive over-firing when the glyph is loaded but not live.
+	GlyphMinusRest Condition = "glyph_minus_rest"
 	// DutyOnly: a duty specification prepended, no glyph. The behavioral-equivalence
 	// assay's Condition A — the investigation duty (role file) delivered as the sole
 	// guidance. It takes the same guidance slot as GlyphOnly, with the same delimiter
@@ -89,6 +95,9 @@ type Materials struct {
 	// OffTarget is the coherent-but-off-class glyph for the OffTargetGlyph
 	// control condition.
 	OffTarget string
+	// GlyphMinusRest is the glyph with its Rest axis block removed, for the
+	// GlyphMinusRest ablation condition of the rest-axis overhead benchmark.
+	GlyphMinusRest string
 	// Duty is the duty specification for the DutyOnly (Condition A) condition of
 	// the behavioral-equivalence assay.
 	Duty string
@@ -116,6 +125,7 @@ type Materials struct {
 //	imperative_only → imperative "---" scenario
 //	scrambled_glyph → scrambled "---" scenario
 //	off_target_glyph → off-target glyph "---" scenario
+//	glyph_minus_rest → glyph-minus-rest "---" scenario
 //	duty_only       → duty "---" scenario
 //	corpus_only     → corpus "---" scenario
 //	annotated_instrument         → annotated "---" scenario
@@ -148,6 +158,11 @@ func AssemblePrompt(cond Condition, m Materials) (string, error) {
 			return "", fmt.Errorf("assay: %s condition requires an off-target glyph", cond)
 		}
 		return fmt.Sprintf("%s\n---\n%s", m.OffTarget, m.Scenario), nil
+	case GlyphMinusRest:
+		if m.GlyphMinusRest == "" {
+			return "", fmt.Errorf("assay: %s condition requires a glyph-minus-rest material", cond)
+		}
+		return fmt.Sprintf("%s\n---\n%s", m.GlyphMinusRest, m.Scenario), nil
 	case DutyOnly:
 		if m.Duty == "" {
 			return "", fmt.Errorf("assay: %s condition requires a duty specification", cond)

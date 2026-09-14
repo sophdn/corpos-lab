@@ -99,6 +99,26 @@ func TestAssemblePromptRejectsMissingImperative(t *testing.T) {
 	}
 }
 
+func TestAssemblePromptGlyphMinusRestConcatsAblatedGlyphAndScenario(t *testing.T) {
+	// The ablation arm takes the glyph's slot with the Rest-removed material —
+	// same delimiter and shape as GlyphOnly. The full glyph must not leak in.
+	got, err := AssemblePrompt(GlyphMinusRest, Materials{Scenario: "S", Glyph: "G", GlyphMinusRest: "GMR"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "GMR\n---\nS" {
+		t.Fatalf("got %q, want GMR\\n---\\nS", got)
+	}
+}
+
+func TestAssemblePromptRejectsMissingGlyphMinusRest(t *testing.T) {
+	// A full glyph present but no ablated material must still fail: the arm
+	// carries the Rest-removed glyph, never the full glyph as a fallback.
+	if _, err := AssemblePrompt(GlyphMinusRest, Materials{Scenario: "S", Glyph: "G"}); err == nil {
+		t.Fatal("expected error for missing glyph-minus-rest material")
+	}
+}
+
 func TestAssemblePromptScrambledGlyphConcatsScrambledAndScenario(t *testing.T) {
 	// The scrambled glyph takes the glyph's slot — same delimiter, same shape as
 	// GlyphOnly. A real glyph present in Materials must not leak into the prompt.

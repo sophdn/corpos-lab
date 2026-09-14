@@ -208,12 +208,12 @@ func TestExecuteRunsControlConditions(t *testing.T) {
 		Assay:       SupportedAssay,
 		ItemID:      "casg-direct",
 		Model:       ModelSpec{ModelID: "qwen"},
-		Conditions:  []assay.Condition{assay.ScrambledGlyph, assay.OffTargetGlyph},
+		Conditions:  []assay.Condition{assay.ScrambledGlyph, assay.OffTargetGlyph, assay.GlyphMinusRest},
 		RunsPerCell: 1,
-		Materials:   MaterialsSpec{Scenario: "scenario.md", Scrambled: "scrambled_glyph.md", OffTarget: "off_target_glyph.md"},
+		Materials:   MaterialsSpec{Scenario: "scenario.md", Scrambled: "scrambled_glyph.md", OffTarget: "off_target_glyph.md", GlyphMinusRest: "glyph_minus_rest.md"},
 		Sampling:    validSampling(),
 	}
-	in := writeStudy(t, spec, map[string]string{"scenario.md": "SCENARIO", "scrambled_glyph.md": "SCR", "off_target_glyph.md": "OTG"})
+	in := writeStudy(t, spec, map[string]string{"scenario.md": "SCENARIO", "scrambled_glyph.md": "SCR", "off_target_glyph.md": "OTG", "glyph_minus_rest.md": "GMR"})
 	out := t.TempDir()
 
 	f := &fakeClient{text: "reply", name: "qwen"}
@@ -221,17 +221,17 @@ func TestExecuteRunsControlConditions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
-	if len(results.Rows) != 2 {
+	if len(results.Rows) != 3 {
 		t.Fatalf("rows: %+v", results.Rows)
 	}
 	got := map[string]bool{}
 	for _, p := range f.gotPrompts {
 		got[p] = true
 	}
-	if !got["SCR\n---\nSCENARIO"] || !got["OTG\n---\nSCENARIO"] {
+	if !got["SCR\n---\nSCENARIO"] || !got["OTG\n---\nSCENARIO"] || !got["GMR\n---\nSCENARIO"] {
 		t.Fatalf("assembled prompts = %q", f.gotPrompts)
 	}
-	for _, name := range []string{"scrambled_glyph_1.txt", "off_target_glyph_1.txt"} {
+	for _, name := range []string{"scrambled_glyph_1.txt", "off_target_glyph_1.txt", "glyph_minus_rest_1.txt"} {
 		if _, err := os.ReadFile(filepath.Join(out, "responses", name)); err != nil {
 			t.Fatalf("missing response %s: %v", name, err)
 		}
