@@ -1,7 +1,6 @@
 package battery
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -35,30 +34,13 @@ const headingPrefix = "## "
 // missing fallout line is not an error here: the entry then carries no fallout
 // field and Item 15 fails it closed, which is the correct verdict.
 func ExtractEntry(content string) (string, error) {
-	lines := strings.Split(content, "\n")
-
-	glyphIdx := -1
-	for i, ln := range lines {
-		if strings.HasPrefix(ln, glyphMarker) {
-			glyphIdx = i
-			break
-		}
+	block, err := GlyphBlock(content)
+	if err != nil {
+		return "", err
 	}
-	if glyphIdx == -1 {
-		return "", fmt.Errorf("battery: no %s line found; not a candidate working-doc", glyphMarker)
-	}
-
-	end := len(lines)
-	for i := glyphIdx + 1; i < len(lines); i++ {
-		if strings.HasPrefix(lines[i], headingPrefix) {
-			end = i
-			break
-		}
-	}
-	block := strings.TrimRight(strings.Join(lines[glyphIdx:end], "\n"), " \t\r\n")
 
 	fallout := ""
-	for _, ln := range lines {
+	for _, ln := range strings.Split(content, "\n") {
 		if strings.HasPrefix(ln, falloutProfileMarker) {
 			fallout = strings.TrimRight(ln, " \t\r\n")
 			break

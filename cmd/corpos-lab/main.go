@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -41,7 +42,9 @@ func main() {
 
 const usage = "usage:\n" +
 	"  corpos-lab run-study <def.toml> [-work DIR]\n" +
-	"  corpos-lab battery <candidate.md> [-out FILE] [-model NAME] [-base URL] [-repo DIR] [-all-items]"
+	"  corpos-lab battery <candidate.md> [-out FILE] [-model NAME] [-base URL] [-repo DIR] [-all-items]\n" +
+	"  corpos-lab glyph-digest <slug> | --all | --file <path> [-candidates DIR]\n" +
+	"  corpos-lab glyph-lint <candidate.md> [-registry ALPHABET.md]"
 
 func run(args []string) int {
 	if len(args) == 0 {
@@ -53,6 +56,10 @@ func run(args []string) int {
 		return runStudy(args[1:])
 	case "battery":
 		return runBattery(args[1:])
+	case "glyph-digest":
+		return runGlyphDigest(args[1:])
+	case "glyph-lint":
+		return runGlyphLint(args[1:])
 	default:
 		fmt.Fprintln(os.Stderr, usage)
 		return 2
@@ -180,6 +187,142 @@ func candidateSlug(path string) string {
 		name = name[:i]
 	}
 	return name
+}
+
+// runGlyphDigest prints the certification digest of one or every candidate's
+// AC-4 glyph block — the Go form of the retired glyph_digest.py. The block
+// extraction and hashing live in battery.GlyphDigest (tested); this stays file
+// glue.
+func runGlyphDigest(args []string) int {
+	dir := "corpus/private/glyph-model/candidates"
+	rest := []string{}
+	for i := 0; i < len(args); i++ {
+		if args[i] == "-candidates" {
+			if i+1 >= len(args) {
+				fmt.Fprintln(os.Stderr, "corpos-lab: -candidates needs a value")
+				return 2
+			}
+			i++
+			dir = args[i]
+			continue
+		}
+		rest = append(rest, args[i])
+	}
+
+	switch {
+	case len(rest) == 1 && rest[0] == "--all":
+		matches, err := filepath.Glob(filepath.Join(dir, "CANDIDATE_*.md"))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "corpos-lab: %v\n", err)
+			return 1
+		}
+		sort.Strings(matches)
+		for _, p := range matches {
+			d, err := fileDigest(p)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "corpos-lab: %v\n", err)
+				return 1
+			}
+			fmt.Printf("%s  %s\n", candidateSlug(p), d)
+		}
+		return 0
+	case len(rest) == 2 && rest[0] == "--file":
+		d, err := fileDigest(rest[1])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "corpos-lab: %v\n", err)
+			return 1
+		}
+		fmt.Println(d)
+		return 0
+	case len(rest) == 1:
+		matches, err := filepath.Glob(filepath.Join(dir, "CANDIDATE_"+rest[0]+"_*.md"))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "corpos-lab: %v\n", err)
+			return 1
+		}
+		switch len(matches) {
+		case 0:
+			fmt.Fprintf(os.Stderr, "corpos-lab: no candidate file for slug %q under %s\n", rest[0], dir)
+			return 1
+		case 1:
+			d, err := fileDigest(matches[0])
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "corpos-lab: %v\n", err)
+				return 1
+			}
+			fmt.Println(d)
+			return 0
+		default:
+			fmt.Fprintf(os.Stderr, "corpos-lab: ambiguous slug %q: %v\n", rest[0], matches)
+			return 1
+		}
+	default:
+		fmt.Fprintln(os.Stderr, "usage: corpos-lab glyph-digest <slug> | --all | --file <path> [-candidates DIR]")
+		return 2
+	}
+}
+
+// fileDigest reads a candidate file and returns its AC-4 glyph-block digest.
+func fileDigest(path string) (string, error) {
+	b, err := os.ReadFile(path) //nolint:gosec // a candidate file path from argv, not a secret
+	if err != nil {
+		return "", err
+	}
+	return battery.GlyphDigest(string(b))
+}
+
+// runGlyphLint runs the deterministic structural subset of the battery against
+// one candidate — a fast, model-free pre-battery shape check. It lints the
+// extracted entry, not the raw doc, so the AC-3 specimen does not trip the
+// intent scan. The item logic lives in internal/battery (tested); this stays
+// file glue, and it is the surface suggestion 166's schema enforcement reaches
+// through once that item joins battery.BuildStructuralLint.
+func runGlyphLint(args []string) int {
+	registryPath := "corpus/private/glyph-model/ALPHABET.md"
+	rest := []string{}
+	for i := 0; i < len(args); i++ {
+		if args[i] == "-registry" {
+			if i+1 >= len(args) {
+				fmt.Fprintln(os.Stderr, "corpos-lab: -registry needs a value")
+				return 2
+			}
+			i++
+			registryPath = args[i]
+			continue
+		}
+		rest = append(rest, args[i])
+	}
+	if len(rest) != 1 {
+		fmt.Fprintln(os.Stderr, "usage: corpos-lab glyph-lint <candidate.md> [-registry ALPHABET.md]")
+		return 2
+	}
+	path := rest[0]
+	content, err := os.ReadFile(path) //nolint:gosec // a candidate file path from argv, not a secret
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "corpos-lab: %v\n", err)
+		return 1
+	}
+	entry, err := battery.ExtractEntry(string(content))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "corpos-lab: %v\n", err)
+		return 1
+	}
+
+	res := battery.RunSequence(context.Background(), battery.BuildStructuralLint(), battery.Input{
+		ItemID:         candidateSlug(path),
+		Content:        entry,
+		Registry:       batteryrun.FileRegistryReader{Path: registryPath},
+		ContinueOnFail: true,
+	})
+	for _, sr := range res.StepResults {
+		fmt.Fprintf(os.Stderr, "  %-28s %s\n", sr.StepName, verdictLabel(sr.Outcome))
+	}
+	if res.Passed {
+		fmt.Fprintf(os.Stderr, "corpos-lab: glyph-lint %q PASS (structural items)\n", candidateSlug(path))
+		return 0
+	}
+	fmt.Fprintf(os.Stderr, "corpos-lab: glyph-lint %q FAIL: %s\n", candidateSlug(path), res.FailureReason)
+	return 1
 }
 
 // printBatterySummary writes a one-line-per-item human summary of the
