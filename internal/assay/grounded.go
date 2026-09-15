@@ -78,6 +78,17 @@ const (
 	// recovers corpus-empirical coverage without reintroducing slug citations. The
 	// original study specified this scan but never ran it.
 	CartographerScanInstrument Condition = "cartographer_scan_instrument"
+	// GroundOnly: the informative domain-specific ground presented alone, no
+	// glyph — the descriptive/domain-specific cell of the form × grounding 2×2.
+	// Read against GroundedGlyph it isolates the glyph's contribution over the
+	// ground it sits on; it reuses the existing Ground material and takes the
+	// guidance slot with the same delimiter and shape as the other -only arms.
+	GroundOnly Condition = "ground_only"
+	// DomainImperativeOnly: a domain-specific directive presented alone — the
+	// directive/domain-specific cell of the form × grounding 2×2. It carries a
+	// domain-specific imperative in the guidance slot, distinct from the
+	// information-matched ImperativeOnly rule, with the same delimiter and shape.
+	DomainImperativeOnly Condition = "domain_imperative_only"
 )
 
 // Materials are the text inputs a probe assembles a prompt from. Glyph, Ground,
@@ -113,6 +124,9 @@ type Materials struct {
 	// CartographerScan is the cartographer instrument plus the Phase 3 meta-taboo
 	// scan for the CartographerScanInstrument condition.
 	CartographerScan string
+	// DomainImperative is the domain-specific directive for the
+	// DomainImperativeOnly condition of the form × grounding 2×2.
+	DomainImperative string
 }
 
 // AssemblePrompt builds the probe prompt for a condition. The "\n---\n"
@@ -131,6 +145,8 @@ type Materials struct {
 //	annotated_instrument         → annotated "---" scenario
 //	cartographer_instrument      → cartographer "---" scenario
 //	cartographer_scan_instrument → cartographer-scan "---" scenario
+//	ground_only            → ground "---" scenario
+//	domain_imperative_only → domain-imperative "---" scenario
 //
 // It returns an error when a condition's required material is missing, rather
 // than silently emitting a malformed prompt.
@@ -196,6 +212,16 @@ func AssemblePrompt(cond Condition, m Materials) (string, error) {
 			return "", fmt.Errorf("assay: %s condition requires a ground", cond)
 		}
 		return fmt.Sprintf("%s\n---\n%s\n---\n%s", m.Glyph, m.Ground, m.Scenario), nil
+	case GroundOnly:
+		if m.Ground == "" {
+			return "", fmt.Errorf("assay: %s condition requires a ground", cond)
+		}
+		return fmt.Sprintf("%s\n---\n%s", m.Ground, m.Scenario), nil
+	case DomainImperativeOnly:
+		if m.DomainImperative == "" {
+			return "", fmt.Errorf("assay: %s condition requires a domain imperative", cond)
+		}
+		return fmt.Sprintf("%s\n---\n%s", m.DomainImperative, m.Scenario), nil
 	default:
 		return "", fmt.Errorf("assay: unknown condition %q", cond)
 	}

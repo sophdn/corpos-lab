@@ -51,6 +51,9 @@ type MaterialsDef struct {
 	Annotated        string `toml:"annotated"`
 	Cartographer     string `toml:"cartographer"`
 	CartographerScan string `toml:"cartographer_scan"`
+	// DomainImperative is the domain-specific directive for the
+	// domain_imperative_only condition of the form × grounding 2×2.
+	DomainImperative string `toml:"domain_imperative"`
 }
 
 // SamplingDef is the study's declared sampling regime.
@@ -213,6 +216,14 @@ func (d Def) validate() error {
 		case assay.CartographerScanInstrument:
 			if d.Materials.CartographerScan == "" {
 				return fmt.Errorf("study: condition %q requires materials.cartographer_scan", c)
+			}
+		case assay.GroundOnly:
+			if d.Materials.Ground == "" {
+				return fmt.Errorf("study: condition %q requires materials.ground", c)
+			}
+		case assay.DomainImperativeOnly:
+			if d.Materials.DomainImperative == "" {
+				return fmt.Errorf("study: condition %q requires materials.domain_imperative", c)
 			}
 		default:
 			return fmt.Errorf("study: unknown condition %q", c)
@@ -461,6 +472,12 @@ func (d Def) Materialize(inDir string) error {
 			return err
 		}
 		mats.CartographerScan = "cartographer_scan.md"
+	}
+	if d.Materials.DomainImperative != "" {
+		if err := d.copyMaterial(d.Materials.DomainImperative, filepath.Join(inDir, "domain_imperative.md")); err != nil {
+			return err
+		}
+		mats.DomainImperative = "domain_imperative.md"
 	}
 
 	spec := runner.StudySpec{

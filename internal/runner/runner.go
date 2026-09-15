@@ -56,6 +56,9 @@ type MaterialsSpec struct {
 	Annotated        string `json:"annotated,omitempty"`
 	Cartographer     string `json:"cartographer,omitempty"`
 	CartographerScan string `json:"cartographer_scan,omitempty"`
+	// DomainImperative is the domain-specific directive for the
+	// domain_imperative_only condition of the form × grounding 2×2.
+	DomainImperative string `json:"domain_imperative,omitempty"`
 }
 
 // StudySpec is the container's /in/study.json — a self-contained description
@@ -223,11 +226,16 @@ func (s StudySpec) loadMaterials(inDir string) (assay.Materials, error) {
 	if err != nil {
 		return assay.Materials{}, err
 	}
+	domainImperative, err := read(s.Materials.DomainImperative)
+	if err != nil {
+		return assay.Materials{}, err
+	}
 	return assay.Materials{
 		Scenario: scenario, Glyph: glyph, Ground: ground, Imperative: imperative,
 		Scrambled: scrambled, OffTarget: offTarget, GlyphMinusRest: glyphMinusRest,
 		Duty: duty, Corpus: corpus,
 		Annotated: annotated, Cartographer: cartographer, CartographerScan: cartographerScan,
+		DomainImperative: domainImperative,
 	}, nil
 }
 

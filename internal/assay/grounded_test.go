@@ -262,6 +262,45 @@ func TestAssemblePromptRejectsMissingCartographerScan(t *testing.T) {
 	}
 }
 
+// The descriptive/domain-specific cell of the form × grounding 2×2: the ground
+// takes the guidance slot alone — same delimiter and shape as GlyphOnly, no
+// glyph. A glyph present in Materials must not leak into the prompt.
+func TestAssemblePromptGroundOnlyConcatsGroundAndScenario(t *testing.T) {
+	got, err := AssemblePrompt(GroundOnly, Materials{Scenario: "S", Glyph: "G", Ground: "GR"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "GR\n---\nS" {
+		t.Fatalf("got %q, want GR\\n---\\nS", got)
+	}
+}
+
+func TestAssemblePromptRejectsMissingGroundInGroundOnly(t *testing.T) {
+	// A glyph present but no ground must still fail: the arm carries the ground,
+	// never the glyph as a fallback.
+	if _, err := AssemblePrompt(GroundOnly, Materials{Scenario: "S", Glyph: "G"}); err == nil {
+		t.Fatal("expected error for missing ground in ground_only")
+	}
+}
+
+// The directive/domain-specific cell of the form × grounding 2×2: the domain
+// imperative takes the guidance slot alone.
+func TestAssemblePromptDomainImperativeOnlyConcatsDomainImperativeAndScenario(t *testing.T) {
+	got, err := AssemblePrompt(DomainImperativeOnly, Materials{Scenario: "S", Glyph: "G", DomainImperative: "DI"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "DI\n---\nS" {
+		t.Fatalf("got %q, want DI\\n---\\nS", got)
+	}
+}
+
+func TestAssemblePromptRejectsMissingDomainImperative(t *testing.T) {
+	if _, err := AssemblePrompt(DomainImperativeOnly, Materials{Scenario: "S", Glyph: "G"}); err == nil {
+		t.Fatal("expected error for missing domain imperative")
+	}
+}
+
 // testSampling is a sampled (non-greedy) regime with one seed per replicate —
 // the shape a real graded study declares. The chain is complete and neutral:
 // min_p is the only live truncation stage, every other stage pinned to its

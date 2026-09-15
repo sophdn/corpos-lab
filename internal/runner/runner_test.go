@@ -400,6 +400,58 @@ func TestExecuteReportsMissingCorpusMaterial(t *testing.T) {
 	}
 }
 
+// The form × grounding 2×2 conditions: ground_only reuses the ground material
+// and domain_imperative_only reads the new domain imperative, each assembled
+// into the guidance slot with no glyph. This exercises the ground and
+// domain_imperative reads in loadMaterials end-to-end.
+func TestExecuteAssemblesFormGroundingConditions(t *testing.T) {
+	spec := StudySpec{
+		Assay: SupportedAssay, ItemID: "form-x-grounding", Model: ModelSpec{ModelID: "m"},
+		Conditions:  []assay.Condition{assay.GroundOnly, assay.DomainImperativeOnly},
+		RunsPerCell: 1,
+		Materials:   MaterialsSpec{Scenario: "scenario.md", Ground: "ground.md", DomainImperative: "domain_imperative.md"},
+		Sampling:    validSampling(),
+	}
+	in := writeStudy(t, spec, map[string]string{
+		"scenario.md": "SCENARIO", "ground.md": "GROUND", "domain_imperative.md": "DI",
+	})
+	out := t.TempDir()
+	f := &fakeClient{text: "reply"}
+	results, err := Execute(context.Background(), in, out, f)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if len(results.Rows) != 2 {
+		t.Fatalf("want 2 rows, got %d", len(results.Rows))
+	}
+	want := []string{"GROUND\n---\nSCENARIO", "DI\n---\nSCENARIO"}
+	for i, w := range want {
+		if f.gotPrompts[i] != w {
+			t.Fatalf("prompt %d = %q, want %q", i, f.gotPrompts[i], w)
+		}
+	}
+	for _, name := range []string{"ground_only_1.txt", "domain_imperative_only_1.txt"} {
+		if _, err := os.ReadFile(filepath.Join(out, "responses", name)); err != nil {
+			t.Fatalf("missing response %s: %v", name, err)
+		}
+	}
+}
+
+// A study that names domain_imperative_only but ships no domain imperative
+// material fails loudly, through the domain_imperative read branch.
+func TestExecuteReportsMissingDomainImperativeMaterial(t *testing.T) {
+	spec := StudySpec{
+		Assay: SupportedAssay, ItemID: "i", Model: ModelSpec{ModelID: "m"},
+		Conditions: []assay.Condition{assay.DomainImperativeOnly}, RunsPerCell: 1,
+		Materials: MaterialsSpec{Scenario: "scenario.md", DomainImperative: "domain_imperative.md"},
+		Sampling:  validSampling(),
+	}
+	in := writeStudy(t, spec, map[string]string{"scenario.md": "S"})
+	if _, err := Execute(context.Background(), in, t.TempDir(), &fakeClient{text: "x"}); err == nil {
+		t.Fatal("expected missing-domain-imperative-material error")
+	}
+}
+
 // When the client surfaces a rendered prompt (the raw /completion path), the
 // runner records it per run so the run is self-describing down to its input.
 func TestExecutePersistsRenderedPromptWhenSurfaced(t *testing.T) {

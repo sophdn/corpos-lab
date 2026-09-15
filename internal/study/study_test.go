@@ -226,6 +226,16 @@ func TestValidateRejectsConditionMaterialGaps(t *testing.T) {
 	if _, err := LoadDef(writeDef(t, noScan, map[string]string{"s.md": "S"})); err == nil {
 		t.Fatal("expected cartographer_scan-required error")
 	}
+	// ground_only without a ground material.
+	noGroundOnly := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"i\"\nimage=\"x\"\nconditions=[\"ground_only\"]\nruns_per_cell=1\n[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n[materials]\nscenario=\"s.md\"\n" + samplingBlock
+	if _, err := LoadDef(writeDef(t, noGroundOnly, map[string]string{"s.md": "S"})); err == nil {
+		t.Fatal("expected ground-required error for ground_only")
+	}
+	// domain_imperative_only without a domain_imperative material.
+	noDomainImperative := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"i\"\nimage=\"x\"\nconditions=[\"domain_imperative_only\"]\nruns_per_cell=1\n[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n[materials]\nscenario=\"s.md\"\n" + samplingBlock
+	if _, err := LoadDef(writeDef(t, noDomainImperative, map[string]string{"s.md": "S"})); err == nil {
+		t.Fatal("expected domain_imperative-required error")
+	}
 	// unknown condition.
 	unknown := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"i\"\nimage=\"x\"\nconditions=[\"teleport\"]\nruns_per_cell=1\n[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n[materials]\nscenario=\"s.md\"\n" + samplingBlock
 	if _, err := LoadDef(writeDef(t, unknown, map[string]string{"s.md": "S"})); err == nil {
@@ -392,6 +402,42 @@ func TestMaterializeCopiesImperativeMaterial(t *testing.T) {
 	// A glyph must not have been written to the contract dir.
 	if _, err := os.Stat(filepath.Join(inDir, "glyph.md")); !os.IsNotExist(err) {
 		t.Fatal("glyph.md should not exist for an imperative_only study")
+	}
+}
+
+// The domain_imperative_only condition materializes the domain imperative into
+// the container contract as domain_imperative.md, alongside the scenario, with
+// no glyph. (ground_only reuses the existing ground.md copy branch and needs no
+// new materialization.)
+func TestMaterializeCopiesDomainImperativeMaterial(t *testing.T) {
+	body := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"form-x-grounding\"\n" +
+		"image=\"x\"\nconditions=[\"baseline\",\"domain_imperative_only\"]\nruns_per_cell=1\n" +
+		"[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n" +
+		"[materials]\nscenario=\"s.md\"\ndomain_imperative=\"di.md\"\n" + samplingBlock
+	d, err := LoadDef(writeDef(t, body, map[string]string{"s.md": "SCENARIO", "di.md": "DOMAIN-IMPERATIVE"}))
+	if err != nil {
+		t.Fatalf("LoadDef: %v", err)
+	}
+	inDir := filepath.Join(t.TempDir(), "in")
+	if err := d.Materialize(inDir); err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(inDir, "domain_imperative.md"))
+	if err != nil {
+		t.Fatalf("read domain_imperative.md: %v", err)
+	}
+	if string(got) != "DOMAIN-IMPERATIVE" {
+		t.Fatalf("domain_imperative.md content = %q, want DOMAIN-IMPERATIVE", got)
+	}
+	spec, err := runner.LoadSpec(inDir)
+	if err != nil {
+		t.Fatalf("LoadSpec: %v", err)
+	}
+	if spec.Materials.DomainImperative != "domain_imperative.md" {
+		t.Fatalf("spec domain_imperative = %q, want domain_imperative.md", spec.Materials.DomainImperative)
+	}
+	if spec.Materials.Glyph != "" {
+		t.Fatalf("domain_imperative_only study must carry no glyph, got %q", spec.Materials.Glyph)
 	}
 }
 
