@@ -1,5 +1,3 @@
-# Domain-directive — initiative-task-preexistence-gate / 2 (directive, domain-specific)
-
 The Status of the "CSV export endpoint" row rests on whether its backing handler `api/handlers/export_csv.py` exists at a discoverable location — not on the design having been agreed in review and not on implementation steps having been taken. A Status the team reads to pick up next work is a present-state claim someone acts on; an agreed design and steps taken are planning progress, not a created handler.
 
 Confirm `api/handlers/export_csv.py` exists at a discoverable location before you set the row's Status to "ready" or "actionable". If it does not exist, do not set a readiness status from planning intent: set a planning status — "planned" or "not yet created" — that makes no readiness claim. Check for the handler first, then set the Status.

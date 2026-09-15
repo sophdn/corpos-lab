@@ -1,5 +1,3 @@
-# Readiness status — rules
-
 **When this applies:** You are authoring a status field for an entry in a tracking or roadmap artifact — a table, index, or plan whose rows carry a status a consumer reads to decide what to act on next. You are about to assign the entry a readiness or actionable status ("ready," "open," "actionable"). The entry's backing artifact — the thing a consumer would open when acting on the entry — has not been created and does not exist at any discoverable location. You must decide whether to assign a readiness status only when the backing artifact is confirmed to exist, or to assign the readiness status from your planning intent before the artifact exists.
 
 **What to do:**

@@ -1,5 +1,3 @@
-# Post-write verification — rules
-
 **When this applies:** You have just completed a sequence of state-mutating operations against a target artifact and are about to declare the work complete. Each operation returned a success acknowledgment. That acknowledgment confirms the operation was issued and accepted; it does not confirm that the target's resulting content matches what you intended, because a successful operation and a silently-failed one produce an identical acknowledgment. You must decide whether to read the target back and confirm the intended content is present before declaring completion, or to treat the success acknowledgments as sufficient.
 
 **What to do:**

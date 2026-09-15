@@ -1,5 +1,3 @@
-# Ground — post-write-verification-absent / 3 (informative, domain-specific)
-
 Each `Modified` confirms an edit was issued and accepted. It does not confirm that `api/reference.md` now contains no `/v1/orders` and that every mention reads `/v2/orders`: a missed occurrence, or an edit that silently changed nothing, is invisible from `Modified` alone, and the count of occurrences you found may not be the count present.
 
 The authoritative source for the file's resulting content is a read of `api/reference.md`, not the acknowledgments. The task is done only when `api/reference.md` has been read back after the edits and shows every `/v1/orders` now reads `/v2/orders`, with none remaining. Until that read is in hand, the result is unverified — established only from acknowledgments that are identical whether each edit landed or not.

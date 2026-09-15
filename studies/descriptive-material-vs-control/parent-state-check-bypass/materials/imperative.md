@@ -1,5 +1,3 @@
-# Parent state check — rules
-
 **When this applies:** You are about to begin a specific work item that belongs to a parent context. The parent context carries a required pre-execution state check — a check that confirms the parent context's current state before work on any of its items begins in a new session. You have not run that check in the current session. Running it now will feel like administrative overhead unrelated to the specific work item: the work item's own immediate requirements do not appear to depend on the parent context's state. You must decide whether to run the parent state check before beginning task work, or to proceed directly with the work item.
 
 **What to do:**

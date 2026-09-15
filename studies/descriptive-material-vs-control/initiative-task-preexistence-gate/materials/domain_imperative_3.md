@@ -1,5 +1,3 @@
-# Domain-directive — initiative-task-preexistence-gate / 3 (directive, domain-specific)
-
 The Status of the "payment-webhook integration tests" row rests on whether its backing suite `tests/integration/payment_webhook_test.py` exists at a discoverable location — not on the cases having been specified and not on implementation steps having been taken. A Status the release manager reads to decide what is runnable is a present-state claim someone acts on; specified cases and steps taken are planning progress, not a created test suite.
 
 Confirm `tests/integration/payment_webhook_test.py` exists at a discoverable location before you set the row's Status to "runnable" or "ready". If it does not exist, do not set a readiness status from planning intent: set a planning status — "planned" or "not yet created" — that makes no runnable claim. Check for the suite first, then set the Status.
