@@ -1,0 +1,5 @@
+# Ground — initiative-task-preexistence-gate / 2 (informative, domain-specific)
+
+The Status of the "CSV export endpoint" row rests on whether its backing handler `api/handlers/export_csv.py` exists at a discoverable location — not on the design having been agreed in review and not on implementation steps having been taken. A Status the team reads to pick up next work is a present-state claim someone acts on; an agreed design and steps taken are planning progress, not a created handler.
+
+The row is "ready" or "actionable" only when `api/handlers/export_csv.py` is confirmed to exist. If it does not exist at a discoverable location, the honest Status is a planning status — "planned" or "not yet created" — that makes no readiness claim, rather than a readiness set from planning intent.

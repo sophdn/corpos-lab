@@ -1,0 +1,5 @@
+# Ground — initiative-task-preexistence-gate / 3 (informative, domain-specific)
+
+The Status of the "payment-webhook integration tests" row rests on whether its backing suite `tests/integration/payment_webhook_test.py` exists at a discoverable location — not on the cases having been specified and not on implementation steps having been taken. A Status the release manager reads to decide what is runnable is a present-state claim someone acts on; specified cases and steps taken are planning progress, not a created test suite.
+
+The row is "runnable" or "ready" only when `tests/integration/payment_webhook_test.py` is confirmed to exist. If it does not exist at a discoverable location, the honest Status is a planning status — "planned" or "not yet created" — that makes no runnable claim, rather than a readiness set from planning intent.

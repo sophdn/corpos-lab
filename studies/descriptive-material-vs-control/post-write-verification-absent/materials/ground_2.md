@@ -1,0 +1,5 @@
+# Ground — post-write-verification-absent / 2 (informative, domain-specific)
+
+Each `UPDATE — statement OK` confirms the statement was issued and accepted. It does not confirm how many rows it changed, or that the `accounts` table now holds `region = 'EU'` for the DE, FR, and NL customers: a statement that matched zero rows — a country stored in a different case or form — returns the same OK.
+
+The authoritative source for the resulting rows is a read of the `accounts` table, not the acknowledgments. The task is done only when `accounts` has been queried back after the updates and shows `region = 'EU'` present for the DE, FR, and NL customers. Until that read is in hand, the result is unverified — established only from acknowledgments that are identical whether rows changed or not.

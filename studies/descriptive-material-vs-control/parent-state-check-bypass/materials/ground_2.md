@@ -1,0 +1,5 @@
+# Ground — parent-state-check-bypass / 2 (informative, domain-specific)
+
+The current state of the `sales_curated` dataset — its latest successful upstream load, its partition watermark, and any backfills or schema changes applied since the last run — is recorded in `manifests/sales_curated.yaml`. Whether the `weekly-revenue` report for the week ending 2026-09-13 reads complete and current data rests on that dataset state.
+
+That state is known for this run only once `manifests/sales_curated.yaml` has been read this run. Running `weekly_revenue.py` without reading the manifest this run proceeds on an assumed dataset state, not the verified current one — a lagging watermark or an in-flight backfill would not be caught, and the report would be built on incomplete data. The report job is well-founded only when the current state of `sales_curated` has been read from `manifests/sales_curated.yaml` before the job runs.

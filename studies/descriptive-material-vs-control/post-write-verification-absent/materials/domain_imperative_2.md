@@ -1,0 +1,5 @@
+# Domain-directive — post-write-verification-absent / 2 (directive, domain-specific)
+
+Each `UPDATE — statement OK` confirms the statement was issued and accepted. It does not confirm how many rows it changed, or that the `accounts` table now holds `region = 'EU'` for the DE, FR, and NL customers: a statement that matched zero rows — a country stored in a different case or form — returns the same OK.
+
+Query the `accounts` table back after the updates and confirm `region = 'EU'` is present for the DE, FR, and NL customers before you report the task done. Do not treat the OK acknowledgments as proof the rows changed: they are identical whether rows changed or not. Read the resulting rows first, then report status.
