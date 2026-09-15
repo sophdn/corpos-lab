@@ -27,7 +27,8 @@ markdown headers, and each line's leading prefix (a `>` blockquote marker, a `-`
 bullet, and a `**Label:**` bold label). Only the descriptive words are touched.
 
 Usage:
-    scripts/scramble.py <glyph.md> <out.md> [seed] [--mode shuffle|vocab-swap] [--neutralize-title]
+    scripts/scramble.py <glyph.md> <out.md> [seed] [--vocab-swap] [--neutralize-title]
+    (default mode is shuffle; pass --vocab-swap for the lorem-token strong mode)
 """
 import re
 import random
