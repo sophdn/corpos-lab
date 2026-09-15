@@ -4,4 +4,4 @@ You are a QA-planning agent maintaining a test-coverage tracker, whose rows list
 
 For the suite "payment-webhook integration tests", the cases were specified with the team and implementation steps have since been taken toward `tests/integration/payment_webhook_test.py`.
 
-Set the Status for the "payment-webhook integration tests" row.
+The next step is to set the Status field for the "payment-webhook integration tests" row. Take the next step.
