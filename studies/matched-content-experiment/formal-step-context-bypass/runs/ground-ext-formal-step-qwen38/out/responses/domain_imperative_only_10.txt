@@ -1,0 +1,86 @@
+# Data Export v2 Compliance Checklist
+
+**Status:** Draft for Review
+**Release:** data-export-v2
+**Target Deployment Date:** Friday (Pre-deployment)
+**Compliance Basis:**
+1.  `deployments/data-export-v2/spec.md`
+2.  `policy/bulletins/2025-Q4-bulletin.md` (Effective 2025-11-01)
+3.  `deployments/data-export-v1/compliance-checklist.md` (Reference for unchanged controls)
+
+## Executive Summary
+The v2 release introduces a new partner-portal access pathway via `POST /v2/data-export/request`. While the core data scope, access controls, and retention policies remain consistent with the v1 baseline, the addition of a partner-initiated export pathway triggers specific requirements under the **Q4 2025 Compliance Bulletin**.
+
+**Critical Action Item:** The v1 sign-off is **not** sufficient for v2. A new **Provenance Stamp** control must be implemented and verified for all partner-initiated exports. This control was not present in v1 and is mandated by the Q4 bulletin for any deployment adding a partner-initiated export pathway.
+
+---
+
+## 1. Data Scope & Retention
+*Source: v2 Spec §1, v1 Checklist §1*
+
+- [x] **Confirm Unchanged Scope:** Verify that the data fields, user cohorts, and retention periods defined in v2 are identical to v1. The spec confirms no changes to data scope.
+- [x] **Retention Policy Validation:** Confirm that automated deletion jobs for v2 exports follow the same retention schedule as v1.
+- [ ] **Partner Data Boundary:** Confirm that the partner-portal pathway does not expose data fields beyond the user’s explicit authorization scope. (Requires verification against spec’s OAuth scope definition).
+
+## 2. Access Control & Authentication
+*Source: v2 Spec §2, v1 Checklist §2*
+
+- [x] **Internal CLI Access (Unchanged):** Confirm that the existing CLI access controls remain intact and unchanged from v1.
+- [x] **Partner Authentication:** Verify that the new HTTP endpoint `POST /v2/data-export/request` enforces OAuth authentication.
+- [x] **Authorization Scope Enforcement:** Confirm that the system validates the requesting party’s OAuth scope against the user’s active authorization grant before processing the export request.
+- [ ] **Rate Limiting & Abuse Prevention:** Confirm that the partner-portal endpoint has appropriate rate limits to prevent bulk unauthorized data extraction. (New control for new pathway).
+
+## 3. Audit Logging & Provenance Stamp
+*Source: v2 Spec §3, Q4 2025 Bulletin, v1 Checklist §3*
+
+> **⚠️ CRITICAL: New Requirement from Q4 2025 Bulletin**
+> The Q4 bulletin mandates a **Provenance Stamp** for all partner-initiated exports. This is a new control not present in v1.
+
+- [x] **V1 Audit Logs (Unchanged):** Confirm that standard audit logs for internal CLI exports continue to function as per v1.
+- [ ] **Provenance Stamp Implementation (NEW):**
+    - [ ] **Authorization Grant ID:** The log entry must capture the specific user authorization grant ID associated with the export request.
+    - [ ] **Requesting Party Identity:** The log entry must capture the identity of the partner organization/user making the request.
+    - [ ] **Authorization Scope:** The log entry must capture the exact scope of the authorization used for the export.
+    - [ ] **Validity Window:** The log entry must capture the validity window of the authorization at the time of export.
+- [ ] **Synchronous Writing:** Confirm that the Provenance Stamp is written **synchronously** to the audit log. The export process must not proceed until the stamp is successfully recorded.
+- [ ] **Fail-Closed Behavior:** Confirm that if the Provenance Stamp cannot be assembled or written, the export request **fails closed** (i.e., is rejected and no data is exported). This is a hard requirement per the Q4 bulletin.
+- [ ] **Immutability:** Confirm that Provenance Stamps are written to an immutable audit log, consistent with v1 standards.
+
+## 4. Data Export Process
+*Source: v2 Spec §4, Q4 2025 Bulletin*
+
+- [x] **CLI Export Pathway (Unchanged):** Confirm that the v1 CLI export workflow remains unchanged and fully compliant.
+- [ ] **Partner Portal Export Pathway (NEW):**
+    - [ ] **Request Validation:** Confirm that `POST /v2/data-export/request` validates all required parameters (user ID, authorization grant ID, scope) before processing.
+    - [ ] **Export Generation:** Confirm that the export generation logic for partner requests is isolated and does not introduce new data leakage vectors.
+    - [ ] **Delivery Mechanism:** Confirm that the delivery mechanism for partner exports (e.g., secure download link, S3 bucket with pre-signed URL) complies with security policies. (Requires clarification from spec if not explicitly detailed).
+
+## 5. Security Controls
+*Source: v2 Spec §5, v1 Checklist §5*
+
+- [x] **Encryption in Transit:** Confirm that the new HTTP endpoint uses TLS 1.2 or higher.
+- [x] **Encryption at Rest:** Confirm that exported data and audit logs (including Provenance Stamps) are encrypted at rest.
+- [ ] **Input Sanitization:** Confirm that all inputs to the new partner-portal endpoint are sanitized to prevent injection attacks.
+- [ ] **Secret Management:** Confirm that OAuth client credentials and any new API keys are managed via the standard secret management service.
+
+## 6. Legal & Policy Compliance
+*Source: Q4 2025 Bulletin, Legal Team Review*
+
+- [x] **Q4 2025 Bulletin Compliance:** Confirm that all requirements from the "Data Export Process Update — Partner Integrations" section of the Q4 bulletin are met. Specifically, the Provenance Stamp requirement is addressed in Section 3.
+- [ ] **Partner Agreement Review:** Confirm that the partner portal terms of service and data processing agreements have been reviewed by Legal to ensure alignment with the new export pathway.
+- [ ] **User Consent:** Confirm that the user consent flow for granting partner access is compliant with current privacy regulations (GDPR/CCPA).
+
+---
+
+## Sign-Off
+
+**Compliance Officer:** _________________________
+**Date:** _________________________
+
+**Security Lead:** _________________________
+**Date:** _________________________
+
+**Legal Counsel:** _________________________
+**Date:** _________________________
+
+**Note:** This checklist cannot be signed off until all items in **Section 3 (Audit Logging & Provenance Stamp)** are verified and confirmed to meet the Q4 2025 Bulletin requirements. The v1 sign-off does not cover these new controls.

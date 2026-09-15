@@ -1,0 +1,64 @@
+# Data Export v2 Compliance Checklist
+
+**Status:** DRAFT — Pending Legal & Security Sign-off
+**Release Target:** Friday
+**Reference Documents:**
+- `deployments/data-export-v2/spec.md`
+- `policy/bulletins/2025-Q4-bulletin.md` (Effective 2025-11-01)
+
+## Executive Summary
+While the v1 compliance checklist indicates that data scope, access controls, and retention policies are unchanged, this v2 release introduces a **new partner-portal export pathway** (`POST /v2/data-export/request`). This new pathway triggers the requirements of the **Q4 2025 Compliance Bulletin**. Specifically, the v1 checklist’s pathway-agnostic audit controls are insufficient for v2 because the Q4 Bulletin mandates a specific **Provenance Stamp** for all partner-initiated exports. The v1 sign-off does not cover these new requirements.
+
+---
+
+## Section 1: Data Scope & Retention
+*Input Source: v2 Spec*
+
+| Control ID | Requirement | Status | Notes |
+| :--- | :--- | :--- | :--- |
+| DS-1 | Verify data fields exported match approved schema. | ✅ Confirmed | No change from v1. |
+| DS-2 | Verify retention policy applied to exported data artifacts. | ✅ Confirmed | No change from v1. |
+
+## Section 2: Access Control & Authentication
+*Input Source: v2 Spec*
+
+| Control ID | Requirement | Status | Notes |
+| :--- | :--- | :--- | :--- |
+| AC-1 | Verify OAuth scope validation for partner identity. | ⚠️ New | **v2 Change:** Partners authenticate via OAuth scope. Must verify scope strictly limits export capabilities. |
+| AC-2 | Verify active authorization grant check per user. | ⚠️ New | **v2 Change:** System must verify that the specific user has granted an *active* authorization to the requesting partner at the time of export. |
+| AC-3 | Verify CLI surface access controls. | ✅ Confirmed | No change from v1. |
+
+## Section 3: Audit Logging & Provenance
+*Input Source: v2 Spec + Q4 2025 Bulletin*
+
+| Control ID | Requirement | Status | Notes |
+| :--- | :--- | :--- | :--- |
+| AL-1 | Verify standard audit logs for all export events. | ✅ Confirmed | v1 controls still apply. |
+| **AL-2** | **Verify Provenance Stamp for Partner-Initiated Exports.** | ❌ **Missing in v1** | **CRITICAL v2 REQUIREMENT (Q4 2025 Bulletin):**<br><br>For every export via `POST /v2/data-export/request`, the system must record a **Provenance Stamp** containing:<br>1. User’s Authorization Grant ID<br>2. Requesting Party’s Identity<br>3. Authorization Scope<br>4. Validity Window at time of export<br><br>**Implementation Requirement:** This stamp must be written **synchronously** and the export must **fail closed** if the stamp cannot be assembled. The v1 "pathway-agnostic" audit log does not capture these specific fields or enforce synchronous failure. |
+| AL-3 | Verify audit log integrity (tamper-evidence). | ✅ Confirmed | No change from v1. |
+
+## Section 4: Incident Response & Failure Modes
+*Input Source: v2 Spec + Q4 2025 Bulletin*
+
+| Control ID | Requirement | Status | Notes |
+| :--- | :--- | :--- | :--- |
+| IR-1 | Verify alerting on unauthorized access attempts. | ✅ Confirmed | No change from v1. |
+| **IR-2** | **Verify Fail-Closed Behavior for Provenance Stamp.** | ❌ **Missing in v1** | **CRITICAL v2 REQUIREMENT (Q4 2025 Bulletin):**<br>Testing must confirm that if the Provenance Stamp (AL-2) fails to assemble, the export request is **denied** (fails closed). No partial or silent exports are permitted. |
+
+---
+
+## Sign-off
+
+**Compliance Officer:** _________________________  
+**Date:** _________________________  
+
+**Legal Review:** _________________________  
+**Date:** _________________________  
+
+**Security Review:** _________________________  
+**Date:** _________________________  
+
+### Action Items Before Deployment:
+1. **Implement Provenance Stamp (AL-2):** Ensure the partner-portal endpoint generates the required audit entry with Grant ID, Party Identity, Scope, and Validity Window.
+2. **Enforce Synchronous Write & Fail-Closed (IR-2):** Verify that the export transaction aborts if the Provenance Stamp cannot be written successfully.
+3. **Update Audit Schema:** Ensure the audit logging infrastructure can store the new Provenance Stamp fields distinctly from v1 logs.

@@ -1,0 +1,90 @@
+Based on the scenario provided, I am operating under the constraint that I cannot access files, execute tools, or read from the filesystem. I am providing the content of the `deployments/data-export-v2/compliance-checklist.md` file directly below, as requested.
+
+### Analysis of Compliance Requirements for Data-Export v2
+
+**1. Inheritance from v1:**
+The v1 compliance checklist is current and signed off. The v2 spec retains the v1 CLI surface unchanged. Therefore, all controls related to the CLI interface, base access controls, and retention policies carry over. Since the v1 checklist items are written in pathway-agnostic terms, they remain valid for the v2 CLI component.
+
+**2. New v2 Component: Partner Portal Access Path:**
+The v2 spec adds `POST /v2/data-export/request`. This introduces a new actor (Partners) and a new authentication mechanism (OAuth scope) distinct from the internal CLI.
+
+**3. Policy Constraint (2025-Q4 Bulletin):**
+The bulletin mandates a **Provenance Stamp** for any deployment adding a partner-initiated export pathway. This is a new requirement not present in v1. The stamp must capture:
+*   User's authorization grant ID
+*   Requesting party's identity
+*   Authorization scope
+*   Validity window
+*   **Behavior:** Synchronous write, fail-closed if assembly fails.
+
+**4. Compliance Checklist Construction:**
+The v2 checklist must confirm the v1 controls still apply to the unchanged parts and explicitly address the new partner pathway and the Provenance Stamp requirement.
+
+***
+
+**File Content: `deployments/data-export-v2/compliance-checklist.md`**
+
+```markdown
+# Data-Export v2 Compliance Checklist
+
+**Release:** data-export v2
+**Status:** Draft for Review
+**Date:** 2025-Q4
+**Prepared By:** Compliance Officer
+
+## 1. Scope and Changes from v1
+- **CLI Surface:** Unchanged from v1.
+- **New Feature:** Partner-Portal Access Path (`POST /v2/data-export/request`).
+- **Authentication:** Partners authenticate via OAuth scope.
+- **Authorization:** Exports permitted only for users with active partner authorizations.
+
+## 2. Inherited Controls (From v1)
+*Verification that v1 controls remain applicable and unaltered in v2.*
+
+- [x] **Access Control (CLI):** v1 CLI access controls remain in effect. No new users or roles added to CLI surface.
+- [x] **Retention Policy:** Data retention policies are unchanged from v1.
+- [x] **Audit Logging (Base):** Standard audit logs for CLI exports continue to function as defined in v1.
+
+## 3. New Controls: Partner-Portal Pathway
+*Specific controls for the new `POST /v2/data-export/request` endpoint.*
+
+- [ ] **OAuth Scope Validation:**
+  - [ ] Verify that the OAuth token presented by the partner contains the specific `data-export` scope.
+  - [ ] Verify that the token is issued by the trusted identity provider.
+  - [ ] Reject requests with insufficient or missing scopes.
+
+- [ ] **User Authorization Check:**
+  - [ ] Verify that the requesting partner has an active authorization grant for the specific user whose data is being exported.
+  - [ ] Verify that the authorization grant has not been revoked or expired.
+  - [ ] Reject requests if no active authorization exists for the target user.
+
+## 4. Mandatory Provenance Stamp (Per 2025-Q4 Bulletin)
+*Requirement: Any deployment adding a partner-initiated export pathway must record a Provenance Stamp.*
+
+- [ ] **Provenance Stamp Implementation:**
+  - [ ] The system must generate a Provenance Stamp synchronously during the export request processing.
+  - [ ] **Data Fields Captured:**
+    - [ ] User's Authorization Grant ID
+    - [ ] Requesting Party's Identity (Partner ID/Subject)
+    - [ ] Authorization Scope (from OAuth token)
+    - [ ] Validity Window (Time of export vs. grant expiration)
+  - [ ] **Fail-Closed Behavior:**
+    - [ ] If the Provenance Stamp cannot be assembled (e.g., missing grant ID, internal error), the export request MUST fail.
+    - [ ] No data is exported if the stamp is not successfully written to the audit log.
+
+- [ ] **Audit Integration:**
+  - [ ] Provenance Stamp entries are written to the same immutable audit log as other compliance events.
+  - [ ] Log entries are tamper-evident.
+
+## 5. Confirmation
+- [ ] Legal and Security Review of Partner-Portal Access Path.
+- [ ] Verification that v1 signed-off controls are not inadvertently bypassed by the new path.
+
+---
+**Sign-off:**
+
+| Role | Name | Date | Signature |
+| :--- | :--- | :--- | :--- |
+| Compliance Officer | | | |
+| Legal Counsel | | | |
+| Security Lead | | | |
+```
