@@ -46,20 +46,35 @@ lift.
 
 ## Conditions
 
-Descriptive form only — Q1 and the ground extension settled that content, not
-the three-axis format, carries the effect, so H1 does not re-litigate form. It
-varies **material presence** and **grounding**, the two axes H1's claim turns on:
+The canonical operationalization is `register-shift-followup` §Conditions — H1
+reuses it exactly, so the two studies are directly comparable. Two factors are
+crossed while the propositional content is held fixed (a 2×2), plus a baseline:
 
-- **T0 — control.** Scenario only, no material.
-- **T1 — glyph.** The certified three-axis glyph (domain-free descriptive
-  material) prepended.
-- **T2 — grounded glyph.** The same glyph grounded in the scenario's concrete
-  domain, naming the decision's action but **not** writing the artifact or
-  handing the answer (the non-copy ground of the ground-extension study).
+- **baseline** — the scenario alone.
+- **glyph** (descriptive, domain-free) — the certified three-axis glyph. It
+  describes; it does not instruct; it names abstract roles, not a specific tool
+  or file.
+- **imperative** (directive, domain-free) — a rule stating the glyph's content as
+  commands rather than description. The content-and-form control: glyph vs
+  imperative isolates form at matched content.
+- **ground** (descriptive, domain-specific) — a domain-specific statement of the
+  decision for the concrete scenario, in descriptive form: it says what a correct
+  outcome *is*, without naming a command and without pasting the finished
+  artifact.
+- **domain-directive** (directive, domain-specific) — the same domain-specific
+  content as the ground, commanding the action. Ground and domain-directive
+  differ only in **mood**.
 
-Optional replication arm (not core, run only if the core grid warrants it):
-**T1b — imperative**, a domain-free directive carrying the glyph's content, to
-confirm content-over-format holds in the lift regime as it did in suppression.
+A content-parity audit is committed with the materials: glyph and imperative
+state the same facts; ground and domain-directive state the same facts and differ
+only in mood; neither ground nor domain-directive hands over the finished
+artifact.
+
+Optional mechanism controls (take the glyph's slot; run where a
+comprehension-versus-recognition question is live): a **scrambled** glyph
+(three-axis shape kept, words shuffled within each axis — tests whether structure
+alone carries the effect) and an **off-target** glyph (a coherent glyph for a
+different class — tests whether recognition of the scenario match is in the loop).
 
 ## Models — treatment subjects
 
@@ -83,11 +98,13 @@ subject or rater can see.
 
 ## Grid and n
 
-3 classes × 3 scenarios × 3 models × 3 conditions × **n=8** (seeds 1–8) =
-**648 runs**. Read as cells, not counts (n=8 → 95% CI ≈ ±0.2); each
+5 conditions × 3 classes × 3 scenarios × 3 models × **n=8** (seeds 1–8) =
+**1080 runs**. Read as cells, not counts (n=8 → 95% CI ≈ ±0.2); each
 class×model×condition pools 3 scenarios × 8 = 24, matching the ground-extension's
-per-cell n while adding scenario robustness it lacked. Stage it: run one class
-end-to-end and read it before launching the rest; smoke one cell before batching.
+per-cell n while adding the scenario robustness it lacked. Stage it: run one
+class end-to-end and read it before launching the rest; smoke one cell before
+batching. If wall-clock on the 27B demands it, prune to the conditions that
+discriminate, but keep the two-by-two intact per class.
 
 ## Sampler (complete chain, per INQUIRY.md)
 
@@ -120,7 +137,7 @@ only — not the primary scorer.
 
 ## Calibration pre-check (the gate before the full grid)
 
-Before the 648-run grid, run **T0 only** for every class × scenario × model and
+Before the 1080-run grid, run **the baseline only** for every class × scenario × model and
 confirm baseline correct-target C is **below ceiling** — the measurement is
 meaningless where the model already acts. Expected: all three gating classes
 calibrate on the weak shelf; the 27B may ceiling on some class×scenario cells.
@@ -130,23 +147,29 @@ on any model is dropped.
 
 ## Predictions (pre-registered; kept out of every subject- and rater-visible file)
 
-- **T0**: low correct-target C — the under-firing baselines above.
-- **T1 (glyph)**: lifts recognition, but correct-target C lifts only partially,
-  and on the smaller models the glyph's does-not-fire clause inflates Ii
-  (recognition-without-action) — the analysis pull the priors found, now from a
-  floor instead of a ceiling. Direction: T1 > T0 on recognition; T1 correct-target
-  C only partway to ceiling.
-- **T2 (grounded glyph)**: correct-target C lifts substantially toward ceiling —
-  grounding is the execution lever, and it should convert the floor case as it
-  recovered the ceiling case. Direction: T2 ≫ T1 on correct-target C; the 7B on
-  the hardest class may still lag (the ground-extension's casg-Mistral exception).
+- **baseline**: low correct-target C — the under-firing baselines above.
+- **glyph** (desc, free): lifts recognition, but correct-target C lifts only
+  partially, and on the smaller models the glyph's does-not-fire clause inflates
+  Ii (recognition-without-action) — the analysis pull the priors found, now from
+  a floor instead of a ceiling.
+- **imperative** (dir, free): tracks the glyph — content, not form, carries it,
+  the settled finding — so also only a partial lift at the domain-free level.
+  glyph ≈ imperative.
+- **ground** (desc, specific): correct-target C lifts substantially toward
+  ceiling — grounding is the execution lever, converting the floor case as it
+  recovered the ceiling case. The 7B on the hardest class may still lag (the
+  ground-extension's casg-Mistral exception).
+- **domain-directive** (dir, specific): also lifts substantially. The open
+  question `register-shift-followup` left under-determined is whether the
+  descriptive **ground** suffices as well as the commanding **domain-directive**:
+  does grounded comprehension alone produce the action, or does command do extra
+  work? H1 tests it in the lift regime. Prediction: ground ≈ domain-directive on
+  the larger models; domain-directive > ground on the 7B for the hardest class. A
+  ground ≈ domain-directive result is direct support for comprehension-as-
+  compliance from the floor.
 - **Across classes**: the lift is largest where the baseline is lowest
   (`post-write-verification-absent`, ~0%), moderate on
   `initiative-task-preexistence-gate` (~50%).
-
-If T1 lifts correct action as much as T2, the ground-lever claim weakens and
-comprehension-of-material alone suffices from the floor — a real result, filed as
-such.
 
 ## Invariants and hygiene
 
@@ -161,8 +184,13 @@ such.
 ## Materials to author before the run (task 3 inputs)
 
 - 3 scenarios × 3 classes = 9 scenario stems (project-agnostic).
-- T1 material per class = the certified AC-4 glyph block.
-- T2 material per class × scenario = the glyph grounded in that scenario, naming
-  the action, non-copy (does not write the artifact).
-- (Optional) T1b imperative per class = a domain-free directive carrying the
-  glyph's content, content-matched to T1.
+- Per class: the **glyph** = the certified AC-4 block; the **imperative** = a
+  domain-free directive carrying the glyph's content, content-matched to the glyph.
+- Per class × scenario: the **ground** = a domain-specific descriptive statement
+  of the correct outcome, non-copy (does not write the artifact); the
+  **domain-directive** = the same domain-specific content commanding the action,
+  content-matched to the ground and differing only in mood.
+- A committed content-parity audit (glyph = imperative; ground = domain-directive;
+  neither ground nor domain-directive hands over the artifact).
+- (Optional) a scrambled and an off-target glyph per class for the mechanism
+  controls.
