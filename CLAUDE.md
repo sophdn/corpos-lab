@@ -140,7 +140,7 @@ runs inside the container.
 - **Local model:** llama.cpp server at `http://localhost:8081/v1` (OpenAI-compatible) — the
   **only** local inference portal (see Invariants). Containerized as the quadlet
   `llama-server-container`, reachable on `corpos-net` by DNS as `llama-server:8081`. GGUFs live
-  under `/mnt/data1/models`, bind-mounted read-only at `/models`. Default model is Qwen2.5-32B;
+  under `/mnt/data1/models`, bind-mounted read-only at `/models`. Default model is Qwen3.8-27B;
   swap it by restarting the unit with a different `--model`, never by starting a second server.
 
 ## Git
