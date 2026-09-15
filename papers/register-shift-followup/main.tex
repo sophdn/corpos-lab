@@ -1,0 +1,575 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{array}
+\usepackage{natbib}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!60!black,
+  citecolor=blue!60!black,
+  urlcolor=blue!60!black
+}
+
+\title{%
+  Content, Not Format: What Drives Analysis-Mode in \\
+  Language Model Agents, and How Grounding Recovers Execution%
+}
+
+\author{Sophie D.\ Neilson \\
+  \small Independent Researcher \\
+  \small ORCID: \href{https://orcid.org/0009-0001-2430-1743}{0009-0001-2430-1743}
+}
+
+\date{September 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+A prior report observed that a small language model, when a task is prefixed with a
+structured description of a recurring decision, stops acting and instead analyzes
+the description. That study used one model and one scenario, and it did not separate
+the description's content from its form. This follow-up adds the controls it lacked.
+We prefix a task with either a three-axis descriptive ``glyph'' or an
+information-matched imperative rule, across four decision classes, and we sweep the
+descriptive prefix across four open-weight models on the original class. The shift
+away from action generalizes across models, and it is a content effect, not a format
+effect: the matched imperative suppresses action as much as the glyph, and the
+descriptive format shows no consistent advantage over a plain rule with the same
+content. Control prefixes (a content-scrambled glyph, a wrong-class glyph) show the
+suppression mechanism is decision-class-dependent. We then vary two things
+independently while holding the content fixed: form (descriptive versus directive)
+and grounding (a domain-free statement versus a domain-specific one). Grounding is
+the lever. A domain-specific aid restores execution where a domain-free one
+suppresses it, in both forms. Whether a domain-specific \emph{description} suffices
+as well as a domain-specific \emph{command} is under-determined here: the command
+reaches ceiling in all four model-and-class cells, so the two separate only where
+the description falls short of ceiling, which happens once, on the smaller model and
+the harder task, and there the command does better. All runs use one local
+raw-completion inference rig; reproducing them needs a 24\,GB GPU and no paid
+interface. We state the scope and the measurement limits, including the cells where
+a baseline already acts and no effect is measurable.
+\end{abstract}
+
+\section{Introduction}
+
+A prior report~\citep{neilson2026register} documented a dissociation between
+comprehension and execution in Mistral-7B-Instruct. When the model received a task
+scenario prefixed with a \emph{glyph}, a three-axis structured description of a
+recurring decision class, it analyzed the description rather than acting on the
+task. Across three legs of eight runs it produced no task execution under the glyph,
+while producing the target action in most runs with no glyph present. The report
+named this the \emph{analysis-mode register shift} and scoped the observation to one
+glyph, one scenario, and one model. It named format cueing as one of three candidate
+explanations and disclaimed a mechanism.
+
+That report named two open questions in its own limitations. The first is breadth:
+whether the shift is specific to Mistral-7B. The second is the harder one. The glyph
+carries information about the decision, and it also carries a particular form: named
+axes, written descriptively rather than as instructions. The study compared a glyph
+against no glyph, never against a different delivery of the same information, so it
+could not say whether the descriptive \emph{format} drove the shift or whether the
+\emph{content} did, by whatever route it arrived.
+
+This follow-up runs the missing controls and then goes past them. We hold the
+information constant and vary the delivery. For each decision class we write an
+\emph{imperative}: a set of directives stating the same failure, correct action, and
+applicability boundary as the glyph, in commanding rather than descriptive form,
+audited for content parity. We run the glyph across four open-weight models. We add
+two mechanism controls that damage the glyph in one way each: a \emph{scrambled}
+glyph keeps the three-axis shape but destroys the content, and an \emph{off-target}
+glyph is coherent but describes a different decision class. Finally we cross two
+factors while holding content fixed: form (descriptive versus directive) and
+grounding (a domain-free statement versus a domain-specific one).
+
+The picture that results refines the prior observation rather than overturns it. The
+register shift is real and general. It is not a property of the descriptive format.
+The content the glyph carries, present equally in a matched rule, is what moves
+behavior; which part of the content matters depends on the decision class; and what
+recovers execution is grounding the decision in the concrete domain.
+
+\subsection{Terminology}\label{sec:terms}
+
+These terms come from the research program this study belongs to, not from the
+field's shared vocabulary. Each is defined here at first use.
+
+\begin{itemize}
+  \item \textbf{Glyph}: a three-axis structured description of a recurring decision
+    class, written from inside the decision. Its axes are \emph{Marker} (what the
+    failure looks like), \emph{Aim} (what correct navigation looks like), and
+    \emph{Rest} (when the class does not apply). A glyph describes; it does not
+    instruct. It is domain-free: it names abstract roles, not a specific tool or
+    file.
+  \item \textbf{Decision class}: a recurring situation in which an agent can act
+    correctly or fail in a characteristic way, described apart from any one scenario.
+  \item \textbf{Analysis-mode register shift}: the pattern in which a model, given a
+    glyph, discusses the decision class rather than acting within it. It recognizes
+    the obligation and does not carry it out.
+  \item \textbf{Imperative}: a directive rewriting of a glyph's content. It states
+    the same propositions as commands rather than as description, and stays
+    domain-free. It is the content-and-form control.
+  \item \textbf{Ground}: a domain-specific statement of the decision for the concrete
+    scenario, in descriptive form (it says what a correct outcome is, without naming
+    a command and without pasting the finished artifact).
+  \item \textbf{Domain-directive}: the same domain-specific content as the ground, in
+    directive form (it commands the action). Ground and domain-directive differ only
+    in mood.
+\end{itemize}
+
+\subsection{Related Work}
+
+Two recent papers occupy adjacent territory. Wang et al.~\citep{wang2026narrative}
+study narrative priors: they run structurally identical games under different
+storylines and find that the task narrative explains more behavioral variance than
+an assigned persona does. Their work shows framing context shifts behavior. It does
+not test a descriptive description of a decision class, and it does not separate
+comprehension from execution. Liu et al.~\citep{liu2026behavioral} derive behavioral
+mode axes, activation-space directions from contrastive behavioral traces, and use
+them to measure and steer a model's behavioral style. Their notion of a behavioral
+register is relevant to the analysis-mode phenomenon, though they steer through
+activations rather than a prompt-level description.
+
+The finding also sits next to a broader literature on prompt-format sensitivity and
+on instruction-following in language models, which studies how the surface form of a
+prompt changes behavior. We did not run a systematic survey of that literature, and
+we make no universal novelty claim; a full positioning against it is future work.
+The distinction this study turns on, description versus instruction, maps loosely
+onto Ryle's \emph{knowing-that} versus \emph{knowing-how}~\citep{ryle1949}. The
+theory behind the glyph draws on Polanyi's account of tacit
+knowledge~\citep{polanyi1966} and Klein's recognition-primed decision
+model~\citep{klein1998}, under which an agent that recognizes a decision class from
+prior exposure navigates it without explicit rules. The present result bears on that
+theory, and we return to it in the discussion.
+
+\section{Materials and Method}
+
+\subsection{Decision Classes}
+
+We test four decision classes, each a domain-free description instantiated in one
+task scenario.
+
+\begin{itemize}
+  \item \textbf{casg-direct}: an agent finishes a software release but leaves the
+    companion \texttt{CHANGELOG.md} not updated. Correct action: add the release
+    entry. This is the class from the prior report.
+  \item \textbf{formal-step}: an agent must produce a compliance checklist by working
+    it from the current specification, not by carrying a prior sign-off across.
+    Working it surfaces a control the prior summary omits.
+  \item \textbf{parent-state}: an agent must check a parent or milestone state before
+    acting on a task.
+  \item \textbf{conditional-gate}: a conditional gate that most models already handle
+    unprompted in the tested scenario.
+\end{itemize}
+
+\subsection{Conditions}
+
+The core study crosses two factors while holding the propositional content fixed,
+giving a two-by-two plus a baseline:
+
+\begin{itemize}
+  \item \textbf{baseline}: the scenario alone.
+  \item \textbf{glyph}: descriptive, domain-free (the three-axis glyph).
+  \item \textbf{imperative}: directive, domain-free (a rule with the same content).
+  \item \textbf{ground}: descriptive, domain-specific.
+  \item \textbf{domain-directive}: directive, domain-specific.
+\end{itemize}
+
+The four aids carry the same core proposition at two grounding levels; a
+content-parity audit records that the glyph and the imperative state the same facts,
+that the ground and the domain-directive state the same facts and differ only in
+mood, and that neither the ground nor the domain-directive hands over the finished
+artifact. Two mechanism controls take the glyph's slot: a \emph{scrambled} glyph
+(three-axis shape kept, words shuffled within each axis) and an \emph{off-target}
+glyph (a coherent glyph for a different class).
+
+\subsection{The No-Tools Notice}\label{sec:notice}
+
+The subject models are agentic: given a task, a strong model often emits tool calls
+rather than inline prose. The probe runs in a single-turn harness that returns
+nothing to a tool call, so a tool-calling reply stalls and produces no scoreable
+action. That stall is a harness artifact rather than an analysis-mode response. We
+append a short notice to the user turn, stating that no tools are available and to
+answer inline. The notice is identical across all conditions, so it cannot bias the
+contrasts, though it plausibly nudges every condition toward inline prose. Under the
+notice the grids ran with no tool stalls.
+
+\subsection{Models and Sampling}\label{sec:sampling}
+
+The two-by-two ran on Qwen3.8-27B-Instruct (Q4\_K\_M) and Mistral-7B-Instruct-v0.3
+(Q4\_K\_M), n=24 per cell. The four-class content grid and the mechanism controls ran
+on the same two models at n=8 per cell. The cross-model sweep added phi-4-14B and
+Qwen2.5-32B-Instruct on casg-direct at n=8.
+
+All subjects are served by one local server (\texttt{llama-server}, llama.cpp) over a
+raw completion path with a minimal per-model instruct wrapper, thinking disabled, and
+no system prompt. One model runs at a time, verified from the server's properties
+endpoint on each swap. Running every subject on this one local rig is a
+reproducibility decision: the results reproduce on a single 24\,GB GPU with no paid
+interface. A hosted model cannot run on this path, so no hosted model is a subject
+here (Section~\ref{sec:scoring}).
+
+The complete sampler chain, identical across conditions and models: temperature 0.8,
+top\_k 0, top\_p 1.0, min\_p 0.05, all penalties disabled, maximum 1024 new tokens
+(1536 for formal-step, whose replies are longer), seeds 1 through the run count.
+Penalties are disabled by design: a repetition penalty suppresses repeated structure,
+and axis-by-axis analysis is repeated structure, so a live penalty would attenuate
+the behavior under study. Qwen2.5-32B was served at a reduced 8K context to fit the
+GPU; prompts are about 5K tokens. Each run records the served model, the build id,
+the throughput, the sampler read back from the server, the image content digest, the
+substrate, and the repository commit. The two-by-two ran on image
+\texttt{sha256:67d26e73}; the mechanism controls on \texttt{sha256:e159c2b8}; the
+four-class grid on \texttt{sha256:82182b74}; the sweep's new arms (phi-4,
+Qwen2.5-32B) on \texttt{sha256:e159c2b8} and its Mistral and Qwen3.8 arms on
+\texttt{sha256:82182b74}. Because the sweep pools cells from two images, one of which
+followed a fix to a reply-truncation bug, we read the sweep as cells and direction,
+not pooled counts; its replies are short, so the truncation fix does not bear on that
+class.
+
+\subsection{Scoring}\label{sec:scoring}
+
+Responses are scored with a five-code rubric: \textbf{C}, recognition and the correct
+action; \textbf{Ii}, recognition without action; \textbf{Ic}, recognition with a
+defective action; \textbf{I}, no recognition; \textbf{N}, not scoreable. The
+correct-action bar is identical across the glyph, imperative, ground, and
+domain-directive conditions, so no scoring asymmetry can confound the contrasts. We
+report an execution rate (an artifact produced: C or Ic) alongside the strict
+correct-target rate (C), because the load-bearing distinction is whether the model
+acts at all versus analyzes without acting. The per-class rubrics are in
+Appendix~\ref{app:rubric}, and the strict correct-target table is
+Table~\ref{tab:strict}.
+
+Each cell was scored by two independent raters, both Claude (Anthropic) subagents,
+blind to the condition and to the predictions, then adjudicated by the analyst.
+Claude is a permitted judge but never a subject: it cannot run on the local
+raw-completion rig that the reproducibility apparatus requires. The two-by-two (480
+responses) reached a pooled pre-adjudication agreement of 477 of 480 (99.4\%); the
+three disagreements, all in one model-and-class cell, were adjudicated against the
+rubric. The predictions were written before the runs and kept out of everything the
+subject and the rater saw. Two raters drawn from one model measure consistency, not
+validity: they share a training distribution, so a correlated error would not show up
+as disagreement. The near-perfect agreement therefore shows the execute-versus-
+analyze judgment is applied \emph{consistently}, and the study did not add a human or
+cross-family rater to test its \emph{validity}. Section~\ref{sec:limitations} records
+that gap, and the conclusions rest on gaps far larger than any plausible rater slip.
+
+\subsection{Agents and Models}\label{sec:agents}
+
+\begin{table}[h]
+\centering
+\small
+\caption{Agents and models. ``Not recorded'' means the study record does not hold the
+  version.}
+\label{tab:agents}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{4.8cm}>{\raggedright\arraybackslash}p{2.4cm}@{}}
+\toprule
+Role & Model & Version and runtime & Date \\
+\midrule
+Subject (two-by-two, grid, controls) & Qwen3.8-27B-Instruct; Mistral-7B-Instruct-v0.3 & Q4\_K\_M GGUF, llama.cpp raw completion, digest-pinned image & 2026-09-08; 2026-09-14 \\
+Subject (sweep) & phi-4-14B; Qwen2.5-32B-Instruct & Q4\_K\_M GGUF, llama.cpp; Qwen2.5-32B at 8K context & 2026-09-09 \\
+Raters, two-by-two & Claude (Anthropic) subagents & Not recorded. Two blind raters per cell; adjudicated by the analyst. & 2026-09-14 \\
+Raters, grid / sweep / controls & Not recorded & Blind subagents, model not named in those records. & 2026-09-08; 2026-09-09 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Results}
+
+\subsection{The Register Shift Generalizes Across Models}\label{sec:sweep}
+
+Table~\ref{tab:sweep} reports the correct-action count for casg-direct across four
+models. Every model that acts unprompted at baseline moves away from action under a
+glyph: Mistral 8 to 0, phi-4 8 to 0, Qwen3.8 8 to 4. On Mistral the suppressed runs
+split evenly between recognition-without-action and no-recognition; on phi-4 they are
+all recognition-without-action. The direction reproduces in three model families and
+four sizes, so the analysis-mode shift is not specific to Mistral-7B.
+
+\begin{table}[h]
+\centering
+\small
+\caption{Correct-action count (out of 8) by model and condition, casg-direct.
+  Non-C codes for the glyph and imperative are in parentheses.}
+\label{tab:sweep}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Model & Baseline & Glyph & Imperative \\
+\midrule
+Mistral-7B  & 8 & 0 (4 Ii, 4 I)  & 1 (7 Ii) \\
+phi-4-14B   & 8 & 0 (8 Ii)       & 0 (8 Ii) \\
+Qwen2.5-32B & 4 (4 Ii) & 2 (4 Ii, 2 Ic) & 6 (2 Ic) \\
+Qwen3.8-27B & 8 & 4 (4 Ii)       & 4 (4 Ii) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The same table gives the content answer for this class. The information-matched
+imperative suppresses action as much as the glyph or more: identical at 0 for phi-4,
+identical at 4 for Qwen3.8, near zero for Mistral, and, for Qwen2.5-32B, the plain
+imperative reaches 6 where the glyph reaches 2. On this class the descriptive format
+never beats the matched rule.
+
+\subsection{Content, Not Format, in the Measuring Cells}\label{sec:grid}
+
+The four-class content grid (n=8) extends the contrast to parent-state and
+conditional-gate. The reading needs a calibration caveat: on the strong model the
+baseline is at ceiling for casg-direct, formal-step, and conditional-gate, so those
+cells cannot measure a guidance effect. Five of the eight class-and-model cells are at
+ceiling; the contrast is measurable in three: parent-state on both models and
+conditional-gate on Mistral. In them the glyph never beats the imperative. On
+parent-state (Qwen) both lift correct action from a baseline of 1 of 8 to 8 of 8,
+identically. On conditional-gate (Mistral) the imperative reaches 5 of 8 and the
+glyph 2. On parent-state (Mistral) the imperative reaches 7 of 8 and the glyph 1,
+because the model used the glyph's non-firing clause to reason itself out of the
+check. The register shift measured as recognition without action is also not
+format-specific: it appears under the glyph and the matched imperative at similar
+rates (for example, casg on Qwen, 4 versus 4; formal-step on Qwen, 4 versus 5). The
+four-model sweep of Section~\ref{sec:sweep} is casg-direct only, so the breadth is
+four models on one class and four classes across three measuring cells, not a full
+grid.
+
+\subsection{The Suppression Mechanism Is Class-Dependent}\label{sec:mechanism}
+
+Two control glyphs test what about the glyph does the work. A scrambled glyph keeps
+the three-axis shape and destroys the content; an off-target glyph keeps coherence
+and changes the class. On casg-direct both controls reproduce the shift (on Qwen the
+scrambled glyph gives 5 recognition-without-action and the off-target 4, against the
+real glyph's 4 and a baseline of 1), so on that class neither comprehension nor
+scenario recognition is necessary; the bare structured prefix carries it. That
+reading does not generalize. On formal-step the scrambled glyph does not reproduce
+the shift (the model acts, like baseline) while the off-target one does, so
+comprehension is load-bearing there. On parent-state the off-target glyph fails to
+cue the check while the scrambled one still cues it, so recognition is load-bearing
+there. Across the informative classes, either comprehension or recognition carries
+the effect, and not the same one. The honest statement is that the glyph's
+suppression is class-dependent, and the control that fails names the ingredient the
+class relies on. This walks back the single-class reading (that mere structure
+suffices), which held only on casg-direct.
+
+\subsection{Grounding Recovers Execution}\label{sec:ground}
+
+The two-by-two (n=24) varies form and grounding with the content fixed.
+Table~\ref{tab:ground} gives the execution rate. At n=24 a 95\% Wilson interval on a
+proportion is roughly $\pm 0.18$ wide, so a gap smaller than about 5 of 24 is within
+noise, and a gap of 10 or more of 24 clears it. In every cell the domain-free aids
+(glyph, imperative) suppress execution below baseline, and the domain command
+(domain-directive) restores it to ceiling. The descriptive ground restores execution
+relative to the domain-free aids in every cell (for example casg-Mistral, glyph 0 and
+imperative 5 rise to ground 13), and it reaches ceiling on three of four cells. The
+property that flips a prefixed decision-aid from suppressing action to permitting it
+is grounding: a domain-free aid suppresses, a domain-specific aid recovers, in both
+descriptive and directive form.
+
+\begin{table}[h]
+\centering
+\small
+\caption{Execution rate (an artifact produced: C or Ic, out of 24) in the
+  form-by-grounding design.}
+\label{tab:ground}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+ & casg Mistral & casg Qwen & formal Mistral & formal Qwen \\
+\midrule
+baseline                         & 19 & 23 & 24 & 22 \\
+glyph (descriptive, domain-free) & 0  & 15 & 14 & 16 \\
+imperative (directive, domain-free) & 5 & 17 & 10 & 17 \\
+ground (descriptive, domain-specific) & 13 & 24 & 24 & 24 \\
+domain-directive (directive, domain-specific) & 24 & 24 & 24 & 24 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Whether a domain-specific \emph{description} suffices as well as a domain-specific
+\emph{command} is under-determined by this design. The domain-directive reaches
+ceiling (24 of 24) in all four cells, so the two aids can be separated only where the
+ground falls short of ceiling. That happens in one cell, casg on Mistral, and there
+the command (24) beats the description (13) by a gap that clears the noise band. In
+the other three cells both aids are at joint ceiling and cannot be distinguished. One
+piece of evidence points the other way: on casg-Qwen the descriptive ground reaches
+the strict correct-target bar in 24 of 24 runs against the command's 17
+(Table~\ref{tab:strict}), so the description produced better-formatted output there.
+Taken together, a grounded description clearly recovers execution, but the claim that
+it does so \emph{as well as} a command is suggested, not established: the sole
+discriminating cell favors the command.
+
+\section{Discussion}
+
+\subsection{The lever is grounding, not format or form}
+
+The prior report named the glyph's descriptive format as one candidate cause of the
+register shift. Under control that candidate does not carry the effect. A domain-free
+imperative, the same content in directive form, induces the shift as strongly as the
+glyph, so form is not the lever. Damaging the glyph shows the suppression runs
+through different ingredients in different classes. And restoring execution turns on
+one thing across every cell: whether the aid is grounded in the concrete domain. An
+abstract decision-description, however phrased, pulls the model toward analyzing the
+decision; grounding the same decision in the domain keeps the model acting on it. The
+cleanest single line of evidence is the prose-versus-prose contrast, imperative to
+domain-directive, which holds form constant and adds only grounding: execution rises
+5 to 24, 17 to 24, 10 to 24, and 17 to 24 across the four cells.
+
+\subsection{What this says about comprehension and compliance}
+
+The recognition-primed account predicts that a model recognizing a decision class
+navigates it without explicit rules. This study can say that a grounded description,
+which commands nothing, recovers execution well above the domain-free aids, and
+reaches ceiling in three of four cells. It cannot say that a description suffices as
+well as a command, because the command is at ceiling everywhere and the two separate
+in only one cell, where the command wins. So grounded comprehension is enough to
+recover much of the execution the abstract aids suppressed, and whether it fully
+matches a directive is open, with the one decisive comparison favoring the directive
+and one strict-format comparison favoring the description. We do not resolve it here.
+
+\subsection{Relation to the prior report}
+
+This study extends the prior report rather than corrects it. The register shift the
+report described is real and now shown across four models. What the report could not
+see, for want of a content control, is that the effect was not carried by the
+descriptive format. An earlier probe in the same program also reported that adding a
+ground recovers execution, but that probe added the ground \emph{alongside} the
+glyph and its ground pasted the finished artifact, so the recovery could have been
+the model copying an answer. Here the ground stands alone and names the action
+without writing it, and the recovery survives, so the ground effect is neither a
+copy artifact nor dependent on the glyph. What the de-confounding changes is the
+mechanism: grounding is the lever.
+
+\subsection{Limitations}\label{sec:limitations}
+
+\begin{enumerate}
+  \item \textbf{Scope.} The two-by-two covers two classes and two models; the breadth
+    results add two models on one class and two more classes at n=8, measurable in
+    three cells. Each class has one scenario and one authored glyph. A different
+    scenario or glyph could behave differently.
+  \item \textbf{Small samples and ceilings.} Cells are 8 or 24 runs, and several
+    baselines and the domain command are at or near ceiling, which is why the
+    description-versus-command comparison separates in only one cell. We read
+    direction and gaps that clear the noise band, not single integers.
+  \item \textbf{Raters not validated against a human or a second model family.} Both
+    raters were Claude subagents, blind and adjudicated, with 99.4\% pooled
+    agreement. That is consistency, not validity: two raters from one model share a
+    training distribution. The prior report used a second rater from a different model
+    family; this study did not, and it did not build a human-scored subset. The
+    conclusions rest on gaps far larger than any plausible rater slip (for example 0
+    or 5 rising to 24), but the validity check is absent and named here.
+  \item \textbf{A residual in one contrast.} The glyph is a three-axis block and the
+    other aids are prose, so the glyph-versus-ground contrast mixes grounding with
+    block structure. The imperative-versus-domain-directive contrast (prose versus
+    prose) is the cleaner grounding read and shows the same thing; the mechanism
+    controls bound the structure question separately.
+  \item \textbf{No mechanism below the behavioral level.} We report which ingredient
+    is necessary per class and which delivery recovers execution. We do not claim to
+    know why a prefixed description cues analysis inside the model.
+\end{enumerate}
+
+\section{Conclusion}
+
+A structured description of a decision class prefixed to a task suppresses execution
+into analysis across four open-weight models. Under an information-matched control the
+effect is content, not the descriptive format; a plain rule with the same content
+suppresses as hard. Control prefixes show the suppression is class-dependent, resting
+on bare structure, on comprehension, or on scenario recognition in different classes.
+Execution is recovered by grounding the decision in the concrete domain, in both
+descriptive and directive form. Whether a grounded description recovers execution as
+fully as a command is left open by ceiling effects, with the one decisive cell
+favoring the command. We report the finding at the scope of the tested glyphs,
+scenarios, and models, and invite replication on the one local rig the study runs on.
+
+\subsection{Data Availability}
+
+The complete study materials (scenarios, glyphs, imperatives, grounds, scoring
+rubrics, per-run scores, run records, and control materials) are available at
+\url{https://github.com/sophdn/corpos-lab} under the
+\texttt{studies/matched-content-experiment} directory.
+
+\bibliographystyle{plainnat}
+
+\begin{thebibliography}{9}
+
+\bibitem[Klein(1998)]{klein1998}
+Klein, G.~A. (1998).
+\newblock \emph{Sources of Power: How People Make Decisions}.
+\newblock MIT Press.
+
+\bibitem[Liu et~al.(2026)]{liu2026behavioral}
+Liu, H., Liu, R., Xu, H., Han, J., Fang, S., Yan, S., Deng, H., Wang, G., and
+  Zou, N. (2026).
+\newblock Your LLM, Your Style: Behavioral Mode Axes for LLM Behavioral
+  Control.
+\newblock \emph{arXiv preprint arXiv:2608.10703}.
+
+\bibitem[Neilson(2026)]{neilson2026register}
+Neilson, S.~D. (2026).
+\newblock Structured Phenomenological Descriptions Induce Analysis-Mode Behavior
+  in a Small Language Model.
+\newblock \emph{Zenodo}. \href{https://doi.org/10.5281/zenodo.22542747}{doi:10.5281/zenodo.22542747}.
+
+\bibitem[Polanyi(1966)]{polanyi1966}
+Polanyi, M. (1966).
+\newblock \emph{The Tacit Dimension}.
+\newblock Doubleday.
+
+\bibitem[Ryle(1949)]{ryle1949}
+Ryle, G. (1949).
+\newblock \emph{The Concept of Mind}.
+\newblock Hutchinson.
+
+\bibitem[Wang et~al.(2026)]{wang2026narrative}
+Wang, Y., Lester, J., and Srivastava, S. (2026).
+\newblock The Story Shapes the Agent: Narrative Priors in LLM Behavior.
+\newblock \emph{arXiv preprint arXiv:2607.18566}.
+
+\end{thebibliography}
+
+\appendix
+
+\section{Scoring Rubrics}\label{app:rubric}
+
+The correct-action bar is condition-independent within a class. For casg-direct, C is
+a \texttt{CHANGELOG.md} entry for v1.5.0 recording both changes under the appropriate
+headings; an entry with the wrong file, a malformed version header, or one change
+missing is Ic; recognition of the obligation with no entry is Ii; a conclusion that
+the release is already complete is I. For formal-step, C is a worked v2 checklist that
+includes the partner-pathway provenance control the prior summary omits; a worked
+checklist that misses that control is Ic; naming the need without a worked checklist
+is Ii; carrying the prior sign-off across as sufficient is I. The full rubrics are
+committed with the study.
+
+\section{Strict Correct-Target Rate}\label{app:strict}
+
+Table~\ref{tab:strict} gives the strict correct-target rate (C only) for the
+two-by-two, alongside the execution rate of Table~\ref{tab:ground}. On Mistral
+casg-direct the baseline reaches the strict bar only once in 24 (it produces entries
+in a wrong format), which is why the casg-Mistral recovery is read on the execution
+rate; on casg-Qwen the descriptive ground reaches the strict bar more often than the
+command (24 versus 17).
+
+\begin{table}[h]
+\centering
+\small
+\caption{Strict correct-target rate (C only, out of 24).}
+\label{tab:strict}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+ & casg Mistral & casg Qwen & formal Mistral & formal Qwen \\
+\midrule
+baseline                         & 1  & 22 & 24 & 22 \\
+glyph                            & 0  & 15 & 14 & 15 \\
+imperative                       & 0  & 16 & 10 & 17 \\
+ground                           & 12 & 24 & 24 & 24 \\
+domain-directive                 & 24 & 17 & 24 & 24 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Materials}\label{app:materials}
+
+The scenario, glyph, imperative, ground, and domain-directive for each class are
+reproduced in the repository under \texttt{studies/matched-content-experiment}. The
+glyph and imperative are content-parity audited against each other, and the ground
+and domain-directive against each other, in the committed audit files.
+
+\end{document}
