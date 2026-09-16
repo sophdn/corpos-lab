@@ -4,8 +4,12 @@ Walks <entry>/runs/asy-<entry>-s<N>-<model>/out/responses/<cond>_<seed>.txt.
 7 conditions. Per class: shuffled {id,text} JSONL + private key (class,scenario,
 model,condition,seed). Raters see JSONL + the class bar; never the key."""
 import glob, json, os, random, re
-BASE = "/home/sophi/dev/corpos-lab-wt-assay-run/studies/alphabet-wide-mechanism-and-grounding-assay"
-OUT = "/tmp/claude-1000/-home-sophi-dev/54b0f62f-a36a-4b0f-8a7a-17cd43b2a868/scratchpad/assay-scoring"
+# BASE is the study dir (this script's parent dir). Was a worktree abs path; the
+# worktree is reaped after task 4 merges to main, so derive it from __file__.
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# OUT holds the rater packets + the private keys. Keep it OUT of the repo (keys
+# must not reach raters). Override with ASSAY_OUT; default to a tmp scratch dir.
+OUT = os.environ.get("ASSAY_OUT", "/tmp/assay-scoring")
 os.makedirs(OUT, exist_ok=True)
 random.seed(20260916)
 ENTRIES = ["casg-direct","formal-step-context-bypass","conditional-gate-uniform-default",
