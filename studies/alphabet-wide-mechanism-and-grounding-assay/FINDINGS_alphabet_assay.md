@@ -27,6 +27,14 @@ cross-class study found — it flips parent-state from recognition to comprehens
 leaves casg-direct's structure typing intact. This strengthens the comprehension-as-
 compliance (CaPC) thesis rather than fragmenting it.
 
+Stated in the vocabulary of the register-shift follow-up (Content Over Format,
+concept DOI 10.5281/zenodo.22761018): the descriptive **content is sufficient**, the
+directive **format is at most additive**, and the operative ingredient is
+**class-dependent** — not one clean mechanism. This corpus grid is the broader version
+of that follow-up's result, and it **revises the follow-up's parent-state control leg**:
+under the strong lorem scramble parent-state is comprehension, not the recognition its
+weak, keyword-leaking scramble had indicated.
+
 ## Mechanism typing per class
 
 Typing rule (PROTOCOL): read the baseline→glyph effect on the cells where the baseline
@@ -100,6 +108,9 @@ does extra work over the descriptive glyph in the lift classes — post-write mi
 glyph 8 vs imperative 23; parent-state mistral glyph 7 vs imperative 23 — while on Qwen
 and phi-4 the two run close. This is the "command does extra work on the small model"
 (casg-Mistral) pattern, as predicted.
+
+Net: the descriptive content is sufficient to convert correct action; the directive
+format is at most additive, not the driver.
 
 ## Inter-rater agreement
 

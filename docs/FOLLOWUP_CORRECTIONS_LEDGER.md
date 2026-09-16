@@ -79,13 +79,37 @@ execution) in a small language model. Scoped to one glyph and one scenario.
   reading is bounded to casg-direct and must not be stated generally.
   *Source of record:* `~/dev/corpos-lab/studies/matched-content-experiment/CROSS_CLASS_CONTROLS_FINDINGS.md`.
 
+- **2026-09-16 — corpus-wide assay: comprehension-dominant, and the parent-state
+  "recognition" leg was a weak-scramble artifact.** The alphabet-wide mechanism &
+  grounding assay (chain 547, glyph-research) ran the full grid — 7 conditions × 20
+  scenarios × 3 models × n=8 = 3360 responses — with the STRONG scramble
+  (`--vocab-swap --neutralize-title`, no keyword leak) across the calibrating ALPHABET
+  corpus, scored by two blind raters per class (strict-consensus C). Among the six
+  classes that calibrate with clean controls, comprehension is load-bearing in five
+  (post-write, governed, parent-state, formal-step, structural); casg-direct alone is
+  mere prepended structure. Critically, **under the strong scramble parent-state is
+  comprehension, not recognition** — the earlier "recognition load-bearing on
+  parent-state" reading came from the weak scramble that left the class's topical
+  vocabulary in shuffled order, and it does not survive a pure-lorem control.
+  casg-direct stays "mere structure" under pure lorem, so that leg holds. The grounded
+  contrast (ground ≈ domain-directive) holds corpus-wide: content is sufficient, format
+  at most additive. Net: comprehension is *more* prevalent than the weak-scramble
+  cross-class result suggested. This is the corpus-wide version of the Content Over
+  Format follow-up (concept DOI 10.5281/zenodo.22761018) and updates its parent-state
+  control leg. *Source of record:*
+  `~/dev/corpos-lab/studies/alphabet-wide-mechanism-and-grounding-assay/FINDINGS_alphabet_assay.md`
+  (commit 5a34740); aggregate data at that study's `assay-scoring/analysis.json`.
+
 **Follow-up status:** candidate, well-evidenced, and now correctly scoped. The
 correction has two legs — content-not-format (main grid) and a class-dependent control
 pattern (comprehension load-bearing on formal-step, recognition load-bearing on
 parent-state, neither on casg-direct). Tracked in chain
 `register-shift-cross-model-followup-paper` (513); an honest paper presents the
 class-dependent control pattern, NOT a single clean mechanism and NOT a clean
-cross-model replication of a format effect.
+cross-model replication of a format effect. **Update 2026-09-16:** the corpus-wide
+assay (see the 2026-09-16 finding above) revises the parent-state leg from recognition
+to comprehension under the strong scramble; the class-dependent framing and the
+content-not-format main result stand.
 
 ---
 
