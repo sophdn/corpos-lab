@@ -40,6 +40,16 @@ const (
 	// against GlyphOnly it tests whether recognition of the scenario is in the loop
 	// (equal effect on- and off-target implicates glyph structure over recognition).
 	OffTargetGlyph Condition = "off_target_glyph"
+	// NeutralPrefix: a neutral, non-glyph, length-matched prose block prepended in
+	// place of the glyph. The block is abstract, task-irrelevant prose — no decision
+	// content, no domain vocabulary, and no three-axis shape — matched to the glyph's
+	// length. Mechanism control for the generic-prefix rival: read against GlyphOnly
+	// it separates "a prefix of this length sits before the scenario" from "the prefix
+	// describes the decision the scenario poses". If it reproduces the glyph's
+	// suppression the effect is a bare prefix or length effect; if it collapses toward
+	// baseline the suppression needs decision content. It is the control the scrambled
+	// and off-target arms cannot be, because both keep the three-axis glyph shape.
+	NeutralPrefix Condition = "neutral_prefix"
 	// GlyphMinusRest: the glyph with its Rest axis block removed and nothing else
 	// changed, prepended in place of the full glyph. The rest-axis overhead
 	// benchmark's ablation arm (Q3): read against GlyphOnly on a NEUTRAL scenario it
@@ -106,6 +116,9 @@ type Materials struct {
 	// OffTarget is the coherent-but-off-class glyph for the OffTargetGlyph
 	// control condition.
 	OffTarget string
+	// Neutral is the neutral, non-glyph, length-matched prose block for the
+	// NeutralPrefix control condition.
+	Neutral string
 	// GlyphMinusRest is the glyph with its Rest axis block removed, for the
 	// GlyphMinusRest ablation condition of the rest-axis overhead benchmark.
 	GlyphMinusRest string
@@ -139,6 +152,7 @@ type Materials struct {
 //	imperative_only → imperative "---" scenario
 //	scrambled_glyph → scrambled "---" scenario
 //	off_target_glyph → off-target glyph "---" scenario
+//	neutral_prefix → neutral prose "---" scenario
 //	glyph_minus_rest → glyph-minus-rest "---" scenario
 //	duty_only       → duty "---" scenario
 //	corpus_only     → corpus "---" scenario
@@ -174,6 +188,11 @@ func AssemblePrompt(cond Condition, m Materials) (string, error) {
 			return "", fmt.Errorf("assay: %s condition requires an off-target glyph", cond)
 		}
 		return fmt.Sprintf("%s\n---\n%s", m.OffTarget, m.Scenario), nil
+	case NeutralPrefix:
+		if m.Neutral == "" {
+			return "", fmt.Errorf("assay: %s condition requires a neutral prefix", cond)
+		}
+		return fmt.Sprintf("%s\n---\n%s", m.Neutral, m.Scenario), nil
 	case GlyphMinusRest:
 		if m.GlyphMinusRest == "" {
 			return "", fmt.Errorf("assay: %s condition requires a glyph-minus-rest material", cond)

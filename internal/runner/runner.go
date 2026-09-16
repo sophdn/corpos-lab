@@ -48,6 +48,7 @@ type MaterialsSpec struct {
 	Imperative     string `json:"imperative,omitempty"`
 	Scrambled      string `json:"scrambled,omitempty"`
 	OffTarget      string `json:"off_target,omitempty"`
+	Neutral        string `json:"neutral,omitempty"`
 	GlyphMinusRest string `json:"glyph_minus_rest,omitempty"`
 	Duty           string `json:"duty,omitempty"`
 	Corpus         string `json:"corpus,omitempty"`
@@ -202,6 +203,10 @@ func (s StudySpec) loadMaterials(inDir string) (assay.Materials, error) {
 	if err != nil {
 		return assay.Materials{}, err
 	}
+	neutral, err := read(s.Materials.Neutral)
+	if err != nil {
+		return assay.Materials{}, err
+	}
 	glyphMinusRest, err := read(s.Materials.GlyphMinusRest)
 	if err != nil {
 		return assay.Materials{}, err
@@ -232,7 +237,7 @@ func (s StudySpec) loadMaterials(inDir string) (assay.Materials, error) {
 	}
 	return assay.Materials{
 		Scenario: scenario, Glyph: glyph, Ground: ground, Imperative: imperative,
-		Scrambled: scrambled, OffTarget: offTarget, GlyphMinusRest: glyphMinusRest,
+		Scrambled: scrambled, OffTarget: offTarget, Neutral: neutral, GlyphMinusRest: glyphMinusRest,
 		Duty: duty, Corpus: corpus,
 		Annotated: annotated, Cartographer: cartographer, CartographerScan: cartographerScan,
 		DomainImperative: domainImperative,

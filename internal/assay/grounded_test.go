@@ -155,6 +155,22 @@ func TestAssemblePromptRejectsMissingOffTarget(t *testing.T) {
 	}
 }
 
+func TestAssemblePromptNeutralPrefixConcatsNeutralAndScenario(t *testing.T) {
+	got, err := AssemblePrompt(NeutralPrefix, Materials{Scenario: "S", Glyph: "G", Neutral: "NEU"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "NEU\n---\nS" {
+		t.Fatalf("got %q, want NEU\\n---\\nS", got)
+	}
+}
+
+func TestAssemblePromptRejectsMissingNeutral(t *testing.T) {
+	if _, err := AssemblePrompt(NeutralPrefix, Materials{Scenario: "S", Glyph: "G"}); err == nil {
+		t.Fatal("expected error for missing neutral prefix")
+	}
+}
+
 func TestAssemblePromptRejectsMissingGlyph(t *testing.T) {
 	if _, err := AssemblePrompt(GlyphOnly, Materials{Scenario: "S"}); err == nil {
 		t.Fatal("expected error for missing glyph")

@@ -198,6 +198,11 @@ func TestValidateRejectsConditionMaterialGaps(t *testing.T) {
 	if _, err := LoadDef(writeDef(t, noOffTarget, map[string]string{"s.md": "S"})); err == nil {
 		t.Fatal("expected off_target-required error")
 	}
+	// neutral_prefix without a neutral material.
+	noNeutral := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"i\"\nimage=\"x\"\nconditions=[\"neutral_prefix\"]\nruns_per_cell=1\n[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n[materials]\nscenario=\"s.md\"\n" + samplingBlock
+	if _, err := LoadDef(writeDef(t, noNeutral, map[string]string{"s.md": "S"})); err == nil {
+		t.Fatal("expected neutral-required error")
+	}
 	// glyph_minus_rest without a glyph_minus_rest material.
 	noGMR := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"i\"\nimage=\"x\"\nconditions=[\"glyph_minus_rest\"]\nruns_per_cell=1\n[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n[materials]\nscenario=\"s.md\"\n" + samplingBlock
 	if _, err := LoadDef(writeDef(t, noGMR, map[string]string{"s.md": "S"})); err == nil {
@@ -445,10 +450,10 @@ func TestMaterializeCopiesDomainImperativeMaterial(t *testing.T) {
 // container contract as scrambled_glyph.md and off_target_glyph.md.
 func TestMaterializeCopiesControlMaterials(t *testing.T) {
 	body := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"casg-direct\"\n" +
-		"image=\"x\"\nconditions=[\"scrambled_glyph\",\"off_target_glyph\",\"glyph_minus_rest\"]\nruns_per_cell=1\n" +
+		"image=\"x\"\nconditions=[\"scrambled_glyph\",\"off_target_glyph\",\"neutral_prefix\",\"glyph_minus_rest\"]\nruns_per_cell=1\n" +
 		"[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n" +
-		"[materials]\nscenario=\"s.md\"\nscrambled=\"scr.md\"\noff_target=\"otg.md\"\nglyph_minus_rest=\"gmr.md\"\n" + samplingBlock
-	d, err := LoadDef(writeDef(t, body, map[string]string{"s.md": "SCENARIO", "scr.md": "SCRAMBLED", "otg.md": "OFFTARGET", "gmr.md": "MINUSREST"}))
+		"[materials]\nscenario=\"s.md\"\nscrambled=\"scr.md\"\noff_target=\"otg.md\"\nneutral=\"neu.md\"\nglyph_minus_rest=\"gmr.md\"\n" + samplingBlock
+	d, err := LoadDef(writeDef(t, body, map[string]string{"s.md": "SCENARIO", "scr.md": "SCRAMBLED", "otg.md": "OFFTARGET", "neu.md": "NEUTRAL", "gmr.md": "MINUSREST"}))
 	if err != nil {
 		t.Fatalf("LoadDef: %v", err)
 	}
@@ -464,6 +469,10 @@ func TestMaterializeCopiesControlMaterials(t *testing.T) {
 	if err != nil || string(otg) != "OFFTARGET" {
 		t.Fatalf("off_target_glyph.md = %q, err %v", otg, err)
 	}
+	neu, err := os.ReadFile(filepath.Join(inDir, "neutral_prefix.md"))
+	if err != nil || string(neu) != "NEUTRAL" {
+		t.Fatalf("neutral_prefix.md = %q, err %v", neu, err)
+	}
 	gmr, err := os.ReadFile(filepath.Join(inDir, "glyph_minus_rest.md"))
 	if err != nil || string(gmr) != "MINUSREST" {
 		t.Fatalf("glyph_minus_rest.md = %q, err %v", gmr, err)
@@ -472,8 +481,8 @@ func TestMaterializeCopiesControlMaterials(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadSpec: %v", err)
 	}
-	if spec.Materials.Scrambled != "scrambled_glyph.md" || spec.Materials.OffTarget != "off_target_glyph.md" {
-		t.Fatalf("spec control materials = %q / %q", spec.Materials.Scrambled, spec.Materials.OffTarget)
+	if spec.Materials.Scrambled != "scrambled_glyph.md" || spec.Materials.OffTarget != "off_target_glyph.md" || spec.Materials.Neutral != "neutral_prefix.md" {
+		t.Fatalf("spec control materials = %q / %q / %q", spec.Materials.Scrambled, spec.Materials.OffTarget, spec.Materials.Neutral)
 	}
 }
 

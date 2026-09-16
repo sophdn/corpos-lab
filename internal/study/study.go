@@ -43,6 +43,7 @@ type MaterialsDef struct {
 	Imperative     string `toml:"imperative"`
 	Scrambled      string `toml:"scrambled"`
 	OffTarget      string `toml:"off_target"`
+	Neutral        string `toml:"neutral"`
 	GlyphMinusRest string `toml:"glyph_minus_rest"`
 	Duty           string `toml:"duty"`
 	Corpus         string `toml:"corpus"`
@@ -201,6 +202,10 @@ func (d Def) validate() error {
 		case assay.OffTargetGlyph:
 			if d.Materials.OffTarget == "" {
 				return fmt.Errorf("study: condition %q requires materials.off_target", c)
+			}
+		case assay.NeutralPrefix:
+			if d.Materials.Neutral == "" {
+				return fmt.Errorf("study: condition %q requires materials.neutral", c)
 			}
 		case assay.GlyphMinusRest:
 			if d.Materials.GlyphMinusRest == "" {
@@ -446,6 +451,12 @@ func (d Def) Materialize(inDir string) error {
 			return err
 		}
 		mats.OffTarget = "off_target_glyph.md"
+	}
+	if d.Materials.Neutral != "" {
+		if err := d.copyMaterial(d.Materials.Neutral, filepath.Join(inDir, "neutral_prefix.md")); err != nil {
+			return err
+		}
+		mats.Neutral = "neutral_prefix.md"
 	}
 	if d.Materials.GlyphMinusRest != "" {
 		if err := d.copyMaterial(d.Materials.GlyphMinusRest, filepath.Join(inDir, "glyph_minus_rest.md")); err != nil {
