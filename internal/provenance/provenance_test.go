@@ -178,3 +178,34 @@ func TestLastChangeFailsOutsideGit(t *testing.T) {
 		t.Fatal("expected error outside a git repo")
 	}
 }
+
+func TestBinaryStaleness(t *testing.T) {
+	base := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
+	newer := base.Add(48 * time.Hour)
+
+	cases := []struct {
+		name             string
+		build, srcChange time.Time
+		wantStale        bool
+	}{
+		{"binary older than source is stale", base, newer, true},
+		{"binary newer than source is fresh", newer, base, false},
+		{"binary equal to source is fresh", base, base, false},
+		{"zero build time cannot tell", time.Time{}, newer, false},
+		{"zero source change cannot tell", base, time.Time{}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			msg, stale := BinaryStaleness(c.build, c.srcChange)
+			if stale != c.wantStale {
+				t.Fatalf("stale = %v, want %v", stale, c.wantStale)
+			}
+			if stale && msg == "" {
+				t.Fatal("stale binary returned an empty message")
+			}
+			if !stale && msg != "" {
+				t.Fatalf("fresh binary returned a message: %q", msg)
+			}
+		})
+	}
+}

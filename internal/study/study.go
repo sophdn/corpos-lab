@@ -235,7 +235,8 @@ func (d Def) validate() error {
 				return fmt.Errorf("study: condition %q requires materials.domain_imperative", c)
 			}
 		default:
-			return fmt.Errorf("study: unknown condition %q", c)
+			return fmt.Errorf("study: unknown condition %q — if it was added recently, the "+
+				"corpos-lab binary may be stale; rebuild it (go build ./cmd/corpos-lab)", c)
 		}
 	}
 	return nil

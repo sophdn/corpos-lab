@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"time"
@@ -502,31 +503,68 @@ func podmanInspectDigest(ctx context.Context, ref string) ([]byte, error) {
 	return exec.CommandContext(ctx, "podman", "image", "inspect", "--format", "{{.Digest}}", ref).Output()
 }
 
-// preflightProbe warns when the pinned assay image predates the assay/runner
-// code, so a run on it silently executes stale code. It compares the image's
-// build time against the last git change to internal/assay or internal/runner.
-// Every arm that cannot read a signal returns no warning rather than guessing —
-// observe, don't assert — and it never blocks the run. The comparison logic
-// lives in internal/image and internal/provenance (tested); this is exec glue.
+// preflightProbe warns about two "the code is not what you think" mismatches
+// before a run, without ever blocking it:
+//
+//   - a pinned assay IMAGE older than the assay/runner code it should carry, so a
+//     run on it silently executes stale code; and
+//   - a host BINARY older than the source it was built from, the failure mode
+//     from suggestion 169 (an old binary rejects a study's condition with a bare
+//     "unknown condition").
+//
+// Every arm that cannot read a signal contributes no warning rather than
+// guessing — observe, don't assert. The comparison logic lives in internal/image
+// and internal/provenance (tested); this is exec glue.
 func preflightProbe(defPath string) control.PreflightProbe {
 	return func(ctx context.Context, def study.Def) []string {
-		built, err := image.Created(ctx, podmanInspectCreated, def.Image)
-		if err != nil {
-			return nil
-		}
 		repoDir, err := filepath.Abs(filepath.Dir(defPath))
 		if err != nil {
 			return nil
 		}
-		changed, err := provenance.LastChange(ctx, repoDir, "internal/assay", "internal/runner")
-		if err != nil {
-			return nil
+		var warnings []string
+
+		// Image staleness: pinned image vs the code it runs.
+		if built, err := image.Created(ctx, podmanInspectCreated, def.Image); err == nil {
+			if changed, err := provenance.LastChange(ctx, repoDir, "internal/assay", "internal/runner"); err == nil {
+				if msg, stale := image.StaleImageWarning(def.Image, built, changed); stale {
+					warnings = append(warnings, msg)
+				}
+			}
 		}
-		if msg, stale := image.StaleImageWarning(def.Image, built, changed); stale {
-			return []string{msg}
+
+		// Binary staleness: this host binary vs the host-side source that defines
+		// conditions and the run path.
+		if bt := binaryBuildTime(); !bt.IsZero() {
+			if changed, err := provenance.LastChange(ctx, repoDir, "internal", "cmd/corpos-lab"); err == nil {
+				if msg, stale := provenance.BinaryStaleness(bt, changed); stale {
+					warnings = append(warnings, msg)
+				}
+			}
 		}
-		return nil
+
+		return warnings
 	}
+}
+
+// binaryBuildTime reads the running binary's VCS commit time from its embedded
+// build info. It returns a zero time when the info is absent — a `go run` build
+// or a test binary carries no vcs.time — so the caller treats it as "cannot
+// tell" and stays silent.
+func binaryBuildTime() time.Time {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return time.Time{}
+	}
+	for _, s := range info.Settings {
+		if s.Key == "vcs.time" {
+			t, err := time.Parse(time.RFC3339, s.Value)
+			if err != nil {
+				return time.Time{}
+			}
+			return t
+		}
+	}
+	return time.Time{}
 }
 
 // podmanInspectCreated reads one image's build time (epoch seconds) via rootless

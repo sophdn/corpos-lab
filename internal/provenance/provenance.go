@@ -78,6 +78,30 @@ func LastChange(ctx context.Context, repoDir string, paths ...string) (time.Time
 	return time.Unix(secs, 0).UTC(), nil
 }
 
+// BinaryStaleness reports whether a running binary predates the source it was
+// built from. buildTime is the commit time the binary embeds (its vcs.time
+// build setting); lastSourceChange is the commit time of the newest commit that
+// touched the source that matters. It returns an advisory message and true when
+// the binary is behind. A zero buildTime or a zero lastSourceChange means
+// "cannot tell" and returns no warning — observe, don't assert. It never blocks
+// a run; the caller records the message as a preflight warning.
+//
+// This turns the failure mode from suggestion 169 — an old host binary rejecting
+// a study's condition with a bare "unknown condition" error — into a plain
+// binary-is-stale signal, surfaced as itself.
+func BinaryStaleness(buildTime, lastSourceChange time.Time) (string, bool) {
+	if buildTime.IsZero() || lastSourceChange.IsZero() {
+		return "", false
+	}
+	if buildTime.Before(lastSourceChange) {
+		return fmt.Sprintf("host corpos-lab binary was built from source dated %s, but the "+
+			"source changed at %s — rebuild it (go build ./cmd/corpos-lab); a validation error "+
+			"like \"unknown condition\" may be a stale binary, not a bad study",
+			buildTime.UTC().Format(time.RFC3339), lastSourceChange.UTC().Format(time.RFC3339)), true
+	}
+	return "", false
+}
+
 func gitOutput(ctx context.Context, repoDir string, args ...string) (string, error) {
 	full := append([]string{"-C", repoDir}, args...)
 	cmd := exec.CommandContext(ctx, "git", full...)
