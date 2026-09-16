@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"os"
 	"os/exec"
@@ -26,6 +27,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BurntSushi/toml"
+
 	"corpos-lab/internal/battery"
 	"corpos-lab/internal/batteryrun"
 	"corpos-lab/internal/control"
@@ -34,6 +37,7 @@ import (
 	"corpos-lab/internal/persist"
 	"corpos-lab/internal/provenance"
 	"corpos-lab/internal/study"
+	"corpos-lab/internal/studyclose"
 	"corpos-lab/internal/substrate"
 )
 
@@ -45,7 +49,8 @@ const usage = "usage:\n" +
 	"  corpos-lab run-study <def.toml> [-work DIR]\n" +
 	"  corpos-lab battery <candidate.md> [-out FILE] [-model NAME] [-base URL] [-repo DIR] [-all-items]\n" +
 	"  corpos-lab glyph-digest <slug> | --all | --file <path> [-candidates DIR]\n" +
-	"  corpos-lab glyph-lint <candidate.md> [-registry ALPHABET.md]"
+	"  corpos-lab glyph-lint <candidate.md> [-registry ALPHABET.md]\n" +
+	"  corpos-lab study-close <study-dir>"
 
 func run(args []string) int {
 	if len(args) == 0 {
@@ -61,10 +66,105 @@ func run(args []string) int {
 		return runGlyphDigest(args[1:])
 	case "glyph-lint":
 		return runGlyphLint(args[1:])
+	case "study-close":
+		return runStudyClose(args[1:])
 	default:
 		fmt.Fprintln(os.Stderr, usage)
 		return 2
 	}
+}
+
+// runStudyClose reports the mechanical study-close facts INQUIRY.md keeps as
+// human discipline (predictions reconciled, a floor-cleared second rater,
+// mechanism controls). It ADVISES — it prints findings and always exits 0; it
+// never blocks a run or a commit (suggestion 165). It says nothing about
+// scientific quality, only whether the declared mechanical steps happened.
+func runStudyClose(args []string) int {
+	if len(args) != 1 {
+		fmt.Fprintln(os.Stderr, "usage: corpos-lab study-close <study-dir>")
+		return 2
+	}
+	dir := args[0]
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		fmt.Fprintf(os.Stderr, "corpos-lab: study-close needs a directory (%s): %v\n", dir, err)
+		return 2
+	}
+	in, err := gatherStudyClose(dir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "corpos-lab: study-close: %v\n", err)
+		return 1
+	}
+	fmt.Printf("corpos-lab: study-close report for %s (advisory — nothing here blocks)\n", dir)
+	for _, f := range studyclose.Report(in) {
+		fmt.Printf("  [%-8s] %-20s %s\n", f.Status, f.Check, f.Detail)
+	}
+	return 0
+}
+
+// gatherStudyClose walks a study directory and collects the mechanical facts the
+// study-close report checks. It is best-effort: an unreadable or unparseable
+// entry is skipped rather than failing the report.
+func gatherStudyClose(dir string) (studyclose.Inputs, error) {
+	var in studyclose.Inputs
+	condSet := map[string]bool{}
+	raterSet := map[string]bool{}
+
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil //nolint:nilerr // an unreadable entry is skipped, not fatal: the report is best-effort
+		}
+		name := d.Name()
+		if d.IsDir() {
+			// rater ids: the immediate subdirectories of a scores/ dir.
+			if filepath.Base(filepath.Dir(path)) == "scores" {
+				raterSet[name] = true
+			}
+			return nil
+		}
+		inScores := filepath.Base(filepath.Dir(path)) == "scores"
+		switch {
+		case strings.HasSuffix(name, ".toml"):
+			var def struct {
+				Conditions []string `toml:"conditions"`
+			}
+			if raw, e := os.ReadFile(path); e == nil {
+				if toml.Unmarshal(raw, &def) == nil {
+					for _, c := range def.Conditions {
+						condSet[c] = true
+					}
+				}
+			}
+		case name == "run-record.json":
+			var rec struct {
+				Status string `json:"status"`
+			}
+			if raw, e := os.ReadFile(path); e == nil {
+				if json.Unmarshal(raw, &rec) == nil {
+					in.RunStatuses = append(in.RunStatuses, rec.Status)
+				}
+			}
+		case name == "RECONCILED.md" || name == "reconciliation.json":
+			in.ReconciliationMarker = true
+		case strings.HasPrefix(strings.ToLower(name), "predictions"):
+			in.PredictionsFile = true
+		case inScores && strings.HasSuffix(name, ".json"):
+			// a loose scores/<rater>.json — the rater id is the stem before the first dot.
+			raterSet[strings.SplitN(name, ".", 2)[0]] = true
+		}
+		return nil
+	})
+	if err != nil {
+		return in, err
+	}
+	for c := range condSet {
+		in.Conditions = append(in.Conditions, c)
+	}
+	for r := range raterSet {
+		in.SecondRaters = append(in.SecondRaters, r)
+	}
+	sort.Strings(in.Conditions)
+	sort.Strings(in.SecondRaters)
+	return in, nil
 }
 
 // runBattery runs the mechanized ALPHABET battery against one candidate and
@@ -343,6 +443,14 @@ func printBatterySummary(w *os.File, res batteryrun.Result) {
 	default:
 		fmt.Fprintf(w, "  => stopped at step %d: %s\n", res.Sequence.ExitIndex, res.Sequence.FailureReason)
 	}
+
+	// Evidence state: fold the item verdicts into a battery RunVerdict and run the
+	// candidate through the one promotion rule, so maturity is a fact the tooling
+	// computes rather than prose a reader reconstructs (suggestion 164).
+	verdict := battery.ComposeRunVerdict(res.Sequence.ItemVerdicts())
+	if state, note, err := battery.PromoteOn(battery.StateCandidate, verdict); err == nil {
+		fmt.Fprintf(w, "  => evidence: candidate -> %s (%s)\n", state, note)
+	}
 }
 
 func verdictLabel(o battery.StepOutcome) string {
@@ -539,6 +647,20 @@ func preflightProbe(defPath string) control.PreflightProbe {
 				if msg, stale := provenance.BinaryStaleness(bt, changed); stale {
 					warnings = append(warnings, msg)
 				}
+			}
+		}
+
+		// Scenario self-containment: a scenario that points at content absent from
+		// the prompt makes its runs unscoreable (suggestion 170). Read the scenario
+		// material and lint its text; a read failure yields no warning — the
+		// materialize step reports a genuinely missing file loudly on its own.
+		if sc := def.Materials.Scenario; sc != "" {
+			p := sc
+			if !filepath.IsAbs(p) {
+				p = filepath.Join(filepath.Dir(defPath), p)
+			}
+			if raw, err := os.ReadFile(p); err == nil {
+				warnings = append(warnings, study.ScenarioSelfContainmentWarnings(string(raw))...)
 			}
 		}
 
