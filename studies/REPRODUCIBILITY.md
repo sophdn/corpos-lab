@@ -63,6 +63,37 @@ the wrapper with `{prompt}` substituted — alongside the response, the complete
 sampler chain, the server's `/props` readback, per-row throughput, and the image
 and repo stamps. The published prompt and the recorded prompt are the same bytes.
 
+**Dates are UTC.** Run-record timestamps are already UTC (RFC3339, stamped by the
+container). Every other date we report — a findings-doc header, a dated filename,
+a paper's provenance table — uses UTC too, so a provenance table reconciles
+cell-for-cell against the run records with no timezone caveat. Do not record a
+finding's date in local time; a reader who checks a paper date against a run
+record must never hit an off-by-one-day boundary. (Filed as suggestion 191.)
+
+## Naming the shelf model and image by reference (single source)
+
+A study may hardcode its subject and image — `model_id = "Qwen3.8-27B-Q4_K_M.gguf"`
+and a literal `localhost/…@sha256:…` digest — and every existing study does. But a
+hardcoded value goes stale: upgrade the shelf, or rebuild an image, and every
+study that named the old value must be hand-edited. Two opt-in references remove
+that:
+
+- **`model_id = "role:<role>"`** resolves against `deploy/shelf.toml`, the single
+  source of truth for role→model. `role:primary`, `role:anchor`, and
+  `role:continuity` map to the current concrete gguf. Upgrading the shelf is a
+  one-line change in that file; every study that names the role follows.
+- **`image = "digest:<variant>"`** resolves against `deploy/IMAGE_DIGESTS.txt`,
+  which `scripts/build-lab-images.sh` writes on every build. `digest:lab-grounded-glyph-probe`
+  becomes `localhost/lab-grounded-glyph-probe@sha256:<current digest>`.
+
+`study.LoadDef` resolves both to their concrete values at load time, **before**
+validation, so the run record always stores the resolved concrete model and
+digest — never the reference token. The reference is an authoring convenience;
+the record stays concrete (observe-don't-assert). A study that has already run
+keeps its literal pin, which is what makes its result reproducible; the reference
+form is for a study still being authored, so it pins the current shelf and build
+by construction instead of by vigilance.
+
 ## The reproduction recipe
 
 A third party reproduces a run with:

@@ -86,7 +86,12 @@ memory-poisoning survey (2604.16548): **leads, unverified** — load-bearing onl
 papers chain's stub triage (reposition the adversarial paper as prescient synthesis, not
 pioneering claim). Verify at source when that triage runs; no frozen design depends on them.
 
-**Strand 5 — model shelf (24 GB), mid-2026:** **Qwen3.6-27B CONFIRMED** via multiple
+**Strand 5 — model shelf (24 GB), mid-2026:** *The live role→gguf map is
+`deploy/shelf.toml` — the authoritative single source a study resolves `role:primary`
+against. The prose below is the dated positioning note; when the two disagree, the
+config is current (the shelf primary is now Qwen3.8-27B, not the 3.6 recorded here).*
+
+**Qwen3.6-27B CONFIRMED** via multiple
 independent sources: released 2026-04-22, Apache 2.0, dense 27B (Gated DeltaNet linear
 attention hybrid), ~17 GB at Q4_K_M on a single 24 GB GPU, 262K context, hybrid
 thinking/instruct modes with mode-dependent recommended sampling. The experimental-control

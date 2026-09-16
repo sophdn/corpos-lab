@@ -126,6 +126,15 @@ func LoadDef(path string) (Def, error) {
 		return Def{}, fmt.Errorf("study: parse def %s: %w", path, err)
 	}
 	d.baseDir = filepath.Dir(path)
+	if d.hasRefs() {
+		r, err := newFileResolver(d.baseDir)
+		if err != nil {
+			return Def{}, err
+		}
+		if err := d.resolveRefs(r); err != nil {
+			return Def{}, err
+		}
+	}
 	if err := d.validate(); err != nil {
 		return Def{}, err
 	}
