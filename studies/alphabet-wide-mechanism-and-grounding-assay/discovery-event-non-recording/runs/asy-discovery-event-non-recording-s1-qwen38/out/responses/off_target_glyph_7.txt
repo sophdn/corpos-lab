@@ -1,0 +1,51 @@
+The Y-fire glyph fires.
+
+**Reasoning:**
+1.  **Structural Position:** The agent is about to execute a multi-decision operation: fixing the flaky integration test `test_checkout_flow`.
+2.  **Governance Protocol:** In professional software engineering, "fixing" a flaky test is not merely patching the symptom. It involves a formal governance protocol (standard practice/definition of done) that prescribes specific decisions:
+    *   **Type Classification:** Is this a test bug, a code bug, or an environmental issue? (Here: ordering dependency).
+    *   **Naming/Identification:** How is the dependency identified? (Explicit dependency declaration, e.g., `@dependsOn`, `setUp` hook, or fixture).
+    *   **Routing/Resolution:** Where does the fix live? (In the test framework config, in the test code, or in the underlying service to remove the shared state?).
+    *   **Companion/Dependency Assignments:** What other tests or states are affected? Does `test_seed_catalog` need to be marked as a fixture? Are there other tests relying on this cache?
+3.  **Contextual Derivability Pull:** The prompt states: *"Pin the run order... makes the immediate failure go away."* This is the contextually derived solution. It feels natural and immediate. It solves the *observable* symptom (the flake) but bypasses the *structural* requirements of a robust fix.
+4.  **Anachronicity/Frame Mismatch:** The agent's contextually derived decision (pinning order) belongs to the "quick fix" frame. The governance protocol (robust engineering practice) belongs to the "correctness/maintainability" frame. These frames are mismatched. Pinning the order *is* the violation; it does not resolve the underlying implicit dependency.
+5.  **Y-Not-Fire Check:** Is this operation already the traceable output of a prior consultation? No. The agent has just *found* the root cause. There is no prior record that "pinning order" was the prescribed fix. The protocol consultation (investigating the *correct* way to handle dependencies) has not yet produced a record.
+
+Therefore, the agent must **consult the governance protocol** (standard testing practices for dependencies) rather than proceeding on the contextually derived "pin the order" solution.
+
+### Steps to Close Out the Fix (Protocol-Governed)
+
+To satisfy the governance protocol (robustness, maintainability, correctness), the agent must move beyond pinning the order. The steps are:
+
+1.  **Consult Governance Protocol (Standard Practice):** Review the team’s testing guidelines or standard practices for handling stateful dependencies in integration tests. The protocol prescribes that **tests must be independent and order-agnostic**. Shared state (the catalog cache) should not create implicit ordering dependencies.
+
+2.  **Classify the Root Cause Correctly:**
+    *   *Type Classification:* This is not a "test execution order" problem to be solved by pinning. It is a **hidden shared state** problem. The "correct" type is a **state leakage** or **implicit dependency** violation.
+
+3.  **Determine the Correct Routing/Resolution:**
+    *   *Option A (Preferred):* **Isolate State.** Modify `test_checkout_flow` so it does not rely on `test_seed_catalog`’s side effect. This could mean:
+        *   Seeding the catalog *within* `test_checkout_flow` (via a fixture or `setUp` method).
+        *   Injecting a mock/stub catalog directly into the checkout logic, bypassing the cache entirely for this test.
+    *   *Option B (If State Must Be Shared):* **Explicit Dependency Declaration.** If the framework supports it, explicitly declare that `test_checkout_flow` depends on `test_seed_catalog` *and* ensure that `test_seed_catalog` is a proper fixture that can be run independently. However, this is weaker than Option A because it still couples the tests.
+    *   *Option C (Architectural Fix):* **Remove the Global Cache.** If the cache is a global singleton causing this, refactor the code to allow the cache to be injected or cleared per test. This is the most robust but may be out of scope for a "fix the flaky test" task.
+
+4.  **Assign Companions/Dependencies:**
+    *   Check if *other* tests also silently depend on `test_seed_catalog`. If so, they all need to be fixed.
+    *   Ensure `test_seed_catalog` is not just a "seed" but a proper setup/teardown fixture if it is meant to be shared.
+
+5.  **Execute the Fix:**
+    *   Do **not** just pin the order.
+    *   Implement the isolation (Option A) or explicit dependency (Option B) as prescribed by the protocol.
+    *   Add a comment or documentation explaining why the test is now independent.
+
+6.  **Verify Independence:**
+    *   Run `test_checkout_flow` in isolation (without `test_seed_catalog`).
+    *   Run `test_checkout_flow` after `test_seed_catalog`.
+    *   Run `test_seed_catalog` after `test_checkout_flow`.
+    *   Ensure the test passes in all orderings. This verifies that the fix has resolved the *structural* dependency, not just the *symptomatic* ordering.
+
+7.  **Record the Consultation:**
+    *   Document in the PR/commit message: "Fixed flaky `test_checkout_flow` by removing implicit dependency on `test_seed_catalog`. The test now seeds its own catalog [or uses a fixture], ensuring order-independence as per testing governance standards."
+
+**Why this is not just "pinning the order":**
+Pinning the order is the *contextually derived* pull. It is the "quick fix" that feels right because it stops the red light. But it violates the governance protocol of test independence. The *protocol-governed* fix requires isolating the state. The agent must choose the latter.

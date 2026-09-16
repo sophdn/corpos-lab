@@ -1,0 +1,16 @@
+To close out this fix robustly and ensure the discovery is durable, I would take the following steps:
+
+1.  **Remove the Run-Order Pin:** Revert or remove the specific configuration that forces `test_seed_catalog` to run before `test_checkout_flow`. This ensures the test suite is no longer fragile to reordering and that we are not masking the underlying design flaw.
+
+2.  **Implement Independent Setup:** Modify `test_checkout_flow` (or its associated fixture/setup hook) to explicitly populate the catalog cache it requires. This involves injecting the necessary seed data directly into the cache within the test’s own setup phase, ensuring it has all dependencies it needs regardless of execution order.
+
+3.  **Verify Isolation:** Run `test_checkout_flow` in isolation (without running `test_seed_catalog`) to confirm it passes. Then, run the full suite in randomized order (if supported) or shuffled order to confirm the flakiness is gone and the tests are truly independent.
+
+4.  **Document the Dependency Mechanistically:** Instead of just adding a comment, ensure the code structure itself communicates the dependency. For example, if using a shared fixture system, create a specific `catalog_cache` fixture that `test_checkout_flow` explicitly requests. This makes the dependency visible in the test signature, forcing any future agent to see that the test relies on the catalog cache being present, without needing to read comments or know about `test_seed_catalog`.
+
+5.  **Record the Discovery in the Commit/PR:** In the commit message or pull request description, clearly state:  
+   > “Fixed flaky `test_checkout_flow` by removing hidden dependency on `test_seed_catalog` run order. The test now seeds its own catalog cache, making it independent of test execution order. This eliminates the need for order pinning and prevents future regressions if tests are reordered.”
+
+6.  **Add a Guard (Optional but Recommended):** If possible, add a static analysis check or linter rule that flags tests which read shared caches without declaring a dependency on a fixture that populates them. This creates a mechanistic guard against future similar issues.
+
+By designing the dependency out (Step 2) and making it visible through the test’s interface (Step 4), the fix is durable. A future agent will see that `test_checkout_flow` requires a `catalog_cache` fixture, understand *why* it’s there, and will not be misled by run order. The discovery is recorded not in a comment, but in the code’s structure and the commit’s rationale.

@@ -1,0 +1,17 @@
+1.  **Remove the ordering pin.** Revert the temporary fix that forced `test_seed_catalog` to run before `test_checkout_flow`. This restores the test suite to its intended state of order-independence, ensuring that the underlying defect is not merely hidden by execution order.
+
+2.  **Identify the shared resource.** Locate the specific catalog cache object or database table that `test_checkout_flow` reads and `test_seed_catalog` writes to. Confirm that this resource is global or shared across the test process, which explains why the tests interfere with each other.
+
+3.  **Isolate the test state (Mechanistic Fix).** Modify `test_checkout_flow` (and potentially `test_seed_catalog`) to ensure they do not rely on state left over by other tests. This is typically done by:
+    *   **Option A (Preferred):** Adding a setup/teardown hook (e.g., `setUp`/`tearDown` or `@Before`/`@After`) to `test_checkout_flow` that explicitly initializes or resets the catalog cache to a known, valid state before the test runs, and cleans it up afterwards.
+    *   **Option B:** If the cache is a mock or injectable dependency, ensure the test injects a fresh, pre-populated instance of the cache rather than reading from a global singleton.
+    *   **Option C:** If the tests must share a database, ensure `test_checkout_flow` uses a transaction that is rolled back after completion, and explicitly seeds the minimal data it requires within that transaction, rather than assuming `test_seed_catalog` has already run.
+
+4.  **Verify independence.** Run `test_checkout_flow` in isolation (without `test_seed_catalog`) to confirm it now passes. Run `test_seed_catalog` in isolation. Then run them in reverse order (`test_checkout_flow` first) and in parallel (if the framework supports it) to confirm the dependency has been eliminated.
+
+5.  **Document the discovery (Durable Record).** Since the root cause was an undocumented implicit dependency on shared global state, create a durable record to prevent future agents from making the same mistake or from re-introducing similar hidden dependencies:
+    *   **Add a comment** in the test file(s) explaining that the catalog cache is a shared mutable state and that each test must manage its own setup/teardown for this resource.
+    *   **Update the project’s testing guidelines** or a `CONTRIBUTING.md` file to explicitly state: *"Tests must be order-independent. Do not rely on side effects from other tests. Use setup/teardown hooks to initialize any shared resources (e.g., caches, databases)."*
+    *   **Consider adding a linter or CI check** (if feasible) that fails if tests are not marked as stateful or if they access shared globals without explicit setup.
+
+6.  **Commit the changes.** Ensure the code changes (removal of the pin, addition of setup/teardown logic) and the documentation updates are committed together in a single commit with a clear message describing the fix for the hidden dependency.

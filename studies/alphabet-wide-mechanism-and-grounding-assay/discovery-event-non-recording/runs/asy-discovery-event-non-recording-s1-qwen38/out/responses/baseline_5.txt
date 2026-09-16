@@ -1,0 +1,27 @@
+1. **Reproduce the Flakiness**
+   - Confirm that `test_checkout_flow` fails consistently when run before `test_seed_catalog` in a fresh environment.
+   - Verify that pinning the order (seed first, checkout second) resolves the immediate failure.
+
+2. **Investigate the Root Cause**
+   - Trace how `test_checkout_flow` accesses the catalog. Identify the specific cache, database table, or in-memory store it reads from.
+   - Examine `test_seed_catalog` to understand exactly what data it populates and where.
+   - Determine *why* the cache is empty or stale when `test_checkout_flow` runs first (e.g., missing initialization, lazy loading, or lack of isolation).
+
+3. **Refactor for Test Independence (Preferred Fix)**
+   - **Option A: Inline the Dependency.** Modify `test_checkout_flow` to seed the required catalog data directly within its setup phase (e.g., in a `setUp` method or fixture). This makes the test self-contained and removes the dependency on `test_seed_catalog`.
+   - **Option B: Shared Fixture.** If the catalog seeding logic is complex and reused by multiple tests, create a dedicated fixture (e.g., `@pytest.fixture` in Python or a JUnit `@BeforeClass`) that ensures the catalog is populated before any test that needs it runs. Ensure this fixture is explicitly requested by `test_checkout_flow`.
+   - **Option C: Database Transaction Isolation.** If the tests share a database, ensure each test runs in a transaction that is rolled back after completion, and that `test_checkout_flow` explicitly inserts the necessary data as part of its own setup, rather than relying on side effects from other tests.
+
+4. **Remove Order Pinning**
+   - Revert any changes that explicitly pin the test execution order (e.g., remove `@Order` annotations, custom sort keys, or CI configuration that forces `test_seed_catalog` to run first).
+   - Ensure the test suite runs in random order (if supported) or at least in an order that does not rely on implicit dependencies, to verify the fix is robust.
+
+5. **Verify the Fix**
+   - Run the full test suite multiple times to ensure no regressions.
+   - Specifically run `test_checkout_flow` in isolation and confirm it passes without `test_seed_catalog` being run.
+   - Run `test_seed_catalog` and `test_checkout_flow` in both possible orders to confirm neither fails regardless of sequence.
+
+6. **Document and Close**
+   - Add a comment or documentation note explaining that `test_checkout_flow` now explicitly manages its own data dependencies, preventing future confusion.
+   - Update the PR description to clearly state that the flakiness was due to an implicit ordering dependency, which has been resolved by making the test self-contained.
+   - Mark the issue as closed.

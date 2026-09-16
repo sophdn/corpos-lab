@@ -1,0 +1,39 @@
+Here are the steps to close out the fix for `test_checkout_flow`, moving beyond the temporary pinning of the test order to establish a robust, maintainable solution:
+
+1.  **Revert the Test Order Pinning**
+    *   Remove the explicit ordering constraint (e.g., `@Order`, `dependsOn`, or manual sorting) that forces `test_seed_catalog` to run before `test_checkout_flow`. This restores the test suite to its intended parallel or arbitrary execution state, ensuring that the fix addresses the root cause rather than masking it.
+
+2.  **Identify the Shared State Source**
+    *   Locate the specific code path in `test_checkout_flow` that reads the "catalog cache."
+    *   Determine how `test_seed_catalog` populates this cache (e.g., is it an in-memory map, a database table, a Redis key, or a static variable?).
+    *   Confirm that the cache is indeed the sole source of the dependency and that no other hidden state is involved.
+
+3.  **Refactor `test_checkout_flow` for Independence**
+    *   **Option A (Preferred): Explicit Setup in the Test.** Modify `test_checkout_flow` so that it explicitly sets up the required catalog state within its own `setUp` or `@BeforeEach` method (or as the first step of the test method). This ensures the test is self-contained and does not rely on side effects from other tests.
+    *   **Option B: Use a Test Fixture/Factory.** Create a helper method or factory function (e.g., `createSampleCatalog()`) that generates a deterministic catalog state. Use this in `test_checkout_flow`'s setup.
+    *   **Option C: Mock the Dependency.** If the catalog cache is an external service or a complex object, mock it in `test_checkout_flow` to return the expected data, eliminating the need for the real cache state entirely.
+
+4.  **Verify `test_seed_catalog` is Still Valid**
+    *   Ensure `test_seed_catalog` is still a valid test in its own right. If it was only used to populate state for other tests, consider if it should be converted into a setup utility rather than a test case. If it tests the seeding logic itself, keep it but ensure it cleans up after itself (e.g., in a `tearDown` or `@AfterEach`) to prevent state leakage.
+
+5.  **Add Cleanup/Isolation Logic**
+    *   Implement proper teardown for any shared state (database records, cache entries, static variables) in both `test_seed_catalog` and `test_checkout_flow` (if it now sets up its own state).
+    *   Ensure that running the tests in any order (parallel, sequential, isolated) does not cause state leakage. Use unique identifiers (e.g., UUIDs) for test data if possible, to prevent collisions.
+
+6.  **Run the Test Suite in Multiple Configurations**
+    *   Run the full suite in the default order.
+    *   Run the tests in reverse order.
+    *   Run `test_checkout_flow` in isolation.
+    *   Run `test_seed_catalog` in isolation.
+    *   Run the suite in parallel mode (if supported) to ensure no race conditions or state leakage occur.
+
+7.  **Document the Change**
+    *   Update any relevant testing documentation or team guidelines to emphasize the principle of **test independence**.
+    *   Add a comment in `test_checkout_flow` explaining why it sets up its own catalog state (e.g., "Sets up independent catalog state to avoid ordering dependencies with test_seed_catalog").
+
+8.  **Code Review and Merge**
+    *   Submit a pull request with the changes.
+    *   Request review from a teammate who can verify that the refactored test is correctly independent and that no other tests rely on the old ordering.
+    *   Merge the change once approved and all CI checks pass.
+
+By following these steps, you eliminate the flakiness at its root cause, ensuring that the test suite is robust, parallelizable, and free from hidden ordering dependencies.

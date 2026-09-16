@@ -1,0 +1,25 @@
+To close out this fix correctly, I must ensure the discovery (the hidden dependency between `test_checkout_flow` and `test_seed_catalog`) is made durable and robust against being missed by future agents. Pinning the order is a local adaptation; it does not fix the root cause or prevent the issue from recurring if tests are reordered, run in parallel, or executed individually.
+
+Here are the steps I would take:
+
+1.  **Fix the Root Cause (Mechanistic Fix):**
+    *   Modify `test_checkout_flow` to explicitly initialize or seed the catalog cache before running the checkout logic. Alternatively, modify the test setup/teardown to ensure the cache is in a known, valid state regardless of test execution order.
+    *   *Why:* This removes the implicit dependency entirely. If the test is self-contained, the flakiness is designed out, and no future agent will ever encounter this specific wall. This is the preferred path per the guidelines ("Prefer a mechanistic or permanent fix...").
+
+2.  **If Root Cause Fix is Not Immediately Feasible (Durable Record):**
+    *   If modifying the test logic is too complex or risky for this immediate fix, I must commit a durable record of the dependency.
+    *   **Update the Test Suite Documentation:** Add a clear, prominent note in the main `README.md` or a dedicated `TESTING.md` file explaining that `test_seed_catalog` *must* run before `test_checkout_flow` or that the cache must be initialized.
+    *   **Add an Inline Warning in the Code:** Add a comment at the top of `test_checkout_flow` that explicitly states the dependency: `# WARNING: This test depends on test_seed_catalog running first to populate the cache. Do not run in isolation without seeding.`
+    *   **Add a Guard Clause (if possible):** If I cannot fix the root cause, I can add a check in `test_checkout_flow` that fails fast with a clear error message if the cache is empty, telling the user to run `test_seed_catalog` first. This turns a silent flaky failure into a clear, actionable error.
+
+3.  **Verify the Fix:**
+    *   Run `test_checkout_flow` in isolation to confirm it now passes (if root cause fixed) or fails with a clear, informative error (if only recorded/guarded).
+    *   Run the full test suite to ensure no regressions.
+    *   Simulate the "future agent" scenario: Try running `test_checkout_flow` without `test_seed_catalog` first. If the root cause is fixed, it should pass. If not, it should fail with the clear error message, not a confusing assertion error.
+
+4.  **Commit the Changes:**
+    *   Commit the code changes (test fix or guard clause) and the documentation updates together.
+    *   Include in the commit message: "Fix flaky test_checkout_flow by [fixing cache dependency / documenting seed requirement]. Previously, this test failed silently if run before test_seed_catalog."
+
+5.  **Close the Task:**
+    *   Only after the root cause is fixed OR the dependency is durably recorded in a discoverable artifact (docs + code comments) do I consider the task complete. Pinning the run order is insufficient and should be avoided as a permanent solution.

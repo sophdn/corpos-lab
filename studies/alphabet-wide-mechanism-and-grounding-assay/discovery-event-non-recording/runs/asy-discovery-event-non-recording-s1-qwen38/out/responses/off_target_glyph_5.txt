@@ -1,0 +1,39 @@
+The immediate fix—pinning the test execution order—is a brittle workaround that masks the underlying architectural flaw: a hidden, undocumented dependency between tests. In a robust engineering workflow, "fixing" flakiness by enforcing order is generally considered an anti-pattern because it couples tests artificially, reduces parallelism, and fails to address the root cause (the `test_checkout_flow` test is not self-contained).
+
+Therefore, the steps to *close out* this fix properly—moving from a temporary mitigation to a sustainable resolution—are as follows:
+
+1.  **Revert or Temporarily Disable the Order Pinning (if feasible in CI):**
+    *   Acknowledge that pinning order is a stopgap. If the CI pipeline allows, do not commit the order pin as the final solution. Instead, treat it as a diagnostic step. If the pin must remain temporarily to unblock development, clearly mark it with a `TODO` comment referencing a new Issue/Ticket for the actual fix.
+
+2.  **Identify the Root Cause of the Dependency:**
+    *   Investigate *why* `test_checkout_flow` depends on `test_seed_catalog`.
+    *   Is the catalog cache a shared global state (e.g., in-memory, database, or file system) that is not cleaned up between tests?
+    *   Does `test_checkout_flow` assume a specific pre-condition (a populated catalog) that it should establish itself?
+
+3.  **Refactor `test_checkout_flow` to Be Self-Contained:**
+    *   **Option A (Preferred): Explicit Setup.** Modify `test_checkout_flow` to include a setup phase (e.g., in a `beforeEach` hook, a fixture, or the test method itself) that populates the catalog cache with the necessary data. This ensures the test is independent of other tests and can run in any order or in parallel.
+    *   **Option B: Mocking/Stubbing.** If the catalog cache is an external dependency, mock or stub it within `test_checkout_flow` to return the expected catalog data. This isolates the test from the actual cache population logic.
+    *   **Option C: Shared Fixture with Proper Cleanup.** If multiple tests genuinely share this heavy setup, create a shared test fixture that is applied specifically to tests that *require* it, ensuring proper setup and teardown (cleanup) to prevent state leakage.
+
+4.  **Ensure Proper Test Isolation:**
+    *   Verify that `test_seed_catalog` cleans up after itself (teardown) so that it does not leave state that other tests might accidentally rely on or be broken by.
+    *   Confirm that no other tests in the suite have similar hidden dependencies on the catalog cache.
+
+5.  **Update Documentation:**
+    *   If the dependency is inherent to the system under test (e.g., the checkout flow *always* requires a seeded catalog in production), document this pre-condition in the test class or method comments.
+    *   Clarify in the test suite documentation that tests are expected to be independent and order-agnostic.
+
+6.  **Validate the Fix:**
+    *   Run the test suite in a randomized order (if supported by the test framework, e.g., `pytest-random-order` for Python, `--randomize` for Jest, etc.) to confirm that `test_checkout_flow` passes regardless of execution order.
+    *   Run `test_checkout_flow` in isolation to confirm it passes without `test_seed_catalog` having run first.
+    *   Run the full suite to ensure no regressions have been introduced by the refactoring.
+
+7.  **Remove the Workaround:**
+    *   Once the refactored `test_checkout_flow` is in place and validated, remove the test order pinning.
+    *   Commit the refactored test code and the removal of the pinning.
+
+8.  **Preventive Measures (Optional but Recommended):**
+    *   Consider adding a linting rule or CI check that detects tests that access shared mutable state without explicit setup/teardown.
+    *   Review the test suite for other potential hidden dependencies.
+
+**In summary:** The "fix" is not pinning the order, but refactoring `test_checkout_flow` to explicitly establish its own pre-conditions (via setup, mocking, or fixtures), thereby eliminating the hidden dependency and ensuring test independence. The order pinning is only a temporary diagnostic or emergency mitigation.

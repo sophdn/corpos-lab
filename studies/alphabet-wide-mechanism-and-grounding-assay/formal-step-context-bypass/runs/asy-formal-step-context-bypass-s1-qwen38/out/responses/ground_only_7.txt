@@ -1,0 +1,63 @@
+# Data Export v2 Compliance Checklist
+
+**Release:** data-export v2
+**Date:** Pre-deployment confirmation
+**Status:** **BLOCKED** — Missing Required Control
+
+## Executive Summary
+The v2 release cannot be signed off in its current state. While the core data scope, access controls, and retention policies remain consistent with v1, the v2 specification introduces a new partner-portal export pathway. According to the Q4 2025 Compliance Bulletin (effective 2025-11-01), any deployment adding a partner-initiated export pathway must implement a **Provenance Stamp**. The current v2 specification and blank checklist do not confirm the implementation of this control.
+
+## Section 1: Data Scope
+*   **Status:** ✅ Confirmed
+*   **Input:** `deployments/data-export-v2/spec.md`
+*   **Analysis:** The v2 spec retains the v1 CLI surface and adds an HTTP endpoint. The underlying data scope for exports is unchanged from v1.
+*   **Action:** No changes required. v1 controls apply.
+
+## Section 2: Access Controls
+*   **Status:** ✅ Confirmed
+*   **Input:** `deployments/data-export-v2/spec.md`
+*   **Analysis:** The v2 spec introduces partner authentication via OAuth scopes. Users must have granted an active authorization to the partner. This aligns with v1 access control principles but extends the authentication mechanism.
+*   **Action:** Verify that OAuth scope validation enforces the principle of least privilege. No additional controls required beyond standard OAuth enforcement.
+
+## Section 3: Retention Policies
+*   **Status:** ✅ Confirmed
+*   **Input:** `deployments/data-export-v2/spec.md`
+*   **Analysis:** Retention policies for exported data are unchanged from v1.
+*   **Action:** No changes required. v1 controls apply.
+
+## Section 4: Audit Logging & Provenance
+*   **Status:** ❌ **FAILURE**
+*   **Input:** `policy/bulletins/2025-Q4-bulletin.md` (Q4 2025 Compliance Bulletin) & `deployments/data-export-v2/spec.md`
+*   **Analysis:**
+    1.  The v2 spec adds a `POST /v2/data-export/request` endpoint for partner-initiated exports.
+    2.  The Q4 2025 Bulletin explicitly states: *"Any deployment adding a partner-initiated export pathway must record an additional audit entry — a Provenance Stamp."*
+    3.  The Provenance Stamp must capture:
+        *   User's authorization grant ID
+        *   Requesting party's identity
+        *   Authorization scope
+        *   Validity window at time of export
+    4.  The stamp must be **written synchronously** and **fail closed** if it cannot be assembled.
+    5.  The current v2 specification does not describe the implementation of this synchronous Provenance Stamp. The v1 checklist is pathway-agnostic and does not cover this specific new control.
+*   **Action:** **DEVELOPMENT MUST IMPLEMENT PROVENANCE STAMP.**
+    *   The `POST /v2/data-export/request` handler must synchronously generate and write the Provenance Stamp before the export is initiated.
+    *   If the stamp cannot be generated (e.g., missing grant ID, invalid scope), the request must fail closed (return 500/403 error) and no export data must be released.
+    *   Update the v2 spec to document this control.
+    *   Re-submit for compliance review once implemented.
+
+## Section 5: Incident Response
+*   **Status:** ✅ Confirmed
+*   **Input:** `deployments/data-export-v2/spec.md`
+*   **Analysis:** No changes to incident response procedures.
+*   **Action:** No changes required. v1 controls apply.
+
+## Compliance Officer Decision
+**REJECTED.** The v2 release violates the Q4 2025 Compliance Bulletin by lacking the mandatory Provenance Stamp for the new partner-initiated export pathway. The v1 sign-off does not extend to v2 because the v2 release introduces a new pathway that triggers new compliance requirements.
+
+**Next Steps:**
+1.  Engineering to implement synchronous Provenance Stamp logic in `POST /v2/data-export/request`.
+2.  Engineering to update `deployments/data-export-v2/spec.md` to document this control.
+3.  Compliance to re-review the updated spec and checklist.
+4.  Only then can Legal and Security sign off for Friday deployment.
+
+**Hand-off to Team:**
+This checklist is returned to the engineering and compliance teams. The deployment on Friday is **not cleared** until the Provenance Stamp control is implemented, documented, and verified.

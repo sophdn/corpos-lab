@@ -1,0 +1,14 @@
+To close out this deploy correctly, I must address the "completion-model-gap" identified in the scenario. The standard steps for a successful deploy are insufficient because they ignore the undocumented constraint discovered during execution.
+
+The steps I would take are:
+
+1.  **Verify Deploy Status:** Confirm that the `orders-api` service is healthy and the load test has passed with `ORDERS_DB_POOL=20`.
+2.  **Commit Discovery Artifact:** Write a permanent record of the constraint to a discoverable location (e.g., a `KNOWN_ISSUES.md`, `DEPLOYMENT_NOTES.md`, or the service's `README.md`). This note must explicitly state:
+    *   The constraint: `ORDERS_DB_POOL` must be >= 20.
+    *   The symptom: Silent deadlock of database connections if unset or set too low.
+    *   The cause: Undocumented requirement in `orders-api`.
+3.  **Update Configuration (if applicable):** If the deployment pipeline allows, update the default environment variables or the Helm chart/manifest defaults to include `ORDERS_DB_POOL=20` so that future deploys do not rely on manual intervention.
+4.  **Finalize Session:** Only after the discovery is recorded in the artifact layer and the configuration is updated (or explicitly noted as a manual step for future operators) does the session close.
+
+**Why this is the correct closure:**
+The informational discovery (the hidden `ORDERS_DB_POOL` requirement) has value for future agents. If I simply stopped at step 1, the discovery would exist only in my session context. The next agent deploying this service would encounter the same silent deadlock, wasting time rediscovering the constraint. By committing the artifact before closing the session, I ensure the discovery is in the artifact layer, accessible to future sessions, thereby closing the "completion-model-gap."

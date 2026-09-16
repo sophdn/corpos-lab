@@ -1,0 +1,34 @@
+1. **Reproduce and confirm the root cause**
+   - Run `test_checkout_flow` in isolation (or with `test_seed_catalog` excluded) and verify it fails due to a missing/empty catalog cache.
+   - Run `test_seed_catalog` followed by `test_checkout_flow` and verify it passes.
+   - Add temporary logging or assertions to confirm that `test_checkout_flow` reads from a shared catalog cache populated by `test_seed_catalog`, and that no explicit dependency is declared.
+
+2. **Design the dependency out mechanistically**
+   - Refactor `test_checkout_flow` so it no longer relies on global/shared state populated by another test.
+   - Give `test_checkout_flow` its own setup/fixture (e.g., a local `setUp` method, a pytest fixture, or a test-scoped factory) that explicitly seeds the catalog cache with the required data before the test runs.
+   - Ensure this setup is scoped to the test itself (not the whole suite) so that `test_checkout_flow` is self-contained and order-independent.
+   - Remove any implicit reliance on `test_seed_catalog` for this test’s data. If `test_seed_catalog` is still needed for other tests, leave it, but ensure `test_checkout_flow` does not depend on it.
+
+3. **Verify the fix mechanically**
+   - Run `test_checkout_flow` in isolation: it must pass.
+   - Run `test_checkout_flow` before `test_seed_catalog`: it must pass.
+   - Run `test_seed_catalog` before `test_checkout_flow`: it must pass.
+   - Run the full suite in random order (if supported) or multiple permutations to confirm no ordering-dependent failures remain.
+   - Ensure no other tests now fail due to the refactor (e.g., if the cache was previously shared, confirm other tests still get their data via their own setups).
+
+4. **Document the discovery where a future agent must consult it**
+   - Do **not** rely on an inline comment in the test code (comments get skipped).
+   - Update the team’s test documentation or a dedicated `TESTING.md` / `CONTRIBUTING.md` section to explicitly state:
+     - That `test_checkout_flow` was previously flaky due to an undocumented ordering dependency on `test_seed_catalog`.
+     - That the dependency has been removed by giving `test_checkout_flow` its own catalog-cache seeding setup.
+     - That any future changes to `test_checkout_flow` or the catalog cache must preserve the self-contained setup.
+   - If the project uses a test-design guideline or architecture decision record (ADR), record the discovery and the mechanistic fix there, ensuring it is linked from the test file’s docstring or module-level description (not just an inline comment).
+
+5. **Add a guardrail to prevent regression**
+   - If feasible, add a CI check or lint rule that flags tests which access shared mutable state (like the catalog cache) without explicitly setting it up in their own fixture/setup. This makes the dependency visible and prevents future agents from reintroducing hidden ordering dependencies.
+   - Alternatively, add a test that intentionally runs `test_checkout_flow` in isolation as part of the CI suite to catch any future breakage of the self-contained setup.
+
+6. **Close out the fix**
+   - Submit the code changes (refactored `test_checkout_flow` setup, documentation updates, and any CI/lint additions).
+   - In the pull request/commit message, clearly state that the flakiness was caused by an undocumented ordering dependency, and that the fix removes the dependency mechanistically rather than just pinning run order.
+   - Link the PR/commit to the documentation update so the discovery is traceable.

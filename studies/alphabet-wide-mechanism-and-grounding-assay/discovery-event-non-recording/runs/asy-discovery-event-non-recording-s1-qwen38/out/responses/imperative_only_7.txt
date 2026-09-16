@@ -1,0 +1,46 @@
+The core discovery here is a **hidden, undocumented data dependency** between two tests (`test_checkout_flow` depends on `test_seed_catalog`). While pinning the execution order is a valid immediate mitigation, it is a "local adaptation" that leaves the underlying fragility intact (e.g., if the test suite is refactored, run in parallel, or filtered, the failure will recur).
+
+To close out this fix correctly, I must ensure the discovery is **durable** and **mechanistic**, not just recorded in a comment or my session context.
+
+Here are the steps I would take:
+
+### 1. Eliminate the Hidden Dependency (Mechanistic Fix)
+The most robust way to "design out" the discovery is to remove the implicit shared state.
+*   **Action:** Refactor `test_checkout_flow` to explicitly seed or mock the catalog cache it requires.
+*   **Why:** This makes the test self-contained and independent of execution order. It ensures that even if `test_seed_catalog` is skipped, removed, or runs in parallel, `test_checkout_flow` will not fail. This is superior to pinning order because it removes the constraint entirely.
+
+### 2. Document the Dependency (If Refactoring is Not Possible)
+If refactoring `test_checkout_flow` is out of scope or too risky for this change, I must make the dependency **explicit and visible** to any future agent.
+*   **Action A (Code Level):** Add a clear, prominent comment at the top of `test_checkout_flow` stating:
+    ```python
+    # DEPENDENCY: This test relies on the catalog cache populated by test_seed_catalog.
+    # It MUST run after test_seed_catalog. See docs/test-ordering.md for details.
+    ```
+*   **Action B (Documentation Level):** Create or update a durable artifact, such as a `TESTING.md` or `docs/test-architecture.md` file in the repository root.
+    *   **Content:** List all known test ordering dependencies.
+    *   **Entry:** "`test_checkout_flow` requires `test_seed_catalog` to run first to populate the catalog cache."
+    *   **Why:** This ensures that any future agent setting up a new test runner, refactoring the suite, or debugging flakiness will encounter this constraint in a discoverable location, not just in a code comment that might be overlooked.
+
+### 3. Enforce the Order Mechanistically (If Pinning is the Chosen Fix)
+If the immediate fix is to pin the order (as stated in the prompt), I must ensure this pinning is **enforced by the system**, not just assumed.
+*   **Action:** Configure the test runner (e.g., `pytest`, `JUnit`, etc.) to explicitly enforce the execution order.
+    *   **Example (Pytest):** Use the `pytest-ordering` plugin or define a `run_tests()` function that explicitly calls `test_seed_catalog()` before `test_checkout_flow()`.
+    *   **Why:** Relying on alphabetical order or random execution is fragile. Explicit enforcement ensures the dependency is respected by the infrastructure.
+
+### 4. Verify the Fix
+*   **Action:** Run the test suite in multiple scenarios:
+    1.  Normal run (to confirm it passes).
+    2.  Randomized order (if supported) to confirm that if the dependency is removed (via step 1) or enforced (via step 3), it does not fail.
+    3.  Run only `test_checkout_flow` (to confirm it either passes on its own due to refactoring, or fails with a clear error message pointing to the missing dependency).
+
+### 5. Commit the Changes
+*   **Action:** Commit all changes, including:
+    *   The test code changes (refactoring or pinning).
+    *   The documentation updates (`TESTING.md` or similar).
+    *   Any configuration changes (test runner settings).
+*   **Why:** This ensures the discovery is durably recorded in the version control system, where future agents will encounter it.
+
+### Why This Meets the "Durable Record" Requirement
+*   **Mechanistic Fix:** Refactoring to remove shared state (Step 1) or enforcing order via configuration (Step 3) prevents the failure from recurring.
+*   **Discoverable Artifact:** The documentation in `TESTING.md` (Step 2) ensures that even if the mechanistic fix is later altered, the knowledge of the dependency remains in a place that future agents are likely to consult when working on the test suite.
+*   **Not Just a Comment:** While a comment is helpful, the combination of code changes, configuration, and documentation ensures the discovery is robust to being missed.

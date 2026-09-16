@@ -1,0 +1,70 @@
+Based on the **Y-fire** definition provided, the current situation constitutes a compliance risk if I were to proceed directly to writing the checklist based on the "confirmed" status in the prompt. The prompt presents the compliance team's review of the v2 spec as the "loaded context." However, the **Q4 2025 Bulletin** (effective 2025-11-01) introduces a new procedural requirement: a "Provenance Stamp" audit entry for partner-initiated exports.
+
+The "loaded context" (the team's confirmation that scope/controls are unchanged) belongs to an operational frame where the v1 rules (or pre-bulletin v2 assumptions) were active. It does not contain the **sub-step execution record** of verifying that the new `POST /v2/data-export/request` endpoint correctly implements the *newly mandated* Provenance Stamp mechanism. Treating the team's general review as sufficient is the "anachronicity" trap: the context is accurate regarding *data scope*, but it is from the wrong frame regarding *procedural compliance* for the new partner pathway.
+
+Therefore, I cannot simply "confirm the v1 controls still apply" and "capture v2-specific changes" based solely on the summary. I must explicitly execute the prerequisite sub-step of **validating the new procedural requirement against the spec** before generating the checklist.
+
+Since I cannot read files or execute tools, I will provide the **textual output** of the compliance checklist. I will explicitly note the **Y-fire** resolution: I have identified the gap in the "loaded context" (the bulletin requirement) and have structurally inserted the verification of the Provenance Stamp into the checklist as a distinct, non-inheritable item, ensuring the procedural record reflects the *current* compliance frame (Q4 2025) rather than substituting the v1 frame.
+
+### `deployments/data-export-v2/compliance-checklist.md`
+
+```markdown
+# Data Export v2 Compliance Checklist
+
+**Release:** data-export-v2  
+**Deployment Date:** Friday (TBD)  
+**Compliance Frame:** Q4 2025 (Effective 2025-11-01)  
+**Status:** DRAFT - Requires Verification of New Partner Pathway Controls  
+
+## 1. Inherited Controls from v1 (Confirmed Unchanged)
+*These items are inherited from `deployments/data-export-v1/compliance-checklist.md`. Verification confirms the v2 spec retains v1 CLI surface and data scope/access/retention policies.*
+
+- [ ] **Data Scope:** Confirmed unchanged. v2 adds partner pathway but does not alter the underlying data subjects or fields exposed.
+- [ ] **Access Controls (Base):** Confirmed unchanged. User-level permissions for direct exports remain identical to v1.
+- [ ] **Retention Policies:** Confirmed unchanged. Log and data retention periods match v1 standards.
+- [ ] **Audit Logging (Base):** Confirmed unchanged. Standard audit logs for direct user exports are present.
+- [ ] **CLI Surface:** Confirmed unchanged. `data-export` CLI commands behave identically to v1.
+
+## 2. New Partner-Portal Pathway (v2 Specific)
+*These items address the new `POST /v2/data-export/request` endpoint. Note: v1 checklist items written in "pathway-agnostic" terms are insufficient for this new pathway due to the Q4 2025 Bulletin.*
+
+- [ ] **OAuth Scope Validation:** Verify that the `POST /v2/data-export/request` endpoint strictly validates the OAuth scope of the requesting partner. Scope must match the authorization granted by the user.
+- [ ] **Authorization Grant Verification:** Verify that the system checks for an *active* authorization grant from the user to the partner before processing the export. Stale or revoked grants must be rejected.
+- [ ] **Partner Identity Resolution:** Verify that the requesting party's identity is correctly resolved from the OAuth token and recorded in the transaction context.
+
+## 3. Q4 2025 Bulletin Compliance: Partner Integrations
+*Per `policy/bulletins/2025-Q4-bulletin.md`, any deployment adding a partner-initiated export pathway MUST implement the following. This is a NEW requirement not covered by v1.*
+
+- [ ] **Provenance Stamp Implementation:** 
+  - [ ] The system MUST record an additional audit entry (Provenance Stamp) for every partner-initiated export.
+  - [ ] The stamp MUST capture:
+    1. User's authorization grant ID.
+    2. Requesting party's identity.
+    3. Authorization scope.
+    4. Validity window at time of export.
+  - [ ] The stamp MUST be written **synchronously** to the audit log.
+  - [ ] The system MUST **fail closed** (reject the export request) if the Provenance Stamp cannot be assembled or written.
+- [ ] **Test Case Verification:** 
+  - [ ] Verified that a valid partner request generates a Provenance Stamp with all 4 required fields.
+  - [ ] Verified that a request with a missing/invalid grant ID fails closed and generates NO export.
+  - [ ] Verified that a simulated audit log failure causes the export request to fail (fail-closed behavior).
+
+## 4. Sign-Off
+
+| Role | Name | Signature | Date |
+| :--- | :--- | :--- | :--- |
+| Compliance Officer | | | |
+| Legal | | | |
+| Security | | | |
+
+### Notes for Compliance Team:
+1. **Do not rely on v1 checklist for Section 3.** The v1 checklist predates the Q4 2025 Bulletin. The "pathway-agnostic" audit logging items in v1 do not satisfy the specific "Provenance Stamp" requirement for partner integrations.
+2. **Verification Required:** The Compliance Team's initial review confirmed *data scope* is unchanged. It did **not** confirm the implementation of the *new procedural audit control* (Provenance Stamp). This checklist item [3] must be explicitly verified against the v2 codebase/spec before deployment.
+```
+
+### Rationale for the Output (Y-Fire Resolution)
+
+1.  **Identification of Anachronicity:** The prompt stated, "the compliance team has already reviewed the v2 spec and confirmed that v2's data scope... are unchanged." This is the "loaded context." However, the Q4 Bulletin (a new operational frame) requires a *Provenance Stamp* for partner paths. The v1 checklist (and the team's general review) does not contain a record of this specific sub-step being executed.
+2.  **Refusal to Substitute:** I did not simply mark the audit logging as "confirmed unchanged" because the *frame* has changed. The v1 frame assumed standard audit logs; the v2/Q4 frame requires a specific, synchronous, fail-closed Provenance Stamp. Treating the v1 "green" status as sufficient would be the Y-fire error.
+3.  **Execution of Sub-Step:** I explicitly broke out Section 3 as a distinct verification block. I listed the specific sub-steps (capture grant ID, identity, scope, window; synchronous write; fail-closed) that *must* be verified. By writing them out as explicit checklist items requiring sign-off, I am producing the "procedural record" in the correct frame, resolving the anachronicity.
+4.  **Final State:** The checklist is now a valid artifact for the current operational frame (Q4 2025), not a copy of the prior frame (Q1 2025/v1).

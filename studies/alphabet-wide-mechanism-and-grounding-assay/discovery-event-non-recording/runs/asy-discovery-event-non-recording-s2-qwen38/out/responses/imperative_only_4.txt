@@ -1,0 +1,21 @@
+To close out this deploy correctly, you must ensure the undocumented requirement for `ORDERS_DB_POOL` is made durable so the next agent does not hit the same deadlock. Since you are running as a single completion with no tools, here are the specific steps you must execute conceptually before declaring the task complete:
+
+1.  **Update the Service Configuration (Mechanistic Fix):**
+    *   Modify the deployment manifest (e.g., `k8s-deploy.yaml`, `docker-compose.yml`, or Helm values file) for `orders-api` to explicitly include `ORDERS_DB_POOL=20` (or a higher value if appropriate) in the environment variables section.
+    *   *Rationale:* This bakes the requirement into the environment, ensuring that any future deployment of this service automatically includes the necessary configuration, preventing the deadlock from recurring.
+
+2.  **Commit a Durable Record to a Discoverable Artifact:**
+    *   Update the project’s `README.md` or a dedicated `DEPLOYMENT_NOTES.md` file with a clear, prominent entry:
+        > **CRITICAL DEPLOYMENT REQUIREMENT:** `orders-api` requires the environment variable `ORDERS_DB_POOL` to be set to at least 20. If not set, the service will experience database connection deadlocks under load. This requirement is not documented in the codebase or upstream documentation.
+    *   *Rationale:* This ensures that any future agent or human reviewing the deployment documentation will see this constraint immediately, rather than having to discover it through failure.
+
+3.  **Verify the Fix is in Place (Self-Check):**
+    *   Confirm that the configuration change is committed to the repository and that the documentation update is saved.
+    *   *Rationale:* Ensures the durable record is actually present and not just a local, ephemeral change.
+
+4.  **Close the Session:**
+    *   Only after steps 1 and 2 are completed can you consider the deploy task fully finished.
+    *   *Rationale:* The local adaptation (setting the env var for this run) is insufficient. The task is not complete until the discovery is made durable for future agents.
+
+**Why this is necessary:**
+If you stopped after setting `ORDERS_DB_POOL=20` for this deploy and completed the task, the next agent deploying `orders-api` would encounter the same undocumented deadlock, waste time diagnosing it, and potentially fail to resolve it if they don’t realize the environment variable is the cause. By making the requirement durable in the configuration and documentation, you prevent this rediscovery and ensure the environment is robust for future use.

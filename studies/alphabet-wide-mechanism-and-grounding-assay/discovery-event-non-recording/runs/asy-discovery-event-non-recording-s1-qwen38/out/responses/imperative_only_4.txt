@@ -1,0 +1,32 @@
+To close out this fix correctly, I must ensure the discovery (the undocumented ordering dependency) is made durable so it cannot recur or be missed by future agents. Simply pinning the test order in this session is insufficient; it leaves the latent bug in the codebase.
+
+Here are the steps I would take:
+
+1.  **Refactor the Test to Remove the Dependency (Mechanistic Fix)**
+    *   **Action:** Modify `test_checkout_flow` (or the shared fixture/utility it uses) so it does not rely on side effects from `test_seed_catalog`.
+    *   **Implementation:** Inject a known, valid catalog state directly into the test setup (e.g., via a fixture, a mock, or a direct cache population step within `test_checkout_flow`'s setup phase). Alternatively, if the catalog cache is a global singleton, ensure the test setup explicitly clears or initializes it to a known state before the test runs.
+    *   **Goal:** Make `test_checkout_flow` self-contained. It should pass or fail based on the code under test, not on the execution history of other tests. This "designs out" the discovery mechanistically.
+
+2.  **Revert or Adjust the Temporary Ordering Pin**
+    *   **Action:** If I initially pinned the run order (e.g., via a `@depends` decorator, a config file, or manual invocation) to stabilize the test, I must now evaluate whether this pin is still necessary.
+    *   **Decision:** If Step 1 successfully removes the dependency, the pin should be removed to allow the test suite to run in any order. If for some reason the dependency cannot be fully removed (e.g., due to architectural constraints), the pin must be made robust and documented (see Step 3).
+
+3.  **Document the Constraint (If Dependency Cannot Be Removed)**
+    *   **Action:** If the test *must* run after `test_seed_catalog` due to non-negotiable architectural reasons, I must create a durable record of this constraint.
+    *   **Location:** Add a prominent comment at the top of `test_checkout_flow` and in the test suite’s configuration file (e.g., `pytest.ini`, `conftest.py`, or the CI pipeline definition).
+    *   **Content:** Explicitly state: "This test depends on `test_seed_catalog` having run first to populate the catalog cache. Do not remove this ordering dependency without refactoring the test setup."
+    *   **Robustness:** Ensure this documentation is in a location a developer *will* see when modifying the test suite (e.g., the test file itself or the CI configuration), not just in a README that might be ignored.
+
+4.  **Add a Guard or Assertion (Optional but Recommended)**
+    *   **Action:** Add an explicit assertion or check at the start of `test_checkout_flow` that verifies the preconditions are met.
+    *   **Implementation:** If the dependency remains, add a check like `assert catalog_cache.is_populated()` with a clear error message: "test_seed_catalog must run before test_checkout_flow." This turns a silent failure into a loud, informative failure if the order is ever broken again.
+
+5.  **Verify the Fix in a Clean Environment**
+    *   **Action:** Run the test suite in a randomized order (if supported) or explicitly in the reverse order (`test_checkout_flow` before `test_seed_catalog`) to confirm the fix works.
+    *   **Goal:** Prove that the flakiness is gone and the test is now robust to execution order.
+
+6.  **Commit with a Clear Message**
+    *   **Action:** Commit the changes with a message that explains the root cause and the solution.
+    *   **Example:** "Fix flaky test_checkout_flow by removing hidden dependency on test_seed_catalog. Test now initializes its own catalog state. Added guard to prevent silent failures if dependency is reintroduced."
+
+By following these steps, the discovery is made durable through a **mechanistic fix** (Step 1) and/or a **robust record** (Steps 3 & 4), ensuring the next agent will not hit the same wall.
