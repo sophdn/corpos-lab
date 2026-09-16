@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+  :root{
+    --bg:#f7f7f5; --panel:#fff; --ink:#1a1a1a; --muted:#666; --line:#e3e3df;
+    --accent:#3b6ea5; --gt:#f0f4f8; --resp:#fbfbf9; --ok:#2e7d46; --of:#b5480f;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{--bg:#1b1c1e;--panel:#242629;--ink:#eaeaea;--muted:#9a9a9a;--line:#3a3c40;
+      --accent:#6fa8dc;--gt:#20262e;--resp:#1e1f22;--ok:#6bd08a;--of:#e8935e;}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+  header{position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--line);padding:10px 16px;z-index:5}
+  .bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:8px}
+  .bar > i{display:block;height:100%;background:var(--accent);width:0;transition:width .2s}
+  .wrap{max-width:900px;margin:0 auto;padding:16px}
+  .counter{font-weight:600}
+  .muted{color:var(--muted)}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:18px 0 6px}
+  .box{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px}
+  .gt{background:var(--gt)}
+  pre{white-space:pre-wrap;word-wrap:break-word;margin:0;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+  .resp{background:var(--resp);max-height:46vh;overflow:auto}
+  .labels{display:flex;flex-direction:column;gap:8px;margin:14px 0}
+  label.opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:8px;cursor:pointer;background:var(--panel)}
+  label.opt:hover{border-color:var(--accent)}
+  label.opt.sel{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+  label.opt input{margin-top:3px}
+  .code{font-weight:700;min-width:2.4em}
+  .kbd{font:11px ui-monospace,monospace;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:1px 5px;margin-left:auto}
+  nav{display:flex;gap:10px;align-items:center;margin:18px 0 6px}
+  button{font:inherit;padding:8px 16px;border-radius:7px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  button:disabled{opacity:.4;cursor:default}
+  .jump{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;max-width:60%}
+  .chip{width:26px;height:26px;border-radius:5px;border:1px solid var(--line);background:var(--panel);font-size:11px;cursor:pointer;padding:0}
+  .chip.done{background:var(--ok);color:#04270f;border-color:var(--ok)}
+  .chip.cur{outline:2px solid var(--accent)}
+  textarea{width:100%;height:180px;font:12px ui-monospace,monospace;margin-top:8px}
+  .done-msg{padding:12px;border:1px solid var(--ok);border-radius:8px;background:var(--gt)}
+  .hide{display:none}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap" style="padding:0">
+    <span class="counter" id="counter"></span>
+    <span class="muted" id="submeta"></span>
+    <div class="bar"><i id="progfill"></i></div>
+  </div>
+</header>
+<div class="wrap">
+  <div id="item">
+    <div id="blocks"></div>
+    <div class="labels" id="labels"></div>
+    <nav>
+      <button id="prev">&larr; Prev</button>
+      <button id="next">Next &rarr;</button>
+      <button id="nextun" title="jump to next unanswered">Next unanswered</button>
+      <div class="jump" id="jump"></div>
+    </nav>
+  </div>
+  <div style="margin-top:22px">
+    <button class="primary" id="export">Export labels</button>
+    <span class="muted" id="exportnote"></span>
+    <div id="exportbox" class="hide">
+      <div class="done-msg" id="donemsg"></div>
+      <textarea id="out" readonly></textarea>
+      <button id="copy">Copy JSON</button>
+      <button id="download">Download answers.json</button>
+      <p class="muted">Paste the copied JSON back into the chat, or hand me the downloaded file path.</p>
+    </div>
+  </div>
+</div>
+<script>
+// ITEMS is blind by construction: the generator embeds only {id, blocks}, never
+// the arm or any machine rater's label. Each block is {heading, text, kind};
+// kind styles the box (ground = highlighted, response = scrollable, else plain).
+const ITEMS = __ITEMS_JSON__;
+const LABELS = __LABELS_JSON__;   // [{code, desc, key}]
+const STORE = "blindscore_" + __STORE_KEY__;
+let answers = {};
+try{ answers = JSON.parse(localStorage.getItem(STORE)) || {}; }catch(e){ answers = {}; }
+let idx = 0;
+const $ = id => document.getElementById(id);
+const keymap = {};
+LABELS.forEach((l,i)=>{ if(l.key) keymap[String(l.key)] = i; });
+
+function save(){ try{ localStorage.setItem(STORE, JSON.stringify(answers)); }catch(e){} }
+function answeredCount(){ return ITEMS.filter(it=>answers[it.id]).length; }
+
+function renderBlocks(){
+  const cur = ITEMS[idx];
+  const host = $("blocks");
+  host.innerHTML = "";
+  (cur.blocks||[]).forEach(b=>{
+    const h = document.createElement("h2"); h.textContent = b.heading || "";
+    const box = document.createElement("div");
+    box.className = "box" + (b.kind==="ground"?" gt":"") + (b.kind==="response"?" resp":"");
+    const pre = document.createElement("pre"); pre.textContent = b.text || "";
+    box.appendChild(pre);
+    host.appendChild(h); host.appendChild(box);
+  });
+}
+function renderLabels(){
+  const cur = ITEMS[idx];
+  $("labels").innerHTML = "";
+  LABELS.forEach(({code,desc,key})=>{
+    const sel = answers[cur.id]===code;
+    const l = document.createElement("label");
+    l.className = "opt"+(sel?" sel":"");
+    l.innerHTML = `<input type="radio" name="lab" ${sel?"checked":""}>
+      <span class="code"></span><span class="desc"></span><span class="kbd"></span>`;
+    l.querySelector(".code").textContent = code;
+    l.querySelector(".desc").textContent = desc;
+    l.querySelector(".kbd").textContent = key || "";
+    // 172: selecting a code repaints WITHOUT scrolling to the top, so the scorer
+    // keeps their place on a long response. Only navigation scrolls to the top.
+    l.onclick = ()=>{ answers[cur.id]=code; save(); render(false); };
+    $("labels").appendChild(l);
+  });
+}
+function renderJump(){
+  $("jump").innerHTML="";
+  ITEMS.forEach((it,i)=>{
+    const b=document.createElement("button");
+    b.className="chip"+(answers[it.id]?" done":"")+(i===idx?" cur":"");
+    b.textContent=i+1; b.onclick=()=>{idx=i;render(true);};
+    $("jump").appendChild(b);
+  });
+}
+// render(scroll): scroll is true only when the item CHANGED (navigation), so
+// answer selection never moves the viewport (suggestion 172).
+function render(scroll){
+  const cur = ITEMS[idx];
+  $("counter").textContent = `Item ${idx+1} / ${ITEMS.length}`;
+  $("submeta").textContent = `  ·  ${answeredCount()} answered  ·  id ${cur.id}`;
+  $("progfill").style.width = (100*answeredCount()/ITEMS.length)+"%";
+  $("prev").disabled = idx===0;
+  $("next").disabled = idx===ITEMS.length-1;
+  renderBlocks(); renderLabels(); renderJump();
+  $("export").textContent = answeredCount()===ITEMS.length ? "Export labels (all done ✓)" : `Export labels (${answeredCount()}/${ITEMS.length})`;
+  if(scroll) window.scrollTo(0,0);
+}
+$("prev").onclick=()=>{ if(idx>0){idx--;render(true);} };
+$("next").onclick=()=>{ if(idx<ITEMS.length-1){idx++;render(true);} };
+$("nextun").onclick=()=>{ const n=ITEMS.findIndex((it,i)=>i>idx && !answers[it.id]);
+  const m=n>=0?n:ITEMS.findIndex(it=>!answers[it.id]); if(m>=0){idx=m;render(true);} };
+document.addEventListener("keydown",e=>{
+  if(e.target.tagName==="TEXTAREA") return;
+  if(e.key in keymap){ answers[ITEMS[idx].id]=LABELS[keymap[e.key]].code; save();
+    if(idx<ITEMS.length-1){idx++;} render(true); }
+  else if(e.key==="ArrowRight"||e.key===" "){ if(idx<ITEMS.length-1){idx++;render(true);} }
+  else if(e.key==="ArrowLeft"){ if(idx>0){idx--;render(true);} }
+});
+$("export").onclick=()=>{
+  const out={}; ITEMS.forEach(it=>{ if(answers[it.id]) out[it.id]=answers[it.id]; });
+  $("out").value = JSON.stringify(out,null,1);
+  const miss = ITEMS.filter(it=>!answers[it.id]).map(it=>it.id);
+  $("donemsg").textContent = miss.length? `${miss.length} still unscored: ${miss.join(", ")}. You can export a partial set.` : `All ${ITEMS.length} scored. Export complete.`;
+  $("exportbox").classList.remove("hide");
+  $("exportbox").scrollIntoView({behavior:"smooth"});
+};
+$("copy").onclick=async()=>{ try{ await navigator.clipboard.writeText($("out").value); $("copy").textContent="Copied ✓"; setTimeout(()=>$("copy").textContent="Copy JSON",1500);}catch(e){ $("out").select(); document.execCommand("copy"); } };
+$("download").onclick=()=>{ const b=new Blob([$("out").value],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download="blind_scoring_answers.json"; a.click(); };
+render(true);
+</script>
+</body>
+</html>
