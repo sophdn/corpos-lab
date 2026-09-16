@@ -25,6 +25,10 @@ per cell, plus a **model-grouped run sweep**.
    (see CLAUDE.md — never a second server). Group the generated cells by model
    so the run swaps the model once per group, not once per cell.
 3. **Sweep.** Run each group against its served model, then swap to the next.
+   Use `scripts/run-grid.sh --defs <dir> --model <substr> --chunk <N>`: it skips
+   any cell whose run-record already says "completed", runs a bounded chunk, and
+   reports what remains, so a killed or timed-out leg resumes with no rework
+   (suggestion 179).
 
 ## Why this is the pattern, not a first-class matrix shape
 
