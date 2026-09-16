@@ -1,6 +1,6 @@
 ---
 type: reference
-last_updated: 2026-09-08
+last_updated: 2026-09-16
 ---
 
 # Follow-up corrections ledger
@@ -86,5 +86,61 @@ parent-state, neither on casg-direct). Tracked in chain
 `register-shift-cross-model-followup-paper` (513); an honest paper presents the
 class-dependent control pattern, NOT a single clean mechanism and NOT a clean
 cross-model replication of a format effect.
+
+---
+
+## 2026-09-16 — correctness sweep of the seven published papers (chain `published-paper-correctness-sweep`)
+
+All seven published papers were re-read against their study records through the
+improved paper-authoring gate. This entry records the corrections applied. These are
+honesty and precision edits to the manuscripts, not new empirical findings against
+them; **no paper's result was overturned or narrowed on the evidence — only the
+wording was brought in line with what the records already showed.** Each corrected
+paper was re-deposited as a new Zenodo version (author-published from a draft).
+
+**Library-prediction reconciliation (paper-authoring item 9):** no library-entry
+verdict changes. The corrections did not alter any finding that a borne-on prediction
+depends on. The one paper whose interpretation was qualified — q2's descriptive-format
+reading — was already reconciled under the content-not-format work (task
+`reconcile-q1-form-vs-content-library-predictions`); this sweep only added a forward
+citation to that follow-up, not a new verdict.
+
+- **Content Over Format** (concept 10.5281/zenodo.22761018) — the calibration case,
+  corrected first and separately: retitled from "Content, Not Format," sign-test
+  overstatement dropped for direction-only, scramble description corrected, Fisher +
+  Newcombe difference statistics added, rubrics and concept DOI added. Published as
+  the v2 record 22801226. Logged here as the sweep's first output.
+- **Structured Phenomenological Descriptions…** (q2; concept 10.5281/zenodo.22542746)
+  — abstract gloss for "phenomenological"; neutral-prefix rival named in Limitations;
+  forward pointer to Content Over Format added. No datum or table changed. New draft
+  22802171 (v3).
+- **Canon Suppression…** (concept 10.5281/zenodo.22556875) — self-citation to q2
+  changed from the version DOI 22542747 to the concept DOI 22542746. New draft 22802166.
+- **Derived or Observed** (cartographer; concept 10.5281/zenodo.22726758) — retitled to
+  the coverage-first / non-derivable-reachability framing (the old title overstated
+  derivable coverage, which is 0.638 vs baseline 0.605, p=0.44); the worked-example
+  de-anchoring argument behind the κ=0.85 claim was removed from the paper AND from
+  `studies/cartographer-duty-format/scores/IRR.md` (the worked-example artifact does
+  not exist in the repo or the seed-packet archive); the durability "cannot be carried
+  even if named" claim was scoped to what the design tests. Numbers unchanged and
+  reproduce. New draft 22802177.
+- **Thinking-Trace Analysis** (concept 10.5281/zenodo.22575822) — §2.2 corrected: the
+  final hypothesis set is SEQUENCE-STALE / BRIEF-RECLASSIFIED / PARALLEL-WORK (the
+  INDEX.md-stale scenario), not the abandoned DEFAULT-UNSCOPED set; overlap-concern
+  attribution fixed against the two deposited journals; a gate false-positive path
+  taken out of `\texttt`. The four deposited source documents were preserved in the
+  new version. New draft 22802172.
+- **Duty or Corpus** (behavioral-equivalence; concept 10.5281/zenodo.22716214) — the
+  Canon Suppression citation changed from "in preparation, no DOI" to the published
+  concept DOI 22556875. New draft 22802173.
+- **Correct Verdicts, Wrong Field** (wrong-path; concept 10.5281/zenodo.22716131) — the
+  quantitative "33/33 traces engaged the scope condition" was narrowed to "mentions the
+  scope field" (what the keyword scan supports); genuine engagement now rests on the one
+  hand-checked run. New draft 22802174.
+
+**Sweep status:** complete. Corrections applied and merged to `main` (commits 1729f0d,
+18a6901); six new-version drafts created for author publish. No follow-up paper is
+warranted by these corrections — they close the honesty gaps in place rather than
+accumulate toward a disconfirmation.
 
 ---
