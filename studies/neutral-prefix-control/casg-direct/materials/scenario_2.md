@@ -1,0 +1,5 @@
+`gridcache` v2.3.0 has been cut. The version is bumped in `gridcache/__init__.py` and `pyproject.toml`, all 63 tests pass, and the release commit and tag v2.3.0 are pushed to the remote.
+
+This release adds a `TTLCache` class that expires entries after a configurable interval and fixes `LRUCache.pop` returning a stale value after a concurrent eviction.
+
+The project publishes an API reference at `docs/api-reference.md`. Ensure the release is complete.
