@@ -1,73 +1,106 @@
 # corpos-lab
 
-A small laboratory for running controlled behavioral experiments on local open-weight
-language models.
+A small laboratory for running controlled behavioral experiments on local
+open-weight language models.
 
-AI agents fail in consistent, predictable ways — not randomly, but at specific kinds of
-decision points where the locally obvious move is structurally wrong. This lab measures
-whether describing those decision points to a model (a "map entry" for the decision terrain:
-what going wrong looks like from inside, what correct navigation looks like, and what neutral
-territory looks like) changes behavior — and whether it's the *description format* that does
-the work, or just the information it carries.
+AI agents fail in consistent ways. Not at random, but at particular decision
+points where the move that looks right from inside the moment is the wrong one.
+This lab studies a simple question about those failures: if you describe the
+decision point to a model before it acts, does its behavior change? And if it
+does, is it the *description* that carries the effect, or just the information
+the description happens to contain?
 
-corpos-lab is the instrument, not the findings: it runs studies against local models
-(llama.cpp), scores the results against declared rubrics, and records what each run actually
-executed under.
+corpos-lab is the instrument, not the findings. It runs experiments against a
+local llama.cpp server, scores the results against written rubrics, and records
+exactly what each run executed under. The scientific claims live in `studies/`
+and `papers/`; the code here is what produces and measures them.
 
-## What makes it a lab rather than a script pile
+## The idea
 
-- **Runs that describe themselves.** A study declares its *complete* sampler chain —
-  validation refuses a partial one, because temperature alone does not define a sampling
-  distribution and any unnamed stage inherits whatever the server binary defaults to. Each
-  run then records what was observed rather than what was intended: the model the server
-  says answered, its build id, per-row generation throughput, the server's `/props`
-  self-report, the processor, and the repo commit.
-- **Divergence is recorded, never enforced.** If the server serves a model other than the one
-  declared, that is written down and the run proceeds. A mismatch is information about the
-  run, not grounds for refusing it.
-- **Disposable containers:** behavioral assays run in single-use containers referenced by
-  image digest, so a run's environment is exactly reproducible.
-- **A hard quality gate:** format, vet, lint, vulnerability scan, race-tested tests, and a
-  95% coverage floor run on every commit.
+The unit of study is a **glyph**: a short, structured description of one
+recurring decision point, written from inside the decision rather than as a rule
+about it. A glyph names three things.
 
-**Observation beats assertion**, and that is a correction rather than a slogan. This lab
-previously ran on a *charter*: pre-registered claims, sealed predictions, stopping criteria,
-and instrument-freezing by digest. It was retired on 2026-07-14 because it had a mechanism's
-authority with none of a mechanism's checking — the verify step was never called on the run
-path, the provenance package was dead code, and the "every result row records the repo
-commit" line that used to sit in this README was simply false. Meanwhile the variables that
-actually moved between runs — temperature, the sampler, and the processor — were recorded
-nowhere, so a study certified a CPU-vs-GPU comparison as a reproduction and nothing in the
-data could show it. See [INQUIRY.md](INQUIRY.md).
+- **Marker** — what it looks like from the inside when you are getting this
+  decision wrong.
+- **Aim** — what navigating it correctly looks like.
+- **Rest** — the neighboring territory where this decision class does not apply.
 
-## Status
+The lab shows a model a glyph and measures whether its behavior on a matched
+scenario changes. A control condition carries the same information as a plain
+instruction, so a difference between the two isolates the effect of the form.
 
-Early scaffold. The battery runner and container assay model are being ported from two
-earlier repos.
+## What the experiments have found so far
 
-## Guides
+These are current readings, not settled conclusions. The living version, with
+the evidence and the reversals, is in [INQUIRY.md](INQUIRY.md).
 
-- **[docs/GLYPH_MINING_GUIDE.md](docs/GLYPH_MINING_GUIDE.md)** — how to mine your own
-  agent's transcripts and logs for candidate glyphs: what a glyph is, the fit-the-definition
-  triage, the decomposition/strip test, and the 15-item battery as a checklist. Start here to
-  turn observed agent failures into corpus candidates.
-- **[docs/LAB_CONTROLLER.md](docs/LAB_CONTROLLER.md)** — running a study end-to-end
-  (`corpos-lab run-study`).
-- **[docs/CONTAINER_ASSAY_MODEL.md](docs/CONTAINER_ASSAY_MODEL.md)** — the disposable assay
-  container model and digest pinning.
+- **Format or content?** A preliminary null. When a glyph and a plain
+  instruction carry the same information, the glyph does not win. The effect
+  travels on the content, not on the three-part form.
+- **A register effect.** This is the strongest result. Prepending a decision
+  frame makes a local model *analyze* the decision instead of acting on it. It
+  reasons about the terrain and produces nothing. The effect holds across four
+  open-weight models, so it is general rather than a quirk of one. Adding a
+  concrete domain ground converts the model back to acting.
+- **Does the Rest axis earn its place?** Untested. No existing benchmark
+  measures loaded guidance over-firing on neutral ground, so this one is open.
 
-## Running
+## How it treats a run
 
-Requires Go 1.26+, a local llama.cpp server, and (for persistence) the companion toolkit
-service. Study definitions, batteries, and the demo profile land as the port progresses.
+The lab was built after an earlier version of itself pinned six files that never
+changed while leaving the three variables that actually moved between runs —
+temperature, the sampler, and the processor — recorded nowhere. So the standing
+rule is **record what ran, do not assert what should have**.
+
+- **A run describes itself.** Every study declares its complete sampler chain;
+  validation refuses a partial one, because temperature alone does not define a
+  sampling distribution. After a run, the lab reads the effective settings back
+  from the server, along with the model, the container image, the processor, and
+  the repository commit, and stores them next to the results.
+- **A mismatch is data, not an error.** If the server serves a different model
+  than the study declared, the run writes that down and proceeds. Nothing about
+  a run may fail it for failing to describe itself perfectly.
+- **Assays run in disposable containers** referenced by image digest, so a run's
+  environment is recoverable.
+- **A hard gate on every commit:** format, vet, lint, a vulnerability scan,
+  race-tested tests, and a 95% coverage floor on the engine.
+
+## Reproducibility
+
+Every treatment model is an open-weight model served over one bare llama.cpp
+rig, so every result reproduces on a single 24 GB GPU with no paid API. A hosted
+model cannot run that way, so hosted models are never a treatment condition —
+they may score results, never produce them. This is the reason the whole
+apparatus fits on one desktop.
+
+## Studies and papers
+
+`studies/` holds the experiment records: each study's definition, its materials,
+its rubric, and its findings, with the raw model responses committed alongside.
+`papers/` holds the write-ups. Several are posted as preprints on Zenodo and are
+linked from ORCID [0009-0001-2430-1743](https://orcid.org/0009-0001-2430-1743).
+
+## Running it
+
+See **[GETTING-STARTED.md](GETTING-STARTED.md)**. There are two ways in.
+
+- **See the instrument with no model.** `corpos-lab glyph-lint` runs the
+  structural checks on a candidate glyph and needs nothing but Go. It is one
+  command and a few seconds.
+- **Run a real measurement.** This needs a local llama.cpp server and a model
+  file on disk. The getting-started guide walks reproducing one of the committed
+  studies on a 7B model.
+
+Requires Go 1.26 or newer. A real run also needs a local llama.cpp server; the
+companion toolkit service is optional and off by default.
 
 ## License
 
 This repository holds both software and research material, licensed separately.
 
-- **Code** (Go sources, scripts, tooling) is licensed under the GNU Affero
+- **Code** — the Go sources, scripts, and tooling — is under the GNU Affero
   General Public License v3.0 (AGPL-3.0). See [LICENSE](LICENSE).
-- **Papers and datasets** — the contents of the `papers/` and `studies/`
-  directories — are licensed under the Creative Commons Attribution 4.0
-  International License (CC-BY-4.0). See
+- **Papers and datasets** — the `papers/` and `studies/` directories — are under
+  the Creative Commons Attribution 4.0 International License (CC-BY-4.0). See
   [LICENSE-docs-CC-BY-4.0.txt](LICENSE-docs-CC-BY-4.0.txt).
