@@ -18,11 +18,17 @@ const (
 	DefaultCallTokens = 256
 )
 
-// defaultStop halts a turn at the tool-call boundary: the moment the subject
-// starts writing its own OBSERVATION, or a second CALL, generation stops and the
-// harness supplies the real observation. Without this the subject free-runs and
-// fabricates observations (the feasibility smoke).
-var defaultStop = []string{"\nOBSERVATION", "\nCALL"}
+// defaultStop halts a turn the moment the subject starts writing its own
+// OBSERVATION line, so the harness — not the model — supplies the observation
+// (the feasibility smoke showed the model fabricating observations otherwise).
+//
+// It deliberately does NOT stop on a CALL. An earlier version stopped on "\nCALL"
+// to block a second action, but that also truncated the FIRST call whenever the
+// subject wrote a sentence of prose before it — the calibration run then scored a
+// real tool call as a stall. The parser takes the first action of a turn and the
+// harness injects the real observation, so extra text after the first call is
+// harmless and needs no stop. Fabrication is the only thing worth halting.
+var defaultStop = []string{"\nOBSERVATION"}
 
 // Config tunes one loop run.
 type Config struct {

@@ -126,8 +126,8 @@ func TestRunSetsStopAndTokenCap(t *testing.T) {
 	if gotParams.MaxTokens == nil || *gotParams.MaxTokens != 128 {
 		t.Fatalf("call tokens = %v, want 128", gotParams.MaxTokens)
 	}
-	if len(gotParams.Stop) != 2 {
-		t.Fatalf("stop = %v, want the default two-element boundary list", gotParams.Stop)
+	if len(gotParams.Stop) != 1 || gotParams.Stop[0] != "\nOBSERVATION" {
+		t.Fatalf("stop = %v, want just the fabricated-observation boundary", gotParams.Stop)
 	}
 }
 

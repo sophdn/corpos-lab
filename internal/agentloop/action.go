@@ -122,11 +122,13 @@ func parseCall(rest, rawLine string, tail []string) Action {
 // the <function=NAME> … </function> tag form. It returns false when the turn
 // carries neither, so the CALL text protocol still gets its chance.
 func parseNative(text string) (Action, bool) {
-	if inner, ok := between(text, "<tool_call>", "</tool_call>"); ok {
+	inner, hasCall := between(text, "<tool_call>", "</tool_call>")
+	if hasCall {
 		if a, ok := parseJSONCall(inner); ok {
 			return a, true
 		}
 	}
+	// The <function=NAME> … </function> form, whether bare or inside a <tool_call>.
 	if idx := strings.Index(text, "<function="); idx >= 0 {
 		rest := text[idx+len("<function="):]
 		name, after, ok := strings.Cut(rest, ">")
@@ -138,7 +140,35 @@ func parseNative(text string) (Action, bool) {
 			return namedCall(strings.TrimSpace(name), strings.TrimSpace(arg)), true
 		}
 	}
+	// The bare form: <tool_call> then "toolname args" on its own line, no JSON and
+	// no <function=> wrapper. Qwen3 emits this too (calibration run). Read the
+	// first non-empty line as "toolname args", but only when the first token names
+	// a real tool — otherwise malformed JSON ("{not json}") would be misread as a
+	// bare call rather than falling through.
+	if hasCall {
+		for _, line := range strings.Split(inner, "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			name, arg, _ := strings.Cut(line, " ")
+			if isKnownTool(name) {
+				return namedCall(name, strings.TrimSpace(arg)), true
+			}
+			break
+		}
+	}
 	return Action{}, false
+}
+
+// isKnownTool reports whether name is one of the loop's four tools.
+func isKnownTool(name string) bool {
+	switch name {
+	case "list_files", "read_file", "run_query", "edit_file":
+		return true
+	default:
+		return false
+	}
 }
 
 // between returns the text between the first open and the next closeTag marker.

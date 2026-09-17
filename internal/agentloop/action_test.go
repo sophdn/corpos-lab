@@ -71,6 +71,20 @@ func TestParseActionNativeFunctionTag(t *testing.T) {
 	}
 }
 
+// The bare form: <tool_call> then "toolname args" on its own line — no JSON, no
+// <function=>. This is the turn-1 shape the calibration run captured for
+// parent-state, which the first parser scored as a stall.
+func TestParseActionNativeBareToolCall(t *testing.T) {
+	got := ParseAction("<tool_call>\nlist_files .")
+	if got.Kind != ActionList || got.Arg != "." {
+		t.Fatalf("bare tool_call list = %+v, want list_files .", got)
+	}
+	rd := ParseAction("<tool_call>\nread_file CHANGELOG.md\n</tool_call>")
+	if rd.Kind != ActionRead || rd.Arg != "CHANGELOG.md" {
+		t.Fatalf("bare tool_call read = %+v", rd)
+	}
+}
+
 func TestParseActionNativeFunctionTagList(t *testing.T) {
 	got := ParseAction("<function=list_files> . </function>")
 	if got.Kind != ActionList || got.Arg != "." {
