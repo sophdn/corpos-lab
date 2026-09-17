@@ -81,6 +81,7 @@ type chatRequest struct {
 	Temperature *float64      `json:"temperature,omitempty"`
 	MaxTokens   *int          `json:"max_tokens,omitempty"`
 	Seed        *int          `json:"seed,omitempty"`
+	Stop        []string      `json:"stop,omitempty"`
 
 	TopK      *int     `json:"top_k,omitempty"`
 	TopP      *float64 `json:"top_p,omitempty"`
@@ -154,6 +155,7 @@ func (o *OpenAI) generateChat(ctx context.Context, prompt string, params GenPara
 		Temperature: params.Temperature,
 		MaxTokens:   params.MaxTokens,
 		Seed:        params.Seed,
+		Stop:        params.Stop,
 
 		TopK:      params.TopK,
 		TopP:      params.TopP,
@@ -233,6 +235,7 @@ type completionRequest struct {
 	NPredict    *int     `json:"n_predict,omitempty"`
 	Seed        *int     `json:"seed,omitempty"`
 	Temperature *float64 `json:"temperature,omitempty"`
+	Stop        []string `json:"stop,omitempty"`
 
 	TopK      *int     `json:"top_k,omitempty"`
 	TopP      *float64 `json:"top_p,omitempty"`
@@ -279,6 +282,7 @@ func (o *OpenAI) generateCompletion(ctx context.Context, prompt string, params G
 		NPredict:    params.MaxTokens,
 		Seed:        params.Seed,
 		Temperature: params.Temperature,
+		Stop:        params.Stop,
 
 		TopK:      params.TopK,
 		TopP:      params.TopP,

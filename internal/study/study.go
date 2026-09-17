@@ -100,6 +100,22 @@ type SamplingDef struct {
 	DryMultiplier  *float64 `toml:"dry_multiplier"`
 }
 
+// LoopDef configures the agentic-loop assay. Preamble and Sandbox are paths
+// relative to the definition file (or absolute). StepCap and CallTokens are
+// optional; zero means the agentloop defaults. Ignored by the single-turn assay.
+type LoopDef struct {
+	// Preamble names the file with the loop's fixed preamble — the tool
+	// vocabulary and the "you can act" framing.
+	Preamble string `toml:"preamble"`
+	// Sandbox names the file with the per-scenario sandbox as a JSON
+	// path→contents map.
+	Sandbox string `toml:"sandbox"`
+	// StepCap bounds the turns per run; 0 uses the agentloop default.
+	StepCap int `toml:"step_cap"`
+	// CallTokens caps each turn's generation; 0 uses the agentloop default.
+	CallTokens int `toml:"call_tokens"`
+}
+
 // Def is a complete, self-contained study definition. A study is reproducible
 // from this file alone (plus the pinned image) — no agent in the loop.
 type Def struct {
@@ -113,6 +129,9 @@ type Def struct {
 	RunsPerCell int          `toml:"runs_per_cell"`
 	Materials   MaterialsDef `toml:"materials"`
 	Sampling    SamplingDef  `toml:"sampling"`
+	// Loop is the extra config the agentic-loop assay needs; required when
+	// assay = "agentic-loop-probe", ignored otherwise.
+	Loop LoopDef `toml:"loop"`
 
 	// baseDir is the directory of the definition file, used to resolve
 	// relative material paths. Not part of the wire format.
@@ -157,8 +176,16 @@ func (d Def) validate() error {
 			return fmt.Errorf("study: definition missing required field %q", f.name)
 		}
 	}
-	if d.Assay != runner.SupportedAssay {
-		return fmt.Errorf("study: unsupported assay %q (only %q implemented)", d.Assay, runner.SupportedAssay)
+	if !runner.SupportedAssays(d.Assay) {
+		return fmt.Errorf("study: unsupported assay %q (implemented: %q, %q)", d.Assay, runner.SupportedAssay, runner.LoopAssay)
+	}
+	if d.Assay == runner.LoopAssay {
+		if d.Loop.Preamble == "" {
+			return fmt.Errorf("study: assay %q requires loop.preamble", runner.LoopAssay)
+		}
+		if d.Loop.Sandbox == "" {
+			return fmt.Errorf("study: assay %q requires loop.sandbox", runner.LoopAssay)
+		}
 	}
 	switch d.Model.Endpoint {
 	case "", "chat":
@@ -514,6 +541,11 @@ func (d Def) Materialize(inDir string) error {
 		mats.NonPrescriptiveGround = "ground_nonprescriptive.md"
 	}
 
+	loop, err := d.materializeLoop(inDir)
+	if err != nil {
+		return err
+	}
+
 	spec := runner.StudySpec{
 		Assay:  d.Assay,
 		ItemID: d.ItemID,
@@ -528,6 +560,7 @@ func (d Def) Materialize(inDir string) error {
 		RunsPerCell: d.RunsPerCell,
 		Materials:   mats,
 		Sampling:    d.sampling(),
+		Loop:        loop,
 	}
 	raw, err := json.MarshalIndent(spec, "", "  ")
 	if err != nil {
@@ -537,6 +570,27 @@ func (d Def) Materialize(inDir string) error {
 		return fmt.Errorf("study: write study.json: %w", err)
 	}
 	return nil
+}
+
+// materializeLoop copies the loop preamble and sandbox into inDir under
+// canonical local names and returns the runner LoopSpec that points at them. It
+// is a no-op (zero LoopSpec) for a non-loop assay, whose Loop fields are empty.
+func (d Def) materializeLoop(inDir string) (runner.LoopSpec, error) {
+	if d.Loop.Preamble == "" && d.Loop.Sandbox == "" {
+		return runner.LoopSpec{}, nil
+	}
+	if err := d.copyMaterial(d.Loop.Preamble, filepath.Join(inDir, "preamble.md")); err != nil {
+		return runner.LoopSpec{}, err
+	}
+	if err := d.copyMaterial(d.Loop.Sandbox, filepath.Join(inDir, "sandbox.json")); err != nil {
+		return runner.LoopSpec{}, err
+	}
+	return runner.LoopSpec{
+		Preamble:   "preamble.md",
+		Sandbox:    "sandbox.json",
+		StepCap:    d.Loop.StepCap,
+		CallTokens: d.Loop.CallTokens,
+	}, nil
 }
 
 // copyMaterial resolves src relative to the definition dir and copies it to

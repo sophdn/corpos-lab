@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -343,6 +344,70 @@ func TestGenerateForwardsSeed(t *testing.T) {
 	}
 	if got.Temperature == nil || *got.Temperature != 0.8 {
 		t.Fatalf("temperature = %v", got.Temperature)
+	}
+}
+
+// The agentic-loop probe stops a turn at the tool-call boundary. The stop list
+// must reach the wire on both endpoints, or the model free-runs and fabricates
+// its own observations (the setup-vs-agentic-loop feasibility smoke).
+func TestGenerateForwardsStopOnChat(t *testing.T) {
+	var got chatRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"ok"}}]}`))
+	}))
+	defer srv.Close()
+
+	c := NewOpenAI(srv.URL+"/v1", "m", "v", WithHTTPClient(srv.Client()))
+	if _, err := c.Generate(context.Background(), "p", GenParams{
+		Temperature: Float64(0.8), MaxTokens: Int(64),
+		Stop: []string{"\nOBSERVATION", "\nCALL"},
+	}); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if len(got.Stop) != 2 || got.Stop[0] != "\nOBSERVATION" || got.Stop[1] != "\nCALL" {
+		t.Fatalf("chat stop = %q, want the two-element loop stop list", got.Stop)
+	}
+}
+
+func TestGenerateForwardsStopOnCompletion(t *testing.T) {
+	var got completionRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		_, _ = w.Write([]byte(`{"content":"ok","model":"m","timings":{}}`))
+	}))
+	defer srv.Close()
+
+	c := NewOpenAI(srv.URL+"/v1", "m", "v", WithHTTPClient(srv.Client()), WithCompletion("{prompt}"))
+	if _, err := c.Generate(context.Background(), "p", GenParams{
+		Temperature: Float64(0.8), MaxTokens: Int(64),
+		Stop: []string{"\nOBSERVATION"},
+	}); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if len(got.Stop) != 1 || got.Stop[0] != "\nOBSERVATION" {
+		t.Fatalf("completion stop = %q, want [\\nOBSERVATION]", got.Stop)
+	}
+}
+
+// A nil stop list is omitted from the wire, so the single-turn probe path sends
+// no stop field at all (omitempty), unchanged by this feature.
+func TestGenerateOmitsNilStop(t *testing.T) {
+	var rawBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rawBody, _ = io.ReadAll(r.Body)
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"ok"}}]}`))
+	}))
+	defer srv.Close()
+
+	c := NewOpenAI(srv.URL+"/v1", "m", "v", WithHTTPClient(srv.Client()))
+	if _, err := c.Generate(context.Background(), "p", GenParams{
+		Temperature: Float64(0.8), MaxTokens: Int(64),
+	}); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if strings.Contains(string(rawBody), "stop") {
+		t.Fatalf("nil stop should be omitted, body = %s", rawBody)
 	}
 }
 

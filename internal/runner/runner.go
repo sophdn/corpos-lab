@@ -12,14 +12,26 @@ import (
 	"os"
 	"path/filepath"
 
+	"corpos-lab/internal/agentloop"
 	"corpos-lab/internal/assay"
 	"corpos-lab/internal/model"
 )
 
-// SupportedAssay is the only assay variant this runner executes so far.
+// SupportedAssay is the single-turn probe variant: one model call per cell.
 // Other variants (behavioral-equivalence, structural-glyph-probe,
 // decomposition) register as new cases when their logic lands.
 const SupportedAssay = "grounded-glyph-probe"
+
+// LoopAssay is the agentic-loop probe variant: a minimal tool-using loop per
+// cell instead of a single completion. It answers whether analysis-mode
+// survives when the subject can act (chain 550). The aid delivery and scoring
+// are shared with the single-turn probe; only the setup differs.
+const LoopAssay = "agentic-loop-probe"
+
+// SupportedAssays reports whether the runner executes an assay variant.
+func SupportedAssays(name string) bool {
+	return name == SupportedAssay || name == LoopAssay
+}
 
 // ModelSpec is the model connection a study runs against. The container
 // receives it in study.json rather than baking it in, so one image serves
@@ -82,6 +94,26 @@ type StudySpec struct {
 	RunsPerCell int               `json:"runs_per_cell"`
 	Materials   MaterialsSpec     `json:"materials"`
 	Sampling    assay.Sampling    `json:"sampling"`
+	// Loop is the extra config the agentic-loop assay needs; ignored by the
+	// single-turn assay. A study with Assay == LoopAssay must set Preamble and
+	// Sandbox.
+	Loop LoopSpec `json:"loop,omitempty"`
+}
+
+// LoopSpec configures the agentic-loop probe. Preamble and Sandbox name files in
+// the container /in (canonical local names, like the material files). StepCap
+// and CallTokens are optional; zero means the agentloop defaults.
+type LoopSpec struct {
+	// Preamble is the file holding the loop's fixed preamble — the tool
+	// vocabulary and the "you can act" framing prepended to the aided scenario.
+	Preamble string `json:"preamble,omitempty"`
+	// Sandbox is the file holding the per-scenario sandbox as a JSON
+	// path→contents map the tools act on.
+	Sandbox string `json:"sandbox,omitempty"`
+	// StepCap bounds the turns per run; 0 uses the agentloop default.
+	StepCap int `json:"step_cap,omitempty"`
+	// CallTokens caps each turn's generation; 0 uses the agentloop default.
+	CallTokens int `json:"call_tokens,omitempty"`
 }
 
 // Results is the container's /out/results.json — the scored rows plus the
@@ -129,8 +161,16 @@ func LoadSpec(inDir string) (StudySpec, error) {
 }
 
 func (s StudySpec) validate() error {
-	if s.Assay != SupportedAssay {
-		return fmt.Errorf("runner: unsupported assay %q (only %q implemented)", s.Assay, SupportedAssay)
+	if !SupportedAssays(s.Assay) {
+		return fmt.Errorf("runner: unsupported assay %q (implemented: %q, %q)", s.Assay, SupportedAssay, LoopAssay)
+	}
+	if s.Assay == LoopAssay {
+		if s.Loop.Preamble == "" {
+			return fmt.Errorf("runner: assay %q requires loop.preamble", LoopAssay)
+		}
+		if s.Loop.Sandbox == "" {
+			return fmt.Errorf("runner: assay %q requires loop.sandbox", LoopAssay)
+		}
 	}
 	if s.ItemID == "" {
 		return fmt.Errorf("runner: study.json missing item_id")
@@ -308,32 +348,15 @@ func Execute(ctx context.Context, inDir, outDir string, client model.Client) (Re
 		return Results{}, fmt.Errorf("runner: create reasoning dir: %w", err)
 	}
 
-	rows := []assay.ScoreRow{}
-	for _, cond := range spec.Conditions {
-		for run := 1; run <= spec.RunsPerCell; run++ {
-			row, resp, err := assay.RunProbe(ctx, client, spec.ItemID, cond, run, mats, spec.Sampling)
-			if err != nil {
-				return Results{}, err
-			}
-			rows = append(rows, row)
-
-			respPath := filepath.Join(responsesDir, fmt.Sprintf("%s_%d.txt", cond, run))
-			if err := os.WriteFile(respPath, []byte(resp.Text), 0o644); err != nil {
-				return Results{}, fmt.Errorf("runner: write response %s: %w", respPath, err)
-			}
-			if resp.RenderedPrompt != "" {
-				promptPath := filepath.Join(promptsDir, fmt.Sprintf("%s_%d.txt", cond, run))
-				if err := os.WriteFile(promptPath, []byte(resp.RenderedPrompt), 0o644); err != nil {
-					return Results{}, fmt.Errorf("runner: write prompt %s: %w", promptPath, err)
-				}
-			}
-			if resp.Reasoning != "" {
-				reasoningPath := filepath.Join(reasoningDir, fmt.Sprintf("%s_%d.txt", cond, run))
-				if err := os.WriteFile(reasoningPath, []byte(resp.Reasoning), 0o644); err != nil {
-					return Results{}, fmt.Errorf("runner: write reasoning %s: %w", reasoningPath, err)
-				}
-			}
-		}
+	dirs := outDirs{responses: responsesDir, prompts: promptsDir, reasoning: reasoningDir}
+	var rows []assay.ScoreRow
+	if spec.Assay == LoopAssay {
+		rows, err = runLoopCells(ctx, client, spec, mats, inDir, outDir, dirs)
+	} else {
+		rows, err = runSingleTurnCells(ctx, client, spec, mats, dirs)
+	}
+	if err != nil {
+		return Results{}, err
 	}
 
 	results := Results{
@@ -360,6 +383,115 @@ func Execute(ctx context.Context, inDir, outDir string, client model.Client) (Re
 		return Results{}, err
 	}
 	return results, nil
+}
+
+// outDirs are the per-run output directories Execute prepared.
+type outDirs struct {
+	responses string
+	prompts   string
+	reasoning string
+}
+
+// runSingleTurnCells runs the grounded-glyph probe: one model call per cell,
+// writing the response, the rendered prompt (when surfaced), and the reasoning
+// trace (when non-empty) per run. It is the raw-completion arm of chain 550 and
+// the whole of the earlier program.
+func runSingleTurnCells(ctx context.Context, client model.Client, spec StudySpec, mats assay.Materials, dirs outDirs) ([]assay.ScoreRow, error) {
+	var rows []assay.ScoreRow
+	for _, cond := range spec.Conditions {
+		for run := 1; run <= spec.RunsPerCell; run++ {
+			row, resp, err := assay.RunProbe(ctx, client, spec.ItemID, cond, run, mats, spec.Sampling)
+			if err != nil {
+				return nil, err
+			}
+			rows = append(rows, row)
+
+			if err := writeCell(dirs.responses, cond, run, resp.Text); err != nil {
+				return nil, err
+			}
+			if resp.RenderedPrompt != "" {
+				if err := writeCell(dirs.prompts, cond, run, resp.RenderedPrompt); err != nil {
+					return nil, err
+				}
+			}
+			if resp.Reasoning != "" {
+				if err := writeCell(dirs.reasoning, cond, run, resp.Reasoning); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	return rows, nil
+}
+
+// runLoopCells runs the agentic-loop probe: a minimal tool loop per cell against
+// a fresh sandbox. It writes the flat transcript (the artifact a blind rater
+// scores) as the response, the assembled base prompt, and the final sandbox
+// state per run so the run records what the subject did, not just what it said.
+func runLoopCells(ctx context.Context, client model.Client, spec StudySpec, mats assay.Materials, inDir, outDir string, dirs outDirs) ([]assay.ScoreRow, error) {
+	preamble, sandbox, err := loadLoopInputs(inDir, spec.Loop)
+	if err != nil {
+		return nil, err
+	}
+	sandboxDir := filepath.Join(outDir, "sandboxes")
+	if err := os.MkdirAll(sandboxDir, 0o755); err != nil {
+		return nil, fmt.Errorf("runner: create sandboxes dir: %w", err)
+	}
+	cfg := agentloop.Config{StepCap: spec.Loop.StepCap, CallTokens: spec.Loop.CallTokens}
+
+	var rows []assay.ScoreRow
+	for _, cond := range spec.Conditions {
+		for run := 1; run <= spec.RunsPerCell; run++ {
+			row, resp, arts, err := assay.RunLoopProbe(ctx, client, spec.ItemID, cond, run, mats, preamble, sandbox, spec.Sampling, cfg)
+			if err != nil {
+				return nil, err
+			}
+			rows = append(rows, row)
+
+			if err := writeCell(dirs.responses, cond, run, resp.Text); err != nil {
+				return nil, err
+			}
+			if err := writeCell(dirs.prompts, cond, run, resp.Prompt); err != nil {
+				return nil, err
+			}
+			snap, err := json.MarshalIndent(arts.Sandbox, "", "  ")
+			if err != nil {
+				return nil, fmt.Errorf("runner: marshal sandbox %s run %d: %w", cond, run, err)
+			}
+			if err := writeCell(sandboxDir, cond, run, string(snap)); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return rows, nil
+}
+
+// loadLoopInputs reads the loop preamble and the sandbox map from the container
+// /in. A named-but-unreadable file, or a sandbox that is not a JSON
+// path→contents map, is an error rather than a silent empty loop.
+func loadLoopInputs(inDir string, spec LoopSpec) (string, map[string]string, error) {
+	preamble, err := os.ReadFile(filepath.Join(inDir, spec.Preamble))
+	if err != nil {
+		return "", nil, fmt.Errorf("runner: read loop preamble %q: %w", spec.Preamble, err)
+	}
+	raw, err := os.ReadFile(filepath.Join(inDir, spec.Sandbox))
+	if err != nil {
+		return "", nil, fmt.Errorf("runner: read loop sandbox %q: %w", spec.Sandbox, err)
+	}
+	var sandbox map[string]string
+	if err := json.Unmarshal(raw, &sandbox); err != nil {
+		return "", nil, fmt.Errorf("runner: parse loop sandbox %q (want a JSON path→contents object): %w", spec.Sandbox, err)
+	}
+	return string(preamble), sandbox, nil
+}
+
+// writeCell writes one per-run artifact under dir as <condition>_<run>.txt.
+func writeCell(dir string, cond assay.Condition, run int, body string) error {
+	path := filepath.Join(dir, fmt.Sprintf("%s_%d.txt", cond, run))
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		return fmt.Errorf("runner: write %s: %w", path, err)
+	}
+	return nil
 }
 
 func writeResults(outDir string, results Results) error {

@@ -34,6 +34,15 @@ type GenParams struct {
 	// is greedy. Nil leaves the server to pick.
 	Seed *int
 
+	// Stop lists strings that halt generation the moment the server emits one.
+	// The agentic-loop probe sets it so a turn stops at the tool-call boundary:
+	// the model writes one CALL line, generation halts, and the harness — not the
+	// model — supplies the OBSERVATION. Without it the model free-runs and
+	// fabricates its own observations (recorded in the setup-vs-agentic-loop
+	// feasibility smoke). Empty or nil sends no stop list, so the single-turn
+	// probe path is unchanged.
+	Stop []string
+
 	// Truncation stages. Each is disabled at its neutral value: TopK 0,
 	// TopP 1.0, MinP 0.0, TypicalP 1.0, TopNSigma -1.
 	TopK      *int
