@@ -27,8 +27,11 @@ each response only against the class correct-target bar.
 
 ## Method (reuse chain 548's, which reused the alphabet assay's)
 
-- Two independent blind Claude raters per class. Raters run **work-alone** — no
-  sub-agents, no shared scratch (the alphabet-assay scoring race).
+- Two independent blind Claude raters per class, run through the **required
+  isolated pathway**: use the copy-paste stub in `tools/rater-runner/BLIND_CLAUDE_RATER.md`,
+  which assigns each rater a unique scratch dir. Raters run **work-alone** — no
+  sub-agents, no shared scratch, no fixed-name scratch dumps (the chain 549
+  `all_items.txt` collision).
 - Primary measure: **strict-consensus C** (both raters code C).
 - A deterministic parser may pre-code the mechanically detectable cases (a read/query of
   the named target appears before the completion statement); the blind raters cover the
