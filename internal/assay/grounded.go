@@ -99,6 +99,13 @@ const (
 	// domain-specific imperative in the guidance slot, distinct from the
 	// information-matched ImperativeOnly rule, with the same delimiter and shape.
 	DomainImperativeOnly Condition = "domain_imperative_only"
+	// GroundNonPrescriptive: the domain-specific ground with its outcome
+	// sentences removed — it names the file and the situation but not the correct
+	// action or end state. Read against GroundOnly it isolates target
+	// specification (naming the outcome) from grounding (naming the domain),
+	// answering CaPC review item 1.3. It carries its own material in the guidance
+	// slot with the same delimiter and shape as the other -only arms.
+	GroundNonPrescriptive Condition = "ground_nonprescriptive"
 )
 
 // Materials are the text inputs a probe assembles a prompt from. Glyph, Ground,
@@ -140,6 +147,10 @@ type Materials struct {
 	// DomainImperative is the domain-specific directive for the
 	// DomainImperativeOnly condition of the form × grounding 2×2.
 	DomainImperative string
+	// NonPrescriptiveGround is the domain ground with its outcome sentences
+	// removed, for the GroundNonPrescriptive condition — it names the domain but
+	// not the correct action or end state.
+	NonPrescriptiveGround string
 }
 
 // AssemblePrompt builds the probe prompt for a condition. The "\n---\n"
@@ -161,6 +172,7 @@ type Materials struct {
 //	cartographer_scan_instrument → cartographer-scan "---" scenario
 //	ground_only            → ground "---" scenario
 //	domain_imperative_only → domain-imperative "---" scenario
+//	ground_nonprescriptive → non-prescriptive ground "---" scenario
 //
 // It returns an error when a condition's required material is missing, rather
 // than silently emitting a malformed prompt.
@@ -241,6 +253,11 @@ func AssemblePrompt(cond Condition, m Materials) (string, error) {
 			return "", fmt.Errorf("assay: %s condition requires a domain imperative", cond)
 		}
 		return fmt.Sprintf("%s\n---\n%s", m.DomainImperative, m.Scenario), nil
+	case GroundNonPrescriptive:
+		if m.NonPrescriptiveGround == "" {
+			return "", fmt.Errorf("assay: %s condition requires a non-prescriptive ground", cond)
+		}
+		return fmt.Sprintf("%s\n---\n%s", m.NonPrescriptiveGround, m.Scenario), nil
 	default:
 		return "", fmt.Errorf("assay: unknown condition %q", cond)
 	}

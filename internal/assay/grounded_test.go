@@ -299,6 +299,24 @@ func TestAssemblePromptRejectsMissingGroundInGroundOnly(t *testing.T) {
 	}
 }
 
+func TestAssemblePromptGroundNonPrescriptiveConcatsNonPrescriptiveGroundAndScenario(t *testing.T) {
+	got, err := AssemblePrompt(GroundNonPrescriptive, Materials{Scenario: "S", Ground: "GR", NonPrescriptiveGround: "NP"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "NP\n---\nS" {
+		t.Fatalf("got %q, want NP\\n---\\nS", got)
+	}
+}
+
+func TestAssemblePromptRejectsMissingNonPrescriptiveGround(t *testing.T) {
+	// The full ground present but no non-prescriptive ground must still fail: the
+	// arm carries its own material, never the outcome-bearing ground as a fallback.
+	if _, err := AssemblePrompt(GroundNonPrescriptive, Materials{Scenario: "S", Ground: "GR"}); err == nil {
+		t.Fatal("expected error for missing non-prescriptive ground")
+	}
+}
+
 // The directive/domain-specific cell of the form × grounding 2×2: the domain
 // imperative takes the guidance slot alone.
 func TestAssemblePromptDomainImperativeOnlyConcatsDomainImperativeAndScenario(t *testing.T) {

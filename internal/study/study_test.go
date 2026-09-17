@@ -241,6 +241,11 @@ func TestValidateRejectsConditionMaterialGaps(t *testing.T) {
 	if _, err := LoadDef(writeDef(t, noDomainImperative, map[string]string{"s.md": "S"})); err == nil {
 		t.Fatal("expected domain_imperative-required error")
 	}
+	// ground_nonprescriptive without a ground_nonprescriptive material.
+	noNonPrescriptive := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"i\"\nimage=\"x\"\nconditions=[\"ground_nonprescriptive\"]\nruns_per_cell=1\n[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n[materials]\nscenario=\"s.md\"\n" + samplingBlock
+	if _, err := LoadDef(writeDef(t, noNonPrescriptive, map[string]string{"s.md": "S"})); err == nil {
+		t.Fatal("expected ground_nonprescriptive-required error")
+	}
 	// unknown condition.
 	unknown := "name=\"n\"\nassay=\"grounded-glyph-probe\"\nitem_id=\"i\"\nimage=\"x\"\nconditions=[\"teleport\"]\nruns_per_cell=1\n[model]\nbase_url=\"u\"\nmodel_id=\"m\"\n[materials]\nscenario=\"s.md\"\n" + samplingBlock
 	if _, err := LoadDef(writeDef(t, unknown, map[string]string{"s.md": "S"})); err == nil {

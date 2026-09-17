@@ -60,6 +60,9 @@ type MaterialsSpec struct {
 	// DomainImperative is the domain-specific directive for the
 	// domain_imperative_only condition of the form × grounding 2×2.
 	DomainImperative string `json:"domain_imperative,omitempty"`
+	// NonPrescriptiveGround is the domain ground with its outcome sentences
+	// removed, for the ground_nonprescriptive condition.
+	NonPrescriptiveGround string `json:"ground_nonprescriptive,omitempty"`
 }
 
 // StudySpec is the container's /in/study.json — a self-contained description
@@ -235,12 +238,16 @@ func (s StudySpec) loadMaterials(inDir string) (assay.Materials, error) {
 	if err != nil {
 		return assay.Materials{}, err
 	}
+	nonPrescriptiveGround, err := read(s.Materials.NonPrescriptiveGround)
+	if err != nil {
+		return assay.Materials{}, err
+	}
 	return assay.Materials{
 		Scenario: scenario, Glyph: glyph, Ground: ground, Imperative: imperative,
 		Scrambled: scrambled, OffTarget: offTarget, Neutral: neutral, GlyphMinusRest: glyphMinusRest,
 		Duty: duty, Corpus: corpus,
 		Annotated: annotated, Cartographer: cartographer, CartographerScan: cartographerScan,
-		DomainImperative: domainImperative,
+		DomainImperative: domainImperative, NonPrescriptiveGround: nonPrescriptiveGround,
 	}, nil
 }
 

@@ -55,6 +55,9 @@ type MaterialsDef struct {
 	// DomainImperative is the domain-specific directive for the
 	// domain_imperative_only condition of the form × grounding 2×2.
 	DomainImperative string `toml:"domain_imperative"`
+	// NonPrescriptiveGround is the domain ground with its outcome sentences
+	// removed, for the ground_nonprescriptive condition.
+	NonPrescriptiveGround string `toml:"ground_nonprescriptive"`
 }
 
 // SamplingDef is the study's declared sampling regime.
@@ -238,6 +241,10 @@ func (d Def) validate() error {
 		case assay.DomainImperativeOnly:
 			if d.Materials.DomainImperative == "" {
 				return fmt.Errorf("study: condition %q requires materials.domain_imperative", c)
+			}
+		case assay.GroundNonPrescriptive:
+			if d.Materials.NonPrescriptiveGround == "" {
+				return fmt.Errorf("study: condition %q requires materials.ground_nonprescriptive", c)
 			}
 		default:
 			return fmt.Errorf("study: unknown condition %q — if it was added recently, the "+
@@ -499,6 +506,12 @@ func (d Def) Materialize(inDir string) error {
 			return err
 		}
 		mats.DomainImperative = "domain_imperative.md"
+	}
+	if d.Materials.NonPrescriptiveGround != "" {
+		if err := d.copyMaterial(d.Materials.NonPrescriptiveGround, filepath.Join(inDir, "ground_nonprescriptive.md")); err != nil {
+			return err
+		}
+		mats.NonPrescriptiveGround = "ground_nonprescriptive.md"
 	}
 
 	spec := runner.StudySpec{
