@@ -61,3 +61,74 @@ func TestParseActionFirstDirectiveWins(t *testing.T) {
 		t.Fatalf("got %+v, want the earlier FINAL", got)
 	}
 }
+
+// Qwen3 reverts to its native tool-call syntax mid-run; the parser must read it.
+// This is the exact turn-2 shape the setup-vs-agentic-loop smoke captured.
+func TestParseActionNativeFunctionTag(t *testing.T) {
+	got := ParseAction("<tool_call>\n<function=read_file> CHANGELOG.md\n</function>\n</tool_call>")
+	if got.Kind != ActionRead || got.Arg != "CHANGELOG.md" {
+		t.Fatalf("native <function=> read = %+v, want read_file CHANGELOG.md", got)
+	}
+}
+
+func TestParseActionNativeFunctionTagList(t *testing.T) {
+	got := ParseAction("<function=list_files> . </function>")
+	if got.Kind != ActionList || got.Arg != "." {
+		t.Fatalf("native list = %+v", got)
+	}
+}
+
+func TestParseActionNativeHermesJSON(t *testing.T) {
+	got := ParseAction(`<tool_call>{"name": "edit_file", "arguments": {"path": "CHANGELOG.md", "content": "# Changelog\n## v1.5.0"}}</tool_call>`)
+	if got.Kind != ActionEdit || got.Arg != "CHANGELOG.md" || got.Content != "# Changelog\n## v1.5.0" {
+		t.Fatalf("native JSON edit = %+v", got)
+	}
+}
+
+func TestParseActionNativeHermesJSONReadQuery(t *testing.T) {
+	r := ParseAction(`<tool_call>{"name":"read_file","arguments":{"path":"README.md"}}</tool_call>`)
+	if r.Kind != ActionRead || r.Arg != "README.md" {
+		t.Fatalf("json read = %+v", r)
+	}
+	q := ParseAction(`<tool_call>{"name":"run_query","arguments":{"query":"region=EU"}}</tool_call>`)
+	if q.Kind != ActionQuery || q.Arg != "region=EU" {
+		t.Fatalf("json query = %+v", q)
+	}
+}
+
+func TestParseActionNativeUnknownTool(t *testing.T) {
+	j := ParseAction(`<tool_call>{"name":"git_status","arguments":{}}</tool_call>`)
+	if j.Kind != ActionUnknown || j.Tool != "git_status" {
+		t.Fatalf("json unknown = %+v", j)
+	}
+	f := ParseAction("<function=git_status> . </function>")
+	if f.Kind != ActionUnknown || f.Tool != "git_status" {
+		t.Fatalf("tag unknown = %+v", f)
+	}
+}
+
+// The native <function=> form of edit, with contents after a newline rather than
+// the ||| separator.
+func TestParseActionNativeFunctionEditNewline(t *testing.T) {
+	got := ParseAction("<function=edit_file>CHANGELOG.md\n# Changelog\n## v1.5.0</function>")
+	if got.Kind != ActionEdit || got.Arg != "CHANGELOG.md" || got.Content != "# Changelog\n## v1.5.0" {
+		t.Fatalf("native edit newline = %+v", got)
+	}
+}
+
+// The native <function=> form of edit, using the ||| separator.
+func TestParseActionNativeFunctionEditSeparator(t *testing.T) {
+	got := ParseAction("<function=edit_file> CHANGELOG.md ||| # Changelog</function>")
+	if got.Kind != ActionEdit || got.Arg != "CHANGELOG.md" || got.Content != "# Changelog" {
+		t.Fatalf("native edit separator = %+v", got)
+	}
+}
+
+// A <tool_call> wrapper with malformed JSON and no <function=> tag falls through
+// to the CALL/FINAL line scan rather than being read as an action.
+func TestParseActionNativeMalformedFallsThrough(t *testing.T) {
+	got := ParseAction("<tool_call>{not json}</tool_call>\nFINAL done")
+	if got.Kind != ActionFinal {
+		t.Fatalf("malformed native should fall through to FINAL, got %+v", got)
+	}
+}

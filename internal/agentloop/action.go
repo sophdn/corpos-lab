@@ -13,7 +13,10 @@
 // filesystem so it runs unchanged inside the distroless assay container.
 package agentloop
 
-import "strings"
+import (
+	"encoding/json"
+	"strings"
+)
 
 // ActionKind classifies one parsed model turn.
 type ActionKind int
@@ -56,15 +59,21 @@ type Action struct {
 	RawLine string
 }
 
-// ParseAction reads one model turn and returns the first directive it finds. A
-// turn may open with prose; the parse scans line by line and returns the first
-// line that is a CALL or a FINAL, so leading reasoning does not hide the action.
-// A turn with neither is ActionNone (a stall).
+// ParseAction reads one model turn and returns the first directive it finds. It
+// accepts two protocols: the loop's own "CALL <tool> <arg>" text form, and the
+// model's native trained tool-call syntax. Qwen3 reverts to its native format
+// mid-run — the setup-vs-agentic-loop smoke saw it switch after turn 1 — so a
+// loop that only read the CALL form would score a real action as a stall.
+// Native forms are tried first; then a line scan for CALL / FINAL; a turn with
+// none is ActionNone (a stall).
 //
 // edit_file is the exception to the line-at-a-time rule: its contents are a
 // whole file and span the rest of the message, so once an edit_file directive is
 // found the parse takes everything after "|||" through the end of the turn.
 func ParseAction(modelText string) Action {
+	if a, ok := parseNative(modelText); ok {
+		return a
+	}
 	lines := strings.Split(modelText, "\n")
 	for i, raw := range lines {
 		line := strings.TrimSpace(raw)
@@ -105,5 +114,97 @@ func parseCall(rest, rawLine string, tail []string) Action {
 		return a
 	default:
 		return Action{Kind: ActionUnknown, Tool: tool, Arg: strings.TrimSpace(arg), RawLine: rawLine}
+	}
+}
+
+// parseNative recognises the model's own trained tool-call syntax, in the two
+// shapes Qwen3 emits: a Hermes JSON call inside <tool_call> … </tool_call>, and
+// the <function=NAME> … </function> tag form. It returns false when the turn
+// carries neither, so the CALL text protocol still gets its chance.
+func parseNative(text string) (Action, bool) {
+	if inner, ok := between(text, "<tool_call>", "</tool_call>"); ok {
+		if a, ok := parseJSONCall(inner); ok {
+			return a, true
+		}
+	}
+	if idx := strings.Index(text, "<function="); idx >= 0 {
+		rest := text[idx+len("<function="):]
+		name, after, ok := strings.Cut(rest, ">")
+		if ok {
+			arg := after
+			if end := strings.Index(after, "</function>"); end >= 0 {
+				arg = after[:end]
+			}
+			return namedCall(strings.TrimSpace(name), strings.TrimSpace(arg)), true
+		}
+	}
+	return Action{}, false
+}
+
+// between returns the text between the first open and the next closeTag marker.
+func between(s, open, closeTag string) (string, bool) {
+	i := strings.Index(s, open)
+	if i < 0 {
+		return "", false
+	}
+	rest := s[i+len(open):]
+	j := strings.Index(rest, closeTag)
+	if j < 0 {
+		return strings.TrimSpace(rest), true // unclosed: take the remainder
+	}
+	return strings.TrimSpace(rest[:j]), true
+}
+
+// jsonCall is the Hermes tool-call shape: a name and an arguments object.
+type jsonCall struct {
+	Name      string `json:"name"`
+	Arguments struct {
+		Dir     string `json:"dir"`
+		Path    string `json:"path"`
+		Query   string `json:"query"`
+		Content string `json:"content"`
+	} `json:"arguments"`
+}
+
+// parseJSONCall reads a Hermes JSON tool call and maps it to an Action. The
+// argument keys are the ones the preamble names (dir/path/query/content).
+func parseJSONCall(inner string) (Action, bool) {
+	var c jsonCall
+	if err := json.Unmarshal([]byte(inner), &c); err != nil || c.Name == "" {
+		return Action{}, false
+	}
+	switch c.Name {
+	case "list_files":
+		return Action{Kind: ActionList, Tool: c.Name, Arg: c.Arguments.Dir}, true
+	case "read_file":
+		return Action{Kind: ActionRead, Tool: c.Name, Arg: c.Arguments.Path}, true
+	case "run_query":
+		return Action{Kind: ActionQuery, Tool: c.Name, Arg: c.Arguments.Query}, true
+	case "edit_file":
+		return Action{Kind: ActionEdit, Tool: c.Name, Arg: c.Arguments.Path, Content: c.Arguments.Content}, true
+	default:
+		return Action{Kind: ActionUnknown, Tool: c.Name}, true
+	}
+}
+
+// namedCall maps a tool name plus a freeform argument (the <function=NAME> form)
+// to an Action. For edit_file the freeform argument is split at "|||" as in the
+// CALL form; failing that, the first line is the path and the rest the contents.
+func namedCall(name, arg string) Action {
+	switch name {
+	case "list_files":
+		return Action{Kind: ActionList, Tool: name, Arg: arg}
+	case "read_file":
+		return Action{Kind: ActionRead, Tool: name, Arg: arg}
+	case "run_query":
+		return Action{Kind: ActionQuery, Tool: name, Arg: arg}
+	case "edit_file":
+		if path, content, found := strings.Cut(arg, editSeparator); found {
+			return Action{Kind: ActionEdit, Tool: name, Arg: strings.TrimSpace(path), Content: strings.TrimPrefix(content, " ")}
+		}
+		path, content, _ := strings.Cut(arg, "\n")
+		return Action{Kind: ActionEdit, Tool: name, Arg: strings.TrimSpace(path), Content: content}
+	default:
+		return Action{Kind: ActionUnknown, Tool: name, Arg: arg}
 	}
 }
