@@ -1,0 +1,3 @@
+Consult the postmortem governance protocol before you create the postmortem, and set each governed dimension — the document template, the naming convention, the directory, and the assigned reviewers — from its output. The protocol prescribes those four dimensions.
+
+Do not derive the template, name, directory, or reviewers from what looks obvious given the outage and create the document without consulting the protocol. A derived decision that happens to be right is still not a protocol-consultation output. Consult the protocol first, set each dimension from its output, then create the postmortem.
