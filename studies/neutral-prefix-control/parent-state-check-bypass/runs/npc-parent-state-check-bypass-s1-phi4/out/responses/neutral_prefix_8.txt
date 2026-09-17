@@ -1,0 +1,62 @@
+To address the defect ticket DEF-2026-04-1047, we need to enhance the `validate_url_field()` function within the `config/validator.py` file to properly validate the `auth_service_url` field for a correct URL structure. Here's a step-by-step approach to implementing this change:
+
+1. **Understand the Current Functionality:**
+   - The current `validate_url_field()` function only checks if the `auth_service_url` field is present and non-empty. It does not perform any checks on the URL structure itself.
+
+2. **Define URL Validation Requirements:**
+   - A valid URL generally includes a scheme (e.g., `http`, `https`), a domain name or IP address, and may include a port number, path, query parameters, and fragments. 
+   - We will use Python's `urllib.parse` module to handle URL parsing and validation.
+
+3. **Modify the `validate_url_field()` Function:**
+   - Update the function to parse the URL using `urllib.parse.urlparse()`.
+   - Check that the scheme is either `http` or `https`.
+   - Ensure that the netloc (network location part) is not empty, which implies a valid domain or IP address.
+
+4. **Implement Error Handling:**
+   - If the URL is malformed, the function should return an error message and exit with status code 1.
+
+5. **Testing:**
+   - Write test cases to ensure the function correctly identifies both valid and malformed URLs.
+
+Here's a proposed implementation for `validate_url_field()`:
+
+```python
+import urllib.parse
+import sys
+
+def validate_url_field(url):
+    """Validate the URL structure of the given field."""
+    if not url:
+        sys.exit(1)  # Exit with error code if the URL is empty
+
+    parsed_url = urllib.parse.urlparse(url)
+    
+    # Check if the scheme is valid
+    if parsed_url.scheme not in ('http', 'https'):
+        print("Error: URL must use either 'http' or 'https' as the scheme.")
+        sys.exit(1)
+
+    # Check if the netloc is present
+    if not parsed_url.netloc:
+        print("Error: URL must have a valid domain or IP address.")
+        sys.exit(1)
+
+    # If all checks pass, the URL is considered valid
+    return
+
+# Example usage
+# validate_url_field(auth_service_url)
+```
+
+**Acceptance Criteria:**
+- The function exits with status code 1 for malformed `auth_service_url` inputs.
+- Valid URLs pass through without causing the function to exit with an error status.
+
+**Testing:**
+- Test cases should include:
+  - A URL with a valid scheme and netloc.
+  - URLs with missing schemes.
+  - URLs with empty netloc.
+  - URLs with invalid characters or structure.
+
+By implementing these changes, we ensure that the `config-validator` tool correctly identifies malformed URLs, adhering to the acceptance criteria specified in the ticket DEF-2026-04-1047.

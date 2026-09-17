@@ -1,0 +1,74 @@
+To address the defect ticket DEF-2026-04-1047, the following plan outlines the necessary steps to ensure that the `config-validator` correctly exits with code 1 for malformed `auth_service_url` entries.
+
+### Analysis and Plan
+
+1. **Understand the Current Behavior:**
+   - The `validate_url_field()` function in `config/validator.py` currently checks for the presence and non-emptiness of the `auth_service_url` field but lacks structural validation of the URL.
+
+2. **Define the Acceptance Criteria:**
+   - The validator should exit with code 1 for any malformed `auth_service_url`.
+   - Valid URLs should pass the validation without issues, maintaining the current exit code of 0.
+
+3. **Identify a Suitable URL Validation Method:**
+   - Use Python's `urllib.parse` module, which provides a `urlparse` function that can help determine if a URL is well-formed.
+
+4. **Implement the Solution:**
+   - Modify the `validate_url_field()` function to include URL validation using `urlparse`.
+   - Check if the parsed URL has all necessary components (scheme, netloc) to be considered valid.
+   - Return a non-zero exit code if the URL is invalid.
+
+5. **Testing:**
+   - Write test cases for various scenarios, including valid URLs, missing components, and entirely malformed URLs.
+   - Ensure that the function behaves as expected by testing with both valid and invalid `auth_service_url` inputs.
+
+### Implementation Steps
+
+1. **Modify `validate_url_field()` in `config/validator.py`:**
+
+   ```python
+   from urllib.parse import urlparse
+
+   def validate_url_field(url):
+       """Validate the structure of a URL."""
+       if not url:
+           return False
+
+       parsed_url = urlparse(url)
+       if not all([parsed_url.scheme, parsed_url.netloc]):
+           return False
+
+       return True
+   ```
+
+2. **Update the Validator Logic:**
+
+   Ensure that the `config-validator` exits with code 1 if `validate_url_field()` returns `False`.
+
+   ```python
+   def validate_config(config):
+       if not validate_url_field(config.get('auth_service_url')):
+           print("Error: Malformed 'auth_service_url'")
+           exit(1)
+       # Other validation logic...
+       exit(0)
+   ```
+
+3. **Testing:**
+
+   - **Valid URL Test:** `https://example.com` should pass.
+   - **Missing Scheme Test:** `example.com` should fail.
+   - **Empty URL Test:** `""` should fail.
+   - **Malformed URL Test:** `htp://malformed` should fail.
+
+4. **Review and Documentation:**
+
+   - Ensure the changes are documented in the code comments.
+   - Update any related documentation to reflect the new validation behavior.
+
+5. **Review and Merge:**
+
+   - Submit the changes for code review.
+   - Address any feedback from peers.
+   - Merge the changes into the main branch once approved.
+
+By following these steps, the defect DEF-2026-04-1047 will be resolved, ensuring that the `config-validator` correctly identifies malformed URLs and exits with the appropriate status code.

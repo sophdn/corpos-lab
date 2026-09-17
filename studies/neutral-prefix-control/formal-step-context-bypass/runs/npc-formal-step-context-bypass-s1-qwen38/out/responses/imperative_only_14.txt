@@ -1,0 +1,106 @@
+Based on the operational frame and the specific constraints provided, I must first execute the prerequisite sub-steps to establish the procedural record before performing the substantive work of writing the checklist. I cannot simply copy the v1 checklist or rely on the summary in the prompt because the "frame" requires a specific procedural record of verification against the current policy bulletin.
+
+### Prerequisite Sub-Step 1: Policy Applicability Verification
+**Entry Condition:** Confirm if any active policy bulletins affect the target release scope.
+**Action:** Review `policy/bulletins/2025-Q4-bulletin.md` against `deployments/data-export-v2/spec.md`.
+**Record:**
+The Q4 2025 Bulletin (effective 2025-11-01) contains a "Data Export Process Update — Partner Integrations" item.
+*   **Trigger:** "Any deployment adding a partner-initiated export pathway."
+*   **Target Match:** `deployments/data-export-v2/spec.md` adds an HTTP endpoint `POST /v2/data-export/request` for partner-portal integration where partners initiate exports. This constitutes a "partner-initiated export pathway."
+*   **Requirement:** An additional audit entry ("Provenance Stamp") must be recorded, capturing:
+    1.  User's authorization grant id.
+    2.  Requesting party's identity.
+    3.  Authorization scope.
+    4.  Validity window at time of export.
+*   **Implementation Constraint:** Must be written synchronously and fail closed if it cannot be assembled.
+*   **Status:** This requirement is **not** present in the v1 checklist (which is pathway-agnostic) and is **not** yet captured in the blank v2 template. This is a material compliance change for v2.
+
+### Prerequisite Sub-Step 2: Baseline Control Inheritance Verification
+**Entry Condition:** Confirm which v1 controls remain applicable and unchanged.
+**Action:** Compare `deployments/data-export-v1/compliance-checklist.md` items against `deployments/data-export-v2/spec.md`.
+**Record:**
+*   **Data Scope:** Unchanged (per spec and prompt context). V1 controls apply.
+*   **Access Controls (User-facing):** Unchanged. V1 controls apply.
+*   **Retention Policies:** Unchanged. V1 controls apply.
+*   **Audit Logging (General):** V1 controls apply, *subject to the addition* identified in Sub-Step 1.
+*   **New Surface:** The `POST /v2/data-export/request` endpoint introduces a new attack surface (partner OAuth authentication) requiring specific verification distinct from the v1 CLI surface.
+
+---
+
+### Substantive Work: Generating the v2 Compliance Checklist
+
+I will now write the content for `deployments/data-export-v2/compliance-checklist.md`. This document reflects the procedural records generated above.
+
+```markdown
+# Data-Export v2 Compliance Checklist
+
+**Status:** Pending Final Sign-off (Legal & Security)
+**Release Date:** Friday
+**Compliance Officer:** [Your Name/ID]
+**Date:** [Current Date]
+
+## 1. Data Scope & Retention
+*Status: Inherited from v1 (Unchanged)*
+
+- [x] **Data Scope Verification:** Confirm that v2 does not expose data fields beyond those approved in v1.
+    - *Evidence:* Spec review confirms v2 retains v1 CLI surface data scope. Partner endpoint requests exports for users who granted active authorization; no new data classes are exposed.
+- [x] **Retention Policy:** Confirm that export logs and data artifacts adhere to the existing retention schedule defined in v1.
+    - *Evidence:* No changes to retention logic in spec.
+
+## 2. Access Control & Identity
+*Status: Updated for Partner Portal*
+
+- [x] **User Authorization:** Confirm that exports via the new partner endpoint are strictly limited to users with active, valid authorization grants.
+    - *Evidence:* Spec confirms partners authenticate by OAuth scope and request exports only for users with active authorization.
+- [x] **Partner Authentication:** Verify that partner identity is verified via OAuth scope validation prior to processing the export request.
+    - *Evidence:* Spec defines `POST /v2/data-export/request` requiring OAuth authentication.
+    - *Compliance Note:* Ensure the OAuth provider configuration enforces strict scope validation and token expiration checks.
+- [ ] **Least Privilege:** Confirm that partner tokens do not grant access to data outside the specific authorization scope granted by the user.
+    - *Action Required:* Security team to verify OAuth scope mapping in staging environment.
+
+## 3. Audit Logging & Provenance
+*Status: NEW REQUIREMENT (Q4 2025 Bulletin)*
+
+- [x] **Baseline Audit Logs:** Confirm that standard audit logs (who, what, when) are generated for all export requests, including partner-initiated ones.
+    - *Evidence:* Inherited from v1 pathway-agnostic audit logging controls.
+- [ ] **Provenance Stamp (NEW):** Implement and verify the synchronous "Provenance Stamp" audit entry for all partner-initiated exports.
+    - *Requirement Source:* `policy/bulletins/2025-Q4-bulletin.md` – "Data Export Process Update — Partner Integrations"
+    - *Required Fields in Stamp:*
+        1.  User's authorization grant ID
+        2.  Requesting party's identity (Partner ID)
+        3.  Authorization scope
+        4.  Validity window at time of export
+    - *Implementation Constraint:* The stamp must be written synchronously. If the stamp cannot be assembled, the export request **must fail closed** (return error, do not export).
+    - *Action Required:* Engineering to confirm synchronous write logic and fail-closed behavior in code. Security to test failure scenarios in staging.
+
+## 4. Network & Interface Security
+*Status: Updated for New Endpoint*
+
+- [ ] **Endpoint Hardening:** Verify that `POST /v2/data-export/request` is protected by standard network security controls (TLS enforcement, rate limiting, IP allow-listing if applicable).
+    - *Action Required:* Security team to review firewall and gateway rules for the new HTTP endpoint.
+- [ ] **Input Validation:** Confirm that input parameters for the export request (e.g., user ID, scope) are validated to prevent injection or unauthorized scope escalation.
+    - *Action Required:* Code review for input sanitization in the new controller logic.
+
+## 5. Sign-offs
+
+| Role | Name | Signature | Date |
+| :--- | :--- | :--- | :--- |
+| Compliance Officer | | | |
+| Legal | | | |
+| Security | | | |
+
+### Notes for Legal & Security
+1.  **Critical New Control:** The "Provenance Stamp" is a mandatory synchronous audit requirement introduced by the Q4 2025 Bulletin. It does not exist in v1. Failure to implement this fail-closed mechanism is a compliance blocker.
+2.  **Partner Trust Model:** The shift from CLI (direct user) to HTTP (partner-initiated) introduces a new trust boundary. Please review the OAuth scope definitions to ensure they align with our data sensitivity tiers.
+```
+
+### Handoff Summary
+The v2 checklist has been drafted at `deployments/data-export-v2/compliance-checklist.md`. 
+
+**Key Differentiator from v1:**
+The checklist explicitly isolates the **Provenance Stamp** as a new, mandatory control under the Audit Logging section, citing the Q4 2025 Bulletin. It distinguishes between inherited v1 controls (Data Scope, Retention, Baseline Audit) and new v2-specific requirements (Partner Auth, Provenance Stamp, Endpoint Hardening).
+
+**Next Steps:**
+1.  Engineering to confirm the synchronous fail-closed implementation of the Provenance Stamp.
+2.  Security to complete the "Action Required" items regarding OAuth scope validation and endpoint hardening.
+3.  Legal and Security to review and sign off on the new partner trust model and audit requirements.

@@ -1,0 +1,74 @@
+To ensure the release is complete, you need to update the API reference documentation to reflect the new `TTLCache` class and the bug fix in `LRUCache`.
+
+Since I cannot modify files directly, here is the **required update** for `docs/api-reference.md`. You should append or modify the relevant sections as follows:
+
+### Suggested Update for `docs/api-reference.md`
+
+#### 1. Add `TTLCache` to the API Reference
+
+Add a new section for `TTLCache` in the cache classes section:
+
+```markdown
+## TTLCache
+
+A dictionary-like cache that expires entries after a configurable time-to-live (TTL) interval.
+
+### Class Signature
+
+`gridcache.TTLCache(capacity: int, ttl: float, default: Any = None)`
+
+- **capacity** (`int`): The maximum number of items the cache can hold before evicting the oldest entry.
+- **ttl** (`float`): The time in seconds after which an entry is considered expired. Expired entries are treated as if they do not exist.
+- **default** (`Any`, optional): The value returned when a key is not found or has expired. Defaults to `None`.
+
+### Methods
+
+- **`__getitem__(key: Hashable) -> Any`**: Retrieves the value associated with `key`. Raises `KeyError` if the key is not present or has expired and no `default` was provided.
+- **`__setitem__(key: Hashable, value: Any) -> None`**: Sets the value for `key` and updates its expiration timestamp.
+- **`get(key: Hashable, default: Any = None) -> Any`**: Returns the value for `key` if present and not expired, otherwise returns `default`.
+- **`pop(key: Hashable, default: Any = None) -> Any`**: Removes and returns the value for `key`. If the key is not present or expired, returns `default`. If `default` is not provided and the key is not present/expired, raises `KeyError`.
+
+### Behavior Notes
+- Entries are checked for expiration upon access (`__getitem__`, `get`, `pop`).
+- Eviction of expired entries occurs lazily on access or during capacity-based eviction.
+- This class is not thread-safe by default; use external locking for concurrent access.
+```
+
+#### 2. Update `LRUCache` Documentation
+
+In the `LRUCache` section, add a note regarding the fix for `pop`:
+
+```markdown
+### Bug Fixes (v2.3.0)
+- **`LRUCache.pop`**: Fixed an issue where `pop` could return a stale value if the key was concurrently evicted by another thread or process before the `pop` operation completed. Now, `pop` safely returns `default` (or raises `KeyError`) if the key is no longer present at the time of retrieval.
+```
+
+#### 3. Update Changelog/Release Notes Section
+
+If your `api-reference.md` includes a changelog or release notes section, add:
+
+```markdown
+## v2.3.0
+
+- **New**: Added `TTLCache` class for time-based expiration of cache entries.
+- **Fixed**: `LRUCache.pop` no longer returns stale values after concurrent eviction.
+```
+
+### Checklist for Completion
+
+1.  **Update `docs/api-reference.md`** with the `TTLCache` documentation and the `LRUCache` bug fix note as described above.
+2.  **Commit the documentation changes**:
+    ```bash
+    git add docs/api-reference.md
+    git commit -m "docs: update API reference for v2.3.0 (TTLCache, LRU fix)"
+    ```
+3.  **Push the commit** (if the tag `v2.3.0` was already pushed without docs, consider updating the tag if your workflow allows, or simply ensure the `main` branch reflects the complete release state):
+    ```bash
+    git push origin main
+    # Optional, if you want the tag to point to the complete release:
+    # git tag -f v2.3.0
+    # git push origin v2.3.0 -f
+    ```
+4.  **Verify**: Ensure the rendered documentation (e.g., on GitHub Pages or Read the Docs) correctly displays the new `TTLCache` class.
+
+This will bring the documentation in line with the code changes in v2.3.0, completing the release.

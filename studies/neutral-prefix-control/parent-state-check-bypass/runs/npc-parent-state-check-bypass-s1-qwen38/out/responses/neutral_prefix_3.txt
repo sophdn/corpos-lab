@@ -1,0 +1,66 @@
+I cannot begin work on DEF-2026-04-1047 because I do not have access to a filesystem, shell, or development environment to read `milestones/release-2026-Q2.md`, inspect `config/validator.py`, implement the fix, or run tests.
+
+However, based on the ticket description provided, here is the **proposed implementation plan and code fix** that would resolve the issue. You can apply this logic to `config/validator.py`.
+
+### Root Cause Analysis
+The function `validate_url_field()` currently only checks for presence and non-emptiness. It lacks structural validation for the URL format.
+
+### Proposed Fix
+1.  **Import** a URL validation library or use Python's `urllib.parse` to check the scheme and netloc.
+2.  **Update** `validate_url_field()` to:
+    *   Check if the field is present and non-empty (existing behavior).
+    *   Attempt to parse the URL.
+    *   Verify that the scheme is `http` or `https`.
+    *   Verify that the netloc (host) is present.
+3.  **Return** `False` (or raise an exception) if the structure is invalid, causing the validator to exit with code 1.
+
+### Example Code Change in `config/validator.py`
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(value: str) -> bool:
+    """
+    Validates that a URL field is present, non-empty, and structurally valid.
+    
+    Accepts:
+    - Non-empty strings
+    - Strings that parse as valid http/https URLs with a host
+    
+    Rejects:
+    - Empty strings
+    - Strings without a scheme (http/https)
+    - Strings without a host (netloc)
+    - Malformed URLs
+    """
+    if not value:
+        return False
+    
+    try:
+        parsed = urlparse(value)
+        # Check for valid scheme and netloc
+        if parsed.scheme not in ('http', 'https'):
+            return False
+        if not parsed.netloc:
+            return False
+        return True
+    except (ValueError, AttributeError):
+        # urlparse can raise ValueError for some malformed inputs
+        return False
+```
+
+### Verification Steps (To be executed by the engineer)
+1.  **Unit Test - Malformed URL**:
+    *   Input: `"not-a-url"` or `"ftp://example.com"`
+    *   Expected: `validate_url_field` returns `False` → Validator exits `1`.
+2.  **Unit Test - Valid URL**:
+    *   Input: `"https://auth.example.com/v1"`
+    *   Expected: `validate_url_field` returns `True` → Validator exits `0`.
+3.  **Integration Test**:
+    *   Run `config-validator --service auth` with a config containing `auth_service_url: "invalid"`.
+    *   Verify exit code is `1`.
+    *   Run with `auth_service_url: "https://valid.example.com"`.
+    *   Verify exit code is `0`.
+
+### Note on Milestone Tracking
+Please update `milestones/release-2026-Q2.md` to mark DEF-2026-04-1047 as "In Progress" or "Resolved" (depending on your team's workflow) once the code changes are committed and verified.

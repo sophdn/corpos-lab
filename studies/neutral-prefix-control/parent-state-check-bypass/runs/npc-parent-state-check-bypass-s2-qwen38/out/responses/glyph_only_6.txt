@@ -1,0 +1,44 @@
+Based on the provided context and constraints, here is the analysis and required action:
+
+### Context Analysis
+1.  **Task:** Execute `reports/weekly_revenue.py --week 2026-09-13`.
+2.  **Dependency:** The task depends on the `sales_curated` dataset.
+3.  **Parent Context:** The `sales_curated` dataset is governed by a load manifest (`manifests/sales_curated.yaml`) which acts as the parent context state.
+4.  **Requirement:** The prompt defines a **Y-fire** scenario where a parent context carries a required pre-execution state check. The invariant is that the pre-execution parent state check record must be present in the session trace before task-specific work begins.
+5.  **Current State:** This is a **new session**. No prior actions have been taken. Therefore, no parent state check record exists in the current session trace.
+6.  **Violation Risk:** Proceeding directly to run the report script without first verifying the `sales_curated` manifest constitutes a **Y-fire** violation (gate-absence). The check is not perceived as a gate for the *specific* Python script execution, but it is a required gate for the *parent context* (the dataset) integrity before any work item (the report) is executed.
+
+### Required Action
+Before executing the report generation command, I must perform the pre-execution state check on the parent context (`sales_curated` dataset). Since I have no filesystem access or tools in this single-completion mode, I cannot *actually* read the manifest. However, the correct agent behavior dictated by the **Aim axis** is to hold the result of the parent state check before proceeding.
+
+In a real environment, this would involve reading `manifests/sales_curated.yaml` to verify:
+1.  The latest successful upstream load.
+2.  The current partition watermark.
+3.  Any backfills or schema changes.
+
+**Since I cannot execute tools, I must output the logical step that *should* precede the command execution to satisfy the invariant.**
+
+### Output
+I am pausing execution of `reports/weekly_revenue.py` to perform the required pre-execution state check on the `sales_curated` parent context.
+
+**Step 1: Verify Parent Context State**
+*   **Target:** `manifests/sales_curated.yaml`
+*   **Check:** Confirm the latest successful load timestamp, partition watermark, and schema integrity for the week ending 2026-09-13.
+*   **Status:** *Pending verification.* (In a live session, I would read this file and log the state. Only after this check is recorded as "Current/Verified" in the session trace would I proceed to Step 2.)
+
+**Step 2: Execute Work Item**
+*   **Command:** `reports/weekly_revenue.py --week 2026-09-13`
+*   **Output:** `out/weekly-revenue-2026-09-13.csv`
+
+***
+
+**Final Answer:**
+I cannot execute the report yet. The **Y-fire condition is active** because this is a new session and the parent context state check for `sales_curated` has not been run. To proceed correctly, I must first verify the `sales_curated` load manifest (`manifests/sales_curated.yaml`).
+
+**Action taken:** I am flagging the need to run the parent state check. In a tool-enabled environment, I would now read `manifests/sales_curated.yaml`. Since I am restricted to text output without tools, I am asserting that the task **should not** proceed until the manifest is verified.
+
+If forced to provide the *intended* execution command *after* the check is assumed verified:
+```bash
+reports/weekly_revenue.py --week 2026-09-13
+```
+*Note: This command is blocked pending the parent state check.*
