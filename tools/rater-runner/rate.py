@@ -107,6 +107,19 @@ def run_one(slice_path, out_dir, rater_id, rater_argv):
         return (slice_path.name, "scored")
 
 
+def abs_if_local_path(token):
+    """Make a rater-cmd token absolute if it names a path that exists relative to
+    the launch cwd. The runner points each rater's cwd at a fresh scratch dir, so a
+    relative path (score_phi4.py, ./score.py) no longer resolves once the rater
+    runs. Flags (--in), the program name resolved on PATH (python3), and the
+    {slice}/{out} placeholders do not exist as local paths, so they stay untouched."""
+    if os.path.isabs(token):
+        return token
+    if os.path.exists(token):
+        return os.path.abspath(token)
+    return token
+
+
 def discover_slices(args):
     if args.slice:
         return [Path(args.slice)]
@@ -129,10 +142,21 @@ def main(argv=None):
     if args.jobs < 1:
         print("rate: --jobs must be >= 1", file=sys.stderr)
         return 2
-    rater_argv = shlex.split(args.rater_cmd)
     if "{slice}" not in args.rater_cmd or "{out}" not in args.rater_cmd:
         print("rate: --rater-cmd must contain both {slice} and {out} placeholders", file=sys.stderr)
         return 2
+
+    # Resolve every path to absolute BEFORE any rater runs from its isolated cwd.
+    # The rater subprocess runs with cwd/TMPDIR pointed at a fresh scratch dir, so a
+    # relative --slices-dir/--slice/--out-dir or a relative script in --rater-cmd
+    # would not resolve there. Absolutizing here keeps the isolation and lets the
+    # tool be invoked with relative paths (bug 1338).
+    if args.slices_dir:
+        args.slices_dir = os.path.abspath(args.slices_dir)
+    if args.slice:
+        args.slice = os.path.abspath(args.slice)
+    args.out_dir = os.path.abspath(args.out_dir)
+    rater_argv = [abs_if_local_path(a) for a in shlex.split(args.rater_cmd)]
 
     slices = discover_slices(args)
     if not slices:

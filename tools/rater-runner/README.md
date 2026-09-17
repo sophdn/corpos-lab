@@ -40,6 +40,12 @@ Results land at `<out-dir>/<rater-id>/<slice>.json`. An output whose keys do not
 match the slice's ids is quarantined as `<slice>.invalid.json` and never becomes
 the canonical result. `--dry-run` reports done vs pending and runs nothing.
 
+Paths may be relative. Each rater runs from an isolated scratch cwd, so the runner
+resolves `--slices-dir`, `--slice`, `--out-dir`, and every `--rater-cmd` token that
+names an existing file to an absolute path **before** the rater starts. The example
+above works from this directory whether `score_phi4.py` is written relative or
+absolute.
+
 ## Determinism
 
 With `--jobs 1` (the default) slices run in sorted order, one at a time — the fully
