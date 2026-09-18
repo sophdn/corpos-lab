@@ -1,0 +1,751 @@
+% Comprehension as Compliance -- the founding/consolidation paper.
+% Draft in progress (chain 426, task 3496). Prose follows prose-conventions;
+% evidence integrity follows the paper-authoring skill. Claims ledger:
+% ~/.claude/scratchpads/sessions/capc-claims-ledger.md
+%
+% GATE TRAPS (paper_gate.py): no bare /path in \texttt{}; em-dash budget one "---"
+% per page of prose (avoided; commas/colons/parentheses); every bib author surname +
+% verbatim title present, fetched from arXiv API / Crossref.
+%
+% POINT-5 RULE (Sophi): never argue against an unpublished-skeleton claim. Only reframe
+% PUBLISHED claims, cited. State findings fresh and positively.
+% TABOO != GLYPH. CORPUS SCOPE: never "corpus-wide" as census.
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{array}
+\usepackage{natbib}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!60!black,
+  citecolor=blue!60!black,
+  urlcolor=blue!60!black
+}
+
+\title{%
+  Comprehension as Compliance: \\
+  How Grounded Content Steers Small-Model Agents, and Where It Does Not%
+}
+
+\author{Sophie D.\ Neilson \\
+  \small Independent Researcher \\
+  \small ORCID: \href{https://orcid.org/0009-0001-2430-1743}{0009-0001-2430-1743}
+}
+
+\date{September 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+A small language model, given a task prefixed with a description of a recurring
+decision, will often recognize the decision and fail to act on it. This paper draws
+together a program of studies on that effect and states what drives it. The effect is
+carried by the content of the description, not by its form: a plain imperative rule
+that carries the same information suppresses action as much as a descriptive version
+does, and the descriptive version shows no consistent advantage. What recovers action
+is grounding the decision in the concrete domain; a description that names the concrete
+situation but withholds the correct action recovers most of the lift, so the
+grounding, not being told the answer, is what matters. Recognition without action is
+also, in part, an artifact of a single-turn test: given a minimal tool loop, the model
+carries out decisions it had only described, for classes whose correct action is to act
+on a known target; for classes whose correct action is to assemble a result from
+several inputs, the gap survives the loop. Across the set of decision classes we have
+distilled into such descriptions and screened for quality, comprehension of the content
+is the load-bearing ingredient in five of the six that admit clean controls, with one
+carried by the mere presence of a long prefix rather than its content. That set is
+small and drawn from a larger, bounded backlog of candidate cases, so the distribution
+is an indication to test against a fuller set, not a census. All subjects are
+open-weight models on one local raw-completion rig, reproducible on a single 24\,GB GPU
+with no paid interface.
+\end{abstract}
+
+% =====================================================================
+\section{Introduction}
+
+This paper reports on \emph{Comprehension as Compliance} (CaPC), a research program
+that asks whether a structured description of a recurring decision can steer an agent's
+behavior through recognition rather than instruction. The program grew from a single
+observation and has since produced a sequence of controlled studies, several of them
+published on their own. Its results are scattered across those reports and across the
+confounds each left for the next to close. The purpose here is to state the mechanism
+in one place, at the scope the evidence now supports, and to position it in the
+machine-learning literature it touches.
+
+The founding observation is a dissociation between comprehension and execution. A small
+open-weight model, given a task prefixed with a structured description of a recurring
+decision class, recognizes the decision and does not carry it out~\citep{neilson2026q2}.
+The description is comprehended, and compliance does not follow. Read at face value,
+that is a puzzle for any account in which understanding an instruction is most of the
+work of obeying it.
+
+Three questions had to be separated before the effect could be described more
+accurately: whether the descriptive form or the information it carries drives the
+behavior; whether a long prefix of any kind distracts a small model regardless of
+content; and whether recognition-without-action is a property of the model or of a
+single-turn test harness that gives it no way to act. Each question became a control,
+and the controls are the spine of this paper.
+
+Their combined answer is that the robust effect is driven by content and is
+class-dependent. A description of a decision, grounded in the concrete domain, moves a
+small model to act correctly, and it does so through comprehension of the content
+rather than through the descriptive form or the imperative mood. Where the effect
+appears to rest on form, a matched control shows it resting on content, on prefix
+length, or on a single-turn setup instead. The contribution is the consolidated
+mechanism and a map of the decision classes over which it holds.
+
+A word on the descriptive form itself, which the program calls a glyph and defines in
+Section~\ref{sec:terms}. The form was introduced as the steering device, on the
+expectation that its structure would carry the behavior. The studies reported here do
+not support that expectation. The content of the description, not its form, is what
+moves the model, and this paper does not rest on the form. The form's present value is
+narrower and real: it is a controlled constant, a fixed and quality-screened statement
+of a decision that the studies hold steady while they vary content, grounding, and
+setup. A form better matched to the steering role is future work, and the program
+treats the present one as a stage, not an endpoint.
+
+\subsection{Related Work}
+
+The nearest neighbors test how the surface of a prompt changes behavior. Wang, Lester,
+and Srivastava~\citep{wang2026narrative} run structurally identical games under
+different storylines and find the task narrative explains more behavioral variance than
+an assigned persona does; framing context shifts behavior, though they do not separate
+comprehension from execution. Liu and colleagues~\citep{liu2026behavioral} derive
+behavioral mode axes from contrastive traces and steer a model's style through
+activations rather than a prompt. On agent guidance documents,
+Gloaguen and colleagues~\citep{gloaguen2026agents} find imperative repository
+instructions are followed while descriptive overviews add no measurable benefit, and
+McMillan~\citep{mcmillan2026instruction} finds four file-structure variables null after
+correction, with compliance varying by task and by position in a session. Pecher and
+colleagues~\citep{pecher2026revisiting} show much of what reads as prompt-format
+sensitivity is confounded by underspecification, which is the warrant for matching a
+descriptive form against an imperative on content before comparing them. Geng and
+colleagues~\citep{geng2026measuring} vary the social framing of an instruction with
+content held fixed, a framing manipulation we distinguish from a form manipulation. We
+did not run a systematic survey, and we make no universal novelty claim; these are the
+nearest prior works the program identified, verified at primary source. Broader
+positioning, including in-context learning and the training-layer view, is in
+Section~\ref{sec:positioning}.
+
+% =====================================================================
+\section{Terminology}\label{sec:terms}
+
+The terms below come from the research program, not from the field's shared vocabulary.
+Each is defined here at first use.
+
+\begin{itemize}
+  \item \textbf{Taboo}: a prose description of an invariant, stating a locally rational
+    action that produces a globally undesirable outcome. A taboo names the cause of a
+    failure, not only the property a system must hold. It is written before, and
+    independently of, any glyph.
+  \item \textbf{Glyph}: a description of a single, domain-general decision class,
+    distilled from a taboo and screened before use, and written as observation rather
+    than instruction. The distillation removes the taboo's project-specific particulars
+    and keeps the structural decision, checked so that the same decision recurs in
+    systems unrelated to the one it came from. The screening is a fixed checklist that
+    admits a description only if it reads from inside a live decision, is checkable from
+    observable actions rather than inferred intent, is not a duplicate of an existing
+    entry, and is safe to load, meaning it neither licenses a prohibited action nor
+    merely restates what the model would do untutored. The result is a portable,
+    quality-controlled statement of one decision. A taboo and a glyph are both prose
+    descriptions of an invariant; a glyph is the distilled, screened derivative, and not
+    every taboo yields one.
+  \item \textbf{The three axes}: a glyph is written on three axes. \emph{Marker} names
+    what the failure looks like from inside the decision. \emph{Aim} names what correct
+    navigation looks like. \emph{Rest} names the conditions under which the decision
+    class is not live.
+  \item \textbf{Decision class}: a recurring situation in which an agent can act
+    correctly or fail in a characteristic way, described apart from any one scenario.
+  \item \textbf{Analysis-mode}: the pattern in which a model, given a description of a
+    decision, discusses the decision class rather than acting within it. It recognizes
+    the obligation and does not carry it out.
+  \item \textbf{Ground}: a domain-specific statement of the decision for a concrete
+    scenario, in descriptive form. It says what a correct outcome is without issuing a
+    command and without pasting the finished artifact.
+  \item \textbf{Imperative}: a directive rewriting of a glyph's content. It states the
+    same propositions as commands rather than as description, and stays domain-free. It
+    is the content-and-form control.
+\end{itemize}
+
+% =====================================================================
+\section{Materials and Method}
+
+The program is one assay family run many times. A task scenario for a decision class is
+presented to a model, on its own or prefixed with one of several aids, and the reply is
+scored for whether the model took the correct action. This paper consolidates the
+studies in Table~\ref{tab:studies}. Two are prior published reports, cited where their
+results enter; the rest are new to this paper.
+
+\begin{table}[h]
+\centering
+\small
+\caption{The consolidated study set. Published rows are cited where used; the remaining
+  rows are new evidence reported here. Models are open-weight and served locally.
+  ``n'' is runs per cell.}
+\label{tab:studies}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.5cm}>{\raggedright\arraybackslash}p{4.6cm}cl@{}}
+\toprule
+Study & Subjects and conditions & n & Source \\
+\midrule
+Phenomenon & Mistral-7B; baseline, glyph, ground & 8 & published \citep{neilson2026q2} \\
+Content and format & Mistral-7B, phi-4-14B, Qwen3.8-27B, Qwen2.5-32B; baseline, glyph, imperative, ground, domain-directive, scrambled, off-target & 8--24 & published \citep{neilson2026content} \\
+Lift from the floor & Mistral-7B, phi-4-14B, Qwen3.8-27B; baseline, glyph, imperative, ground, domain-directive & 8 & new \\
+Length control & Mistral-7B, phi-4-14B, Qwen3.8-27B; baseline, neutral prefix, glyph, imperative & 16 & new \\
+Grounding vs.\ target & Mistral-7B, phi-4-14B, Qwen3.8-27B; baseline, grounded-non-prescriptive, ground, domain-imperative & 16 & new \\
+Setup vs.\ agency & Qwen3.8-27B; baseline, glyph, imperative, each in raw completion and a tool loop & 16 & new \\
+Mechanism typing & Mistral-7B, phi-4-14B, Qwen3.8-27B; seven conditions, strong scramble & 8 & new \\
+Observer position & Claude assessors on shared traces & --- & published \citep{neilson2026canon} \\
+Form dependence & Mistral-7B, Qwen3.8-27B, Qwen2.5-32B; duty, corpus, brief & 24 & published \citep{neilson2026duty} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Models and Sampling}\label{sec:sampling}
+
+The treatment subjects are open-weight instruction-tuned models at Q4\_K\_M
+quantization: Mistral-7B-Instruct-v0.3, phi-4-14B, Qwen3.8-27B (a reasoning model, with
+thinking pinned off through the instruct wrapper), and Qwen2.5-32B-Instruct in the
+published arms that used it. All are served by one local server (\texttt{llama-server},
+llama.cpp) over a raw completion path with a per-model instruct wrapper, no system
+prompt, and one model loaded at a time, verified from the server's properties endpoint
+on each swap. Running every subject on this one local rig is a reproducibility
+decision: the results reproduce on a single 24\,GB GPU with no paid interface, and a
+hosted model cannot run this path, so no hosted model is a treatment subject.
+
+The sampler chain is declared complete and identical across conditions within a study:
+temperature 0.8, \texttt{min\_p} 0.05 as the sole live truncation stage, every other
+truncation stage and every penalty disabled, and one unique seed per run. Penalties are
+off by design, because a repetition penalty would suppress the repeated structure that
+analysis-mode produces and attenuate the behavior under study. Each run records the
+served model, the build, the throughput, the sampler read back from the server, the
+image content digest, the substrate probe, and the repository commit.
+
+\subsection{Scoring}\label{sec:scoring}
+
+Replies are scored on a five-code rubric with a condition-independent correct-action
+bar per decision class: \textbf{C}, recognition and the correct action; \textbf{Ii},
+recognition without action; \textbf{Ic}, recognition with a defective action;
+\textbf{I}, no recognition; \textbf{N}, not scoreable. Analysis-mode is the Ii code.
+The correct-action bar is the same across an aid and its matched control, so no scoring
+asymmetry can confound a contrast.
+
+Each cell was scored by two independent raters, both Claude subagents, blind to the
+condition and to the study's predictions, reading condition-blind slices, and the
+primary measure is strict-consensus C, both raters coding C. Claude is a permitted
+judge and never a treatment subject: scoring whether a reply took the correct action
+does not require running on the local rig that the reproducibility apparatus requires,
+while producing a treatment response does. Where a local cross-rater is reported, it is
+noted with the study. Two raters from one model measure consistency, not validity, and
+we read direction and gaps that clear the noise band rather than single integers.
+
+\subsection{Agents and Models}\label{sec:agents}
+
+Table~\ref{tab:agents} lists every model and agent with a role in the results. An agent
+is described as an agent; a person as a person. ``Not recorded'' is the convention for
+a missing version.
+
+\begin{table}[h]
+\centering
+\small
+\caption{Agents and models.}
+\label{tab:agents}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.1cm}>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{4.8cm}>{\raggedright\arraybackslash}p{2.4cm}@{}}
+\toprule
+Role & Model & Version and runtime & Date \\
+\midrule
+Treatment subjects & Mistral-7B-Instruct-v0.3; phi-4-14B; Qwen3.8-27B; Qwen2.5-32B-Instruct & Q4\_K\_M GGUF, llama.cpp raw completion, digest-pinned image, one model at a time & 2026-09 \\
+Primary raters & Claude (Anthropic) subagents & Not recorded. Two blind raters per cell, condition-blind slices, strict-consensus C. & 2026-09 \\
+Cross-rater (length, form studies) & phi-4-14B & Q4\_K\_M GGUF, temperature 0.0, fixed rubric prompt; not a treatment arm. & 2026-09 \\
+Author and operator & Sophie D.\ Neilson (a person) & Directed the studies and adjudicated. & 2026-09 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =====================================================================
+\section{Results}
+
+\subsection{A description induces analysis-mode}\label{sec:phenomenon}
+
+The founding study established the phenomenon at a narrow scope. On Mistral-7B, a task
+prefixed with a glyph produced no task execution in 24 of 24 runs, and in 17 of those
+runs the model recognized the obligation without acting on it, while the same model
+produced the target action in 19 of 24 runs with no prefix~\citep{neilson2026q2}. The
+model comprehended the decision and did not carry it out. That report scoped the finding
+to one glyph, one scenario, and one model, and named the descriptive format as one
+candidate cause without claiming a mechanism. The rest of this section is the work of
+separating that candidate from its rivals.
+
+\subsection{Content, not format}\label{sec:content}
+
+Holding the information fixed and varying the delivery removes the format as the driver.
+In the published content grid, a plain imperative rule carrying the same propositions as
+the glyph suppresses action as much as the glyph or more: on the class from the founding
+study the imperative matches the glyph at 0 of 8 correct actions on phi-4 and at 4 of 8
+on Qwen3.8-27B, and on Qwen2.5-32B the plain imperative reaches 6 of 8 where the glyph
+reaches 2~\citep{neilson2026content}. The descriptive format never beats the matched
+rule.
+
+The same pattern holds when measured from a low baseline rather than a ceiling.
+Table~\ref{tab:h1} reports correct action for three gating classes whose baseline leaves
+room to measure a lift, pooled over three models. Every aid lifts action well above
+baseline. The imperative lifts at least as much as the glyph in every class, and more on
+the smallest model (on the cleanest class, post-write, the Mistral imperative reaches 23
+of 24 against the glyph's 10). The glyph is the weakest of the four aids, and it
+produces the most analysis-mode: on post-write the glyph condition holds 12 Ii responses
+against 0 to 4 for the other aids. A descriptive form is not what carries the behavior.
+
+\begin{table}[h]
+\centering
+\small
+\caption{Lift from the floor: correct action (strict-consensus C), pooled over three
+  models, out of 72. Three gating classes with a below-ceiling baseline.}
+\label{tab:h1}
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+Class & baseline & glyph & imperative & ground & domain-directive \\
+\midrule
+parent-state & 20 & 51 & 69 & 66 & 59 \\
+post-write   & 0  & 53 & 67 & 72 & 66 \\
+initiative   & 52 & 68 & 70 & 72 & 71 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{The length confound}\label{sec:length}
+
+A reviewer named a rival the content grid could not exclude: a long, abstract prefix of
+any kind might pull a small model off a short task, whatever the prefix says. A
+neutral, length-matched prose prefix, an unrelated passage trimmed to the glyph's word
+count, tests it. The answer is class-dependent, and it turns on the length of the
+scenario. Table~\ref{tab:neutral} gives correct action by class and condition. On the
+terse class from the founding study, the neutral prefix suppresses action as hard as the
+glyph on the small models: the failure mode under both long prefixes is going off-task,
+summarizing the prefix instead of doing the one-line task, coded N in 44 of 64 runs
+under the neutral prefix and 51 of 64 under the glyph, against 0 of 64 under the shorter
+imperative. On a substantial scenario the rival fails: for formal-step the neutral
+prefix holds at ceiling while the content-bearing glyph and imperative suppress. So the
+terse class's suppression is largely a generic long-prefix distraction, and the content
+effect holds where the scenario is substantial.
+
+\begin{table}[h]
+\centering
+\small
+\caption{Length control: correct-action rate (Claude codes), pooled per class, n=16 per
+  cell (95\% interval about $\pm 0.12$).}
+\label{tab:neutral}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Class & baseline & neutral prefix & glyph & imperative \\
+\midrule
+casg-direct    & 0.65 & 0.36 & 0.29 & 0.41 \\
+formal-step    & 1.00 & 1.00 & 0.84 & 0.42 \\
+parent-state   & 0.28 & 0.21 & 0.65 & 0.98 \\
+conditional-gate & 0.70 & 0.70 & 0.69 & 0.78 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Grounding is the lever, not naming the target}\label{sec:grounding}
+
+The aid that recovers action is a grounded one, and the earlier grounded aids bundled
+two things: grounding the decision in the concrete domain, and stating the correct
+outcome. Removing the outcome and keeping the grounding separates them.
+Table~\ref{tab:ground} reports the result on three gating classes. A grounded aid that
+names the file and the situation but not the correct action recovers most of the lift
+that the full ground recovers, far above baseline. Naming the outcome is a secondary,
+at-most-additive contribution, and its value is model-dependent: on phi-4 and Qwen3.8
+the non-prescriptive aid recovers the full lift, and only on the smallest model does
+naming the outcome do real extra work (on the governed class, Mistral recovers 9 of 32
+without the outcome against 28 of 32 with it, while phi-4 and Qwen recover almost fully
+either way). Mood is not the lever either: the descriptive ground converts action about
+as well as the directive command in every class. So the recovery is a grounding effect,
+not a being-told-the-answer effect.
+
+\begin{table}[h]
+\centering
+\small
+\caption{Grounding versus target: correct action (strict-consensus C), pooled per
+  class, n=16 per cell.}
+\label{tab:ground}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Class & baseline & grounded, no target & ground & domain-directive \\
+\midrule
+post-write & 0.00 & 0.96 & 1.00 & 0.88 \\
+governed   & 0.00 & 0.75 & 0.96 & 0.98 \\
+parent-state & 0.35 & 0.75 & 0.89 & 0.76 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+This also settles a question the content study left open, whether a grounded
+description recovers action as well as a command. Measured from the floor, the
+descriptive ground reaches or exceeds the command in every gating class (post-write 72
+to 66, parent-state 66 to 59, initiative 72 to 71 out of 72; Table~\ref{tab:h1}), and
+the predicted case where the command does extra work on the smallest model and hardest
+class did not appear. Grounded comprehension alone produces the action.
+
+\subsection{Setup versus agency}\label{sec:setup}
+
+Recognition without action was measured in a single-turn harness that returns nothing to
+a tool call, so a model that recognizes a decision has no way to carry it out except by
+saying so. A minimal tool loop, giving the model a few file and query tools, tests
+whether the gap is a property of the model or of that setup. Table~\ref{tab:loop} gives
+the analysis-mode rate for the glyph condition in raw completion and in the loop. The
+effect is class-dependent. For classes whose correct action is to act on a known target,
+reading a state, verifying a result, or consulting a protocol, the loop removes
+analysis-mode and converts it to correct action: on parent-state the rate falls from 11
+to 0 and correct action rises from near zero to 13 or more, and on post-write from 14 to
+0 with correct action rising to 15 or 16. For classes whose correct action is to
+assemble a result from several inputs, the gap survives: on formal-step the glyph
+condition still holds a loop rate of 7, rising to 10 for the imperative, and on discovery
+the rate persists in the loop rather than clearing. Recognition-without-execution is, for
+the first group, largely the single-turn setup denying the model a way to act; for the
+second, it reaches a minimal agentic setting.
+
+\begin{table}[h]
+\centering
+\small
+\caption{Setup versus agency: analysis-mode (Ii) count for the glyph condition, raw
+  completion to tool loop, Qwen3.8-27B, n=16.}
+\label{tab:loop}
+\begin{tabular}{@{}lccl@{}}
+\toprule
+Class & raw & loop & reading \\
+\midrule
+parent-state & 11 & 0 & removed \\
+post-write   & 14 & 0 & removed \\
+casg-direct  & 11 & 1 & removed \\
+formal-step  & 8  & 7 & persists \\
+discovery    & 0  & 2 & persists \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+One measurement caution governs this comparison. Raw completion credits a stated action,
+while the loop demands a completed one, so a direct correct-action difference between the
+two setups mixes analysis-mode with execution failures where a model explores and hits
+the step cap, a mode consistent with reports that agentic models can overthink rather
+than act~\citep{cuadron2025}. The clean cross-setup signal is therefore the
+analysis-mode rate in the loop, not a raw-minus-loop difference. This study used one model and a minimal loop, not
+a full agent harness, and its persistence results are claims about a minimal loop.
+
+\subsection{Mechanism typing across the screened set}\label{sec:typing}
+
+The controls above run on a few classes. A wider assay types each class by what its
+suppression or lift depends on. Two damaged versions of a glyph isolate the ingredient:
+a strongly scrambled glyph keeps the shape and destroys the propositional content, and
+an off-target glyph keeps coherence and changes the class. A scrambled version that
+still reproduces the effect means content is not load-bearing; an off-target version
+that still reproduces it means recognition of the specific class is not load-bearing.
+Table~\ref{tab:typing} gives the typing for the classes that admit clean controls.
+Comprehension of the content is the load-bearing ingredient in five of the six, and one
+class is carried by the mere presence of a prefix. The strong scramble raises the
+prevalence of comprehension rather than lowering it, and it reclassifies the
+parent-state class, which a weaker, keyword-leaking scramble had read as
+recognition-driven, to comprehension-driven.
+
+\begin{table}[h]
+\centering
+\small
+\caption{Mechanism typing across the classes with clean controls (strong scramble,
+  n=8). The type names the ingredient whose removal ends the effect.}
+\label{tab:typing}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Class & Type \\
+\midrule
+post-write-verification-absent      & comprehension \\
+governed-operation-protocol-bypass  & comprehension \\
+parent-state-check-bypass           & comprehension \\
+formal-step-context-bypass          & comprehension \\
+structural-ceiling-bypass           & comprehension \\
+casg-direct                         & mere prefix presence \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+This distribution carries a scope caution it must not outrun. The classes here are the
+screened set, the taboos we have so far distilled into glyphs and passed through the
+quality battery. That set is small, and it is drawn from a larger backlog of candidate
+taboos that was itself assembled in one early period and has not grown since, so it
+under-samples the decisions we could identify today. The typing is an indication of how
+the effect distributes, to be tested against a fuller set as more of the backlog is
+distilled and screened, not a census of a corpus.
+
+\subsection{An observer-position constraint}\label{sec:observer}
+
+A separate published study bounds what the effect buys. A corpus-loaded assessor and a
+corpus-naive one reviewed the same agent traces; the naive observer flagged seven items
+as significant, and the loaded assessor had suppressed all seven, three absorbed and
+four never seen~\citep{neilson2026canon}. The sharpest item is an agent that produced
+correctly structured elimination reasoning while citing evidence that did not support
+its conclusion. That is formal compliance without substantive comprehension, and it
+marks the boundary of the present claim: the effect this paper describes is compliance
+at the level of navigating a decision correctly, which is not the same as performing the
+reasoning the decision encodes.
+
+\subsection{Form can matter, and it is model-dependent}\label{sec:form}
+
+One published result appears to cut the other way and is worth stating plainly. On a
+different task, an investigation with an ordering requirement, the form of the guidance
+did matter, and how much depended on the model: a prescriptive duty cleared the ordering
+point in 23 of 24 runs on Qwen2.5-32B where a content-matched descriptive corpus cleared
+it in 4 of 24, while on Qwen3.8-27B the two forms were indistinguishable and both beat a
+plain brief, and on Mistral-7B neither beat the brief~\citep{neilson2026duty}. This is a
+different contrast, a prescriptive against a descriptive delivery on an ordering task,
+from the descriptive-against-imperative content match in Section~\ref{sec:content}, and
+it is reported here alongside rather than as a correction: the form of guidance can
+matter for some models on some tasks, and the content result says the descriptive glyph
+form specifically carries no advantage on the decision-execution task.
+
+% =====================================================================
+\section{Discussion}
+
+\subsection{What survives}\label{sec:survives}
+
+The consolidated picture is that a grounded description of a decision moves a small
+model to act correctly, through comprehension of the content. The descriptive form is
+not the lever: a content-matched imperative suppresses and lifts as much
+(Section~\ref{sec:content}), a length-matched neutral prefix reproduces the terse-class
+suppression (Section~\ref{sec:length}), and grounding, not the descriptive mood or the
+named target, is what recovers action (Section~\ref{sec:grounding}). The effect is
+class-dependent, and the dependence has a shape: for decisions that act on a known
+target, recognition-without-action is largely a single-turn artifact that a tool loop
+removes (Section~\ref{sec:setup}), and across the screened set comprehension is the
+load-bearing ingredient in most classes (Section~\ref{sec:typing}). The contribution is
+this map, not a claim that one form is special. The glyph earns its place as a
+controlled constant that made the map measurable, and the next stage of the program is a
+fuller screened set and a form better matched to steering.
+
+The program's theoretical grounding is the recognition-primed decision account of
+Klein~\citep{klein1998} and the tacit-knowledge account of Polanyi~\citep{polanyi1966},
+in which an agent that recognizes a decision class from prior exposure navigates it
+without explicit rules. The present results refine that expectation rather than confirm
+it: in a single-turn setup recognition alone does not produce action, and what converts
+recognition into execution is grounding the decision in the domain or giving the model a
+way to act.
+
+\subsection{Positioning in the machine-learning literature}\label{sec:positioning}
+
+The effect sits inside in-context learning, where a prompt conditions behavior at
+inference time without a weight update~\citep{dong2023icl}. It has a training-layer
+neighbor in Constitutional AI, where a written set of principles shapes behavior through
+training rather than through a prompt~\citep{bai2022constitutional}; the present result
+is the inference-time counterpart, a description in context rather than a constitution in
+the weights. The pragmatic rival to comprehension is implicature: a description may
+change behavior because a cooperative reader infers an instruction from it, in the sense
+of Grice~\citep{grice1975}, and Geng and colleagues~\citep{geng2026measuring} show
+social framing shifts instruction-following with content fixed. The present studies do
+not resolve implicature against comprehension, and Section~\ref{sec:limitations} keeps
+it open. Two cautions from the literature bound the reading of our own measure. A
+model's stated reasoning can be unfaithful to the computation behind
+it~\citep{turpin2023}, which is why the setup study reads a completed action rather than
+a stated one; and evaluation results can be inflated by training-data
+contamination~\citep{golchin2023}, which is why the treatment subjects are open-weight
+models on a local rig rather than a hosted model whose training data is unknown. Finally,
+the content-over-form result has an adversarial face: if the content an agent reads
+drives its action, then content an agent merely ingests can carry an injected
+instruction, the indirect prompt injection surface described by Greshake and
+colleagues~\citep{greshake2023}. The program treats that as a separate line of work.
+
+\subsection{Limitations}\label{sec:limitations}
+
+\begin{enumerate}
+  \item \textbf{The screened set is small and nested.} The mechanism typing runs on the
+    handful of decision classes distilled into glyphs and passed through the quality
+    battery. That set is a small, processed subset of a larger backlog of candidate
+    taboos, and the backlog was assembled in one early period and has not grown since,
+    so it under-samples the decisions we could now identify. The typing is an
+    indication, not a census.
+  \item \textbf{Small samples.} Cells are 8 or 16 runs, with a 95\% interval of about
+    $\pm 0.2$ and $\pm 0.12$ respectively. We read direction and gaps that clear the
+    band, not single integers.
+  \item \textbf{A local model shelf.} The subjects are four open-weight models. The
+    findings speak to small language models on this rig, and a different shelf could
+    behave differently.
+  \item \textbf{Single-turn except one study.} All strands but the setup study run
+    single-turn raw completion, and the setup study uses a minimal tool loop, not a full
+    agent harness. The persistence of analysis-mode is a claim about a minimal loop.
+  \item \textbf{Comprehension versus implicature is open.} The studies show content, not
+    form, drives the effect, and that grounding recovers action, but they do not
+    separate a reader comprehending a decision from a reader inferring a command from a
+    description.
+  \item \textbf{Layer invariance is untested.} Whether the effect holds when the
+    description is delivered other than in context, through training or a system prompt
+    or retrieval, is scoped in the program but not yet measured.
+  \item \textbf{Raters measure consistency anchored on one family.} The primary raters
+    are two blind Claude subagents, and the conclusions rest on gaps far larger than any
+    plausible rater slip, but broad validity against several human raters or a second
+    model family is future work.
+\end{enumerate}
+
+\section{Conclusion}
+
+A description of a recurring decision, grounded in the concrete domain, moves a small
+open-weight model to take the correct action, and it does so through comprehension of
+the content rather than through the descriptive form. A content-matched imperative does
+as much, a length-matched neutral prefix accounts for the terse-class suppression, and a
+grounded description that withholds the target still recovers most of the action. Part
+of what looked like recognition-without-action is a single-turn artifact that a tool
+loop removes for act-on-target decisions and leaves for assemble-from-inputs decisions.
+Across the small screened set of decision classes, comprehension is the load-bearing
+ingredient in most of them. We report the finding at the scope of the tested models,
+scenarios, and screened classes, and invite replication on the one local rig the studies
+run on.
+
+\subsection{Data Availability}
+
+The study materials, scoring rubrics, per-run scores, and run records for the new
+studies reported here are available at \url{https://github.com/sophdn/corpos-lab} under
+the \texttt{studies} directory: \texttt{descriptive-material-vs-control},
+\texttt{neutral-prefix-control}, \texttt{grounded-non-prescriptive-aid},
+\texttt{setup-completion-vs-agentic-loop}, and
+\texttt{alphabet-wide-mechanism-and-grounding-assay}. The published strands cite their
+own records.
+
+\bibliographystyle{plainnat}
+
+% BIBLIOGRAPHY: entries below reuse verbatim metadata from the four published papers
+% (gate-passed) for shared references; the ML-positioning entries (dong2023icl,
+% bai2022constitutional, golchin2023, greshake2023, cuadron2025, grice1975, turpin2023)
+% are drawn from the library and MUST be verified author-list + verbatim-title against
+% arXiv/Crossref by the bib-verification subagent before the gate is trusted.
+\begin{thebibliography}{99}
+
+\bibitem[Bai et~al.(2022)]{bai2022constitutional}
+Bai, Y., Kadavath, S., Kundu, S., Askell, A., Kernion, J., Jones, A., Chen, A.,
+  Goldie, A., Mirhoseini, A., McKinnon, C., Chen, C., Olsson, C., Olah, C.,
+  Hernandez, D., Drain, D., Ganguli, D., Li, D., Tran-Johnson, E., Perez, E.,
+  Kerr, J., Mueller, J., Ladish, J., Landau, J., Ndousse, K., Lukosuite, K.,
+  Lovitt, L., Sellitto, M., Elhage, N., Schiefer, N., Mercado, N., DasSarma, N.,
+  Lasenby, R., Larson, R., Ringer, S., Johnston, S., Kravec, S., El~Showk, S.,
+  Fort, S., Lanham, T., Telleen-Lawton, T., Conerly, T., Henighan, T., Hume, T.,
+  Bowman, S.~R., Hatfield-Dodds, Z., Mann, B., Amodei, D., Joseph, N.,
+  McCandlish, S., Brown, T., and Kaplan, J. (2022).
+\newblock Constitutional AI: Harmlessness from AI Feedback.
+\newblock \emph{arXiv preprint arXiv:2212.08073}.
+
+\bibitem[Cuadron et~al.(2025)]{cuadron2025}
+Cuadron, A., Li, D., Ma, W., Wang, X., Wang, Y., Zhuang, S., Liu, S., Schroeder, L.~G.,
+  Xia, T., Mao, H., Thumiger, N., Desai, A., Stoica, I., Klimovic, A., Neubig, G.,
+  and Gonzalez, J.~E. (2025).
+\newblock The Danger of Overthinking: Examining the Reasoning-Action Dilemma in Agentic
+  Tasks.
+\newblock \emph{arXiv preprint arXiv:2502.08235}.
+
+\bibitem[Dong et~al.(2023)]{dong2023icl}
+Dong, Q., Li, L., Dai, D., Zheng, C., Ma, J., Li, R., Xia, H., Xu, J., Wu, Z., Liu, T.,
+  Chang, B., Sun, X., Li, L., and Sui, Z. (2023).
+\newblock A Survey on In-context Learning.
+\newblock \emph{arXiv preprint arXiv:2301.00234}.
+
+\bibitem[Geng et~al.(2026)]{geng2026measuring}
+Geng, Y., Abend, O., Hovy, E., and Frermann, L. (2026).
+\newblock Measuring Pragmatic Influence in Large Language Model Instructions.
+\newblock \emph{arXiv preprint arXiv:2602.21223}.
+
+\bibitem[Gloaguen et~al.(2026)]{gloaguen2026agents}
+Gloaguen, T., Mündler, N., Müller, M., Raychev, V., and Vechev, M. (2026).
+\newblock Evaluating AGENTS.md: Are Repository-Level Context Files Helpful for Coding
+  Agents?
+\newblock \emph{arXiv preprint arXiv:2602.11988}.
+
+\bibitem[Golchin and Surdeanu(2023)]{golchin2023}
+Golchin, S. and Surdeanu, M. (2023).
+\newblock Time Travel in LLMs: Tracing Data Contamination in Large Language Models.
+\newblock \emph{arXiv preprint arXiv:2308.08493}.
+
+\bibitem[Greshake et~al.(2023)]{greshake2023}
+Greshake, K., Abdelnabi, S., Mishra, S., Endres, C., Holz, T., and Fritz, M. (2023).
+\newblock Not what you've signed up for: Compromising Real-World LLM-Integrated
+  Applications with Indirect Prompt Injection.
+\newblock \emph{arXiv preprint arXiv:2302.12173}.
+
+\bibitem[Grice(1975)]{grice1975}
+Grice, H.~P. (1975).
+\newblock Logic and Conversation.
+\newblock In \emph{Syntax and Semantics, Volume 3: Speech Acts}, pages 41--58. Academic
+  Press.
+
+\bibitem[Klein(1998)]{klein1998}
+Klein, G.~A. (1998).
+\newblock \emph{Sources of Power: How People Make Decisions}.
+\newblock MIT Press.
+
+\bibitem[Liu et~al.(2026)]{liu2026behavioral}
+Liu, H., Liu, R., Xu, H., Han, J., Fang, S., Yan, S., Deng, H., Wang, G., and Zou, N.
+  (2026).
+\newblock Your LLM, Your Style: Behavioral Mode Axes for LLM Behavioral Control.
+\newblock \emph{arXiv preprint arXiv:2608.10703}.
+
+\bibitem[McMillan(2026)]{mcmillan2026instruction}
+McMillan, D. (2026).
+\newblock Instruction Adherence in Coding Agent Configuration Files: A Factorial Study
+  of Four File-Structure Variables.
+\newblock \emph{arXiv preprint arXiv:2605.10039}.
+
+\bibitem[Neilson(2026a)]{neilson2026q2}
+Neilson, S.~D. (2026).
+\newblock Structured Phenomenological Descriptions Induce Analysis-Mode Behavior in a
+  Small Language Model.
+\newblock \emph{Zenodo}. \href{https://doi.org/10.5281/zenodo.22542746}{doi:10.5281/zenodo.22542746}.
+
+\bibitem[Neilson(2026b)]{neilson2026content}
+Neilson, S.~D. (2026).
+\newblock Content Over Format: What Drives Analysis-Mode in Small Language Models, and
+  How Grounding Recovers Execution.
+\newblock \emph{Zenodo}. \href{https://doi.org/10.5281/zenodo.22761018}{doi:10.5281/zenodo.22761018}.
+
+\bibitem[Neilson(2026c)]{neilson2026canon}
+Neilson, S.~D. (2026).
+\newblock Canon Suppression in Corpus-Loaded Assessment: A Two-Assessor Study.
+\newblock \emph{Zenodo}. \href{https://doi.org/10.5281/zenodo.22556875}{doi:10.5281/zenodo.22556875}.
+
+\bibitem[Neilson(2026d)]{neilson2026duty}
+Neilson, S.~D. (2026).
+\newblock Duty or Corpus: Whether the Form of Guidance Matters Is Model-Dependent: A
+  Reproducible Single-Turn Behavioral-Equivalence Assay Across Three Models.
+\newblock \emph{Zenodo}. \href{https://doi.org/10.5281/zenodo.22716214}{doi:10.5281/zenodo.22716214}.
+
+\bibitem[Pecher et~al.(2026)]{pecher2026revisiting}
+Pecher, B., Spiegel, M., Belanec, R., and Cegin, J. (2026).
+\newblock Revisiting Prompt Sensitivity in Large Language Models for Text
+  Classification: The Role of Prompt Underspecification.
+\newblock \emph{arXiv preprint arXiv:2602.04297}.
+
+\bibitem[Polanyi(1966)]{polanyi1966}
+Polanyi, M. (1966).
+\newblock \emph{The Tacit Dimension}.
+\newblock Doubleday.
+
+\bibitem[Turpin et~al.(2023)]{turpin2023}
+Turpin, M., Michael, J., Perez, E., and Bowman, S.~R. (2023).
+\newblock Language Models Don't Always Say What They Think: Unfaithful Explanations in
+  Chain-of-Thought Prompting.
+\newblock \emph{arXiv preprint arXiv:2305.04388}.
+
+\bibitem[Wang et~al.(2026)]{wang2026narrative}
+Wang, Y., Lester, J., and Srivastava, S. (2026).
+\newblock The Story Shapes the Agent: Narrative Priors in LLM Behavior.
+\newblock \emph{arXiv preprint arXiv:2607.18566}.
+
+\end{thebibliography}
+
+\appendix
+
+\section{Materials}\label{app:materials}
+
+The scenario, glyph, imperative, ground, and neutral prefix for each decision class are
+reproduced in the repository under the study directories named in Data Availability,
+with content-parity audits between each aid and its matched control. Representative
+prompts are reproduced verbatim in the published strands they belong to.
+
+\end{document}
