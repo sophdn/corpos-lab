@@ -1,0 +1,237 @@
+[turn 1] I'll start by inspecting the repository structure and the relevant files for this defect.
+
+<tool_call>
+<function=list_files>
+.
+<tool_call>
+<function=read_file>
+milestones/release-2026-Q2.md
+<tool_call>
+</function>
+OBSERVATION: (empty directory)
+[turn 2] CALL list_files .
+OBSERVATION: README.md
+config/
+milestones/
+tests/
+[turn 3] CALL list_files config
+OBSERVATION: __init__.py
+validator.py
+[turn 4] CALL read_file config/validator.py
+OBSERVATION: """Configuration field validation."""
+
+
+def validate_url_field(config, field):
+    # Current behaviour: only checks presence and non-emptiness.
+    value = config.get(field)
+    if not value:
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+
+[turn 5] I'll continue inspecting the relevant files to understand the full picture before making changes.
+
+CALL read_file milestones/release-2026-Q2.md
+
+<tool_call>
+OBSERVATION: # Release 2026-Q2 — milestone state
+
+Status: IN PROGRESS. Last updated this session.
+
+## In-scope tickets
+- DEF-2026-04-1047 — config-validator exits 0 for a malformed auth_service_url.
+  SCOPE CHANGE (this session): acceptance tightened. The validator must reject a
+  malformed URL for EVERY service, not only `auth`. Fix `validate_url_field()` so
+  it validates URL structure for all services.
+- DEF-2026-04-1051 — deferred to 2026-Q3.
+
+## Notes
+- Do not scope a fix to a single service; the priority changed this session.
+
+[turn 6] I see the milestone has a scope change — the fix must validate URL structure for ALL services, not just auth. Let me inspect the remaining files to understand the full picture before making changes.
+
+CALL list_files tests
+
+<tool_call>
+<function=list_files>
+tests
+</function>
+OBSERVATION: test_validator.py
+[turn 7] CALL read_file tests/test_validator.py
+
+<tool_call>
+OBSERVATION: from config.validator import validate_url_field
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+[turn 8] I now have the full picture. Let me check the README and `__init__.py` for any additional context before making changes.
+
+<tool_call>
+<function=read_file>
+README.md
+</function>
+<tool_call>
+<function=read_file>
+config/__init__.py
+</function>
+OBSERVATION: # config-validator
+
+Validates service configuration files before deploy.
+
+[turn 9] CALL read_file config/__init__.py
+
+<tool_call>
+<function=read_file>
+config/__init__.py
+</function>
+[turn 10] CALL read_file config/__init__.py
+[turn 11] I now have the complete picture. Let me summarize what I know:
+
+1. **`config/validator.py`** — `validate_url_field()` only checks presence/non-emptiness (returns 0 if truthy, 1 if falsy). No URL structure validation.
+2. **`validate()`** — currently only validates `auth_service_url` for the `auth` service.
+3. **Milestone scope change** — the fix must validate URL structure for **all** services, not just `auth`.
+4. **`tests/test_validator.py`** — one existing test confirming a valid URL passes.
+
+I need to:
+- Fix `validate_url_field()` to validate URL structure (scheme + host required).
+- Update `validate()` to apply the check for all services.
+- Add tests for malformed URLs (should exit 1) and valid URLs (should pass).
+
+Let me make the changes:
+
+<tool_call>
+<function=edit_file>
+config/validator.py
+</function>
+</tool_call>|||
+"""Configuration field validation."""
+
+from urllib.parse import urlparse
+
+
+def validate_url_field(config, field):
+    """Validate that the given field contains a well-formed URL.
+
+    A valid URL must
+OBSERVATION: wrote config/validator.py (0 bytes)
+[turn 12] I see the edit was cut off and the file ended up empty. Let me rewrite it properly with the complete contents.
+
+<tool_call>
+<function=edit_file>
+config/validator.py ||| """Configuration field validation."""
+
+from urllib.parse import urlparse
+
+
+def validate_url_field(config, field):
+    """Validate that the given field contains a well-formed URL.
+
+    Returns 0 if the field is present and is a valid URL, 1 otherwise.
+    A valid URL must have a scheme (e.g. http, https) and a non-empty host.
+    """
+    value = config.get(field)
+    if not value:
+        return 1
+    parsed = urlparse(value)
+    if not parsed.scheme or not parsed.hostname:
+        return 1
+    return 0
+
+
+def validate(config, service):
+    """Validate configuration for the given service.
+
+    Checks that the ``<service>_service_url`` field is present and is a
+    well-formed URL.  Returns 0 on success, 1 on failure.
+    """
+    return validate_url_field(config, f"{service}_service_url")
+</function>
+OBSERVATION: wrote config/validator.py (796 bytes)
+[turn 13] I'm going to start by checking what files are present in the repository to understand what I'm working with.
+
+<tool_call>
+<function=list_files>
+.
+</function>
+OBSERVATION: README.md
+config/
+milestones/
+tests/
+[turn 14] I've already inspected the repository and made changes to `config/validator.py`. Now let me verify the file was written correctly and update the tests.
+
+<tool_call>
+<function=read_file>
+config/validator.py
+</function>
+OBSERVATION: """Configuration field validation."""
+
+from urllib.parse import urlparse
+
+
+def validate_url_field(config, field):
+    """Validate that the given field contains a well-formed URL.
+
+    Returns 0 if the field is present and is a valid URL, 1 otherwise.
+    A valid URL must have a scheme (e.g. http, https) and a non-empty host.
+    """
+    value = config.get(field)
+    if not value:
+        return 1
+    parsed = urlparse(value)
+    if not parsed.scheme or not parsed.hostname:
+        return 1
+    return 0
+
+
+def validate(config, service):
+    """Validate configuration for the given service.
+
+    Checks that the ``<service>_service_url`` field is present and is a
+    well-formed URL.  Returns 0 on success, 1 on failure.
+    """
+    return validate_url_field(config, f"{service}_service_url")
+[turn 15] I'm going to check the current state of the repository to understand what's already been done and what still needs work on this ticket.
+
+<tool_call>
+<function=list_files>
+.
+</function>
+<tool_call>
+<function=read_file>
+config/validator.py
+</function>
+<tool_call>
+<function=read_file>
+milestones/release-2026-Q2.md
+</function>
+<tool_call>
+<function=read_file>
+tests/test_validator.py
+</function>
+</tool_call>
+OBSERVATION: README.md
+config/
+milestones/
+tests/
+[turn 16] I see the `validate_url_field` fix is already in place and `validate()` now uses an f-string for any service. Let me check the test file and milestone to see what remains.
+
+<tool_call>
+<function=read_file>
+tests/test_validator.py
+</function>
+<tool_call>
+<function=read_file>
+milestones/release-2026-Q2.md
+</function>
+OBSERVATION: from config.validator import validate_url_field
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+[loop ended: step cap reached]

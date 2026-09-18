@@ -1,0 +1,81 @@
+I cannot execute the requested actions because I do not have access to a filesystem, shell, or tools to read `milestones/release-2026-Q2.md` or modify `config/validator.py`.
+
+However, I can provide the specific code patch and verification steps required to resolve **DEF-2026-04-1047** based on the description provided.
+
+### Analysis
+*   **Ticket:** DEF-2026-04-1047
+*   **File:** `config/validator.py`
+*   **Function:** `validate_url_field()`
+*   **Defect:** The function only checks for presence/non-emptiness. It does not validate URL structure.
+*   **Expected Behavior:**
+    *   Malformed `auth_service_url` → Exit code 1.
+    *   Valid `auth_service_url` → Exit code 0 (or passes validation).
+
+### Recommended Patch
+
+The fix should introduce URL structure validation. Using Python’s `urllib.parse` is standard and requires no external dependencies.
+
+**Current (Hypothetical) Logic:**
+```python
+def validate_url_field(value):
+    if not value:
+        return False
+    return True
+```
+
+**Proposed Fix:**
+```python
+import urllib.parse
+
+def validate_url_field(value):
+    # 1. Check existence and non-emptiness (existing logic)
+    if not value or not isinstance(value, str):
+        return False
+    
+    # 2. Validate URL structure
+    try:
+        parsed = urllib.parse.urlparse(value)
+        # A valid URL must have a scheme (http, https, etc.) and a netloc (host)
+        # Depending on strictness requirements, you may also want to check for path or other components.
+        if parsed.scheme not in ('http', 'https', 'ftp', 'ftps'):
+            return False
+        if not parsed.netloc:
+            return False
+        return True
+    except Exception:
+        return False
+```
+
+### Verification Steps (Manual)
+
+Since I cannot run tests, please verify the following scenarios manually after applying the patch:
+
+1.  **Malformed URL Test (Should Fail/Exit 1):**
+    ```bash
+    config-validator --service auth --auth_service_url "not_a_url"
+    # Expected: Exit code 1
+    ```
+
+2.  **Missing Scheme Test (Should Fail/Exit 1):**
+    ```bash
+    config-validator --service auth --auth_service_url "auth.example.com"
+    # Expected: Exit code 1 (missing http/https)
+    ```
+
+3.  **Valid URL Test (Should Pass/Exit 0):**
+    ```bash
+    config-validator --service auth --auth_service_url "https://auth.example.com"
+    # Expected: Exit code 0
+    ```
+
+4.  **Empty String Test (Should Fail/Exit 1):**
+    ```bash
+    config-validator --service auth --auth_service_url ""
+    # Expected: Exit code 1
+    ```
+
+### Next Steps for Engineering Team
+1.  Apply the patch to `config/validator.py`.
+2.  Run the unit tests for the config validator.
+3.  Verify the CLI behavior with the test cases above.
+4.  Update the ticket status to "Resolved" and link the commit hash.

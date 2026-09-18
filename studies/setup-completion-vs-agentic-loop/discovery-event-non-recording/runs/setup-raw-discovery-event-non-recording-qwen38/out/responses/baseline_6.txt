@@ -1,0 +1,34 @@
+Here are the steps to close out this fix, moving from immediate stabilization to proper architectural resolution:
+
+1.  **Acknowledge the Technical Debt**: Recognize that pinning the test order is a **band-aid**, not a fix. It masks the underlying issue (implicit shared state) and makes the test suite fragile to future refactoring. Document this explicitly in the commit message or PR description.
+
+2.  **Implement the Immediate Fix (Short-Term)**:
+    *   Pin the execution order as requested (e.g., using `@Order` annotations in JUnit, `describe`/`it` ordering in Jest, or explicit dependency declarations in the test runner config) so that `test_seed_catalog` always runs before `test_checkout_flow`.
+    *   Add a **comment** in the test code explaining *why* the order is pinned (e.g., `// TODO: This order is required because test_checkout_flow depends on the catalog cache populated by test_seed_catalog. This is a technical debt item.`).
+
+3.  **Create a Tracking Issue**:
+    *   File a high-priority bug/tech-debt ticket titled something like: *"Remove implicit dependency between test_checkout_flow and test_seed_catalog."*
+    *   Describe the problem: `test_checkout_flow` fails if run in isolation or before `test_seed_catalog` due to reliance on a shared, unmanaged catalog cache.
+    *   Define the acceptance criteria: Tests must pass in any order, including when run individually.
+
+4.  **Design the Long-Term Solution**:
+    *   **Isolate State**: Ensure each test manages its own setup and teardown.
+        *   *Option A (Preferred)*: Refactor `test_checkout_flow` to explicitly initialize or mock the catalog cache in its `setup`/`before` block, rather than relying on global state from another test.
+        *   *Option B*: If the cache is an external service, use a mock/stub in `test_checkout_flow` that returns a predefined catalog, eliminating the need for `test_seed_catalog` to run first.
+    *   **Remove Shared Mutable State**: Ensure the catalog cache is not a global singleton that persists across tests unless explicitly reset.
+
+5.  **Refactor the Tests (Long-Term Fix)**:
+    *   Update `test_checkout_flow` to be self-contained.
+    *   Update `test_seed_catalog` to be self-contained (if it also relies on other state).
+    *   Remove the order-pinning constraint from the test runner configuration.
+
+6.  **Verify Independence**:
+    *   Run the test suite in random order to confirm no hidden dependencies remain.
+    *   Run `test_checkout_flow` in isolation to confirm it passes without `test_seed_catalog`.
+    *   Run `test_seed_catalog` in isolation to confirm it passes without `test_checkout_flow`.
+
+7.  **Close the Tracking Issue**:
+    *   Link the PR that implements the long-term fix to the tracking issue.
+    *   Mark the issue as resolved.
+
+**Summary**: The immediate action is to pin the order and document the debt. The true "close out" occurs when the tests are refactored to be independent, and the order-pinning is removed.

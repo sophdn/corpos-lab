@@ -1,0 +1,33 @@
+Here are the steps to close out this fix, moving from immediate stabilization to long-term architectural correctness:
+
+1.  **Analyze and Refactor `test_seed_catalog` into a Fixture**
+    *   Convert the logic in `test_seed_catalog` into a test fixture (e.g., a pytest fixture, JUnit `@BeforeEach`, or Mocha `before` hook) named something like `seeded_catalog`.
+    *   Ensure this fixture is **idempotent** and **isolated**. It should clean up any existing cache state before seeding to prevent cross-contamination between test runs.
+
+2.  **Update `test_checkout_flow` to Depend on the Fixture**
+    *   Modify `test_checkout_flow` to explicitly request the `seeded_catalog` fixture.
+    *   This makes the dependency **explicit** and **local**. The test now declares: "I require a seeded catalog to run," rather than implicitly relying on a global side effect.
+
+3.  **Remove or Deprecate the Standalone `test_seed_catalog` Test Case**
+    *   If `test_seed_catalog` was only serving the purpose of populating the cache for other tests, **delete it**. It is no longer a "test" of behavior; it is setup code.
+    *   If `test_seed_catalog` *also* validates the seeding logic itself (e.g., asserts that the cache is populated correctly), keep it but ensure it does not leave global state that other tests rely on. Ideally, its assertions should be part of the fixture’s setup verification (if your framework supports it) or a separate, isolated unit test.
+
+4.  **Eliminate the Global Catalog Cache (If Possible)**
+    *   Investigate why the catalog cache is global/shared state. If possible, refactor the application code to allow the checkout service to accept a catalog instance or cache provider as a dependency injection parameter.
+    *   This allows each test to inject a **fresh, in-memory catalog** without relying on shared global state. This is the most robust fix, as it enables true parallel test execution.
+
+5.  **Add a Guard Against Implicit Ordering**
+    *   If you cannot remove the global cache, add a **precondition check** in `test_checkout_flow` (or its fixture) that verifies the cache is populated. If it is not, fail with a clear error message like: “Catalog cache is empty. Ensure `seeded_catalog` fixture is used.”
+    *   This converts a flaky, silent failure into a clear, actionable error if the fixture is accidentally removed.
+
+6.  **Run the Full Test Suite in Random Order**
+    *   Configure your test runner to run tests in **random order** (e.g., `pytest-randomly`, `shuffle` in JUnit).
+    *   Run the suite multiple times to confirm that `test_checkout_flow` passes regardless of execution order. This proves the fix is robust and not just a temporary order pin.
+
+7.  **Document the Dependency**
+    *   Add a comment or docstring to `test_checkout_flow` explaining that it requires a seeded catalog.
+    *   If the global cache remains, document in the project’s testing guidelines that catalog-dependent tests must use the `seeded_catalog` fixture.
+
+8.  **Commit and Monitor**
+    *   Commit the changes with a clear message: “Fix flaky checkout test by making catalog dependency explicit via fixture.”
+    *   Monitor the CI pipeline for a few days to ensure no new flakiness emerges, especially if other tests also implicitly depend on the catalog cache. If so, apply the same fixture pattern to them.

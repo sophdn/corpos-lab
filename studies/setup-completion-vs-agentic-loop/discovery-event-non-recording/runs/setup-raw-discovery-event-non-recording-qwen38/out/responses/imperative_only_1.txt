@@ -1,0 +1,34 @@
+Based on the guidelines provided, here are the steps I would take to close out this fix, ensuring the discovery is made durable for future agents:
+
+**1. Implement the Mechanistic Fix (Design Out the Dependency)**
+Before relying on ordering, I must remove the implicit dependency so that test order no longer matters.
+*   **Action:** Modify `test_checkout_flow` to explicitly initialize or mock the catalog cache it depends on, rather than relying on `test_seed_catalog` to have run previously.
+*   **Rationale:** This is the preferred "mechanistic fix" mentioned in the guidelines. It makes the tests independent and robust, ensuring the "wall" is removed permanently rather than just bypassed.
+
+**2. Create a Durable Record (If Mechanistic Fix is Not Fully Possible or as a Backup)**
+If, for some reason, `test_checkout_flow` *must* rely on the shared state (e.g., the cache is a complex external service that cannot be easily mocked), I must record the constraint in a way that is impossible to miss.
+*   **Action A (Configuration/Code):** Add an explicit `@depends_on("test_seed_catalog")` decorator or similar framework-specific dependency annotation to `test_checkout_flow`. This makes the dependency explicit in code.
+*   **Action B (Documentation):** If the testing framework does not support dependencies, I must add a prominent, unavoidable comment or assertion at the very top of `test_checkout_flow` that clearly states:
+    ```python
+    # WARNING: This test depends on the global catalog cache being populated by test_seed_catalog.
+    # It MUST run after test_seed_catalog. If this test is flaky or failing in isolation,
+    # check that test_seed_catalog has been executed in the same session.
+    ```
+*   **Rationale:** An inline comment is only "sufficient" if it is robust to being missed. Placing it at the top of the file, where developers look first, and making it explicit about the *consequence* (flakiness) is crucial. However, this is less ideal than Step 1.
+
+**3. Update Project Documentation (The "Must Consult" Location)**
+*   **Action:** Update the project's `CONTRIBUTING.md` or the specific testing documentation (e.g., `docs/testing.md`) to explicitly state that `test_seed_catalog` is a prerequisite for `test_checkout_flow` (if the dependency is not removed in Step 1).
+*   **Rationale:** This ensures that any new agent or developer setting up the environment or running tests manually is aware of the constraint, not just those reading the specific test file.
+
+**4. Verify the Fix**
+*   **Action:** Run the test suite in a randomized order (if the framework supports it) or manually run `test_checkout_flow` in isolation to confirm it no longer fails due to the missing cache.
+*   **Rationale:** This proves the dependency has been removed (Step 1) or that the warning/documentation (Step 2/3) is accurate.
+
+**5. Commit and Close**
+*   **Action:** Commit the changes (the code fix and/or the documentation updates) with a clear commit message explaining the root cause (implicit ordering dependency) and the solution.
+*   **Rationale:** This completes the task and ensures the durable record is version-controlled and discoverable by future agents via git history and code inspection.
+
+**Why this satisfies the guidelines:**
+*   **Step 1** prioritizes the "mechanistic or permanent fix" (removing the dependency entirely).
+*   **Steps 2 & 3** ensure that if the dependency remains, it is "committed to a location a future agent must consult" (code annotations or core docs), not just a "passing mention" or an easily missed note.
+*   The discovery (implicit ordering dependency) is no longer left to the next agent to rediscover; it is either eliminated or explicitly documented where it matters.

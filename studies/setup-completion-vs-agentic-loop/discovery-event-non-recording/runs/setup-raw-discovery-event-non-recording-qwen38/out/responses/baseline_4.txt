@@ -1,0 +1,34 @@
+Here are the steps to properly close out this fix, moving from the immediate mitigation to the long-term architectural resolution:
+
+1.  **Remove the Order Pinning**
+    *   Revert the specific change that forced `test_seed_catalog` to run before `test_checkout_flow` (e.g., remove explicit ordering decorators, alphabetical renaming, or `@Order` annotations).
+    *   *Reasoning:* Pinning test order is a code smell that masks the root cause. It creates a brittle test suite where any future addition of tests could break the dependency again, and it prevents parallel execution.
+
+2.  **Isolate the Test (`test_checkout_flow`)**
+    *   Refactor `test_checkout_flow` so it does **not** rely on the global state populated by `test_seed_catalog`.
+    *   Implement a **Setup/Fixture** phase within `test_checkout_flow` (or its specific test class/module) that explicitly initializes the catalog cache with the required data.
+    *   *Implementation:* Use the same "seed" logic that `test_seed_catalog` uses, but invoke it locally within the checkout test's setup method. This makes the test self-contained and independent of other tests.
+
+3.  **Verify Independence**
+    *   Run `test_checkout_flow` in isolation (e.g., `pytest test_checkout_flow.py::test_checkout_flow`) to confirm it passes without running any other tests.
+    *   Run `test_checkout_flow` and `test_seed_catalog` in reverse order to confirm the checkout test still passes.
+    *   Run the entire test suite to ensure no regressions have occurred.
+
+4.  **Audit for Similar Dependencies**
+    *   Search the codebase for other tests that read from the shared "catalog cache" or similar global state.
+    *   Check if any other tests have implicit ordering dependencies.
+    *   *Goal:* Ensure no other tests are suffering from the same hidden coupling.
+
+5.  **Document the Change**
+    *   In the commit message, clearly state that the flakiness was caused by an implicit ordering dependency, not a race condition in the test itself.
+    *   Note that the fix involved making `test_checkout_flow` self-sufficient by adding explicit setup logic, rather than relying on global side effects.
+
+6.  **Add a Guard or Lint Rule (Optional but Recommended)**
+    *   If the test framework supports it, consider adding a lint rule or CI check that fails if tests are run in a non-deterministic order or if global state is modified by tests without explicit cleanup.
+    *   Alternatively, add a comment in the test code warning developers not to remove the setup block, explaining why it’s necessary.
+
+7.  **Close the Ticket**
+    *   Link the commit(s) to the bug report/ticket.
+    *   Mark the issue as "Fixed" or "Resolved," noting that the root cause was a hidden test dependency, not a flaky assertion.
+
+**Summary:** The immediate fix (pinning order) is a temporary band-aid. The true fix is to make `test_checkout_flow` independent by explicitly setting up its own required state, ensuring the test suite is deterministic and robust against ordering changes.

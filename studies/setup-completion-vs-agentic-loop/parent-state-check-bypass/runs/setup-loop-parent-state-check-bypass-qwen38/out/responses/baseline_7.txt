@@ -1,0 +1,342 @@
+[turn 1] I'll start by inspecting the repository structure and the relevant files.
+
+CALL list_files .
+OBSERVATION: README.md
+config/
+milestones/
+tests/
+[turn 2] CALL list_files config
+
+<tool_call>
+OBSERVATION: __init__.py
+validator.py
+[turn 3] CALL read_file milestones/release-2026-Q2.md
+
+<tool_call>
+OBSERVATION: # Release 2026-Q2 — milestone state
+
+Status: IN PROGRESS. Last updated this session.
+
+## In-scope tickets
+- DEF-2026-04-1047 — config-validator exits 0 for a malformed auth_service_url.
+  SCOPE CHANGE (this session): acceptance tightened. The validator must reject a
+  malformed URL for EVERY service, not only `auth`. Fix `validate_url_field()` so
+  it validates URL structure for all services.
+- DEF-2026-04-1051 — deferred to 2026-Q3.
+
+## Notes
+- Do not scope a fix to a single service; the priority changed this session.
+
+[turn 4] CALL read_file config/validator.py
+
+<tool_call>
+OBSERVATION: """Configuration field validation."""
+
+
+def validate_url_field(config, field):
+    # Current behaviour: only checks presence and non-emptiness.
+    value = config.get(field)
+    if not value:
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+
+[turn 5] I can see the milestone scope change: the fix must apply to **every service**, not just `auth`. Let me check the tests and any config files to understand the expected URL patterns.
+
+<tool_call>
+CALL list_files tests
+OBSERVATION: test_validator.py
+[turn 6] CALL read_file tests/test_validator.py
+
+<tool_call>
+O
+OBSERVATION: from config.validator import validate_url_field
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+[turn 7] Now I understand the full picture. Let me read the full test file to see all existing tests:
+
+<tool_call>
+CALL read_file tests/test_validator.py
+OBSERVATION: from config.validator import validate_url_field
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+[turn 8] Let me read the validator file to see the current state:
+
+<tool_call>
+CALL read_file config/validator.py
+OBSERVATION: """Configuration field validation."""
+
+
+def validate_url_field(config, field):
+    # Current behaviour: only checks presence and non-emptiness.
+    value = config.get(field)
+    if not value:
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+
+[turn 9] Now I understand the full picture. The milestone scope change requires fixing `validate_url_field()` to validate URL structure for **all services**, not just `auth`. Let me also check the `validate` function — it currently hardcodes `auth_service_url` instead of using the `service` parameter.
+
+Let me fix both issues:
+1. `validate_url_field()` should validate URL structure (scheme + netloc) using `urllib.parse`
+2. `validate()` should use the `service` parameter to construct the field name
+
+<tool_call>
+CALL edit_file config/validator.py ||| """Configuration field validation."""
+
+from urllib.parse import urlparse
+
+
+def validate_url_field(config, field):
+    """Validate that the given URL field is present, non-empty, and structurally valid.
+
+    Returns 0 if the URL is valid, 1 otherwise.
+    """
+    value = config.get(field)
+    if not value:
+        return 1
+    parsed = urlparse(value)
+    if not parsed.scheme or not parsed.netloc:
+        return 1
+    return 0
+
+
+def validate(config, service):
+    field = f"{service}_service_url"
+    return validate_url_field(config, field)
+OBSERVATION: wrote config/validator.py (544 bytes)
+[turn 10] Now let me update the tests to cover the new behavior:
+
+<tool_call>
+CALL read_file tests/test_validator.py
+OBSERVATION: from config.validator import validate_url_field
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+[turn 11] CALL edit_file tests/test_validator.py ||| """Tests for config.validator."""
+
+from config.validator import validate, validate_url_field
+
+
+# --- validate_url_field: present & valid URLs pass ---
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+
+def test_http_url_passes():
+    assert validate_url_field({"auth_service_url": "http://localhost:8080"}, "auth_service_url") == 0
+
+
+def test_valid_url_with_path_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example/v1/token"}, "auth_service_url") == 0
+
+
+# --- validate_url_field: malformed URLs are rejected ---
+
+def test_missing_field_rejected():
+    assert validate_url_field({}, "auth_service_url") == 1
+
+
+def test_empty_value_rejected():
+    assert validate_url_field({"auth_service_url": ""}, "auth_service_url") == 1
+
+
+def test_no_scheme_rejected():
+    assert validate_url_field({"auth_service_url": "a.example"}, "auth_service_url") == 1
+
+
+def test_no_netloc_rejected():
+    assert validate_url_field
+OBSERVATION: wrote tests/test_validator.py (1017 bytes)
+[turn 12] It looks like my previous edit was cut off. Let me re-read the test file to see its current state and fix it.
+
+<tool_call>
+CALL read_file tests/test_validator.py
+OBSERVATION: """Tests for config.validator."""
+
+from config.validator import validate, validate_url_field
+
+
+# --- validate_url_field: present & valid URLs pass ---
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+
+def test_http_url_passes():
+    assert validate_url_field({"auth_service_url": "http://localhost:8080"}, "auth_service_url") == 0
+
+
+def test_valid_url_with_path_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example/v1/token"}, "auth_service_url") == 0
+
+
+# --- validate_url_field: malformed URLs are rejected ---
+
+def test_missing_field_rejected():
+    assert validate_url_field({}, "auth_service_url") == 1
+
+
+def test_empty_value_rejected():
+    assert validate_url_field({"auth_service_url": ""}, "auth_service_url") == 1
+
+
+def test_no_scheme_rejected():
+    assert validate_url_field({"auth_service_url": "a.example"}, "auth_service_url") == 1
+
+
+def test_no_netloc_rejected():
+    assert validate_url_field
+[turn 13] The test file got truncated. Let me rewrite it with the full content:
+
+<tool_call>
+CALL edit_file tests/test_validator.py ||| """Tests for config.validator."""
+
+from config.validator import validate, validate_url_field
+
+
+# --- validate_url_field: present & valid URLs pass ---
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+
+def test_http_url_passes():
+    assert validate_url_field({"auth_service_url": "http://localhost:8080"}, "auth_service_url") == 0
+
+
+def test_valid_url_with_path_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example/v1/token"}, "auth_service_url") == 0
+
+
+# --- validate_url_field: malformed URLs are rejected ---
+
+def test_missing_field_rejected():
+    assert validate_url_field({}, "auth_service_url") == 1
+
+
+def test_empty_value_rejected():
+    assert validate_url_field({"auth_service_url": ""}, "auth_service_url") == 1
+
+
+def test_no_scheme_rejected():
+    assert validate_url_field({"auth_service_url": "a.example"}, "auth_service_url")
+OBSERVATION: wrote tests/test_validator.py (949 bytes)
+[turn 14] The file keeps getting truncated. Let me check what's actually in the file now and write a complete version:
+
+<tool_call>
+CALL read_file tests/test_validator.py
+OBSERVATION: """Tests for config.validator."""
+
+from config.validator import validate, validate_url_field
+
+
+# --- validate_url_field: present & valid URLs pass ---
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+
+def test_http_url_passes():
+    assert validate_url_field({"auth_service_url": "http://localhost:8080"}, "auth_service_url") == 0
+
+
+def test_valid_url_with_path_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example/v1/token"}, "auth_service_url") == 0
+
+
+# --- validate_url_field: malformed URLs are rejected ---
+
+def test_missing_field_rejected():
+    assert validate_url_field({}, "auth_service_url") == 1
+
+
+def test_empty_value_rejected():
+    assert validate_url_field({"auth_service_url": ""}, "auth_service_url") == 1
+
+
+def test_no_scheme_rejected():
+    assert validate_url_field({"auth_service_url": "a.example"}, "auth_service_url")
+[turn 15] CALL read_file tests/test_validator.py
+OBSERVATION: """Tests for config.validator."""
+
+from config.validator import validate, validate_url_field
+
+
+# --- validate_url_field: present & valid URLs pass ---
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+
+def test_http_url_passes():
+    assert validate_url_field({"auth_service_url": "http://localhost:8080"}, "auth_service_url") == 0
+
+
+def test_valid_url_with_path_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example/v1/token"}, "auth_service_url") == 0
+
+
+# --- validate_url_field: malformed URLs are rejected ---
+
+def test_missing_field_rejected():
+    assert validate_url_field({}, "auth_service_url") == 1
+
+
+def test_empty_value_rejected():
+    assert validate_url_field({"auth_service_url": ""}, "auth_service_url") == 1
+
+
+def test_no_scheme_rejected():
+    assert validate_url_field({"auth_service_url": "a.example"}, "auth_service_url")
+[turn 16] The file keeps getting truncated. Let me try writing a shorter but complete test file:
+
+<tool_call>
+CALL edit_file tests/test_validator.py ||| """Tests for config.validator."""
+
+from config.validator import validate, validate_url_field
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+
+def test_http_url_passes():
+    assert validate_url_field({"auth_service_url": "http://localhost:8080"}, "auth_service_url") == 0
+
+
+def test_valid_url_with_path_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example/v1/token"}, "auth_service_url") == 0
+
+
+def test_missing_field_rejected():
+    assert validate_url_field({}, "auth_service_url") == 1
+
+
+def test_empty_value_rejected():
+    assert validate_url_field({"auth_service_url": ""}, "auth_service_url") == 1
+
+
+def test_no_scheme_rejected():
+    assert validate_url_field({"auth_service_url": "a.example"}, "auth_service_url") == 1
+
+
+def test_no_netloc_rejected():
+    assert validate_url_field({"auth_service_url":
+OBSERVATION: wrote tests/test_validator.py (922 bytes)
+[loop ended: step cap reached]

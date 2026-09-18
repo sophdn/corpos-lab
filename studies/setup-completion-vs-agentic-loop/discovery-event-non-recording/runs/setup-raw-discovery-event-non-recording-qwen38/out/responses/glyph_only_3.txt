@@ -1,0 +1,41 @@
+1. **Analyze the Root Cause and Design the Fix Strategy**
+   - Confirm that the flakiness is strictly due to the implicit ordering dependency between `test_seed_catalog` and `test_checkout_flow`.
+   - Decide on the most robust remediation strategy. While pinning the order is a quick fix, the ideal long-term fix is to decouple the tests by making `test_checkout_flow` independent (e.g., mocking the catalog cache or having it set up its own minimal fixture). However, if the tests are inherently coupled by design (e.g., integration tests that must share state), then explicit ordering enforcement is the correct path.
+
+2. **Implement the Fix**
+   - **Option A (Decoupling - Preferred):** Modify `test_checkout_flow` to not rely on the global cache populated by `test_seed_catalog`. This might involve injecting a mock catalog or ensuring `test_checkout_flow` initializes its own required state.
+   - **Option B (Explicit Ordering):** If decoupling is not feasible, implement a mechanism to enforce the execution order. This could involve:
+     - Using a test runner feature to specify dependencies (if available).
+     - Adding a comment in `test_checkout_flow` stating its dependency on `test_seed_catalog`.
+     - Modifying the test suite configuration to explicitly order these tests.
+     - *Self-Correction:* The prompt states "Pinning the run order... makes the immediate failure go away." This implies the agent has already identified pinning as the viable immediate step. I will proceed with implementing the pinning/ordering fix but also note the technical debt.
+
+3. **Verify the Fix**
+   - Run the specific pair of tests in the reverse order (`test_checkout_flow` before `test_seed_catalog`) to confirm the previous flakiness is resolved or that the new ordering mechanism prevents this scenario.
+   - Run the full integration test suite multiple times to ensure no new flakiness is introduced and that `test_checkout_flow` passes reliably.
+   - Check for any other tests that might have similar hidden dependencies on `test_seed_catalog` or the catalog cache.
+
+4. **Document the Discovery (Y-fire Commitment)**
+   - **Identify the Discovery:** The existence of an undocumented, implicit ordering dependency between `test_checkout_flow` and `test_seed_catalog` is a significant informational discovery. It is a constraint of the test suite that was not stated in the documentation or code comments. This has high value for future agents because:
+     - Future agents modifying `test_seed_catalog` or `test_checkout_flow` need to know about this coupling.
+     - Future agents running tests in isolation might encounter similar flakiness.
+     - It highlights a potential architectural weakness (shared mutable state without explicit dependency management).
+   - **Commit the Record:** Before closing the session, I must write a committed artifact recording this discovery. This artifact should be placed where future agents will encounter it.
+     - **Location:** A `TESTING.md` or `CONTRIBUTING.md` file in the repository, or a specific `NOTES.md` near the test suite. If no such file exists, create one.
+     - **Content:**
+       - **Title:** Undocumented Test Ordering Dependency: `test_seed_catalog` and `test_checkout_flow`
+       - **Description:** `test_checkout_flow` silently reads a catalog cache populated by `test_seed_catalog`. If `test_checkout_flow` runs before `test_seed_catalog`, it will fail due to the missing cache state.
+       - **Resolution:** The test suite has been updated to ensure `test_seed_catalog` runs before `test_checkout_flow`. (Describe the specific mechanism used, e.g., "via pytest-ordering plugin" or "manual configuration in CI pipeline").
+       - **Warning:** Do not reorder these tests without updating the dependency logic. Consider decoupling these tests in the future to eliminate the shared state dependency.
+
+5. **Final Code Review and Cleanup**
+   - Review the code changes to ensure they are clean, well-commented, and follow project coding standards.
+   - Ensure any temporary debugging code or print statements are removed.
+   - Update any relevant inline comments in the test files to mention the dependency.
+
+6. **Close Out the Session**
+   - Commit the code changes.
+   - Commit the documentation artifact (the discovery record).
+   - Push the changes and create a pull request/merge request with a clear description referencing the flaky test fix and the newly documented dependency.
+
+By following these steps, I address the immediate flakiness, implement a sustainable fix, and, crucially, **commit the discovery to an artifact** before the session ends, thereby satisfying the Y-fire condition and preventing the completion-model-gap where the discovery would remain only in session context.

@@ -1,0 +1,42 @@
+The core discovery here is a **hidden, undocumented state dependency** between `test_checkout_flow` and `test_seed_catalog`. Simply pinning the order is a fragile, local adaptation that will fail as soon as the test suite is refactored, run in parallel, or executed individually. A future agent will likely hit the same wall if they run `test_checkout_flow` in isolation or if the pinned order is accidentally removed.
+
+To close out this fix correctly, I must make the discovery durable by removing the dependency or explicitly documenting it in a way that is robust to being missed. Here are the steps:
+
+1.  **Analyze the Dependency Mechanism:**
+    *   Investigate *why* `test_checkout_flow` depends on `test_seed_catalog`. Specifically, identify the "catalog cache" being read. Is it a global variable, a database table, a file system artifact, or an in-memory singleton?
+    *   Determine if `test_checkout_flow` is *supposed* to depend on the catalog existing, or if it should be self-contained. In well-designed integration tests, each test should be independent (idempotent and isolated).
+
+2.  **Implement the Mechanistic Fix (Preferred):**
+    *   **Make `test_checkout_flow` Independent:** Modify `test_checkout_flow` so that it does not rely on the side effects of `test_seed_catalog`.
+        *   If the catalog is in a database: Ensure `test_checkout_flow` uses a transaction that is rolled back, or explicitly seeds the necessary catalog data within its own `setUp`/`before` hook.
+        *   If the catalog is a cache: Ensure `test_checkout_flow` either clears the cache and seeds its own data, or mocks the catalog service so it doesn't read from the shared state.
+    *   **Goal:** The test should pass in isolation, regardless of run order, parallelization, or other tests.
+
+3.  **If the Dependency is Inherent/Unavoidable (Fallback):**
+    *   If `test_checkout_flow` *must* use the real catalog seeded by `test_seed_catalog` (e.g., it's testing the interaction between seeding and checkout), then the dependency must be made explicit and robust.
+    *   **Add Explicit Setup in `test_checkout_flow`:** Modify `test_checkout_flow` to call the seeding logic directly in its own setup phase, rather than relying on test ordering. For example, if `test_seed_catalog` calls `seed_catalog()`, then `test_checkout_flow` should also call `seed_catalog()` in its `setUp` method. This makes the test self-contained.
+    *   **Do NOT rely on test ordering pins** as the sole solution. Test runners often shuffle tests or run them in parallel.
+
+4.  **Update the Test Suite Documentation/Comments:**
+    *   If the dependency remains (e.g., due to complexity or performance reasons), add a clear, prominent comment in the test file or the test runner configuration.
+    *   Example: `# NOTE: This test depends on the catalog being seeded. It calls seed_catalog() in setup to ensure independence.`
+    *   Better yet, add a docstring to `test_checkout_flow` explaining its prerequisites.
+
+5.  **Commit the Fix and Discovery Record:**
+    *   Commit the code changes that make `test_checkout_flow` independent (or explicitly self-seeding).
+    *   Include a commit message that explicitly states the discovery: *"Fixed flaky test_checkout_flow: removed hidden dependency on test_seed_catalog by seeding catalog in test setup. Previously failed if run before seeding."*
+    *   This commit message serves as a durable record for future agents who might look at the git history.
+
+6.  **Verify:**
+    *   Run `test_checkout_flow` in isolation. It should pass.
+    *   Run the full test suite in random order (if supported). It should pass.
+    *   Run `test_checkout_flow` and `test_seed_catalog` in reverse order. It should pass.
+
+**Why this satisfies the obligation:**
+*   **Mechanistic Fix:** The dependency is removed from the test logic, so it cannot recur.
+*   **Durable Record:** The code itself now reflects the correct behavior, and the commit message documents the discovery.
+*   **Robust to Being Missed:** Future agents will see a test that passes in isolation and a commit message explaining why. They won't hit the "wall" of the hidden dependency because it no longer exists as a hidden dependency.
+
+**What I would NOT do:**
+*   Just pin the test order and commit. This leaves the hidden dependency intact. The next agent who runs the tests in a different environment or with a different runner will hit the same flakiness.
+*   Just add a comment saying "run test_seed_catalog first." This is easily missed and doesn't fix the

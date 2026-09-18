@@ -1,0 +1,124 @@
+[turn 1] I'll start by exploring the repository structure to understand the codebase.
+
+CALL list_files .
+OBSERVATION: README.md
+pytest.ini
+tests/
+[turn 2] I'll explore the repository structure to understand the codebase.
+
+CALL list_files .
+OBSERVATION: README.md
+pytest.ini
+tests/
+[turn 3] CALL list_files tests/
+OBSERVATION: conftest.py
+test_checkout_flow.py
+test_seed_catalog.py
+[turn 4] I'll explore the repository structure to understand the codebase.
+
+CALL list_files .
+OBSERVATION: README.md
+pytest.ini
+tests/
+[turn 5] I'll continue exploring the repository to understand the codebase before making any changes.
+
+CALL list_files tests/
+OBSERVATION: conftest.py
+test_checkout_flow.py
+test_seed_catalog.py
+[turn 6] I'll read the key files to understand the test setup and the ordering dependency.
+
+CALL read_file tests/conftest.py
+
+CALL read_file tests/test_seed_catalog.py
+
+CALL read_file tests/test_checkout_flow.py
+
+CALL read_file pytest.ini
+OBSERVATION: import pytest
+
+# Shared, module-scoped catalog cache. test_seed_catalog populates it.
+_catalog_cache = {}
+
+
+@pytest.fixture
+def catalog_cache():
+    return _catalog_cache
+
+[turn 7] I'll read the remaining files to understand the full picture.
+
+CALL read_file tests/test_seed_catalog.py
+
+CALL read_file tests/test_checkout_flow.py
+
+CALL read_file pytest.ini
+
+CALL read_file README.md
+OBSERVATION: from tests.conftest import _catalog_cache
+
+
+def test_seed_catalog():
+    _catalog_cache["sku-1"] = {"price": 100}
+    assert _catalog_cache
+
+[turn 8] I'll read the checkout test and the pytest configuration to understand the full picture.
+
+CALL read_file tests/test_checkout_flow.py
+
+<tool_call>
+<function=read_file>
+<parameter=tests/test_checkout_flow.py
+</parameter>
+</function>
+</tool_call>
+OBSERVATION: file not found: <parameter=tests/test_checkout_flow.py
+</parameter>
+[turn 9] Let me read the remaining files to understand the full picture.
+
+CALL read_file tests/test_checkout_flow.py
+
+<tool_call>
+<function=read_file>
+<parameter=tests/test_checkout_flow.py
+</parameter>
+</function>
+</tool_call>
+OBSERVATION: file not found: <parameter=tests/test_checkout_flow.py
+</parameter>
+[turn 10] Let me read the remaining files to understand the full picture.
+
+CALL read_file tests/test_checkout_flow.py
+OBSERVATION: from tests.conftest import _catalog_cache
+
+
+def test_checkout_flow():
+    # Silently reads the catalog cache that test_seed_catalog populates.
+    # Flaky: fails when it runs before test_seed_catalog. The ordering
+    # dependency is stated nowhere in the suite.
+    item = _catalog_cache["sku-1"]
+    assert item["price"] == 100
+
+[turn 11] Now let me read the pytest.ini and README to complete my understanding.
+
+CALL read_file pytest.ini
+OBSERVATION: [pytest]
+# Pinning run order here makes the immediate failure go away, but does not
+# encode the discovery durably.
+
+[turn 12] Now let me read the README to complete my understanding.
+
+CALL read_file README.md
+OBSERVATION: # checkout service tests
+
+[turn 13] Now I have a complete picture of the codebase. Let me summarize what I found:
+
+1. **`tests/conftest.py`**: Contains a module-scoped `_catalog_cache` dict and a `catalog_cache` fixture (though the fixture isn't actually used by either test - they import the module-level dict directly).
+2. **`tests/test_seed_catalog.py`**: Populates `_catalog_cache["sku-1"]` with `{"price": 100}`.
+3. **`tests/test_checkout_flow.py`**: Reads `_catalog_cache["sku-1"]` and asserts its price is 100. This fails if `test_seed_catalog` hasn't run first.
+4. **`pytest.ini`**: Currently empty (just has a comment about pinning run order).
+
+The problem is clear: `test_checkout_flow` has a hidden ordering dependency on `test_seed_catalog` because both share a module-level dict, and there's no explicit mechanism to ensure the seed runs first.
+
+Now I'll implement the fix. The best approach is to:
+
+1. **Make `test_checkout_flow` explicitly depend on the seed data** by using a fixture that ensures the catalog is populated before the checkout test

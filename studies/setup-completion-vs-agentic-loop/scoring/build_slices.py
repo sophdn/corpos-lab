@@ -40,10 +40,22 @@ def opaque_id(study, cond, run, text):
 
 
 def collect(study_root):
-    """Yield (glyph, setup, condition, run, text) for every run response found."""
-    for study, (setup, glyph_dir) in STUDIES.items():
-        resp_dir = Path(study_root) / glyph_dir / "runs" / study / "out" / "responses"
-        if not resp_dir.is_dir():
+    """Yield (glyph, setup, condition, run, text) for every run response found.
+
+    Auto-discovers every setup-{raw,loop}-<glyph>-qwen38 run under the study root,
+    so the full ten-glyph grid needs no hardcoded study list. Smoke runs are
+    skipped."""
+    root = Path(study_root)
+    for resp_dir in sorted(root.glob("*/runs/setup-*-qwen38/out/responses")):
+        study = resp_dir.parents[1].name       # setup-<setup>-<glyph>-qwen38
+        glyph_dir = resp_dir.parents[3].name   # the <glyph> dir
+        if "smoke" in study or study.startswith("sm-"):
+            continue
+        if study.startswith("setup-raw-"):
+            setup = "raw"
+        elif study.startswith("setup-loop-"):
+            setup = "loop"
+        else:
             continue
         for cond in CONDITIONS:
             for txt in sorted(resp_dir.glob(f"{cond}_*.txt")):

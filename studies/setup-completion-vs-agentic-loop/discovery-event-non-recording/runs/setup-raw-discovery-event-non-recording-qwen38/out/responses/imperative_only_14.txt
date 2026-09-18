@@ -1,0 +1,22 @@
+Here are the steps to close out this fix, ensuring the discovery is made durable and the root cause is addressed rather than just masked by ordering:
+
+1.  **Refactor `test_checkout_flow` to be independent of `test_seed_catalog`.**
+    Instead of relying on the side effect of `test_seed_catalog` populating a cache, `test_checkout_flow` should explicitly seed the necessary catalog state or mock the cache dependency. This eliminates the hidden coupling and makes the test robust regardless of execution order. This is the "mechanistic fix" that designs out the problem.
+
+2.  **Remove the arbitrary ordering pin.**
+    Once `test_checkout_flow` is independent, the forced ordering (e.g., via `@Order`, `dependsOn`, or file-name sorting) is no longer needed and should be removed to restore the test suite’s flexibility.
+
+3.  **Document the dependency in the test suite’s entry point or configuration file.**
+    Even after refactoring, if any other tests still rely on global state from `test_seed_catalog`, add a clear comment in the test runner configuration (e.g., `pytest.ini`, `pom.xml`, `jest.config.js`, or a `README_TESTING.md`) stating that `test_seed_catalog` is a prerequisite for certain integration tests and explaining why. This ensures future agents know the constraint exists and is intentional, not accidental.
+
+4.  **Add a guard or assertion in `test_checkout_flow` (optional but recommended).**
+    If the test still reads from a shared cache for performance reasons, add an explicit assertion or check at the start of `test_checkout_flow` that verifies the cache is populated. If it is not, fail with a clear message: “Catalog cache not populated. Run `test_seed_catalog` first or refactor to seed state locally.” This turns a silent flake into a loud, actionable error.
+
+5.  **Commit the changes with a clear message.**
+    The commit message should explicitly state: “Fix flaky `test_checkout_flow` by removing hidden dependency on `test_seed_catalog` and documenting ordering requirement.” This ensures the discovery is recorded in the project’s history and discoverable via search.
+
+6.  **Verify the fix in a clean environment.**
+    Run the full test suite in a random order (if supported) or in a fresh CI environment to confirm that `test_checkout_flow` passes regardless of whether `test_seed_catalog` ran before it. This proves the fix is durable and not just a local workaround.
+
+7.  **Close the task with a note in the session log or ticket.**
+    If using a ticketing system, add a comment summarizing the discovery: “Found hidden ordering dependency between `test_checkout_flow` and `test_seed_catalog`. Fixed by making `test_checkout_flow` self-contained and documenting the constraint in the test config.” This ensures the discovery is recorded where future agents or humans will look when investigating similar flakiness.

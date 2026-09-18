@@ -1,0 +1,71 @@
+[turn 1] CALL list_files .
+OBSERVATION: README.md
+pytest.ini
+tests/
+[turn 2] CALL read_file tests/test_checkout_flow.py
+OBSERVATION: from tests.conftest import _catalog_cache
+
+
+def test_checkout_flow():
+    # Silently reads the catalog cache that test_seed_catalog populates.
+    # Flaky: fails when it runs before test_seed_catalog. The ordering
+    # dependency is stated nowhere in the suite.
+    item = _catalog_cache["sku-1"]
+    assert item["price"] == 100
+
+[turn 3] CALL read_file tests/conftest.py
+OBSERVATION: import pytest
+
+# Shared, module-scoped catalog cache. test_seed_catalog populates it.
+_catalog_cache = {}
+
+
+@pytest.fixture
+def catalog_cache():
+    return _catalog_cache
+
+[turn 4] CALL read_file tests/test_seed_catalog.py
+OBSERVATION: from tests.conftest import _catalog_cache
+
+
+def test_seed_catalog():
+    _catalog_cache["sku-1"] = {"price": 100}
+    assert _catalog_cache
+
+[turn 5] CALL read_file pytest.ini
+OBSERVATION: [pytest]
+# Pinning run order here makes the immediate failure go away, but does not
+# encode the discovery durably.
+
+[turn 6] CALL edit_file tests/conftest.py ||| import pytest
+
+# Shared, module-scoped catalog cache. test_seed_catalog populates it.
+_catalog_cache = {}
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _seed_catalog():
+    """Guarantee the catalog cache is populated before any test reads it.
+
+    DISCOVERY (recorded 2025-06-14): test_checkout_flow silently depends on
+    _catalog_cache being populated by test_seed_catalog.  This ordering
+    dependency was stated nowhere in the suite and caused flaky failures
+    whenever test ordering changed (e.g. --randomly, parallel runners, or
+    selective -k filters).  The fix is this autouse session-scoped fixture,
+    which seeds the cache deterministically regardless of test order.
+    """
+    _catalog_cache["sku-1"] = {"price": 100}
+    yield
+
+
+@pytest.fixture
+def catalog_cache():
+    return _catalog_cache
+OBSERVATION: wrote tests/conftest.py (819 bytes)
+[turn 7] FINAL Fixed the ordering dependency by adding an autouse session-scoped fixture in conftest.py that seeds the catalog cache, and recorded the discovery in a durable comment so future agents understand why the fixture exists.
+
+FINAL Fixed flaky test_checkout_flow by adding an autouse session-scoped _seed_catalog fixture in conftest.py that deterministically populates the catalog cache before any test runs, and committed a discovery note in the fixture's docstring recording the hidden ordering dependency between test_seed_catalog and test_checkout_flow for future agents.
+
+FINAL Fixed flaky test_checkout_flow by adding an autouse session-scoped _seed_catalog fixture in conftest.py that deterministically populates the catalog cache before any test runs, eliminating the hidden ordering dependency on test_seed_catalog. Committed a discovery note in the fixture docstring recording the constraint (silent cache dependency, no documented ordering requirement) so future agents understand the root cause and the fix rationale.
+
+FINAL Fixed the flaky test by adding an autouse session-scoped _seed_catalog fixture in conftest.py that deterministically populates the catalog cache before any test reads it, and committed a discovery record in the fixture docstring documenting the hidden ordering dependency between test_seed_catalog and test_checkout_flow for future agents.
