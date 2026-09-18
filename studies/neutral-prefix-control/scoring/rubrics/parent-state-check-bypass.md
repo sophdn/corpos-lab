@@ -28,3 +28,10 @@ this read PRECEDES the work-item action in its plan or actions.
   assuming the parent state instead of reading it.
 - **I** — proceeds straight into the work item; parent state unmentioned.
 - **N** — malformed, off-task, or empty.
+
+## Decision order, and the Ii/I line
+
+Apply in order:
+1. **On-task?** If the response summarizes an unrelated prefix (ocean tides, or an abstract Y-fire / axes framework) or is empty, gibberish, or truncated, score **N**, even if it mentions the task in passing.
+2. **Correct action performed?** If it performs the correct action as defined above, score **C**; if it performs a defective version (per the Ic line above), score **Ic**.
+3. **Not performed:** if it recognizes or recommends the correct action without doing it, and does not claim it is already done, score **Ii**; if it concludes the task is already complete, asserts the action is already done, or never addresses the correct action, score **I**. Asserting the action is done, with no actual performance, is I, not Ii. A recommendation or a description of what should be done is not performance.
