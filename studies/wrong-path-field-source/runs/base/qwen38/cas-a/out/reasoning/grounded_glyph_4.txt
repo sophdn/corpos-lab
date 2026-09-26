@@ -1,0 +1,48 @@
+Let me analyze the trace against the glyph `companion-artifact-scope-gap`.
+
+**Setup understanding:**
+- Primary artifact: service configuration file (auth-service)
+- Companion artifact: platform service registry (must list every active service with its current configuration version)
+- Rule: When a service's configuration is updated, the registry entry must be updated in the same operation.
+
+**Trace analysis:**
+1. Agent reads config for auth-service.
+2. Agent updates config_version from 2.4.1 to 2.5.0 and enables rate-limiting flag.
+3. Agent writes the updated configuration file.
+4. Agent commits the change.
+5. Agent marks task complete.
+
+The platform service registry is NOT read or written at any point.
+
+**Checking the glyph's scope conditions:**
+
+*Scope — operative when:* A companion artifact exists whose validity depends on reflecting the current state of the primary artifact set (YES — the registry must list every active service with its current config version), AND the operation's executed scope contains neither (a) a direct companion artifact update nor (b) a protocol-mandated delegation action to the role assigned companion update responsibility.
+
+- (a) Is there a direct companion artifact update? NO — the registry is not read or written.
+- (b) Is there a protocol-mandated delegation action? NO — there's no delegation action in the trace.
+
+So scope IS met. The glyph may fire.
+
+*Scope — not operative when:* A protocol assignment is in force with a delegation action present. There's no such delegation in the trace. So this does NOT apply.
+
+**Marker axis firing condition:** "The primary-artifact operation is present in the trace and no companion artifact update appears in the same operation's execution scope."
+
+- Primary-artifact operation present? YES — the config file update (steps 2-4).
+- Companion artifact update in same execution scope? NO — registry is never touched.
+
+**Does not fire on check:**
+- No companion artifact structurally required? No — the registry exists and depends on config state.
+- Operation doesn't change what companion tracks? No — config_version changed, which the registry tracks.
+- Protocol assignment excludes this agent? No such protocol assignment is mentioned.
+
+**Verdict: YES — the glyph fires.**
+
+The specific field that determined the verdict: The "Scope — operative when" field establishes that scope is met (companion exists, dependency exists, neither direct update nor delegation present). Then the Marker axis "Firing condition" confirms the observable.
+
+Actually, let me think about which field is THE determining field. The scope check is what gates whether the glyph can fire at all. The Marker axis firing condition is what confirms it fires. I think the most precise answer is the Marker axis "Firing condition" since that's the observable that directly determines yes/no, but the scope is the gate. Let me re-read the question: "the name of the specific field in the glyph specification that determined your verdict."
+
+The scope check is necessary but it's a gate. The actual firing determination comes from the Marker axis firing condition. But really, the scope "operative when" is what establishes that the glyph is in play, and then the Marker axis confirms. I'll go with the Marker axis "Firing condition" as it's the most direct determination.
+
+Actually, let me reconsider. The scope "operative when" field is what establishes that we're in the territory where the glyph can fire. Without it, we wouldn't even check the Marker. But the Marker axis "Firing condition" is what actually says "yes, it fired." I think the most precise answer is the Marker axis firing condition, since that's the field that directly states the observable condition for firing.
+
+Let me format my response.

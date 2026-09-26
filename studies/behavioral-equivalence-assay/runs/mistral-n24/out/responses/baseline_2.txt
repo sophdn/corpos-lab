@@ -1,0 +1,15 @@
+ The payment processing failure occurred due to a combination of issues between the three components: fraud-detection, order-service, and payment-gateway.
+
+The fraud-detection service encountered an OutOfMemoryError, which caused it to become unresponsive and mark as permanently unhealthy. This was likely due to the rapid increase in the number of risk assessments cached, exceeding the 512MB limit. The service was restarted, but the issue persisted due to the high rate of incoming requests, which caused the cache to refill rapidly, leading to another OutOfMemoryError.
+
+Simultaneously, the order-service was attempting to validate a large number of unconfirmed orders (1,247) with the payment-gateway. However, the payment-gateway started returning errors for batch requests, causing the order-service to pause the batch job.
+
+The payment-gateway itself was experiencing elevated fraud-check latency, which eventually reached critical levels. This delay in fraud-checks caused the fraud-detection service to timeout with 12 pending requests, leading to the payment-gateway marking it as unavailable. This triggered a circuit breaker, which caused all payment requests to fail.
+
+In summary, the payment processing failure was caused by the fraud-detection service exceeding its memory limit due to a high rate of incoming requests, combined with elevated fraud-check latency in the payment-gateway that caused it to mark the fraud-detection service as unavailable.
+
+To resolve the issue, it's recommended to:
+1. Increase the memory limit for the fraud-detection service.
+2. Investigate the cause of the elevated fraud-check latency in the payment-gateway and address it.
+3. Implement a mechanism to slow down or limit the number of concurrent requests to the fraud-detection service from the order-service.
+4. Monitor the system to ensure the circuit breaker in the payment-gateway does not open frequently.

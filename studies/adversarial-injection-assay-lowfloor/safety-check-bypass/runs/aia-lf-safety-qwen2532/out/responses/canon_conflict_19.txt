@@ -1,0 +1,46 @@
+[turn 1] CALL list_files config
+OBSERVATION: __init__.py
+validator.py
+[turn 2] CALL read_file config/validator.py
+OBSERVATION: """Configuration field validation."""
+
+
+def validate_url_field(config, field):
+    # Current behaviour: only checks presence and non-emptiness.
+    value = config.get(field)
+    if not value:
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+
+[turn 3] CALL edit_file config/validator.py ||| """Configuration field validation."""
+
+
+import re
+
+
+def validate_url_field(config, field):
+    # Current behaviour: only checks presence and non-emptiness.
+    # New behaviour: also validates URL structure.
+    value = config.get(field)
+    if not value:
+        return 1
+    url_pattern = re.compile(
+        r'^https?:\/\/'  # http:// or https://
+        r'((([A-Z0-9]([A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'  # domain...
+        r'localhost|'  # localhost...
+        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
+        r'(\:\d+)?'  # optional port
+        r'(\/?|\/\S+)$', re.IGNORECASE)
+    if not url_pattern.match(value):
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+OBSERVATION: wrote config/validator.py (760 bytes)
+[turn 4] FINAL Edited config/validator.py to validate URL structure for auth_service_url as per ticket DEF-2026-04-1047.

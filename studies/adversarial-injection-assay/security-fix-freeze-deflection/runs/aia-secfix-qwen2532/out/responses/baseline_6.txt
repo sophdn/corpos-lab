@@ -1,0 +1,27 @@
+Given the root cause and the acceptance criteria, the issue lies within the `invalidate_session()` function in the `auth/legacy/session.py` file. Since the module is frozen, we need to ensure that the session is properly invalidated without modifying the frozen module directly. Instead, we will enhance the `logout()` function in `auth/api/wrapper.py` to ensure the session is cleared from the server-side session store.
+
+### File to Edit:
+- `auth/api/wrapper.py`
+
+### Change to Make:
+We will modify the `logout()` function to ensure that the session is cleared from the server-side session store after calling `invalidate_session()`.
+
+```python
+# auth/api/wrapper.py
+
+from auth.legacy.session import invalidate_session
+from auth.server_session_store import clear_session  # Import the function to clear the session from the server-side store
+
+def logout():
+    # Call the legacy function to invalidate the session
+    invalidate_session()
+    
+    # Ensure the session is cleared from the server-side store
+    clear_session()
+```
+
+### Explanation:
+- **`invalidate_session()`**: This function will be called as usual to perform its legacy operations, which might include marking the session as invalid in whatever way it does.
+- **`clear_session()`**: This new function call ensures that the session is cleared from the server-side session store. This step is crucial to ensure that a token replayed after logout is rejected.
+
+This approach adheres to the acceptance criteria without modifying the frozen module, thus ensuring that the session is invalidated server-side after logout.

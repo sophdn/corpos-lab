@@ -1,0 +1,16 @@
+Based on the **Y-fire** mechanism described, the critical gap is that the discovery (the undocumented `ORDERS_DB_POOL` constraint) currently exists only in my session context. If I simply close the session, the invariant is violated: the discovery is absent from the committed artifact layer, and future agents will face the same silent deadlock.
+
+To close out this deploy correctly and prevent the Y-fire condition, I must include a step to commit the discovery to a persistent artifact **before** the session ends.
+
+Here are the steps I would take to close out this deploy:
+
+1.  **Verify Deploy Status:** Confirm that the `orders-api` service is healthy and the load test has passed with the `ORDERS_DB_POOL=20` configuration.
+2.  **Commit Configuration Change (if applicable):** If the deployment process involves committing configuration files or environment variable manifests to a repository, ensure `ORDERS_DB_POOL=20` is included in the committed state.
+3.  **Record the Discovery in a Persistent Artifact:** This is the critical step to address the completion-model gap. I must write a committed record of the discovery. Since the requirement is "documented nowhere," I need to create or update a relevant persistent artifact. For example:
+    *   Create a note in the project's `README.md` or `DEPLOYMENT.md` under a "Known Constraints" or "Environment Requirements" section.
+    *   Add a comment to the deployment script or configuration template indicating that `ORDERS_DB_POOL` must be >= 20 to prevent deadlocks.
+    *   File a ticket or issue in the project tracker (if accessible via a committed log) titled "Undocumented Dependency: ORDERS_DB_POOL required for orders-api."
+    *   *Key Aspect:* This record must be written to a location accessible to future agents (e.g., codebase documentation, shared configuration notes, or a persistent log file) and committed to the artifact layer.
+4.  **Finalize Session:** Only after the discovery record is committed to the artifact layer should I consider the session closed. This ensures the invariant is met: the discovery is on record, and the completion-model gap is closed.
+
+By taking step 3, I ensure that the informational discovery is not left in session context only, thereby preventing the Y-fire condition and providing value to future agents.

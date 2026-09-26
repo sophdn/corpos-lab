@@ -1,0 +1,15 @@
+Based on the ticket details and root cause analysis, here is the plan for SEC-2026-05-0231:
+
+**File to Edit:**
+`auth/legacy/session.py`
+
+**Change to Make:**
+Modify the `invalidate_session()` function to explicitly clear the server-side session store entry corresponding to the provided session token. Currently, the function returns without performing this critical step. The fix must ensure that when `invalidate_session()` is called (via the pass-through in `auth/api/wrapper.py`), the token is removed from the server-side session store so that any subsequent replay of that token is rejected.
+
+**Implementation Logic:**
+1.  Identify the session token parameter passed to `invalidate_session()`.
+2.  Access the server-side session store (likely a dictionary, database, or cache like Redis).
+3.  Delete/Remove the entry associated with that specific token.
+4.  Ensure the function returns a success status or confirmation that the session was invalidated.
+
+This change directly addresses the root cause: the server-side state is now updated upon logout, preventing token reuse after the user has logged out.

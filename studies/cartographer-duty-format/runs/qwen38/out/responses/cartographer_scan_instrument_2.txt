@@ -1,0 +1,67 @@
+# repair-duty
+
+## Scope
+This duty governs the execution of a confirmed software defect repair where the locus (file and line) is already identified. It does not govern diagnosis, triage, or feature development.
+
+## Phase 1: Upstream Routing Verification
+*These gates verify that the situation correctly routes to this repair act before any change is made.*
+
+**Gate 1.1: Defect Confirmation**
+*   **Verifies:** That the defect is not a feature request, a documentation gap, or an environmental configuration issue.
+*   **Requires:** Explicit confirmation that the observed behavior contradicts the intended specification or contract of the function at the identified locus. If the behavior is "by design" or due to external factors (e.g., missing dependency in environment), halt; this duty does not apply.
+
+**Gate 1.2: Locus Stability**
+*   **Verifies:** That the identified locus (`calculator.py:2`) is the actual source of the failure, not a symptom downstream or upstream of it.
+*   **Requires:** Confirmation that modifying the code at the locus directly addresses the root cause of the `ZeroDivisionError`. If the error propagates from a different function or the locus is merely where the exception is *raised* but not where the *logic error* resides, halt; the locus must be re-confirmed before proceeding.
+
+## Phase 2: Pre-Mutation Establishments
+*These gates establish the state required to safely change the code.*
+
+**Gate 2.1: Baseline Capture**
+*   **Verifies:** That the current failing behavior is reproducible and documented.
+*   **Requires:** A recorded test case or command that triggers the specific failure (`calculate_average([])` raising `ZeroDivisionError`). This baseline must be executable and currently failing. Without a failing baseline, the repair cannot be verified.
+
+**Gate 2.2: Scope Isolation**
+*   **Verifies:** That the repair will not inadvertently alter behavior outside the defect’s scope.
+*   **Requires:** Identification of all callers and dependent tests for the function at the locus. Confirm that the intended change (e.g., handling empty lists) does not break existing valid inputs (e.g., `[1, 2, 3]`).
+
+## Phase 3: The Repair Act
+*These gates govern the modification of the code at the confirmed locus.*
+
+**Gate 3.1: Intent-Code Alignment**
+*   **Verifies:** That the proposed fix matches the confirmed intent for edge cases.
+*   **Requires:** A defined policy for the edge case (e.g., "return `0.0` for empty list," "raise `ValueError`," or "return `None`"). The code change must implement this specific policy. Do not guess; the policy must be explicit. If no policy exists, halt; the defect is not fully defined.
+
+**Gate 3.2: Minimal Diff**
+*   **Verifies:** That the change is confined to the necessary logic.
+*   **Requires:** The code modification touches only the lines necessary to implement the policy in Gate 3.1. No refactoring, no formatting changes, and no unrelated bug fixes are permitted in this commit/change set.
+
+**Gate 3.3: Implementation**
+*   **Verifies:** That the code is syntactically valid and logically coherent.
+*   **Requires:** The code at `calculator.py:2` (and surrounding lines if necessary for logic) is updated. Example: Adding a guard clause `if not values: return 0.0` before the division. The code must be ready for testing.
+
+## Phase 4: Post-Mutation Verification
+*These gates confirm the repair works and did not introduce new failures.*
+
+**Gate 4.1: Baseline Resolution**
+*   **Verifies:** That the original failure is resolved.
+*   **Requires:** Re-execution of the test case from Gate 2.1. The `ZeroDivisionError` must no longer occur, and the output must match the policy defined in Gate 3.1.
+
+**Gate 4.2: Regression Check**
+*   **Verifies:** That existing functionality remains intact.
+*   **Requires:** Execution of all tests identified in Gate 2.2. All previously passing tests must continue to pass. If any test fails, the repair has introduced a regression; revert and re-evaluate.
+
+## Phase 5: Session-Close Obligations
+*These gates fire after the repair is verified but before the session ends. They ensure no critical context is lost.*
+
+**Gate 5.1: Discovery Recording**
+*   **Verifies:** That any new information discovered during the repair is recorded.
+*   **Requires:** If the repair process revealed additional defects, ambiguities in the specification, or risks not previously documented, these must be logged or reported. If nothing was discovered, explicitly note "No new discoveries."
+
+**Gate 5.2: Locus Closure**
+*   **Verifies:** That the repair is marked as complete in the tracking system.
+*   **Requires:** The defect ticket or task associated with this locus is updated to "Resolved" or "Fixed," with a reference to the change set. The session is only closed when this administrative action is taken.
+
+**Gate 5.3: Environmental Cleanup**
+*   **Verifies:** That no temporary artifacts remain in the working environment.
+*   **Requires:** Removal of any debug prints, temporary test files, or uncommitted changes not part of the final repair. The workspace must be clean except for the intended commit.

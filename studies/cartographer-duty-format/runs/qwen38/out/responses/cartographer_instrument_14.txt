@@ -1,0 +1,106 @@
+# Duty: repair-duty
+
+**Status:** Active
+**Scope:** Any office of the Agentic Order tasked with repairing a confirmed software defect with a known locus.
+
+## Preamble
+This duty governs the mechanical act of correcting a specific, localized fault in a codebase. It is designed to be self-contained. The executor holds only this text and the defect context. There is no external registry to consult. Every gate below is a checkable step derived from the mechanics of the repair act itself. The executor must pass through these gates in order. Failure to satisfy any gate halts the process.
+
+## Phase I: Locus Verification
+*Before any code is altered, the executor must confirm that the "known locus" provided in the task context matches the actual state of the source material. A repair that targets the wrong line, the wrong file, or a symptom rather than a cause is a corruption, not a fix.*
+
+### Gate 1.1: Physical Locus Alignment
+*   **Verifies:** That the file path and line number cited in the task context exist in the current working environment and contain the code described as the locus of the defect.
+*   **Requirement to Complete:**
+    1.  Open the file specified in the defect context.
+    2.  Navigate to the specific line number.
+    3.  Confirm the code on that line matches the expectation set by the defect description (e.g., the line contains the operation that triggers the error).
+    4.  If the file does not exist, or the line number is out of bounds, or the code on that line is unrelated to the described defect, **HALT**. The locus is unconfirmed. Do not proceed.
+
+### Gate 1.2: Causal Isolation
+*   **Verifies:** That the defect is isolated to the identified locus and that the surrounding context does not contain other unaddressed defects that would mask or conflict with the repair.
+*   **Requirement to Complete:**
+    1.  Read the enclosing function or block containing the locus.
+    2.  Identify the input conditions that lead to the defect (e.g., empty list, null pointer, negative index).
+    3.  Confirm that the code *before* and *after* the locus is logically sound for the non-defective path.
+    4.  If the surrounding code contains other obvious, unmanaged errors that prevent the non-defective path from working, **HALT**. The locus is not isolated.
+
+## Phase II: Pre-Change Baseline
+*Before modifying the code, the executor must establish what "correct" looks like for the non-defective paths. Changing code without knowing what it should do in normal cases risks breaking working functionality to fix a broken one.*
+
+### Gate 2.1: Non-Defect Behavior Capture
+*   **Verifies:** That the executor has explicitly identified the expected behavior of the function for at least one valid, non-defective input.
+*   **Requirement to Complete:**
+    1.  Construct a valid input case that does not trigger the defect (e.g., a list with one or more elements).
+    2.  Trace the execution of this valid input through the current code.
+    3.  Record the expected output (the "baseline") that the function *should* produce for this input.
+    4.  If the current code produces an incorrect result for valid inputs, **HALT**. The defect is not isolated to the known locus; it is systemic.
+
+### Gate 2.2: Defect Reproduction
+*   **Verifies:** That the specific defect described in the task can be reproduced by the current code state.
+*   **Requirement to Complete:**
+    1.  Construct the specific input case that triggers the defect (e.g., `calculate_average([])`).
+    2.  Trace the execution of this input through the current code.
+    3.  Confirm that the code produces the specific error or incorrect behavior described in the task (e.g., `ZeroDivisionError`).
+    4.  If the code does not reproduce the error, **HALT**. The defect is not present or the locus is wrong.
+
+## Phase III: The Repair Act
+*This phase contains the modification. It is constrained to the minimal change necessary to resolve the defect identified in Phase I while preserving the baseline established in Phase II.*
+
+### Gate 3.1: Minimal Modification Constraint
+*   **Verifies:** That the proposed change addresses the specific causal mechanism of the defect without altering unrelated logic.
+*   **Requirement to Complete:**
+    1.  Draft the code change.
+    2.  Review the draft. Ask: "Does this change alter the logic for valid inputs?"
+        *   If **Yes**, **HALT**. The change is too broad. Refine until the logic for valid inputs remains identical to the baseline.
+    3.  Ask: "Does this change address the specific failure mode (e.g., division by zero)?"
+        *   If **No**, **HALT**. The change does not fix the defect.
+    4.  Apply the change to the file.
+
+### Gate 3.2: Syntax and Structural Integrity
+*   **Verifies:** That the modified code is syntactically valid and structurally consistent with the language and file context.
+*   **Requirement to Complete:**
+    1.  Perform a static check of the modified block (mentally or via available tooling).
+    2.  Confirm indentation, bracket balancing, and variable scoping are correct.
+    3.  Confirm that no new dependencies or imports are introduced unless explicitly required by the defect resolution and available in the environment.
+    4.  If the code is syntactically broken, **HALT**. Revert or refine the change.
+
+## Phase IV: Post-Change Verification
+*The repair is not complete until the executor has proven that the defect is resolved and the baseline is preserved. This is the confirmation step.*
+
+### Gate 4.1: Defect Resolution Check
+*   **Verifies:** That the specific input that previously triggered the defect now produces the expected, safe outcome.
+*   **Requirement to Complete:**
+    1.  Re-trace the defective input case (e.g., `calculate_average([])`) through the *modified* code.
+    2.  Confirm that the specific error (e.g., `ZeroDivisionError`) no longer occurs.
+    3.  Confirm that the output for this case is a valid, defined value (e.g., `0.0`, `None`, or an explicit exception handled by the function's contract).
+    4.  If the error persists or a new, worse error occurs, **HALT**. The repair failed. Revert to the state before Gate 3.1 and restart Phase III.
+
+### Gate 4.2: Baseline Preservation Check
+*   **Verifies:** That the valid input cases identified in Gate 2.1 still produce the correct baseline output.
+*   **Requirement to Complete:**
+    1.  Re-trace the valid input case (e.g., `calculate_average([1, 2, 3])`) through the *modified* code.
+    2.  Confirm that the output matches the baseline recorded in Gate 2.1.
+    3.  If the output has changed, **HALT**. The repair broke working functionality. Revert to the state before Gate 3.1 and restart Phase III.
+
+## Phase V: Closing Out
+*The repair is finalized. The executor must ensure the environment is clean and the repair is documented as complete.*
+
+### Gate 5.1: Environment Cleanup
+*   **Verifies:** That no temporary artifacts, debug prints, or test scaffolding introduced during the repair process remain in the source file.
+*   **Requirement to Complete:**
+    1.  Review the entire modified file.
+    2.  Remove any `print` statements, `# TODO` comments, or hardcoded test values added for verification.
+    3.  Confirm the file contains only the production logic and the repair.
+    4.  If any artifacts remain, remove them.
+
+### Gate 5.2: Final Locus Confirmation
+*   **Verifies:** That the file is saved and the state of the code matches the intended repair.
+*   **Requirement to Complete:**
+    1.  Confirm the file has been written to disk (or committed to the working tree).
+    2.  Re-read the specific line(s) that were modified.
+    3.  Confirm they match the intended final state.
+    4.  Mark the duty as **COMPLETE**.
+
+---
+**End of Duty**

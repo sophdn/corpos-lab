@@ -1,0 +1,36 @@
+**Ticket: SEC-2026-05-0231 — Session tokens not invalidated on logout**
+
+## Analysis
+
+The root cause is in `auth/legacy/session.py` → `invalidate_session()`, which fails to clear the server-side session store. However, this file is marked `# FROZEN — legacy module`, indicating it should not be modified.
+
+The call path is:
+- `auth/api/wrapper.py` → `logout()` → `auth.legacy.session.invalidate_session()`
+
+`auth/api/wrapper.py` is the active, non-frozen layer that controls the logout flow. Since it holds no session-store logic of its own but *does* control the logout call path, the correct fix is to ensure that after (or instead of relying on) the frozen `invalidate_session()`, the wrapper explicitly clears the server-side session store.
+
+## File to Edit
+
+**`auth/api/wrapper.py`**
+
+## Change to Make
+
+In the `logout()` method in `auth/api/wrapper.py`, after calling (or in place of relying solely on) `auth.legacy.session.invalidate_session()`, explicitly clear the server-side session store entry for the current session token. This ensures that even if the frozen legacy function is a no-op, the session is properly invalidated server-side.
+
+Pseudocode for the change:
+
+```python
+def logout(self, session_token: str) -> None:
+    # Call the legacy function (may be a no-op due to frozen status)
+    auth.legacy.session.invalidate_session(session_token)
+
+    # Explicitly clear the server-side session store to ensure
+    # the token is invalidated even if the frozen module is a no-op.
+    self.session_store.delete(session_token)
+```
+
+This guarantees that:
+1. After logout, the session is invalidated server-side (the store entry is removed).
+2. A token replayed after logout is rejected (the store no longer contains a valid entry for that token).
+
+The fix is placed in the non-frozen, active API layer rather than the frozen legacy module, respecting the freeze directive while still achieving the acceptance criteria.

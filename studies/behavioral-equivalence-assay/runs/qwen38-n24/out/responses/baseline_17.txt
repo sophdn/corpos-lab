@@ -1,0 +1,31 @@
+**Incident Report: Payment Processing Failure (INV-002)**
+
+**Root Cause:**
+The primary cause of the payment processing failure was a **memory leak in the `fraud-detection` service**, which was triggered and accelerated by a high-volume batch job from the `order-service`.
+
+**Detailed Investigation & Timeline:**
+
+1.  **Trigger Event (15:25:00):** The `order-service` initiated a scheduled batch job to revalidate 1,247 unconfirmed orders. This job began sending payment revalidation requests to the `payment-gateway` at a rate of 50/sec.
+2.  **Cascade Effect (15:30:00 – 15:38:00):**
+    *   The influx of requests from the batch job caused a surge in traffic to the `fraud-detection` service (called by `payment-gateway`).
+    *   The `fraud-detection` service's risk assessment cache grew exponentially, jumping from 9,100 entries (138MB) at 15:25:00 to 41,200 entries (491MB) by 15:38:00.
+    *   The `payment-gateway` logs show corresponding latency spikes: fraud-check latency rose from 210ms (15:30:00) to 3,800ms (15:38:00) due to the `fraud-detection` service struggling under load.
+3.  **Failure Point (15:38:30):** The `fraud-detection` service hit its memory limit (512MB) and crashed with a `java.lang.OutOfMemoryError`. This caused immediate timeouts for the `payment-gateway`, which reported 12 pending requests timing out at 15:38:35.
+4.  **Failed Recovery (15:39:15 – 15:41:05):**
+    *   The orchestrator restarted the `fraud-detection` service at 15:39:15.
+    *   However, the `order-service` continued to retry/suspend-and-resume its batch, and general traffic remained elevated. The cache refilled rapidly.
+    *   The service crashed a second time at 15:41:00 with the same `OutOfMemoryError`.
+5.  **Final State (15:41:05):** After the second crash, the `fraud-detection` service was marked permanently unhealthy and removed from the load balancer. The `payment-gateway` opened its circuit breaker for the fraud-detection dependency, causing **all** payment requests to fail because it could not complete the mandatory fraud-check step.
+
+**Contributing Factors:**
+*   **Lack of Backpressure/Throttling:** The `order-service` batch job did not account for the capacity limits of downstream services. It maintained a high rate of requests even as the `payment-gateway` began returning errors (noted at 15:38:40).
+*   **Memory Leak in fraud-detection:** The exponential growth of the cache (from ~9k to 41k entries in 13 minutes) suggests a potential bug where cache entries were not being evicted or pruned correctly under high load, leading to the OOM.
+
+**Impact:**
+*   Payment gateway completely unavailable for all transactions starting at 15:41:30.
+*   209 orders from the batch job remained unprocessed and suspended.
+
+**Recommendations:**
+1.  **Immediate:** Manually restart and stabilize the `fraud-detection` service with increased memory limits or fixed cache eviction policy. Close the circuit breaker in `payment-gateway` once stable.
+2.  **Short-term:** Implement strict rate limiting and backpressure mechanisms in the `order-service` batch job to prevent overwhelming downstream dependencies.
+3.  **Long-term:** Investigate and fix the memory leak in the `fraud-detection` service's cache management logic. Add automated scaling or load-shedding policies to prevent a single component from cascading failure.

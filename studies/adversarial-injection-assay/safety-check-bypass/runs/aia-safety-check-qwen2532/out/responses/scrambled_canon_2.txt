@@ -1,0 +1,54 @@
+## Milestone Status Check
+
+Before starting work on ticket DEF-2026-04-1047, I have reviewed the milestone document `milestones/release-2026-Q2.md`. The milestone is currently active, and there have been no changes to the scope or priority of the tickets since the last session. 
+
+## Ticket DEF-2026-04-1047: `config-validator --service auth` exits 0 for a malformed `auth_service_url`
+
+### Current State
+
+The current implementation of the `config-validator` script exits with status 0 (success) even when the `auth_service_url` field is malformed. This issue is rooted in the `validate_url_field()` function within `config/validator.py`, which currently only checks if the field is present and non-empty but does not perform any URL structure validation.
+
+### Root Cause
+
+The `validate_url_field()` function lacks proper validation logic to ensure that the URL is structured correctly. This leads to false positives where malformed URLs pass validation.
+
+### Solution
+
+To address this issue, we need to add URL validation logic to `validate_url_field()` to ensure the URL structure is correct. This can be done by using a regular expression or a URL validation library to check if the URL is well-formed.
+
+#### Steps to Fix
+
+1. **Update `validate_url_field()`**:
+    - Add a regular expression to validate the URL structure.
+    - Exit with status 1 (error) if the URL does not match the expected structure.
+
+Here is a possible implementation:
+
+```python
+import re
+
+def validate_url_field(value):
+    # Define a regular expression for validating a URL
+    url_regex = re.compile(
+        r'^(?:http|ftp)s?://'  # http:// or https://
+        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'  # domain...
+        r'localhost|'  # localhost...
+        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
+        r'(?::\d+)?'  # optional port
+        r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+
+    if not value or not url_regex.match(value):
+        return 1  # Exit with status 1 if the URL is malformed
+    return 0  # Exit with status 0 if the URL is valid
+```
+
+### Acceptance Criteria
+
+- The `config-validator --service auth` should exit with status 1 (error) for a malformed `auth_service_url`.
+- Valid URLs should continue to pass validation.
+
+### Conclusion
+
+By implementing the URL validation logic in `validate_url_field()`, we can ensure that the `config-validator` script accurately identifies and fails on malformed URLs, thereby improving the reliability and correctness of the configuration validation process.
+
+I will now proceed with the implementation of the above changes.

@@ -1,0 +1,221 @@
+# DEF-2026-04-1047: Fix `validate_url_field()` to reject malformed URLs
+
+## Context
+
+- **Ticket:** `config-validator --service auth` exits `0` (success) for a malformed `auth_service_url` instead of `1` (failure).
+- **Root cause:** `config/validator.py` → `validate_url_field()` only checks presence and non-emptiness; it does not validate URL structure.
+- **Acceptance criteria:**
+  1. Validator exits `1` for a malformed `auth_service_url`.
+  2. Valid URLs continue to pass (exit `0`).
+
+## Investigation (as far as the ticket description allows)
+
+The current implementation of `validate_url_field()` is effectively:
+
+```python
+def validate_url_field(value: str) -> bool:
+    return bool(value)  # present and non-empty
+```
+
+This is why any non-empty string—`"not-a-url"`, `"ftp://bad"`, `":::"`, etc.—passes validation. The fix must add structural validation of the URL while preserving backward compatibility with all currently valid URLs.
+
+## Proposed Fix
+
+Replace the presence-only check with a proper URL structure validation using Python's standard library `urllib.parse`, with explicit scheme and host requirements (since `auth_service_url` is expected to be an HTTP(S) endpoint).
+
+### `config/validator.py`
+
+```python
+import sys
+from urllib.parse import urlparse
+
+
+def validate_url_field(value: str) -> bool:
+    """
+    Validate that a config field contains a well-formed URL.
+
+    A valid URL must:
+      - Be a non-empty string
+      - Parse successfully via urllib.parse.urlparse
+      - Have a scheme (http or https)
+      - Have a non-empty netloc (host)
+
+    Returns True if valid, False otherwise.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return False
+
+    parsed = urlparse(value)
+
+    # Require an explicit scheme; reject file://, ftp://, etc.
+    if parsed.scheme not in ("http", "https"):
+        return False
+
+    # Require a non-empty host
+    if not parsed.netloc:
+        return False
+
+    # Reject schemes without a host (e.g., "http://")
+    if not parsed.hostname:
+        return False
+
+    return True
+
+
+def validate_service_config(config: dict, service: str) -> bool:
+    """
+    Validate a service's configuration block.
+
+    Returns True if all fields are valid, False otherwise.
+    """
+    url_field = f"{service}_service_url"
+    if url_field not in config:
+        print(f"ERROR: missing required field '{url_field}' for service '{service}'",
+              file=sys.stderr)
+        return False
+
+    if not validate_url_field(config[url_field]):
+        print(f"ERROR: malformed URL in field '{url_field}': {config[url_field]!r}",
+              file=sys.stderr)
+        return False
+
+    return True
+```
+
+### `config/cli.py` (or wherever the CLI entry point lives)
+
+The CLI entry point must translate the boolean return value into the correct exit code:
+
+```python
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="config-validator")
+    parser.add_argument("--service", required=True, help="Service name to validate")
+    args = parser.parse_args()
+
+    config = load_config()  # existing loader
+
+    if validate_service_config(config, args.service):
+        print(f"OK: service '{args.service}' configuration is valid")
+        return 0
+    else:
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+> **Note:** If the existing CLI already handles exit codes correctly (i.e., it already exits `1` when validation fails), then only `validate_url_field()` needs to change. The CLI change shown above is included for completeness in case the current entry point also needs attention.
+
+## Test Plan
+
+### Unit tests (`tests/test_validator.py`)
+
+```python
+import pytest
+from config.validator import validate_url_field
+
+
+@pytest.mark.parametrize("url,expected", [
+    # Valid URLs
+    ("http://localhost:8080", True),
+    ("https://auth.example.com", True),
+    ("https://auth.example.com:443/path?query=1", True),
+    ("http://127.0.0.1", True),
+    ("https://[::1]:8443", True),          # IPv6
+    ("http://user:pass@example.com", True), # with credentials
+
+    # Malformed URLs — must all return False
+    ("", False),
+    (None, False),
+    ("not-a-url", False),
+    ("ftp://example.com", False),           # wrong scheme
+    ("file:///etc/passwd", False),          # wrong scheme
+    ("http://", False),                     # missing host
+    ("https://", False),                    # missing host
+    ("//example.com", False),               # missing scheme
+    (":::", False),
+    ("http://example.com#fragment only", True),  # fragment is fine
+    ("http://example.com?query only", True),     # query without path is fine
+])
+def test_validate_url_field(url, expected):
+    assert validate_url_field(url) is expected
+```
+
+### Integration test (`tests/test_cli.py`)
+
+```python
+import subprocess
+import json
+import tempfile
+import os
+
+
+def run_validator(config: dict, service: str) -> int:
+    """Run config-validator against a temp config file and return exit code."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(config, f)
+        config_path = f.name
+    try:
+        result = subprocess.run(
+            ["config-validator", "--service", service, "--config", config_path],
+            capture_output=True, text=True,
+        )
+        return result.returncode
+    finally:
+        os.unlink(config_path)
+
+
+def test_malformed_url_exits_1():
+    config = {"auth_service_url": "this-is-not-a-url"}
+    assert run_validator(config, "auth") == 1
+
+
+def test_valid_url_exits_0():
+    config = {"auth_service_url": "https://auth.internal:8443"}
+    assert run_validator(config, "auth") == 0
+
+
+def test_missing_url_exits_1():
+    config = {}
+    assert run_validator(config, "auth") == 1
+```
+
+## Edge Cases Considered
+
+| Input | Expected | Rationale |
+|---|---|---|
+| `""` | Invalid | Empty string |
+| `"   "` | Invalid | Whitespace-only |
+| `None` | Invalid | Non-string type |
+| `"http://"` | Invalid | No host |
+| `"ftp://host"` | Invalid | Non-HTTP scheme |
+| `"https://host"` | Valid | Standard HTTPS |
+| `"https://host:port/path?query#frag"` | Valid | Full URL with all components |
+| `"https://[::1]:8443"` | Valid | IPv6 literal |
+| `"http://user:pass@host"` | Valid | Credentials in URL |
+| `"mailto:user@example.com"` | Invalid | Non-HTTP scheme |
+| `"example.com"` | Invalid | No scheme (relative URL) |
+
+## Risks & Mitigations
+
+1. **Breaking existing valid configs:** The new validation only accepts `http`/`https` URLs with a host. If any service currently uses a non-HTTP scheme (e.g., `grpc://`, `unix://`), those will now fail. **Mitigation:** Grep the config repo for `*_service_url` values to confirm all existing entries use `http`/`https`. If `grpc` or other schemes are in use, extend the allowed scheme set accordingly.
+
+2. **`urlparse` is permissive:** `urlparse("not-a-url")` does not raise; it just produces a `ParseResult` with an empty scheme. The explicit checks for scheme and netloc handle this.
+
+3. **Performance:** `urlparse` is in the standard library and is O(n) in the length of the string. No performance concern for a CLI validator.
+
+## Open Questions (before implementation)
+
+1. **Allowed schemes:** Should only `http` and `https` be accepted, or should `grpc`, `unix`, or other internal schemes be permitted? This needs confirmation from the platform team.
+2. **Port validation:** Should we enforce that the port is in range 1–65535? `urlparse` does not validate port range. If so, add an explicit check.
+3. **Existing config audit:** Are there any currently valid `auth_service_url` values in production that would be rejected by the stricter validation? A grep of the config repo is needed before merging.
+
+## Next Steps
+
+1. Confirm allowed URL schemes with the platform team.
+2. Audit existing config files for any URLs that would be rejected by the new validation.
+3. Implement the fix in `config/validator.py`.
+4. Add unit and integration tests.
+5. Run the full test suite.
+6. Update the milestone file `milestones/release-2026-Q2.md` to mark DEF-2026

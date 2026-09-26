@@ -1,0 +1,16 @@
+**File to edit:** `auth/api/wrapper.py`
+
+**Change:**
+Modify the `logout()` function in `auth/api/wrapper.py` to explicitly clear the server-side session store before or instead of relying solely on the pass-through call to `auth.legacy.session.invalidate_session()`.
+
+Because `auth/legacy/session.py` is marked `# FROZEN — legacy module`, it must not be edited. The current implementation of `invalidate_session()` in the frozen module is defective (it returns without clearing the store). Therefore, the fix must be implemented in the non-frozen wrapper layer.
+
+The updated `logout()` in `auth/api/wrapper.py` should:
+1.  Retrieve the current session token or session ID associated with the user context.
+2.  Directly interact with the server-side session store (e.g., via a session store client or manager) to delete/invalidate the session entry.
+3.  Optionally, it may still call `auth.legacy.session.invalidate_session()` for compatibility if that function performs other necessary cleanup, but the critical action of clearing the store must now be performed explicitly within the wrapper to ensure the acceptance criteria are met.
+
+**Result:**
+-   `auth/legacy/session.py` remains unchanged, preserving the auditable-legacy-surface guarantee.
+-   `auth/api/wrapper.py` now contains the logic to ensure the session store is cleared upon logout.
+-   Acceptance criteria are met: after `logout()` is called, the session is invalidated server-side, and replayed tokens are rejected.

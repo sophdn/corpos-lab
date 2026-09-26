@@ -1,0 +1,90 @@
+# Gitea Actions CI for corpos-lab — the pre-commit/pre-merge gate the repo lacked,
+# plus the progressive-disclosure check and a fail-closed secret scan, plus the
+# (default-off) public-mirror publish.
+#
+# Runs on Gitea, so a run costs only time and electricity. The gate is scripts/gate.sh —
+# the SAME command the git-flow land gate runs (.gitflow GITFLOW_GATE_CMD), so CI and
+# landing cannot disagree. corpos-lab carries no corpos-gate source, so CI runs gate.sh
+# directly; it is self-contained (Go toolchain + `go run <tool>@<ver>`, no external binary).
+name: ci
+
+on:
+  # Ignore land/* pushes: worktree-merge lands via a land/* branch + PR, and gating both
+  # the push and the pull_request event double-runs on the single runner. The PR event
+  # gates the merge; main and ordinary branch pushes still trigger.
+  push:
+    branches-ignore:
+      - 'land/**'
+  pull_request:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # act_runner mounts the workspace under a different uid; gate.sh opens with
+      # `git rev-parse --show-toplevel`, so mark the tree safe before it runs.
+      - name: trust the checkout (git safe.directory)
+        run: git config --global --add safe.directory '*'
+
+      - name: install go toolchain (version from go.mod)
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      # The regression gate: gofmt-drift, vet, golangci-lint, govulncheck, build, race
+      # tests + the 95% internal/ coverage floor. The same command the land gate runs.
+      - name: regression gate
+        run: ./scripts/gate.sh
+
+      # Progressive-disclosure check: the published-glyph tree must match the approved
+      # manifest exactly (an unapproved glyph present is a leak; an approved one absent
+      # means promotion did not run). Needs no access to the private canon.
+      - name: disclosure verify (public subset matches PUBLIC_ALPHABET.txt)
+        run: go run ./cmd/corpos-lab disclosure verify
+
+      # Fail-closed secret scan over the whole checkout — gate.sh does not scan, and the
+      # commit-time pii-scan sees only staged diffs, so this is the tree-wide net.
+      - name: secret scan (fail closed)
+        run: bash scripts/secret-scan-tree.sh .
+
+  # ── mirror-publish (chain 438 machinery) ───────────────────────────────────────────
+  # Publishes a scrubbed, squashed snapshot of main to the public GitHub mirror on every
+  # green push to main — the same pattern as the six other mirrored repos. The target is
+  # fixed (sophdn/corpos-lab) and the push token is the repo-scoped secret
+  # MIRROR_GITHUB_TOKEN_CORPOS_LAB. Gated on the gate job and main-only, so a red run or a
+  # PR never publishes; a green merge to main publishes the current scrubbed snapshot.
+  #
+  # The push token is the repo-scoped secret MIRROR_GITHUB_TOKEN_CORPOS_LAB (the
+  # plain MIRROR_GITHUB_TOKEN name was already in use on this Gitea for another repo).
+  mirror-publish:
+    needs: [gate]
+    if: gitea.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      MIRROR_TARGET: sophdn/corpos-lab
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: trust the checkout (git safe.directory)
+        run: git config --global --add safe.directory '*'
+
+      - name: scrub, secret-scan, force-push public mirror
+        env:
+          MIRROR_TOKEN: ${{ secrets.MIRROR_GITHUB_TOKEN_CORPOS_LAB }}
+        run: |
+          set -euo pipefail
+          if [ -z "${MIRROR_TOKEN:-}" ]; then
+            echo "mirror-publish: MIRROR_GITHUB_TOKEN_CORPOS_LAB secret is unset — refusing to publish." >&2
+            exit 1
+          fi
+          OUT="$(mktemp -d)/mirror"
+          bash scripts/publish-public.sh --repo . --out "$OUT"   # scrub HEAD -> squashed tree
+          bash scripts/secret-scan-tree.sh "$OUT"                # fail-closed: abort on any secret
+          git -C "$OUT" push --force \
+            "https://x-access-token:${MIRROR_TOKEN}@github.com/${MIRROR_TARGET}.git" \
+            HEAD:main

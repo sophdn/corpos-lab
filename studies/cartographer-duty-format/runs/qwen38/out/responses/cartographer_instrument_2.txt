@@ -1,0 +1,55 @@
+# repair-duty
+
+This duty governs the repair of a confirmed software defect with a known locus. The executor must pass through every gate in sequence. If a gate cannot be completed, the duty fails; do not proceed to the next phase.
+
+## Phase 1: Locus Verification
+
+**Gate 1.1: Confirm the Defect Manifestation**
+*   **Verification:** The specific input described in the defect report, when executed against the current codebase, produces the exact error type and behavior documented.
+*   **Completion Requirement:** The executor must reproduce the failure using the minimal reproducible case. If the failure does not reproduce, or reproduces with a different error signature, the locus is unconfirmed. Halt.
+
+**Gate 1.2: Validate Locus Integrity**
+*   **Verification:** The file path and line number cited as the locus correspond to the exact code segment responsible for the failure logic identified in Gate 1.1.
+*   **Completion Requirement:** The executor must inspect the source at the cited coordinates. If the code at that location does not logically account for the failure mechanism (e.g., the division by zero is not happening at that specific line, or the function signature does not match), the locus is invalid. Halt.
+
+**Gate 1.3: Isolate the Scope**
+*   **Verification:** The defect is contained within the function or block identified by the locus, and no other concurrent defects in the immediate vicinity obscure the repair.
+*   **Completion Requirement:** The executor must review the surrounding function context. If the defect interacts with undefined variables, external state mutations, or other unconfirmed bugs, the scope is not isolated. Halt.
+
+## Phase 2: Pre-Modification Establishment
+
+**Gate 2.1: Baseline Preservation**
+*   **Verification:** A stable, version-controlled snapshot of the file containing the defect exists prior to any modification.
+*   **Completion Requirement:** The executor must ensure the current state of `calculator.py` (or the relevant file) is committed or stashed in a recoverable state. If the working tree is dirty with unrelated changes that cannot be separated, the baseline is unsafe. Halt.
+
+**Gate 2.2: Contract Definition**
+*   **Verification:** The expected behavior for all valid inputs, including the previously failing edge case, is explicitly defined.
+*   **Completion Requirement:** The executor must write or update a test case that asserts the correct behavior for the empty list input (or equivalent edge case) and passes for all previously passing cases. The test must currently fail (red) for the edge case. If the expected output is ambiguous (e.g., should it return `0.0`, `NaN`, or raise a custom error?), the contract is undefined. Halt.
+
+**Gate 2.3: Impact Analysis**
+*   **Verification:** The proposed repair strategy will not alter the behavior of any valid, non-defective input.
+*   **Completion Requirement:** The executor must trace the data flow. If the fix involves changing a data type, return value structure, or exception type, the executor must confirm that all callers can handle the new behavior. If the impact is unclear, the analysis is incomplete. Halt.
+
+## Phase 3: Execution of Repair
+
+**Gate 3.1: Minimal Intervention**
+*   **Verification:** The code change addresses only the root cause identified in Gate 1.2 and does not introduce new abstractions, refactors, or stylistic changes unrelated to the defect.
+*   **Completion Requirement:** The diff must be limited to the necessary lines to prevent the failure. If the diff includes variable renaming, import reordering, or logic restructuring beyond the fix, the intervention is not minimal. Revert and retry.
+
+**Gate 3.2: Defensive Implementation**
+*   **Verification:** The repair handles the specific failure mode without introducing new undefined behaviors.
+*   **Completion Requirement:** For a division-by-zero or empty-collection defect, the fix must explicitly handle the empty state (e.g., returning a neutral value, raising a specific domain error, or filtering the input) as defined in Gate 2.2. The code must not suppress the error silently if the contract requires propagation.
+
+## Phase 4: Verification and Closure
+
+**Gate 4.1: Functional Verification**
+*   **Verification:** The previously failing input now produces the expected output defined in Gate 2.2, and all existing tests pass.
+*   **Completion Requirement:** The executor must run the full test suite for the module. If the new test passes but any existing test fails, the repair has broken valid behavior. Halt and revert.
+
+**Gate 4.2: Regression Check**
+*   **Verification:** The repair has not introduced performance degradation or side effects in adjacent code.
+*   **Completion Requirement:** The executor must review the code for side effects (e.g., mutation of input lists). If the fix modifies the input list in place, this must be explicitly allowed by the contract. If not, the repair is flawed.
+
+**Gate 4.3: Documentation and Closure**
+*   **Verification:** The change is documented with a clear rationale linking the fix to the defect locus.
+*   **Completion Requirement:** The commit message or change log must reference the specific defect ID or description and explain *why* the specific fix (e.g., "return 0.0 for empty list to match statistical convention") was chosen. The working tree must be clean.

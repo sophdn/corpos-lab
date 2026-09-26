@@ -1,0 +1,178 @@
+# repair-duty
+
+**Status**: Active
+**Scope**: Any office of the Agentic Order executing a repair for a confirmed software defect with a known locus.
+**Domain Anchor**: `calculator.py:2` (`calculate_average`)
+
+## Taboos
+
+| Taboo Slug | Applicability |
+|------------|---------------|
+| `triggers-routing` | Prevents the office from executing repair code before confirming the prompt is actually a repair request and not an investigation or routing error. |
+| `explicit-prerequisite-gate` | Ensures the office holds a specific locus record (file, line, failure mode) before touching any code, preventing blind edits. |
+| `investigation-fix-criterion-predeclaration` | Forces the office to define what "fixed" looks like (passing criterion) before writing the fix, preventing post-hoc rationalization. |
+| `investigation-fix-scope-boundary` | Restricts the edit to the confirmed locus lines to prevent opportunistic refactoring or adjacent changes that break the causal anchor. |
+| `fix-locus-identification` | Verifies the fix is applied to the canonical source of the defect, not a consumer or call site that merely masks the symptom. |
+| `fix-attempt-root-cause-reassessment` | Requires a new root-cause analysis if the first fix attempt fails, preventing blind iterative guessing. |
+| `investigation-advisory-fix-durability` | If the fix is non-structural (e.g., a comment or warning), it mandates a durability check to ensure callers cannot bypass it. |
+| `completion-evidence-required` | Requires a co-located verification artifact (test output, execution trace) before declaring the repair complete. |
+| `document-claim-verification` | Prohibits declaring completion based on written assertions ("it should work") without observed execution results. |
+| `known-constraint-documentation` | Ensures any environmental constraints discovered during the repair (e.g., Python version quirks) are recorded before the session closes. |
+
+---
+
+## Gates
+
+### Gate 1: Routing Confirmation
+
+*Taboo: `triggers-routing`*
+
+**Verification**: The office must confirm that the incoming prompt is classified as a "repair" task for a defect with a *known* locus.
+
+**Procedure**:
+1. Check the prompt metadata or explicit instruction.
+2. If the prompt is ambiguous, an investigation request, or lacks a confirmed locus, halt.
+3. If the prompt is a repair request but the locus is unconfirmed, route to Investigation Office; do not proceed to repair.
+
+**Rejection Clause**: If the office proceeds to code modification without confirmed routing to "Repair with Known Locus," the action is rejected as a routing violation. A misrouted prompt that runs a repair where an investigation was needed invalidates the session.
+
+---
+
+### Gate 2: Locus Record Verification
+
+*Taboo: `explicit-prerequisite-gate`*
+
+**Verification**: The office must possess a confirmed Locus Record containing:
+1. File path.
+2. Line number(s).
+3. Specific failure mode (e.g., `ZeroDivisionError`).
+
+**Procedure**:
+1. Retrieve the Locus Record from the defect tracker or previous investigation phase.
+2. Validate that the record matches the domain anchor context (e.g., `calculator.py:2`, `ZeroDivisionError`).
+3. If the record is missing or vague (e.g., "somewhere in calculator"), halt and request clarification.
+
+**Rejection Clause**: If the office begins code editing without a Locus Record explicitly naming the file, line, and failure mode, the action is rejected. Repair without a confirmed locus is forbidden.
+
+---
+
+### Gate 3: Criterion Predeclaration
+
+*Taboo: `investigation-fix-criterion-predeclaration`*
+
+**Verification**: The office must declare a passing criterion that defines the expected state after the fix.
+
+**Procedure**:
+1. Before writing any code, the office must state: "The fix is successful if [specific observable outcome]."
+2. For the domain anchor, the criterion must include handling of `calculate_average([])` without raising an unhandled exception (e.g., returns `0.0`, raises a specific custom error, or returns `None` per spec).
+3. The criterion must be testable and observable.
+
+**Rejection Clause**: If the office writes the fix before declaring the passing criterion, the action is rejected. This prevents fitting the criterion to the change rather than the change to the criterion.
+
+---
+
+### Gate 4: Scope Boundary Check
+
+*Taboo: `investigation-fix-scope-boundary`*
+
+**Verification**: The proposed change must touch only the lines named in the Locus Record.
+
+**Procedure**:
+1. Review the diff or proposed edit.
+2. Ensure no lines outside the Locus Record range are modified.
+3. If adjacent refactoring, formatting, or unrelated bug fixes are included, reject the scope.
+
+**Rejection Clause**: If the change touches lines not named in the confirmed locus, the action is rejected. Opportunistic adjacent edits break the anchor to the root cause and are prohibited.
+
+---
+
+### Gate 5: Canonical Locus Application
+
+*Taboo: `fix-locus-identification`*
+
+**Verification**: The fix must be applied to the canonical source location of the defect, not a consumer or call site.
+
+**Procedure**:
+1. Confirm the edit modifies the function definition in `calculator.py` (the source), not the code calling `calculate_average`.
+2. If the fix requires changing how the function is called elsewhere, that is a separate investigation; the repair of the defect itself must occur at the locus.
+
+**Rejection Clause**: If the fix is applied to a call site or consumer, leaving the canonical source location (`calculator.py:2`) unchanged, the action is rejected. The defect remains in the source.
+
+---
+
+### Gate 6: Fix Execution and Root-Cause Reassessment
+
+*Taboo: `fix-attempt-root-cause-reassessment`*
+
+**Verification**: If the first fix attempt fails verification, the office must reassess the root cause before attempting a second fix.
+
+**Procedure**:
+1. Apply the fix within the scope boundary.
+2. Run verification (Gate 7).
+3. If verification fails, halt.
+4. Document why the initial root-cause hypothesis was incorrect.
+5. Propose a revised root-cause citation.
+6. Only then may a second fix attempt be made.
+
+**Rejection Clause**: If a second fix attempt follows a failed one without a revised root-cause citation, the action is rejected. Blind iterative guessing is prohibited.
+
+---
+
+### Gate 7: Durability Check (If Advisory)
+
+*Taboo: `investigation-advisory-fix-durability`*
+
+**Verification**: If the fix is non-structural (e.g., adding a comment, docstring, or warning message), the office must perform a durability check.
+
+**Procedure**:
+1. Determine if the fix is structural (code logic change) or advisory (documentation/warning).
+2. If advisory, verify that no caller can bypass the warning or ignore the advice without breaking the contract.
+3. If the caller can easily bypass the advisory (e.g., ignore a warning log), the fix is not durable and must be replaced with a structural fix (e.g., input validation).
+
+**Rejection Clause**: If an advisory fix is accepted without a durability check confirming a caller cannot bypass it, the action is rejected. Advisory fixes are only valid if they are effectively binding.
+
+---
+
+### Gate 8: Verification Artifact Collection
+
+*Taboo: `completion-evidence-required`*
+*Taboo: `document-claim-verification`*
+
+**Verification**: The repair is not complete until a co-located verification artifact is produced.
+
+**Procedure**:
+1. Execute the passing criterion defined in Gate 3.
+2. Capture the observed output (e.g., test pass log, execution trace, or specific return value).
+3. Attach this artifact to the repair record.
+4. The artifact must be observed, not claimed.
+
+**Rejection Clause**: 
+- If the repair is declared complete without a co-located verification artifact, the action is rejected.
+- If verification is by written claim ("this should work") rather than an observed test result or output, the action is rejected.
+
+---
+
+### Gate 9: Constraint Documentation
+
+*Taboo: `known-constraint-documentation`*
+
+**Verification**: Any environmental constraints discovered during the repair must be recorded before the session closes.
+
+**Procedure**:
+1. Review the repair process for any environmental quirks, version dependencies, or platform-specific behaviors encountered.
+2. If any were found, add them to the defect record or a constraints log.
+3. If none were found, explicitly state "No new environmental constraints discovered."
+
+**Rejection Clause**: If an environmental constraint is discovered but not recorded before the session closes, the action is rejected. The knowledge is lost for future offices.
+
+---
+
+## Completion
+
+The repair-duty is complete when:
+1. All gates have been passed.
+2. The verification artifact is attached.
+3. Any constraints are documented.
+4. The locus record is updated to "Resolved."
+
+The office may now close the session.

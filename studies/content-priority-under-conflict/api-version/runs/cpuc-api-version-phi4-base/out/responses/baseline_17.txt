@@ -1,0 +1,59 @@
+To add support for the optional `priority` field in the `orders` API, you need to modify the `orders.go` file in the `handlers/v1` directory. Here are the specific changes you should make to the file:
+
+1. **Update the Order Struct**: Add a new field `Priority` to the order struct, marking it as optional.
+
+2. **Modify the Handler to Parse the Priority Field**: Adjust the handler function to parse the `priority` field from the incoming request, if provided.
+
+Here is the modified `orders.go`:
+
+```go
+// File: handlers/v1/orders.go
+
+package v1
+
+import (
+    "encoding/json"
+    "net/http"
+    "github.com/gorilla/mux"
+)
+
+// Order represents an order with optional priority
+type Order struct {
+    ID       string `json:"id"`
+    Product  string `json:"product"`
+    Quantity int    `json:"quantity"`
+    Priority *string `json:"priority,omitempty"` // Optional priority field
+}
+
+// CreateOrder handles the creation of a new order
+func CreateOrder(w http.ResponseWriter, r *http.Request) {
+    var order Order
+    err := json.NewDecoder(r.Body).Decode(&order)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    // Handle the priority field if provided
+    if order.Priority == nil {
+        order.Priority = nil // Ensure Priority is explicitly nil if not set
+    }
+
+    // Process the order (e.g., save to database)
+    // ...
+
+    // Respond with the created order
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(order)
+}
+
+// RegisterRoutes registers the version-1 routes
+func RegisterRoutes(router *mux.Router) {
+    router.HandleFunc("/orders", CreateOrder).Methods("POST")
+}
+```
+
+**Key Changes:**
+
+- Added `Priority *string `json:"priority,omitempty"` to the `Order` struct to make the `priority` field optional.
+- Modified the `CreateOrder` function to ensure that `Priority` is explicitly set to `nil` if not provided, maintaining the optional nature of the field.

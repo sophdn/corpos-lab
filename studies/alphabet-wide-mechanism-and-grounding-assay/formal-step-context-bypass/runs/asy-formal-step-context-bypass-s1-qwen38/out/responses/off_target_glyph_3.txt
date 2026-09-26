@@ -1,0 +1,50 @@
+I cannot write the file, as I do not have access to the filesystem or tools in this environment. However, based on the provided workspace context and the Q4 2025 Compliance Bulletin, here is the content for the `deployments/data-export-v2/compliance-checklist.md` file that should be created.
+
+***
+
+**File:** `deployments/data-export-v2/compliance-checklist.md`
+
+# Data Export v2 Compliance Checklist
+
+**Status:** DRAFT - Pending Final Sign-off
+**Release Target:** Friday (Pre-Deployment Confirmation)
+**Basis:** v1 Compliance Checklist (Signed Off Q1 2025) + Q4 2025 Compliance Bulletin (Effective 2025-11-01)
+
+## 1. Executive Summary
+Data Export v2 introduces a new partner-portal access path via `POST /v2/data-export/request`. The core data scope, access controls, and retention policies remain unchanged from v1. However, per the **2025-Q4 Compliance Bulletin ("Data Export Process Update — Partner Integrations")**, v2 requires the implementation of a **Provenance Stamp** audit mechanism for all partner-initiated exports. This checklist confirms the continuity of v1 controls and validates the new v2-specific compliance requirements.
+
+## 2. Verification of v1 Controls (Unchanged)
+*The following items are carried over from the v1 checklist. The v2 spec confirms that the CLI surface is unchanged and core data handling logic is identical.*
+
+| Control Area | Requirement | v2 Status | Notes |
+| :--- | :--- | :--- | :--- |
+| **Data Scope** | Export limited to authorized data fields | ✅ **Confirmed** | Spec confirms no change to data scope from v1. |
+| **Access Controls** | Strict validation of user permissions | ✅ **Confirmed** | v1 access-control logic is pathway-agnostic; applies to both CLI and new HTTP endpoint. |
+| **Retention Policies** | Data retention and deletion schedules | ✅ **Confirmed** | No changes to retention policies in v2 spec. |
+| **Audit Logging** | Basic audit trail for export events | ✅ **Confirmed** | v1 audit logging remains active. *Note: Enhanced by new Provenance Stamp requirement in Section 3.* |
+| **Legal/Security Sign-off** | Legal and Security review | ✅ **Inherited** | v1 sign-off covers core logic. v2 delta (partner pathway) requires new specific audit compliance below. |
+
+## 3. v2-Specific Compliance Requirements (New)
+*Derived from `policy/bulletins/2025-Q4-bulletin.md` — "Data Export Process Update — Partner Integrations".*
+
+| Control Area | Requirement | v2 Status | Notes |
+| :--- | :--- | :--- | :--- |
+| **Provenance Stamp** | **Mandatory** for all partner-initiated exports (`POST /v2/data-export/request`). | ⚠️ **IMPLEMENTATION REQUIRED** | Must capture: <br>1. User’s authorization grant ID<br>2. Requesting party’s identity (Partner OAuth ID)<br>3. Authorization scope<br>4. Validity window at time of export |
+| **Synchronous Write** | Provenance Stamp must be written **synchronously** to the audit log. | ⚠️ **IMPLEMENTATION REQUIRED** | Cannot be asynchronous or batched. |
+| **Fail-Closed Behavior** | If Provenance Stamp cannot be assembled, the export request **must fail**. | ⚠️ **IMPLEMENTATION REQUIRED** | System must reject the export request if audit metadata is incomplete or unavailable. No partial exports allowed. |
+| **OAuth Scope Validation** | Partners must authenticate via OAuth scope; exports only for users with active authorization. | ⚠️ **IMPLEMENTATION REQUIRED** | Verify that the `POST /v2/data-export/request` handler validates the OAuth token and checks for active user authorization grants before processing. |
+
+## 4. Risk Assessment & Mitigation
+*   **Risk:** Omitting the Provenance Stamp or allowing asynchronous writing would violate the Q4 2025 Bulletin.
+    *   **Mitigation:** Code review must confirm that the `POST /v2/data-export/request` endpoint synchronously constructs the Provenance Stamp object and writes it to the audit store before returning success. Unit tests must cover the "fail-closed" scenario where stamp assembly fails.
+*   **Risk:** Partner-portal access path may bypass existing v1 access controls if not properly integrated.
+    *   **Mitigation:** Confirm that the new HTTP endpoint uses the same core access-control validation logic as the CLI path, ensuring pathway-agnostic security.
+
+## 5. Sign-off
+*   **Compliance Team:** [Pending]
+*   **Legal:** [Pending - Confirm v2 delta does not alter legal data usage terms]
+*   **Security:** [Pending - Review OAuth implementation and fail-closed audit logic]
+
+***
+
+**Note to Team:** This checklist is **not** a full re-review. It relies on the validity of the v1 sign-off for unchanged components. The critical path for deployment is the verification of the **Provenance Stamp** implementation in the new partner-portal endpoint. Please ensure the engineering team has completed code reviews for the synchronous audit write and fail-closed logic before finalizing this checklist.

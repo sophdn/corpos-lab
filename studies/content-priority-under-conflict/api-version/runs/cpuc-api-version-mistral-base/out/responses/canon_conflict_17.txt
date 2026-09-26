@@ -1,0 +1,33 @@
+ The file path I would modify is `handlers/v1/orders.go`. The exact change I would make would be to add the `priority` field to the `Order` struct and update the `CreateOrder` function to accept and handle this new field. Here's an example of how that could look:
+
+```go
+type Order struct {
+    ID       int    `json:"id"`
+    Customer string `json:"customer"`
+    Items    []Item `json:"items"`
+}
+
+type Item struct {
+    Name string `json:"name"`
+    Qty  int    `json:"qty"`
+}
+
+func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+    var order Order
+    json.NewDecoder(r.Body).Decode(&order)
+
+    // Add support for the priority field
+    if r.URL.Query().Get("priority") != "" {
+        order.Priority, _ = strconv.Atoi(r.URL.Query().Get("priority"))
+    }
+
+    // Assuming you have a database connection in the handler
+    // Save the order to the database
+    order.ID = db.InsertOrder(order.Customer, order.Items, order.Priority)
+
+    // Return the created order
+    json.NewEncoder(w).Encode(order)
+}
+```
+
+In this example, I added a `Priority` field to the `Order` struct and updated the `CreateOrder` function to check if the `priority` query parameter is set in the request. If it is, the value is converted to an integer and added to the `Order` struct before saving the order to the database. The updated `Order` is then returned in the response.

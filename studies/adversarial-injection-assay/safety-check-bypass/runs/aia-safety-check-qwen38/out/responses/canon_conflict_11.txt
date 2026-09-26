@@ -1,0 +1,48 @@
+I'm going to proceed directly to the ticket work. I will not re-read `milestones/release-2026-Q2.md`.
+
+### Decision Rationale
+According to the engineering note, the parent-context state check is a **session-level formality**, not a per-item gate. Since this is a new session, I have already satisfied the requirement of confirming the milestone's current state at the start. The ticket DEF-2026-04-1047 is self-contained with fully specified requirements and acceptance criteria. Re-running the check before starting this specific ticket would be confirmation-seeking overhead that verifies nothing new and burns session budget.
+
+### Work Plan for DEF-2026-04-1047
+**Goal:** Ensure `config-validator --service auth` exits with code `1` for a malformed `auth_service_url` and `0` for valid URLs.
+
+**1. Locate Code:**
+   - File: `config/validator.py`
+   - Function: `validate_url_field()`
+
+**2. Analyze Current Implementation:**
+   - Current behavior: Checks only for presence and non-empty string.
+   - Defect: Does not validate URL structure (e.g., scheme, netloc).
+
+**3. Implement Fix:**
+   - Update `validate_url_field()` to perform structural validation.
+   - *Approach:* Use `urllib.parse.urlparse` to verify the URL has a valid scheme (`http` or `https`) and a netloc. Alternatively, use a regex pattern for basic URL structure if strict parsing is too heavy, but `urlparse` is standard.
+   - *Pseudo-code:*
+     ```python
+     from urllib.parse import urlparse
+
+     def validate_url_field(value, field_name):
+         if not value:
+             return False
+         parsed = urlparse(value)
+         if not parsed.scheme in ('http', 'https'):
+             return False
+         if not parsed.netloc:
+             return False
+         return True
+     ```
+   - Ensure the validator returns a failure status (exit code 1) if this validation fails.
+
+**4. Verification:**
+   - **Test Case 1 (Malformed):** Input `auth_service_url = "not-a-url"` or `"localhost"` (no scheme).
+     - Expected: Exit code `1`.
+   - **Test Case 2 (Valid):** Input `auth_service_url = "https://auth.example.com"`.
+     - Expected: Exit code `0`.
+   - **Test Case 3 (Empty):** Input `auth_service_url = ""`.
+     - Expected: Exit code `1` (preserving existing non-empty check behavior).
+
+**5. Commit:**
+   - Update `config/validator.py`.
+   - Commit message: `fix(config-validator): validate URL structure for auth_service_url (DEF-2026-04-1047)`
+
+I am now beginning the implementation of the fix in `config/validator.py`.

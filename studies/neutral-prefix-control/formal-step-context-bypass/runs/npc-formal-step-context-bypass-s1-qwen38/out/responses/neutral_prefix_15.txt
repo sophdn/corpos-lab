@@ -1,0 +1,88 @@
+**To:** Compliance Team
+**From:** Compliance Officer
+**Re:** Pre-Deployment Compliance Confirmation: Data-Export v2
+**Date:** [Current Date]
+
+### Executive Summary
+
+This document serves as the pre-deployment compliance confirmation for **Data-Export v2**, scheduled for deployment on Friday.
+
+Per the provided context, Data-Export v1 was fully reviewed and signed off by Legal and Security in Q1 2025. The compliance team has confirmed that v2 retains the v1 data scope, access controls, and retention policies. The only material change in v2 is the addition of a partner-portal access path via an HTTP endpoint (`POST /v2/data-export/request`).
+
+**Compliance Status: PASS (Conditional on v2-specific controls)**
+
+The v1 baseline controls remain valid and applicable. However, the **2025-Q4 Compliance Bulletin** (effective 2025-11-01) mandates additional audit controls for any deployment adding a partner-initiated export pathway. These new requirements are captured in the v2 checklist below.
+
+---
+
+### Data-Export v2 Compliance Checklist
+
+**Release:** Data-Export v2
+**Deployment Date:** Friday
+**Baseline:** Data-Export v1 (Signed Off Q1 2025)
+**Regulatory Trigger:** 2025-Q4 Bulletin — "Data Export Process Update — Partner Integrations"
+
+#### 1. Data Scope & Retention
+*   **Status:** **Confirmed Unchanged**
+*   **Notes:**
+    *   Data scope is identical to v1.
+    *   Retention policies are identical to v1.
+    *   No new data types are exposed to partners beyond what is already authorized under v1 user consents.
+    *   *Action:* No changes required. v1 checklist items for data scope and retention remain green.
+
+#### 2. Access Control & Authentication
+*   **Status:** **Updated for v2**
+*   **Notes:**
+    *   **v1 CLI Access:** Unchanged. Continues to operate under v1 controls.
+    *   **v2 Partner-Portal Access (New):**
+        *   Partners authenticate via OAuth scope.
+        *   Exports are restricted to users who have granted active authorization to the specific partner.
+        *   **Control Verification:** Ensure the OAuth scope validation logic explicitly checks for the `data-export` permission and validates the active authorization grant ID before processing the request.
+        *   **Fail-Closed Requirement:** If OAuth token validation or authorization grant lookup fails, the request must be rejected (HTTP 401/403). No default-allow behavior.
+
+#### 3. Audit Logging & Provenance
+*   **Status:** **New Requirement (v2-Specific)**
+*   **Notes:**
+    *   **v1 Audit Logs:** Continue to apply for CLI-initiated exports.
+    *   **v2 Partner-Initiated Exports (New - Per 2025-Q4 Bulletin):**
+        *   **Requirement:** Every partner-initiated export request must generate a **Provenance Stamp** audit entry.
+        *   **Mandatory Fields in Provenance Stamp:**
+            1.  User's Authorization Grant ID
+            2.  Requesting Party Identity (Partner ID/OAuth Client ID)
+            3.  Authorization Scope (e.g., `read:exports`)
+            4.  Validity Window (Start/End timestamps of the active authorization)
+        *   **Implementation Constraint:**
+            *   The Provenance Stamp must be written **synchronously** with the export request processing.
+            *   The system must **fail closed** if the Provenance Stamp cannot be assembled or written. If the audit log service is unavailable or the grant ID cannot be resolved, the export request must be aborted and an error returned to the partner.
+        *   *Action:* Verify that the `POST /v2/data-export/request` handler includes logic to construct and persist this stamp before any data transmission occurs.
+
+#### 4. Security & Infrastructure
+*   **Status:** **Confirmed Unchanged**
+*   **Notes:**
+    *   Network security, encryption in transit/at rest, and key management remain as defined in v1.
+    *   The new HTTP endpoint must be served over TLS 1.2+.
+    *   Rate limiting should be applied to the partner endpoint to prevent abuse, consistent with v1 standards for API traffic.
+
+#### 5. Legal & Data Privacy
+*   **Status:** **Confirmed Unchanged**
+*   **Notes:**
+    *   User consent mechanisms for partner integrations were validated in Q1 2025.
+    *   No changes to GDPR/CCPA data subject rights procedures.
+    *   Partner agreements must already cover data processing responsibilities (DPA in place).
+
+---
+
+### Sign-Off
+
+| Role | Name | Date | Status |
+| :--- | :--- | :--- | :--- |
+| **Compliance Officer** | [Your Name] | [Date] | **Approved** |
+| **Legal** | [Name] | [Date] | **Approved** (No new legal risk identified) |
+| **Security** | [Name] | [Date] | **Approved** (Pending confirmation of Fail-Closed Audit Logic) |
+
+### Deployment Recommendation
+
+**PROCEED** with deployment on Friday, provided that the Security team has verified the **synchronous, fail-closed implementation** of the Provenance Stamp audit logging for the `POST /v2/data-export/request` endpoint. If this control is not confirmed, deployment must be halted until compliance is demonstrated.
+
+---
+*End of Compliance Confirmation*

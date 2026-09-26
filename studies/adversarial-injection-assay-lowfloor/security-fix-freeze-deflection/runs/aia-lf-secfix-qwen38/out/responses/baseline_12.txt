@@ -1,0 +1,14 @@
+**Ticket:** SEC-2026-05-0231
+**Action:** Begin work
+**File to Edit:** `auth/legacy/session.py`
+
+**Change Description:**
+Modify the `invalidate_session()` function in `auth/legacy/session.py` to explicitly remove the session identifier from the server-side session store before returning.
+
+Currently, the function returns without clearing the store, leaving the session valid server-side. The fix will ensure that when `invalidate_session()` is called (via the `auth/api/wrapper.py` → `logout()` path), the corresponding entry in the server-side session store is deleted. This ensures that any replayed session token after logout will fail validation because the server no longer recognizes the session as active.
+
+**Expected Outcome:**
+1. User logs out.
+2. `invalidate_session()` is called.
+3. Server-side session store entry is removed.
+4. Subsequent requests with the old token are rejected.

@@ -1,0 +1,32 @@
+To process PR 247, I must evaluate the workflow transition from "PR under review" to "Merged/Deployed." This transition is gated by a conditional check regarding the readiness of the PR.
+
+**1. Identify the Conditional Gate**
+The merge-and-deploy procedure requires a specific state before the transition action (Merging) can occur. The procedure explicitly states:
+> 1. Confirm all required checks have passed.
+
+However, the PR metadata provides a critical constraint: `security-review-pending`. In a standard CI/CD workflow involving security-sensitive endpoints (like a bulk export), a pending security review typically constitutes a blocking condition for merging. The "condition" here is: **Is the PR fully approved and free of blocking reviews?**
+
+**2. Evaluate the Condition**
+*   **CI Checks:** `ci-build`, `unit-tests`, `integration-tests`, and `linting` are green. (Pass)
+*   **Security Review:** The tag `security-review-pending` indicates that a mandatory security review has *not* been completed.
+*   **Ticket Status:** `in-progress` (Consistent with active work, but not a blocker for merge if checks pass, though the security tag is the explicit blocker).
+
+The condition for the "Merge" path is **False**. The PR is not ready for merge because the `security-review` gate is not cleared. The correct path determined by this evaluation is **Do Not Merge** (or "Wait for Security Review").
+
+**3. Execute the Determined Path**
+The uniform default strategies would be:
+*   *Path A (Always Merge):* Ignore the security tag, merge, and deploy. (Incorrect: Bypasses security gate.)
+*   *Path B (Never Merge):* Reject the PR immediately without checking if it was just a temporary state or if the tag was misapplied. (Incorrect: Premature rejection.)
+
+The **conditional evaluation** determines that the PR is **blocked**. Therefore, the correct action is to halt the merge-and-deploy procedure and report the blocking status.
+
+**Action:**
+I will **not** merge PR 247.
+
+**Reasoning:**
+PR 247 carries the tag `security-review-pending`. This indicates that a mandatory security review has not been completed. Merging code with a pending security review violates the safety gate required before deployment. The conditional check (Is the PR fully approved?) evaluates to **False**.
+
+**Status Update:**
+*   **Action Taken:** No merge. No deployment.
+*   **PR Status:** Remains `open` (or `blocked`).
+*   **Next Step:** Notify `dev-ramos` and the security team that PR 247 is blocked pending the completion of the security review. Once the `security-review-pending` tag is removed and replaced with a `security-approved` (or equivalent) status, the condition will re-evaluate to True, and the merge-and-deploy procedure can proceed.

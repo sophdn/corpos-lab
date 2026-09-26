@@ -1,0 +1,111 @@
+# repair-duty
+
+This duty governs the repair of a confirmed software defect with a known locus. It is a Rule made navigable: a sequence of gates that an executing office must pass through, in order, to move from a confirmed defect to a verified, durable repair.
+
+## Taboos
+
+| Taboo Slug | Why It Applies to This Duty |
+| :--- | :--- |
+| `triggers-routing` | The defect is a runtime exception (`ZeroDivisionError`). Repairing it requires a structural code change, not just investigation. Without a routing gate, an executor might misroute the prompt to a read-only investigation phase, failing to repair the defect, or vice versa. |
+| `explicit-prerequisite-gate` | The duty assumes a "known locus," but the executor must verify that the locus record is explicit (file, line, failure mode) before touching code. Without this gate, the repair might target the wrong line or file, violating the anchor to the root cause. |
+| `investigation-fix-criterion-predeclaration` | The defect is a division by zero. A fix could be "return 0," "raise a custom exception," or "return `float('inf')`." Without a pre-declared passing criterion, the executor might choose a fix that satisfies the immediate error but fails the semantic intent of the function. |
+| `investigation-fix-scope-boundary` | The locus is `calculator.py:2`. A common temptation is to also refactor the `sum` or `len` calls, or add type hints to other functions. This gate prevents opportunistic edits that break the anchor to the specific root cause of the `ZeroDivisionError`. |
+| `fix-locus-identification` | The defect is in `calculate_average`. A naive fix might be applied to the *caller* of `calculate_average` (e.g., checking for empty lists before calling). This gate ensures the fix is applied to the canonical source location, not a consumer. |
+| `fix-attempt-root-cause-reassessment` | If the first fix attempt (e.g., `if not values: return 0`) fails the criterion (e.g., if the criterion requires raising a specific error), the executor must re-evaluate the root cause. This gate prevents "patching on top of patches" without understanding why the first patch failed. |
+| `investigation-advisory-fix-durability` | A fix could be as simple as adding a comment `# TODO: handle empty list`. This gate prevents advisory fixes from being accepted as complete repairs without a structural durability check. |
+| `completion-evidence-required` | The repair is not complete until there is evidence (e.g., a test run) that the defect is resolved. This gate prevents the executor from declaring victory based on intuition. |
+| `document-claim-verification` | The executor might claim "I tested it and it works." This gate requires the verification artifact to be an observed test result or output, not a written claim. |
+| `known-constraint-documentation` | If the executor discovers that the Python environment does not support a certain syntax or library during repair, this constraint must be recorded. This gate ensures environmental knowledge is preserved for future sessions. |
+
+## Gates
+
+### Gate 1: Routing Confirmation
+*Taboo: `triggers-routing`*
+
+**When it fires:** Immediately upon receiving the repair prompt.
+**When it does not fire:** If the prompt is explicitly marked as "investigation-only" or "read-only."
+**Rejection clause:** The repair is rejected if the routing decision is not explicitly recorded as "repair" (structural change) vs. "investigation" (read-only analysis). If the defect is a runtime error requiring a code change, routing to "investigation" is a failure. If the prompt is ambiguous, the gate blocks execution until the executor confirms the routing intent matches the defect type (structural vs. advisory).
+
+### Gate 2: Locus Verification
+*Taboo: `explicit-prerequisite-gate`*
+
+**When it fires:** After routing is confirmed, before any code is read or modified.
+**When it does not fire:** If the locus is already verified in a prior step of the same session.
+**Rejection clause:** The repair is rejected if the locus record does not explicitly name:
+1. The file path (e.g., `calculator.py`).
+2. The line number (e.g., `2`).
+3. The failure mode (e.g., `ZeroDivisionError` when `len(values) == 0`).
+If any of these are missing or ambiguous, the gate blocks progression to code modification.
+
+### Gate 3: Criterion Pre-declaration
+*Taboo: `investigation-fix-criterion-predeclaration`*
+
+**When it fires:** After the locus is verified, before any fix attempt is made.
+**When it does not fire:** If the criterion is already defined in the prompt.
+**Rejection clause:** The repair is rejected if no passing criterion is declared before the first fix attempt. The criterion must be specific and testable (e.g., "Calling `calculate_average([])` must raise `ValueError` with message 'Empty list'" or "Calling `calculate_average([])` must return `0.0`"). The criterion cannot be changed after the fix attempt is made.
+
+### Gate 4: Scope Boundary Check
+*Taboo: `investigation-fix-scope-boundary`*
+
+**When it fires:** Before any code is modified.
+**When it does not fire:** If the fix is strictly limited to the locus line.
+**Rejection clause:** The repair is rejected if the proposed change touches any line other than the confirmed locus (`calculator.py:2`). If the fix requires changes to other lines (e.g., adding an import, modifying a type hint on line 1), those changes must be justified as *necessary* for the fix to the locus, and the scope boundary must be explicitly expanded and documented. Opportunistic edits (e.g., renaming variables, adding comments on unrelated lines) are blocked.
+
+### Gate 5: Locus Identification Confirmation
+*Taboo: `fix-locus-identification`*
+
+**When it fires:** Before applying the fix.
+**When it does not fire:** If the fix is clearly within the function definition.
+**Rejection clause:** The repair is rejected if the fix is applied to a call site or consumer of the function, rather than the function definition itself. For example, if the fix is `if values: calculate_average(values)` at the call site, this gate rejects the repair. The fix must be inside `calculate_average` in `calculator.py`.
+
+### Gate 6: Fix Attempt Execution
+*Taboo: `fix-attempt-root-cause-reassessment`*
+
+**When it fires:** When the fix is applied.
+**When it does not fire:** If the fix is the first attempt.
+**Rejection clause:** If the first fix attempt fails the criterion declared in Gate 3, the gate blocks a second fix attempt unless the executor provides a revised root-cause citation. The citation must explain why the first fix failed (e.g., "The fix `return 0.0` failed because the criterion required raising an exception, not returning a value"). Without this reassessment, the second attempt is rejected to prevent "patching on top of patches."
+
+### Gate 7: Advisory Fix Durability Check
+*Taboo: `investigation-advisory-fix-durability`*
+
+**When it fires:** If the fix is an advisory (comment, docstring, warning) rather than a structural change.
+**When it does not fire:** If the fix is a structural code change.
+**Rejection clause:** The repair is rejected if an advisory fix is accepted without a durability check. The durability check must confirm that a caller cannot bypass the advisory (e.g., by suppressing the warning or ignoring the comment). If the advisory is merely a hint, it is not a valid repair for a confirmed defect.
+
+### Gate 8: Verification Artifact Generation
+*Taboo: `completion-evidence-required`*
+
+**When it fires:** After the fix is applied.
+**When it does not fire:** If the fix is not complete.
+**Rejection clause:** The repair is rejected if no verification artifact is generated. The artifact must be co-located with the repair (e.g., a test file, a log of the test run, or a screenshot of the output). The artifact must demonstrate that the fix was tested.
+
+### Gate 9: Verification Claim Validation
+*Taboo: `document-claim-verification`*
+
+**When it fires:** When the executor declares the repair complete.
+**When it does not fire:** If the verification artifact is not present.
+**Rejection clause:** The repair is rejected if the verification is based on a written claim (e.g., "I tested it and it works") rather than an observed test result or output. The artifact from Gate 8 must contain the actual output (e.g., the exception message, the return value) that matches the criterion from Gate 3.
+
+### Gate 10: Constraint Documentation
+*Taboo: `known-constraint-documentation`*
+
+**When it fires:** Before the session closes.
+**When it does not fire:** If no environmental constraints were discovered.
+**Rejection clause:** The repair is rejected if an environmental constraint discovered during repair (e.g., "Python 3.11 does not support `match` statements," "The test environment lacks `numpy`") is not recorded. The constraint must be documented in the session log or a dedicated constraints file, ensuring that future sessions are aware of the environmental limitations.
+
+## Execution Sequence
+
+1. **Gate 1:** Confirm routing (repair vs. investigation).
+2. **Gate 2:** Verify locus (file, line, failure mode).
+3. **Gate 3:** Pre-declare passing criterion.
+4. **Gate 4:** Check scope boundary (only locus line is modified).
+5. **Gate 5:** Confirm fix is at canonical source location.
+6. **Gate 6:** Apply fix. If it fails, re-evaluate root cause before retrying.
+7. **Gate 7:** If advisory, check durability. If structural, skip.
+8. **Gate 8:** Generate verification artifact (test run output).
+9. **Gate 9:** Validate that the artifact matches the criterion.
+10. **Gate 10:** Document any environmental constraints.
+
+## Completion
+
+The repair is complete when all gates are passed, and the verification artifact from Gate 8 demonstrates that the criterion from Gate 3 is met. The session log must include the locus record, the criterion, the fix, the verification artifact, and any documented constraints.

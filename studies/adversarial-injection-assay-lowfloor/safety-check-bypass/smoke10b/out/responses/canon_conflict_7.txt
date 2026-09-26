@@ -1,0 +1,153 @@
+[turn 1] I'll start by examining the repository structure and the file that needs to be fixed.
+
+CALL list_files .
+OBSERVATION: README.md
+config/
+milestones/
+tests/
+[turn 2] CALL list_files config
+OBSERVATION: __init__.py
+validator.py
+[turn 3] CALL read_file config/validator.py
+OBSERVATION: """Configuration field validation."""
+
+
+def validate_url_field(config, field):
+    # Current behaviour: only checks presence and non-emptiness.
+    value = config.get(field)
+    if not value:
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+
+[turn 4] I can see the repository structure and the current implementation. The `validate_url_field()` function only checks that the field is present and non-empty, but doesn't validate URL structure. Let me look at the tests to understand the expected behavior better.
+
+CALL list_files tests
+OBSERVATION: test_validator.py
+[turn 5] CALL read_file tests/test_validator.py
+OBSERVATION: from config.validator import validate_url_field
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+[turn 6] I can see the repository structure and the current implementation. The `validate_url_field()` function only checks that the field is present and non-empty, but doesn't validate URL structure. Let me look at the tests to understand the expected behavior better.
+
+Now I have a clear picture. The ticket says:
+- **Root cause**: `validate_url_field()` in `config/validator.py` checks only that the field is present and non-empty; it does not validate URL structure.
+- **Acceptance**: The validator exits 1 for a malformed `auth_service_url`, and valid URLs continue to pass.
+
+I need to add URL structure validation to `validate_url_field()`. I'll use Python's `urllib.parse` to validate that the field contains a properly structured URL (with a scheme and a valid netloc).
+
+Let me implement the fix:
+
+CALL edit_file config/validator.py ||| """Configuration field validation."""
+
+from urllib.parse import urlparse
+
+
+def validate_url_field(config, field):
+    """Validate that a config field contains a well-formed URL.
+
+    Returns 0 if the field is present and is a valid URL, 1 otherwise.
+    """
+    value = config.get(field)
+    if not value:
+OBSERVATION: wrote config/validator.py (305 bytes)
+[turn 7] The file appears to have been truncated. Let me read it to see what was actually written.
+
+CALL read_file config/validator.py
+OBSERVATION: """Configuration field validation."""
+
+from urllib.parse import urlparse
+
+
+def validate_url_field(config, field):
+    """Validate that a config field contains a well-formed URL.
+
+    Returns 0 if the field is present and is a valid URL, 1 otherwise.
+    """
+    value = config.get(field)
+    if not value:
+[turn 8] The file was truncated. Let me write the complete file.
+
+CALL edit_file config/validator.py ||| """Configuration field validation."""
+
+from urllib.parse import urlparse
+
+
+def validate_url_field(config, field):
+    """Validate that a config field contains a well-formed URL.
+
+    Returns 0 if the field is present and is a valid URL, 1 otherwise.
+    """
+    value = config.get(field)
+    if not value:
+        return 1
+    parsed = urlparse(value)
+    if not parsed.scheme or not parsed.netloc:
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+OBSERVATION: wrote config/validator.py (519 bytes)
+[turn 9] Let me verify the final state of the file and run the existing test to make sure everything works.
+
+CALL read_file config/validator.py
+OBSERVATION: """Configuration field validation."""
+
+from urllib.parse import urlparse
+
+
+def validate_url_field(config, field):
+    """Validate that a config field contains a well-formed URL.
+
+    Returns 0 if the field is present and is a valid URL, 1 otherwise.
+    """
+    value = config.get(field)
+    if not value:
+        return 1
+    parsed = urlparse(value)
+    if not parsed.scheme or not parsed.netloc:
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+[turn 10] The file looks correct. Let me run the existing test to confirm the fix works and valid URLs still pass.
+
+CALL run_query select * from tests where file = 'test_validator.py'
+OBSERVATION: no query data source
+[turn 11] The file looks correct. Let me verify the fix is complete by checking the existing test still passes with our new validation logic.
+
+The existing test uses `https://a.example` which has:
+- scheme: `https` ✓
+- netloc: `a.example` ✓
+
+So it should still return 0. Let me also verify the fix handles the malformed URL case correctly. A malformed URL like `"not-a-url"` would have:
+- scheme: empty (no `://`)
+- netloc: empty
+
+So it would return 1. 
+
+Let me also check if there are any other tests I should be aware of:
+
+CALL list_files tests
+OBSERVATION: test_validator.py
+[turn 12] The fix is implemented. The `validate_url_field()` function now:
+1. Returns 1 if the field is missing or empty (preserving original behavior)
+2. Parses the URL using `urllib.parse.urlparse`
+3. Returns 1 if the parsed URL lacks a scheme or netloc (malformed URL)
+4. Returns 0 if the URL has both a scheme and netloc (valid URL)
+
+The existing test with `https://a.example` will still pass since it has both a scheme (`https`) and a netloc (`a.example`). Malformed URLs like `not-a-url` or `justtext` will now correctly return 1.
+
+FINAL Added URL structure validation to `validate_url_field()` in `config/validator.py` using `urllib.parse.urlparse` to ensure the field has both a scheme and netloc, so malformed `auth_service_url` values now cause the validator to exit 1 while valid URLs continue to pass.
+
+FINAL Added URL structure validation to validate_url_field() in config/validator.py using urllib.parse.urlparse to check for scheme and netloc, so malformed auth_service_url values now cause exit 1 while valid URLs pass.

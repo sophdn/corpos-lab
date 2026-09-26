@@ -1,0 +1,126 @@
+# Duty: Repair-Duty
+
+**Scope:** This duty governs the repair of a confirmed software defect with a known locus. It applies to any office executing a repair where the defect has been validated and the specific location of failure is identified.
+
+**Prerequisite:** The executor must hold a confirmed defect report containing:
+1. A description of the observed failure.
+2. A confirmed locus (file path and line range) where the failure originates.
+3. A reproduction case or evidence that the defect is real and not an environmental artifact.
+
+---
+
+## Phase 1: Locus Confirmation & Context Isolation
+
+**Gate 1.1: Verify Locus Integrity**
+*   **Verifies:** That the identified locus actually contains the code responsible for the failure, and that the failure mode matches the defect description.
+*   **Completion Requirement:**
+    1.  Read the code at the specified locus.
+    2.  Trace the execution path from the entry point to the locus using the reproduction case.
+    3.  Confirm that the variable states or control flow at the locus directly cause the reported error.
+    4.  If the locus does not contain the root cause, **halt** and return the defect for re-localization. Do not proceed.
+
+**Gate 1.2: Establish Dependency Boundaries**
+*   **Verifies:** That the executor understands all functions, classes, and data structures that depend on the locus, preventing unintended side effects during repair.
+*   **Completion Requirement:**
+    1.  Identify all call sites that invoke the function or class at the locus.
+    2.  Identify any external systems (APIs, databases, file I/O) touched by the code at the locus.
+    3.  Document the expected contract (inputs, outputs, side effects) of the locus before modification.
+
+---
+
+## Phase 2: Routing Validation (Meta-Taboo Scan: Upstream)
+
+**Gate 2.1: Confirm Repair Necessity**
+*   **Verifies:** That a *repair* is the correct action for this situation, and that the defect is not a symptom of a deeper architectural issue, a configuration error, or a feature request.
+*   **Completion Requirement:**
+    1.  Confirm the defect is a *bug* (unintended behavior) and not a *missing feature* (intended absence of behavior).
+    2.  Confirm the defect is not caused by external configuration, environment variables, or third-party library versions outside the codebase.
+    3.  If the issue is architectural or requires design change, **halt** and escalate to the design office. Do not patch.
+    4.  If the issue is environmental, **halt** and escalate to the operations office. Do not patch.
+
+---
+
+## Phase 3: Repair Implementation
+
+**Gate 3.1: Minimal Change Principle**
+*   **Verifies:** That the repair modifies only the code necessary to fix the defect, adhering to the principle of minimal diff.
+*   **Completion Requirement:**
+    1.  Draft the fix.
+    2.  Review the diff: Every line changed must directly relate to the defect.
+    3.  If the fix requires refactoring unrelated code, **halt** and split the work: create a separate task for refactoring and a separate task for the repair. Do not combine.
+
+**Gate 3.2: Error Handling Consistency**
+*   **Verifies:** That the repair handles edge cases consistently with the existing codebase standards and does not introduce new silent failures.
+*   **Completion Requirement:**
+    1.  For the specific defect (e.g., `ZeroDivisionError`), implement a guard clause or exception handler that explicitly addresses the failure mode.
+    2.  Ensure the error handling does not swallow exceptions silently unless the codebase convention explicitly permits it.
+    3.  Ensure the return value for edge cases (e.g., empty list) is documented and consistent with the function’s contract.
+
+---
+
+## Phase 4: Verification & Testing
+
+**Gate 4.1: Reproduction Case Validation**
+*   **Verifies:** That the original reproduction case no longer triggers the defect.
+*   **Completion Requirement:**
+    1.  Execute the original reproduction case against the patched code.
+    2.  Confirm the specific error (e.g., `ZeroDivisionError`) is not raised.
+    3.  Confirm the output for the original case is correct according to the defect report.
+
+**Gate 4.2: Edge Case & Regression Testing**
+*   **Verifies:** That the repair has not broken existing functionality and handles adjacent edge cases correctly.
+*   **Completion Requirement:**
+    1.  Run the existing test suite for the module containing the locus.
+    2.  If no tests exist, manually test:
+        *   The original defect case.
+        *   The "happy path" (normal valid input).
+        *   Adjacent edge cases (e.g., single element, large numbers, null values if applicable).
+    3.  Confirm no regressions in behavior for previously passing cases.
+
+---
+
+## Phase 5: Session-Close Obligations (Meta-Taboo Scan: Downstream)
+
+**Gate 5.1: Discovery Recording**
+*   **Verifies:** That any new issues, technical debt, or anomalies discovered during the repair are recorded before the session ends.
+*   **Completion Requirement:**
+    1.  Review the repair process notes.
+    2.  Identify any:
+        *   Missing tests that should have existed.
+        *   Unclear code comments or logic that confused the executor.
+        *   Potential future defects observed in nearby code.
+    3.  Create a ticket or note for each discovery. Do not leave them unrecorded.
+
+**Gate 5.2: Documentation & Contract Update**
+*   **Verifies:** That the function’s contract or documentation is updated if the repair changed the behavior (e.g., returning `0` instead of raising an error).
+*   **Completion Requirement:**
+    1.  If the repair changed the function’s behavior for edge cases, update the docstring or API documentation to reflect the new contract.
+    2.  If the repair added a new exception type, document it.
+    3.  Commit the documentation changes alongside the code fix.
+
+**Gate 5.3: Final Review & Closure**
+*   **Verifies:** That the repair is complete, verified, and ready for integration.
+*   **Completion Requirement:**
+    1.  Perform a final self-review of the diff.
+    2.  Ensure all tests pass.
+    3.  Mark the defect ticket as "Resolved" or "Fixed" with a link to the commit.
+    4.  Close the session.
+
+---
+
+## Failure Modes & Divergence Prevention
+
+| Phase | Divergence Point | Prevention Mechanism |
+|-------|------------------|----------------------|
+| 1     | Wrong locus      | Gate 1.1 requires trace confirmation. If locus is wrong, halt. |
+| 1     | Unaware dependencies | Gate 1.2 forces identification of call sites and side effects. |
+| 2     | Repairing a non-bug | Gate 2.1 explicitly checks for feature requests or config issues. |
+| 3     | Scope creep      | Gate 3.1 enforces minimal diff and separation of concerns. |
+| 3     | Inconsistent error handling | Gate 3.2 requires explicit edge-case handling aligned with codebase. |
+| 4     | Fixing only the reported case | Gate 4.2 requires regression and edge-case testing. |
+| 5     | Lost knowledge   | Gate 5.1 requires recording all discoveries. |
+| 5     | Stale documentation | Gate 5.2 requires doc updates if behavior changed. |
+
+---
+
+**Executor Note:** This duty is self-sufficient. Do not consult external canons or registries. Follow the gates in order. If any gate cannot be completed, halt and escalate.

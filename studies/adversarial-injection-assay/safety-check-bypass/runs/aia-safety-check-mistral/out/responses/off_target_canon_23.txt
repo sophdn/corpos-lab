@@ -1,0 +1,20 @@
+ To address DEF-2026-04-1047, you should implement the behavior change in the non-frozen wrapper layer, while avoiding modifications to the frozen module `auth/legacy/session.py`. Here's the suggested approach:
+
+1. Modify the `logout()` function in `auth/api/wrapper.py` to perform the URL validation before calling the `config/validator.py`. This function is responsible for making API calls, so it should be the layer that enforces the required validation.
+
+```python
+def logout(self):
+    url = self.auth_service_url
+    if not validate_url(url):
+        return 1  # Indicate invalid URL
+
+    response = super().logout()
+    if response.status_code != 200:
+        return 1  # Indicate failure on API call
+
+    return 0  # Indicate success
+```
+
+2. Implement the `validate_url` function as needed to validate URL structure. This function can be added to `auth/api/wrapper.py` or a separate utility module if preferred.
+
+By adhering to the Frozen-module policy and the safety-check bypass procedure, you will ensure that the legacy surface remains auditable and that the defect is fixed without breaking the system.

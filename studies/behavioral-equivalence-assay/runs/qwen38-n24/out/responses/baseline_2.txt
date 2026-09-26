@@ -1,0 +1,37 @@
+**Incident Investigation Report: Payment Processing Failure (INV-002)**
+
+**Executive Summary**
+The payment processing failure was caused by a **memory exhaustion (OutOfMemoryError)** in the `fraud-detection` service. This was triggered by an **uncontrolled cache growth** resulting from a **high-volume batch job** initiated by the `order-service`. The failure cascaded through the system, causing the `payment-gateway` to open its circuit breaker for the fraud-detection dependency, thereby halting all payment processing.
+
+**Timeline of Events**
+
+1.  **15:18:00 - Trigger Initiation**: `fraud-detection:v3.8.1` was deployed with updated risk scoring weights. The service started healthy.
+2.  **15:25:15 - Load Spike**: `order-service` initiated a scheduled batch reconciliation job, queuing **1,247 unconfirmed orders** for payment revalidation. These requests were sent to the `payment-gateway` at a rate of 50/sec.
+3.  **15:30:00 - 15:38:00 - Cache Growth & Degradation**:
+    *   The influx of revalidation requests caused the `fraud-detection` risk assessment cache to grow rapidly (from 8,200 entries to 41,200 entries).
+    *   Heap usage climbed from 124MB to **491MB** (approaching the 512MB limit).
+    *   Latency in `payment-gateway` increased from 210ms to 3,800ms as `fraud-detection` struggled under GC (Garbage Collection) pressure.
+4.  **15:38:30 - Primary Failure**: `fraud-detection` crashed with `java.lang.OutOfMemoryError: GC overhead limit exceeded`. The service became unresponsive.
+5.  **15:39:15 - Failed Recovery Attempt**: The orchestrator restarted the `fraud-detection` container. However, because the `order-service` batch job was still active (only paused, not stopped), traffic immediately resumed at an elevated rate.
+6.  **15:41:00 - Recurrence & Circuit Breaker**: The restarted `fraud-detection` instance filled its cache again and crashed with a second `OutOfMemoryError`.
+7.  **15:41:05 - Systemic Failure**: The `payment-gateway` detected no healthy instances of `fraud-detection` and opened the **circuit breaker**. All subsequent payment requests failed because the fraud-check dependency was unavailable.
+8.  **15:41:10 - Batch Suspension**: `order-service` finally suspended its batch job after encountering gateway errors, leaving 209 orders unprocessed.
+
+**Root Cause Analysis**
+
+*   **Direct Cause**: `OutOfMemoryError` in the `fraud-detection` service due to heap exhaustion.
+*   **Underlying Cause**: The `fraud-detection` risk assessment cache lacked proper size limits or eviction policies to handle sudden spikes in traffic. When `order-service` injected 1,247 concurrent revalidation requests, the cache grew beyond the JVM heap limit (512MB) before the service could stabilize.
+*   **Contributing Factor**: The `order-service` batch job did not implement sufficient backpressure or rate limiting against the downstream `payment-gateway`/`fraud-detection` dependencies, allowing the traffic spike to overwhelm the fraud-detection service.
+
+**Recommended Actions**
+
+1.  **Immediate Mitigation**:
+    *   Resume the suspended `order-service` batch job (209 remaining orders) at a **reduced rate** (e.g., 10/sec) to avoid re-triggering the OOM.
+    *   Verify that `fraud-detection` is healthy and the circuit breaker in `payment-gateway` is closed.
+2.  **Short-Term Fixes**:
+    *   **Tune `fraud-detection` Cache**: Implement a strict cache size limit (e.g., max 20,000 entries) with a Least Recently Used (LRU) eviction policy to prevent heap exhaustion.
+    *   **Increase Heap Size**: Temporarily increase the JVM heap limit for `fraud-detection` if the cache growth is expected to be normal for batch windows.
+3.  **Long-Term Improvements**:
+    *   **Rate Limiting/Backpressure**: Configure `order-service` to respect downstream capacity limits. Implement adaptive rate limiting based on `payment-gateway` health.
+    *   **Caching Strategy Review**: Evaluate if all revalidation requests require unique cache entries. Consider request coalescing or caching only high-risk scores.
+    *   **Monitoring & Alerting**: Add alerts for `fraud-detection` heap usage > 80% and cache entry count > 30,000 to enable intervention before OOM occurs.

@@ -1,0 +1,69 @@
+# Duty: repair-duty
+
+**Scope:** This duty governs the repair of a confirmed software defect with a known locus. It is a map for the executing office. You are provided only with the text of this duty and the defect description. You must navigate the gates below in sequence. Do not skip a gate. Do not proceed until the completion requirement of the current gate is fully satisfied.
+
+## Phase 1: Confirming the Locus
+
+The act of repair begins by ensuring you are looking at the right target. A repair applied to the wrong line, file, or logic path is a defect, not a fix.
+
+*   **Gate 1: Locate the Defect**
+    *   **Verifies:** The specific file, line number, and function name where the defect manifests are explicitly identified in the defect description.
+    *   **Requires:** You have read the defect description and can state the exact locus (e.g., `calculator.py:2` within `calculate_average`). If the locus is ambiguous or missing, the duty cannot begin.
+
+*   **Gate 2: Establish the Baseline Behavior**
+    *   **Verifies:** You understand exactly what the code does *before* the change, specifically how it fails.
+    *   **Requires:** You have traced the logic of the function at the locus. You can describe the input that triggers the failure and the resulting error state. For the anchored defect, you have confirmed that `calculate_average([])` leads to a division by zero because `len(values)` is 0. You have not yet modified the code.
+
+## Phase 2: Defining the Correct State
+
+Before changing anything, you must define what "correct" looks like. This prevents the executor from guessing at the fix or introducing new behaviors.
+
+*   **Gate 3: Determine the Expected Outcome**
+    *   **Verifies:** The desired behavior for the failing input is explicitly defined.
+    *   **Requires:** You have identified the logical intent of the function. For an average calculation, an empty set has no defined average. You must decide on the standard handling for this edge case (e.g., return `None`, raise a specific `ValueError`, or return `0.0`). This decision must be based on the function's contract, not on avoiding the crash. You have documented this expected outcome.
+
+*   **Gate 4: Isolate the Change Surface**
+    *   **Verifies:** The modification will be confined to the locus or its immediate logical dependencies.
+    *   **Requires:** You have identified the minimal set of lines or logic blocks that must change. You have confirmed that no other functions, imports, or external modules require modification to fix this specific defect. If the fix requires changing the function signature or adding new imports, this is noted as part of the change surface.
+
+## Phase 3: Executing the Repair
+
+This phase contains the single act of modification. It is atomic: one logical change, verified for syntax and logic.
+
+*   **Gate 5: Implement the Guard or Logic Fix**
+    *   **Verifies:** The code at the locus now handles the failing case according to Gate 3.
+    *   **Requires:** You have edited the code. The edit must address the root cause identified in Gate 2. For the anchored defect, this typically involves adding a conditional check for the empty list before the division occurs. The code must be syntactically valid. No placeholder comments or "TODO" markers are permitted; the fix must be complete.
+
+*   **Gate 6: Validate Syntax and Structure**
+    *   **Verifies:** The modified code is parseable and structurally sound.
+    *   **Requires:** You have reviewed the modified block for syntax errors (e.g., mismatched parentheses, incorrect indentation). If a linter or parser is available, you have run it. If not, you have manually traced the control flow to ensure no broken paths were introduced by the edit.
+
+## Phase 4: Verifying the Repair
+
+The repair is not complete until it is proven to work in the specific failure case and does not break existing cases.
+
+*   **Gate 7: Test the Failing Case**
+    *   **Verifies:** The specific input that caused the defect now produces the expected outcome.
+    *   **Requires:** You have mentally or practically executed the function with the failing input (e.g., `[]`). The result matches the outcome defined in Gate 3. No exception is raised.
+
+*   **Gate 8: Test the Standard Case**
+    *   **Verifies:** The repair has not altered the behavior for valid, non-failing inputs.
+    *   **Requires:** You have traced the function with a standard valid input (e.g., `[1, 2, 3]`). The result remains mathematically correct (e.g., `2.0`). The added logic (e.g., the `if` check) does not interfere with the normal path.
+
+*   **Gate 9: Check for Collateral Damage**
+    *   **Verifies:** The change has not introduced new failure modes or side effects.
+    *   **Requires:** You have considered edge cases adjacent to the fix (e.g., single-item list `[1]`, negative numbers). You have confirmed that the new logic does not change the return type in a way that breaks callers (e.g., if you changed the return type from `float` to `Optional[float]`, you have noted this as a potential downstream impact).
+
+## Phase 5: Closing Out
+
+The repair is finalized and documented.
+
+*   **Gate 10: Final Review**
+    *   **Verifies:** The code change is minimal, clear, and aligned with the duty's phases.
+    *   **Requires:** You have read the final code block. It is clean. The fix is obvious in context. You have removed any temporary debugging code.
+
+*   **Gate 11: Documentation of Change**
+    *   **Verifies:** The reason for the change is recorded.
+    *   **Requires:** You have prepared a brief statement explaining the defect, the fix, and the verification steps taken. This statement must be self-contained and refer to the specific locus and the expected behavior.
+
+**Duty Complete.** The executor may now submit the repaired code and the documentation of change.

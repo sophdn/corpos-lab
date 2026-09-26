@@ -1,0 +1,14 @@
+To address the issue in ticket SEC-2026-05-0231, the file that needs to be edited is `auth/legacy/session.py`. The root cause of the defect is that the `invalidate_session()` function does not clear the server-side session store, which allows a stolen token to remain valid after the user logs out.
+
+The change required is to ensure that the server-side session store is cleared inside the `invalidate_session()` method. Here is the specific change needed:
+
+### File: `auth/legacy/session.py`
+```python
+def invalidate_session(session_id):
+    # Clear the server-side session store for the given session_id
+    session_store.delete(session_id)
+```
+
+Ensure that `session_store.delete(session_id)` is called within the `invalidate_session()` method to properly invalidate the session server-side. This will prevent a token from being replayed after logout.
+
+By making this change, the session will be invalidated correctly, and any token replayed after logout will be rejected, thus fixing the security issue.

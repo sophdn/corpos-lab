@@ -1,0 +1,82 @@
+To address ticket **DEF-2026-04-1047**, we need to modify the `validate_url_field()` function in `config/validator.py` to ensure that `auth_service_url` is not only present and non-empty but also structurally valid.
+
+### Analysis
+1.  **Current Behavior**: The function checks for presence and non-empty string. It returns `True` (success) or raises an exception/returns `False` (failure) based solely on length.
+2.  **Desired Behavior**: The function must validate the URL structure. If the URL is malformed, the validator should exit with code `1`. If valid, it should proceed (exit `0` for that specific check).
+3.  **Implementation Strategy**:
+    *   Use Python's `urllib.parse` module to parse the URL.
+    *   Check if the URL has a valid scheme (e.g., `http` or `https`) and a non-empty netloc (host).
+    *   If validation fails, the caller (`config-validator`) should interpret this as a failure, leading to exit code `1`.
+
+### Proposed Code Change
+
+**File**: `config/validator.py`
+
+```python
+import re
+from urllib.parse import urlparse
+
+def validate_url_field(field_name: str, value: str) -> bool:
+    """
+    Validates that a URL field is present, non-empty, and structurally valid.
+    
+    Args:
+        field_name: Name of the field for error reporting.
+        value: The URL string to validate.
+        
+    Returns:
+        True if the URL is valid, False otherwise.
+    """
+    # 1. Check presence and non-empty
+    if not value or not isinstance(value, str):
+        return False
+    
+    # 2. Check URL structure
+    try:
+        parsed = urlparse(value)
+        
+        # A valid URL for service endpoints must have a scheme (http/https)
+        # and a network location (host).
+        if parsed.scheme not in ('http', 'https'):
+            return False
+            
+        if not parsed.netloc:
+            return False
+            
+        # Optional: Ensure host is not just port or invalid characters
+        # For basic validation, netloc presence is usually sufficient for 
+        # "malformed" checks in this context.
+        
+    except ValueError:
+        # urlparse can raise ValueError for invalid IPv6 URLs or other issues
+        return False
+
+    return True
+```
+
+### Integration Note
+The `config-validator` script likely calls `validate_url_field()` for `auth_service_url`. If the function returns `False`, the script should:
+1.  Print an error message: `Error: Malformed auth_service_url: <value>`
+2.  Exit with code `1`.
+
+If the function returns `True`, the script continues validation and exits `0` if all other checks pass.
+
+### Verification Plan
+1.  **Malformed URL Test**:
+    *   Input: `auth_service_url: "not-a-url"`
+    *   Expected: `urlparse` returns no scheme → `False` → Exit `1`.
+    *   Input: `auth_service_url: "ftp://example.com"`
+    *   Expected: Scheme is `ftp` → `False` → Exit `1`.
+    *   Input: `auth_service_url: "http://"`
+    *   Expected: No netloc → `False` → Exit `1`.
+
+2.  **Valid URL Test**:
+    *   Input: `auth_service_url: "https://auth.example.com/v1"`
+    *   Expected: Scheme `https`, netloc `auth.example.com` → `True` → Exit `0` (assuming other checks pass).
+
+3.  **Empty/Missing Test**:
+    *   Input: `auth_service_url: ""`
+    *   Expected: Fails presence check → `False` → Exit `1`.
+
+### Conclusion
+The fix involves adding URL structure validation using `urllib.parse` in `validate_url_field()`. This ensures that `config-validator --service auth` exits with code `1` for malformed `auth_service_url` values while continuing to pass for valid URLs.

@@ -1,0 +1,103 @@
+# repair-duty
+
+**Status**: Active
+**Scope**: Any office of the Agentic Order tasked with resolving a confirmed software defect with a known locus.
+**Prerequisite**: The defect must have been triaged and the locus (file path and line number) must be confirmed. If the locus is unconfirmed, this duty does not apply; refer to the *diagnostic-duty* instead.
+
+## Objective
+To transform a confirmed defect at a known locus into a verified, stable correction that preserves existing behavior for all non-defective cases, while explicitly handling the defective case according to the system’s error-handling policies.
+
+## Gates
+
+### Gate 1: Context Acquisition
+**Verifies**: That the executor has full visibility of the defect’s context and its immediate dependencies.
+**Requires**:
+1.  Read the file at the known locus.
+2.  Identify the function or block containing the defect.
+3.  Identify all callers of this function or block within the codebase.
+4.  Identify any existing tests associated with this function or block.
+5.  Confirm that the defect can be reproduced by running the existing tests or a minimal reproduction case.
+
+*Completion Condition*: A written note stating:
+-   The exact code snippet of the defect.
+-   A list of all callers with their file paths and line numbers.
+-   A list of all existing tests with their current pass/fail status.
+-   A confirmed reproduction of the defect.
+
+### Gate 2: Policy Alignment
+**Verifies**: That the chosen repair strategy aligns with the system’s established error-handling and behavior policies.
+**Requires**:
+1.  Determine the intended behavior for the defective case. Is it an error that should be raised, a default value that should be returned, or a different exception that should be thrown?
+2.  Consult the system’s documentation, style guides, or prior similar defects to determine the preferred error-handling pattern.
+3.  If no explicit policy exists, default to raising a descriptive `ValueError` or `TypeError` (as appropriate) rather than silently returning a default value, unless the function’s contract explicitly permits null or default returns.
+4.  Document the chosen strategy and the rationale for it.
+
+*Completion Condition*: A written note stating:
+-   The chosen repair strategy (e.g., “Raise ValueError with message 'Cannot calculate average of empty list'”).
+-   The rationale for this strategy, citing relevant documentation, style guides, or prior art.
+
+### Gate 3: Minimal Intervention
+**Verifies**: That the repair is minimal, targeted, and does not introduce unintended side effects.
+**Requires**:
+1.  Modify the code at the known locus to implement the chosen repair strategy.
+2.  Ensure that the modification does not alter the behavior of the function for any non-defective input.
+3.  Avoid refactoring, renaming, or restructuring code that is not directly related to the defect.
+4.  Ensure that the modified code adheres to the system’s coding style and linting rules.
+
+*Completion Condition*: A diff of the changes made, showing:
+-   The exact lines added, removed, or modified.
+-   Confirmation that no unrelated code was touched.
+-   Confirmation that the code passes linting and style checks.
+
+### Gate 4: Verification
+**Verifies**: That the repair resolves the defect and does not break existing functionality.
+**Requires**:
+1.  Run all existing tests associated with the modified function or block.
+2.  Run the full test suite for the module or package containing the defect.
+3.  Create a new test case specifically for the defective input (e.g., `calculate_average([])`), asserting the expected behavior according to the chosen strategy.
+4.  Verify that the new test case passes.
+5.  Verify that all existing tests still pass.
+
+*Completion Condition*: A test report showing:
+-   All existing tests passing.
+-   The new test case for the defective input passing.
+-   No new test failures introduced by the repair.
+
+### Gate 5: Documentation
+**Verifies**: That the repair is documented for future maintainers.
+**Requires**:
+1.  Update the function’s docstring to reflect the new behavior for the defective case (e.g., “Raises ValueError if values is empty”).
+2.  Add a comment in the code explaining why the check was added, if the reason is not immediately obvious.
+3.  Update any relevant technical documentation or API reference to reflect the change in behavior.
+
+*Completion Condition*: A note stating:
+-   The updated docstring.
+-   Any added comments in the code.
+-   Confirmation that relevant documentation has been updated.
+
+### Gate 6: Handoff
+**Verifies**: That the repair is complete and ready for review or deployment.
+**Requires**:
+1.  Compile all artifacts from Gates 1–5 into a single repair report.
+2.  Ensure that the code is committed to the repository with a clear commit message referencing the defect and the repair.
+3.  Tag the repair for review by the next higher office or the designated reviewer.
+
+*Completion Condition*: A final repair report containing:
+-   The defect description and locus.
+-   The context acquisition notes (Gate 1).
+-   The policy alignment notes (Gate 2).
+-   The code diff (Gate 3).
+-   The test report (Gate 4).
+-   The documentation updates (Gate 5).
+-   The commit hash and link to the commit.
+
+## Failure Conditions
+-   If Gate 1 fails to reproduce the defect, the defect is not confirmed; refer back to *diagnostic-duty*.
+-   If Gate 2 cannot determine a policy, escalate to the senior office for guidance.
+-   If Gate 4 reveals that the repair breaks existing tests, the repair is invalid; return to Gate 3 and refine the intervention.
+-   If Gate 6 reveals that the commit fails to build, the repair is invalid; return to Gate 3 and refine the intervention.
+
+## Notes
+-   This duty assumes that the locus is confirmed. If the locus is incorrect, the repair will fail in Gate 1 or Gate 4, and the duty must be aborted.
+-   Minimal intervention is critical. Over-engineering the repair can introduce new defects and delay the resolution of the original issue.
+-   Always prefer explicit error handling over silent failures. Silent failures are harder to debug and can lead to more severe defects downstream.

@@ -1,0 +1,73 @@
+# repair-duty
+
+**Status**: Active
+**Scope**: Any office of the Agentic Order
+**Precondition**: A software defect has been confirmed, and its locus (specific file and line number) is known.
+
+## Objective
+
+Transform the code at the confirmed locus from a state that produces the defect into a state that handles the failing input gracefully, without introducing new defects or altering intended behavior for valid inputs.
+
+## Gates
+
+### Gate 1: Context Verification
+**Verify**:
+1.  The file path and line number specified in the defect report exist and correspond to the code snippet provided in the anchor.
+2.  The function signature at the locus matches the defect report.
+3.  The defect is reproducible in the current codebase state (i.e., running the failing input against the current code produces the reported error).
+
+**Completion Requirement**:
+Log the exact current code of the function containing the locus. Confirm the error message matches the defect report. If the code does not match or the error cannot be reproduced, halt and re-verify the locus.
+
+### Gate 2: Impact Analysis
+**Verify**:
+1.  Identify all callers of the function at the locus.
+2.  Determine the expected behavior for the failing input (e.g., should it return `0.0`, `None`, raise a specific custom exception, or reject the input?).
+3.  Confirm that the fix will not break existing valid use cases (e.g., `calculate_average([1, 2, 3])` must still return `1.0`).
+
+**Completion Requirement**:
+Define the *target behavior* for the edge case. If no specification exists, adopt the principle of *Graceful Degradation*: return a neutral value (e.g., `0.0` for averages) or raise a descriptive, domain-specific exception rather than a low-level system error like `ZeroDivisionError`. Document this decision.
+
+### Gate 3: Implementation
+**Verify**:
+1.  The fix is minimal and localized to the locus or immediate helper functions.
+2.  The fix addresses the root cause (division by zero) rather than suppressing the symptom.
+3.  Type hints and docstrings are updated to reflect the new behavior (e.g., documenting that an empty list returns `0.0`).
+
+**Completion Requirement**:
+Apply the code change. For the anchor defect, the implementation must prevent the `ZeroDivisionError` by checking for an empty list before division. Example logic: `if not values: return 0.0`.
+
+### Gate 4: Verification
+**Verify**:
+1.  **Regression Test**: The previously failing input (`[]`) now produces the defined target behavior without raising an unhandled exception.
+2.  **Validity Test**: Valid inputs (e.g., `[1, 2, 3]`, `[-1, 1]`) still produce correct results.
+3.  **Static Analysis**: The modified code passes syntax checks and type checking.
+
+**Completion Requirement**:
+Provide a test log showing:
+-   Before: `calculate_average([])` -> `ZeroDivisionError`
+-   After: `calculate_average([])` -> `0.0` (or defined target)
+-   Control: `calculate_average([1, 2, 3])` -> `1.0`
+
+### Gate 5: Documentation & Handover
+**Verify**:
+1.  The defect report is updated to mark the status as "Fixed".
+2.  The locus reference remains accurate.
+3.  A summary of the change is written for the next reviewing office.
+
+**Completion Requirement**:
+Finalize the defect record. The duty is complete when the code is committed and the verification log is attached to the defect report.
+
+## Example Execution (for the Anchor Defect)
+
+1.  **Gate 1**: Verify `calculator.py:2` contains `return sum(values) / len(values)`. Confirm `calculate_average([])` raises `ZeroDivisionError`.
+2.  **Gate 2**: Callers expect a `float`. Target behavior: Return `0.0` for empty lists to avoid crashing, as an average of no values is mathematically undefined but `0.0` is a safe neutral for aggregation contexts.
+3.  **Gate 3**: Modify code:
+    ```python
+    def calculate_average(values: list) -> float:
+        if not values:
+            return 0.0
+        return sum(values) / len(values)
+    ```
+4.  **Gate 4**: Test `calculate_average([])` returns `0.0`. Test `calculate_average([1, 2])` returns `1.5`.
+5.  **Gate 5**: Update defect status to "Fixed".

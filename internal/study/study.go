@@ -1,0 +1,710 @@
+// Package study defines the host-authored study definition — the single file
+// a researcher writes to describe one reproducible assay run — and its
+// materialization into the container's /in contract. The definition is TOML
+// (human-authored, corpos-family idiom); the container sees derived JSON.
+package study
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/BurntSushi/toml"
+
+	"corpos-lab/internal/assay"
+	"corpos-lab/internal/runner"
+)
+
+// ModelDef is the model connection the assay runs against.
+type ModelDef struct {
+	BaseURL string `toml:"base_url"`
+	ModelID string `toml:"model_id"`
+	Version string `toml:"version"`
+	// Endpoint selects the inference path: "" or "chat" (default) uses
+	// /v1/chat/completions; "completion" uses the raw /completion endpoint with no
+	// server-side chat template — the least-opinionated subject path
+	// (studies/REPRODUCIBILITY.md).
+	Endpoint string `toml:"endpoint"`
+	// PromptTemplate is the study-declared instruct wrapper for "completion" mode,
+	// carrying a "{prompt}" placeholder the assembled prompt is substituted into.
+	// Published verbatim so a reproduction sees the exact input.
+	PromptTemplate string `toml:"prompt_template"`
+}
+
+// MaterialsDef names the material files, as paths relative to the definition
+// file (or absolute). Glyph, Ground, and Imperative are optional for conditions
+// that don't use them.
+type MaterialsDef struct {
+	Scenario       string `toml:"scenario"`
+	Glyph          string `toml:"glyph"`
+	Ground         string `toml:"ground"`
+	Imperative     string `toml:"imperative"`
+	Scrambled      string `toml:"scrambled"`
+	OffTarget      string `toml:"off_target"`
+	Neutral        string `toml:"neutral"`
+	GlyphMinusRest string `toml:"glyph_minus_rest"`
+	Duty           string `toml:"duty"`
+	Corpus         string `toml:"corpus"`
+	// Annotated, Cartographer, and CartographerScan are the design instruments for
+	// the cartographer-duty-format assay's three format conditions.
+	Annotated        string `toml:"annotated"`
+	Cartographer     string `toml:"cartographer"`
+	CartographerScan string `toml:"cartographer_scan"`
+	// DomainImperative is the domain-specific directive for the
+	// domain_imperative_only condition of the form × grounding 2×2.
+	DomainImperative string `toml:"domain_imperative"`
+	// NonPrescriptiveGround is the domain ground with its outcome sentences
+	// removed, for the ground_nonprescriptive condition.
+	NonPrescriptiveGround string `toml:"ground_nonprescriptive"`
+	// CanonAligned, CanonConflict, ScrambledCanon, and OffTargetCanon are the
+	// prepended blocks for the content-priority-under-conflict conditions. The
+	// precision ladder (weak/medium/strong) is three canon_conflict material
+	// files chosen per study TOML, not three conditions.
+	CanonAligned   string `toml:"canon_aligned"`
+	CanonConflict  string `toml:"canon_conflict"`
+	ScrambledCanon string `toml:"scrambled_canon"`
+	OffTargetCanon string `toml:"off_target_canon"`
+}
+
+// SamplingDef is the study's declared sampling regime.
+//
+// Temperature and MaxTokens are pointers so that an OMITTED field is
+// distinguishable from a deliberate zero. This matters concretely: temperature
+// 0.0 is a legitimate choice (deterministic single-shot), so a plain float64
+// would make "I chose greedy decoding" and "I forgot to say" identical — and
+// an unrecorded temperature is precisely the gap being closed here. The
+// casg-direct v3 study.json never recorded its temperature, so the original
+// value is now permanently unknowable and its reproduction carries an
+// inferred-0.8 delta forever.
+// Every sampler stage is a pointer for the same reason temperature is: each
+// has a meaningful zero (top_k 0 disables it, repeat_penalty is neutral at 1.0
+// but 0 is a real setting), so a plain value could not tell "I disabled this
+// stage deliberately" from "I never mentioned it". Omission is rejected rather
+// than defaulted — see validateSampling.
+type SamplingDef struct {
+	Temperature *float64 `toml:"temperature"`
+	// Seeds pins one RNG seed per replicate; run N uses Seeds[N-1]. Required
+	// whenever temperature > 0, so sampled runs stay reproducible.
+	Seeds     []int `toml:"seeds"`
+	MaxTokens *int  `toml:"max_tokens"`
+
+	// Truncation stages, in sampler-chain order.
+	TopNSigma *float64 `toml:"top_n_sigma"`
+	TopK      *int     `toml:"top_k"`
+	TypicalP  *float64 `toml:"typical_p"`
+	TopP      *float64 `toml:"top_p"`
+	MinP      *float64 `toml:"min_p"`
+
+	// Penalty stages.
+	RepeatPenalty    *float64 `toml:"repeat_penalty"`
+	RepeatLastN      *int     `toml:"repeat_last_n"`
+	PresencePenalty  *float64 `toml:"presence_penalty"`
+	FrequencyPenalty *float64 `toml:"frequency_penalty"`
+
+	// Stage switches; sub-parameters are inert while these are zero.
+	XTCProbability *float64 `toml:"xtc_probability"`
+	DryMultiplier  *float64 `toml:"dry_multiplier"`
+}
+
+// LoopDef configures the agentic-loop assay. Preamble and Sandbox are paths
+// relative to the definition file (or absolute). StepCap and CallTokens are
+// optional; zero means the agentloop defaults. Ignored by the single-turn assay.
+type LoopDef struct {
+	// Preamble names the file with the loop's fixed preamble — the tool
+	// vocabulary and the "you can act" framing.
+	Preamble string `toml:"preamble"`
+	// Sandbox names the file with the per-scenario sandbox as a JSON
+	// path→contents map.
+	Sandbox string `toml:"sandbox"`
+	// StepCap bounds the turns per run; 0 uses the agentloop default.
+	StepCap int `toml:"step_cap"`
+	// CallTokens caps each turn's generation; 0 uses the agentloop default.
+	CallTokens int `toml:"call_tokens"`
+	// Stop overrides the loop's stop list — the strings that halt a turn so the
+	// harness, not the model, writes the OBSERVATION. Empty uses the agentloop
+	// default ("\nOBSERVATION"). Optional: whatever is effective is captured in
+	// the results sampler regardless (record-what-ran), so declaring it is for a
+	// study that wants a non-default boundary, not a condition of recording one.
+	Stop []string `toml:"stop"`
+}
+
+// Def is a complete, self-contained study definition. A study is reproducible
+// from this file alone (plus the pinned image) — no agent in the loop.
+type Def struct {
+	Name        string       `toml:"name"`
+	Assay       string       `toml:"assay"`
+	ItemID      string       `toml:"item_id"`
+	Image       string       `toml:"image"`
+	Network     string       `toml:"network"`
+	Model       ModelDef     `toml:"model"`
+	Conditions  []string     `toml:"conditions"`
+	RunsPerCell int          `toml:"runs_per_cell"`
+	Materials   MaterialsDef `toml:"materials"`
+	Sampling    SamplingDef  `toml:"sampling"`
+	// Loop is the extra config the agentic-loop assay needs; required when
+	// assay = "agentic-loop-probe", ignored otherwise.
+	Loop LoopDef `toml:"loop"`
+
+	// Direction and BaselineRegime declare a control study's measured direction
+	// and the baseline regime its cells require, so a direction/baseline mismatch
+	// is caught at load rather than as a run-time design fork (the chain-548 case:
+	// a suppression rival specced with a below-ceiling baseline). Both are
+	// optional — a non-control study declares neither — but declaring either
+	// obliges the other, and the pair must agree: a SUPPRESSION test needs a
+	// CEILING baseline (a correct action to lose), a LIFT test a FLOOR baseline
+	// (no action, to gain). The regime is the requirement each measured cell must
+	// meet; confirming a cell actually meets it stays an empirical smoke step.
+	Direction      string `toml:"direction"`       // "" | "suppression" | "lift"
+	BaselineRegime string `toml:"baseline_regime"` // "" | "ceiling" | "floor"
+
+	// baseDir is the directory of the definition file, used to resolve
+	// relative material paths. Not part of the wire format.
+	baseDir string
+}
+
+// LoadDef reads, parses, and validates a study definition from path.
+func LoadDef(path string) (Def, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return Def{}, fmt.Errorf("study: read def %s: %w", path, err)
+	}
+	var d Def
+	if err := toml.Unmarshal(raw, &d); err != nil {
+		return Def{}, fmt.Errorf("study: parse def %s: %w", path, err)
+	}
+	d.baseDir = filepath.Dir(path)
+	if d.hasRefs() {
+		r, err := newFileResolver(d.baseDir)
+		if err != nil {
+			return Def{}, err
+		}
+		if err := d.resolveRefs(r); err != nil {
+			return Def{}, err
+		}
+	}
+	if err := d.validate(); err != nil {
+		return Def{}, err
+	}
+	return d, nil
+}
+
+func (d Def) validate() error {
+	for _, f := range []struct {
+		name, val string
+	}{
+		{"name", d.Name}, {"assay", d.Assay}, {"item_id", d.ItemID},
+		{"image", d.Image}, {"model.base_url", d.Model.BaseURL},
+		{"model.model_id", d.Model.ModelID}, {"materials.scenario", d.Materials.Scenario},
+	} {
+		if f.val == "" {
+			return fmt.Errorf("study: definition missing required field %q", f.name)
+		}
+	}
+	if !runner.SupportedAssays(d.Assay) {
+		return fmt.Errorf("study: unsupported assay %q (implemented: %q, %q)", d.Assay, runner.SupportedAssay, runner.LoopAssay)
+	}
+	if d.Assay == runner.LoopAssay {
+		if d.Loop.Preamble == "" {
+			return fmt.Errorf("study: assay %q requires loop.preamble", runner.LoopAssay)
+		}
+		if d.Loop.Sandbox == "" {
+			return fmt.Errorf("study: assay %q requires loop.sandbox", runner.LoopAssay)
+		}
+	}
+	switch d.Model.Endpoint {
+	case "", "chat":
+	case "completion":
+		if !strings.Contains(d.Model.PromptTemplate, "{prompt}") {
+			return fmt.Errorf("study: model.endpoint = \"completion\" requires model.prompt_template " +
+				"containing the \"{prompt}\" placeholder (the study-declared instruct wrapper)")
+		}
+	default:
+		return fmt.Errorf("study: unknown model.endpoint %q (want \"chat\" or \"completion\")", d.Model.Endpoint)
+	}
+	if len(d.Conditions) == 0 {
+		return fmt.Errorf("study: definition lists no conditions")
+	}
+	if d.RunsPerCell < 1 {
+		return fmt.Errorf("study: runs_per_cell must be >= 1, got %d", d.RunsPerCell)
+	}
+	if err := d.validateDirection(); err != nil {
+		return err
+	}
+	if err := d.validateSampling(); err != nil {
+		return err
+	}
+	for _, c := range d.Conditions {
+		cond := assay.Condition(c)
+		switch cond {
+		case assay.Baseline:
+		case assay.GlyphOnly:
+			if d.Materials.Glyph == "" {
+				return fmt.Errorf("study: condition %q requires materials.glyph", c)
+			}
+		case assay.GroundedGlyph:
+			if d.Materials.Glyph == "" {
+				return fmt.Errorf("study: condition %q requires materials.glyph", c)
+			}
+			if d.Materials.Ground == "" {
+				return fmt.Errorf("study: condition %q requires materials.ground", c)
+			}
+		case assay.ImperativeOnly:
+			if d.Materials.Imperative == "" {
+				return fmt.Errorf("study: condition %q requires materials.imperative", c)
+			}
+		case assay.ScrambledGlyph:
+			if d.Materials.Scrambled == "" {
+				return fmt.Errorf("study: condition %q requires materials.scrambled", c)
+			}
+		case assay.OffTargetGlyph:
+			if d.Materials.OffTarget == "" {
+				return fmt.Errorf("study: condition %q requires materials.off_target", c)
+			}
+		case assay.NeutralPrefix:
+			if d.Materials.Neutral == "" {
+				return fmt.Errorf("study: condition %q requires materials.neutral", c)
+			}
+		case assay.GlyphMinusRest:
+			if d.Materials.GlyphMinusRest == "" {
+				return fmt.Errorf("study: condition %q requires materials.glyph_minus_rest", c)
+			}
+		case assay.DutyOnly:
+			if d.Materials.Duty == "" {
+				return fmt.Errorf("study: condition %q requires materials.duty", c)
+			}
+		case assay.CorpusOnly:
+			if d.Materials.Corpus == "" {
+				return fmt.Errorf("study: condition %q requires materials.corpus", c)
+			}
+		case assay.AnnotatedInstrument:
+			if d.Materials.Annotated == "" {
+				return fmt.Errorf("study: condition %q requires materials.annotated", c)
+			}
+		case assay.CartographerInstrument:
+			if d.Materials.Cartographer == "" {
+				return fmt.Errorf("study: condition %q requires materials.cartographer", c)
+			}
+		case assay.CartographerScanInstrument:
+			if d.Materials.CartographerScan == "" {
+				return fmt.Errorf("study: condition %q requires materials.cartographer_scan", c)
+			}
+		case assay.GroundOnly:
+			if d.Materials.Ground == "" {
+				return fmt.Errorf("study: condition %q requires materials.ground", c)
+			}
+		case assay.DomainImperativeOnly:
+			if d.Materials.DomainImperative == "" {
+				return fmt.Errorf("study: condition %q requires materials.domain_imperative", c)
+			}
+		case assay.GroundNonPrescriptive:
+			if d.Materials.NonPrescriptiveGround == "" {
+				return fmt.Errorf("study: condition %q requires materials.ground_nonprescriptive", c)
+			}
+		case assay.CanonAligned:
+			if d.Materials.CanonAligned == "" {
+				return fmt.Errorf("study: condition %q requires materials.canon_aligned", c)
+			}
+		case assay.CanonConflict:
+			if d.Materials.CanonConflict == "" {
+				return fmt.Errorf("study: condition %q requires materials.canon_conflict", c)
+			}
+		case assay.ScrambledCanon:
+			if d.Materials.ScrambledCanon == "" {
+				return fmt.Errorf("study: condition %q requires materials.scrambled_canon", c)
+			}
+		case assay.OffTargetCanon:
+			if d.Materials.OffTargetCanon == "" {
+				return fmt.Errorf("study: condition %q requires materials.off_target_canon", c)
+			}
+		default:
+			return fmt.Errorf("study: unknown condition %q — if it was added recently, the "+
+				"corpos-lab binary may be stale; rebuild it (go build ./cmd/corpos-lab)", c)
+		}
+	}
+	return nil
+}
+
+// validateSampling enforces that a study SAYS what it sampled. Every rule here
+// refuses a silent default: an unrecorded sampling regime is unreproducible,
+// and a sampler you cannot see afterwards is one you cannot claim to have
+// chosen.
+// validateDirection checks a control study's declared measurement direction
+// against its declared baseline regime. Both are optional (a non-control study
+// declares neither), but declaring either obliges the other, and the pair must
+// be consistent: a SUPPRESSION test needs a CEILING baseline (a correct action
+// to lose), a LIFT test a FLOOR baseline (no action, to gain). This catches the
+// chain-548 mismatch — a suppression rival specced with a below-ceiling baseline
+// — at load, instead of as a run-time design fork.
+func (d Def) validateDirection() error {
+	if d.Direction == "" && d.BaselineRegime == "" {
+		return nil
+	}
+	if d.Direction == "" || d.BaselineRegime == "" {
+		return fmt.Errorf("study: a control study must declare both direction and baseline_regime, "+
+			"or neither (got direction=%q, baseline_regime=%q)", d.Direction, d.BaselineRegime)
+	}
+	want, ok := map[string]string{"suppression": "ceiling", "lift": "floor"}[d.Direction]
+	if !ok {
+		return fmt.Errorf("study: unknown direction %q (want \"suppression\" or \"lift\")", d.Direction)
+	}
+	if d.BaselineRegime != "ceiling" && d.BaselineRegime != "floor" {
+		return fmt.Errorf("study: unknown baseline_regime %q (want \"ceiling\" or \"floor\")", d.BaselineRegime)
+	}
+	if d.BaselineRegime != want {
+		return fmt.Errorf("study: direction %q requires baseline_regime %q, got %q — a suppression "+
+			"test needs a ceiling baseline (correct action to lose), a lift test a floor baseline "+
+			"(no action to gain)", d.Direction, want, d.BaselineRegime)
+	}
+	return nil
+}
+
+func (d Def) validateSampling() error {
+	s := d.Sampling
+	if s.Temperature == nil {
+		return fmt.Errorf("study: sampling.temperature must be declared explicitly " +
+			"(0.0 for deterministic decoding) — an unrecorded temperature is unreproducible")
+	}
+	if *s.Temperature < 0 {
+		return fmt.Errorf("study: sampling.temperature must be >= 0, got %v", *s.Temperature)
+	}
+	if s.MaxTokens == nil {
+		return fmt.Errorf("study: sampling.max_tokens must be declared explicitly")
+	}
+	if *s.MaxTokens < 1 {
+		return fmt.Errorf("study: sampling.max_tokens must be >= 1, got %d", *s.MaxTokens)
+	}
+	if err := d.validateSamplerChain(); err != nil {
+		return err
+	}
+
+	// Above greedy, replicates only differ if the sampler is seeded — and they
+	// only REPRODUCE if the seeds are written down. Requiring one seed per
+	// replicate is what buys reproducible-but-varied runs, the property greedy
+	// decoding cannot offer at any seed.
+	if *s.Temperature > 0 {
+		if len(s.Seeds) != d.RunsPerCell {
+			return fmt.Errorf("study: sampling.seeds must list exactly one seed per replicate "+
+				"(runs_per_cell = %d, got %d) — sampled runs are only reproducible when seeded",
+				d.RunsPerCell, len(s.Seeds))
+		}
+		seen := map[int]bool{}
+		for _, seed := range s.Seeds {
+			if seen[seed] {
+				return fmt.Errorf("study: sampling.seeds repeats seed %d — "+
+					"duplicate seeds make replicates identical and deflate the cell's variance", seed)
+			}
+			seen[seed] = true
+		}
+		return nil
+	}
+
+	// Deterministic mode stays available, but it must be chosen, not inherited.
+	// Seeds are meaningless under greedy decoding, so accepting them here would
+	// imply a variation the run cannot deliver.
+	if len(s.Seeds) > 0 {
+		return fmt.Errorf("study: sampling.seeds is set but temperature is 0 — " +
+			"greedy decoding ignores seeds and returns an identical reply per replicate; " +
+			"either raise the temperature or drop the seeds")
+	}
+	return nil
+}
+
+// validateSamplerChain refuses a study that names only some of the sampler.
+//
+// This is the same rule temperature already had, applied to the stages that
+// were quietly exempt from it. Temperature does not define a sampling
+// distribution on its own: llama.cpp runs a CHAIN — penalties, dry,
+// top_n_sigma, top_k, typ_p, top_p, min_p, xtc, temperature — and every stage
+// left undeclared is inherited from the server binary. A study that says
+// "temperature 0.8, seed N" and nothing else has specified a fraction of its
+// sampler and borrowed the rest from an accident of deployment; upgrade
+// llama.cpp, have it move a default, and that study samples differently with
+// nothing in the record to show it.
+//
+// Declaring a stage is not the same as enabling it. Most of these are meant to
+// be pinned to their neutral value — the point is that the file SAYS so.
+func (d Def) validateSamplerChain() error {
+	s := d.Sampling
+	stages := []struct {
+		name string
+		set  bool
+	}{
+		{"top_n_sigma", s.TopNSigma != nil},
+		{"top_k", s.TopK != nil},
+		{"typical_p", s.TypicalP != nil},
+		{"top_p", s.TopP != nil},
+		{"min_p", s.MinP != nil},
+		{"repeat_penalty", s.RepeatPenalty != nil},
+		{"repeat_last_n", s.RepeatLastN != nil},
+		{"presence_penalty", s.PresencePenalty != nil},
+		{"frequency_penalty", s.FrequencyPenalty != nil},
+		{"xtc_probability", s.XTCProbability != nil},
+		{"dry_multiplier", s.DryMultiplier != nil},
+	}
+	var missing []string
+	for _, st := range stages {
+		if !st.set {
+			missing = append(missing, "sampling."+st.name)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("study: sampler chain under-specified, missing %s — "+
+			"temperature alone does not define a sampling distribution, and an "+
+			"undeclared stage silently inherits the server's default "+
+			"(pin it to its neutral value to disable it, but say so)",
+			strings.Join(missing, ", "))
+	}
+	if *s.TopK < 0 {
+		return fmt.Errorf("study: sampling.top_k must be >= 0 (0 disables it), got %d", *s.TopK)
+	}
+	if *s.RepeatPenalty <= 0 {
+		return fmt.Errorf("study: sampling.repeat_penalty must be > 0 (1.0 is neutral), got %v", *s.RepeatPenalty)
+	}
+	if *s.RepeatLastN < 0 {
+		return fmt.Errorf("study: sampling.repeat_last_n must be >= 0 (0 disables it), got %d", *s.RepeatLastN)
+	}
+	for _, p := range []struct {
+		name string
+		val  float64
+	}{
+		{"top_p", *s.TopP},
+		{"min_p", *s.MinP},
+		{"typical_p", *s.TypicalP},
+		{"xtc_probability", *s.XTCProbability},
+	} {
+		if p.val < 0 || p.val > 1 {
+			return fmt.Errorf("study: sampling.%s must be in [0,1], got %v", p.name, p.val)
+		}
+	}
+	if *s.DryMultiplier < 0 {
+		return fmt.Errorf("study: sampling.dry_multiplier must be >= 0 (0 disables it), got %v", *s.DryMultiplier)
+	}
+	return nil
+}
+
+// sampling returns the definition's sampling regime as the typed assay value.
+// The bare dereferences are safe only because validateSampling ran in LoadDef —
+// it is load-bearing against a nil panic here, not merely advisory.
+func (d Def) sampling() assay.Sampling {
+	return assay.Sampling{
+		Temperature: *d.Sampling.Temperature,
+		Seeds:       d.Sampling.Seeds,
+		MaxTokens:   *d.Sampling.MaxTokens,
+
+		TopNSigma: *d.Sampling.TopNSigma,
+		TopK:      *d.Sampling.TopK,
+		TypicalP:  *d.Sampling.TypicalP,
+		TopP:      *d.Sampling.TopP,
+		MinP:      *d.Sampling.MinP,
+
+		RepeatPenalty:    *d.Sampling.RepeatPenalty,
+		RepeatLastN:      *d.Sampling.RepeatLastN,
+		PresencePenalty:  *d.Sampling.PresencePenalty,
+		FrequencyPenalty: *d.Sampling.FrequencyPenalty,
+
+		XTCProbability: *d.Sampling.XTCProbability,
+		DryMultiplier:  *d.Sampling.DryMultiplier,
+	}
+}
+
+// conditions returns the definition's conditions as typed assay.Condition.
+func (d Def) conditions() []assay.Condition {
+	out := make([]assay.Condition, len(d.Conditions))
+	for i, c := range d.Conditions {
+		out[i] = assay.Condition(c)
+	}
+	return out
+}
+
+// Materialize writes the container /in contract into inDir: study.json (the
+// runner's JSON spec, with materials renamed to canonical local names) plus
+// the copied material files. Material paths in the definition are resolved
+// relative to the definition file's directory.
+func (d Def) Materialize(inDir string) error {
+	if err := os.MkdirAll(inDir, 0o755); err != nil {
+		return fmt.Errorf("study: create in dir: %w", err)
+	}
+
+	mats := runner.MaterialsSpec{Scenario: "scenario.md"}
+	if err := d.copyMaterial(d.Materials.Scenario, filepath.Join(inDir, "scenario.md")); err != nil {
+		return err
+	}
+	if d.Materials.Glyph != "" {
+		if err := d.copyMaterial(d.Materials.Glyph, filepath.Join(inDir, "glyph.md")); err != nil {
+			return err
+		}
+		mats.Glyph = "glyph.md"
+	}
+	if d.Materials.Ground != "" {
+		if err := d.copyMaterial(d.Materials.Ground, filepath.Join(inDir, "ground.md")); err != nil {
+			return err
+		}
+		mats.Ground = "ground.md"
+	}
+	if d.Materials.Imperative != "" {
+		if err := d.copyMaterial(d.Materials.Imperative, filepath.Join(inDir, "imperative.md")); err != nil {
+			return err
+		}
+		mats.Imperative = "imperative.md"
+	}
+	if d.Materials.Scrambled != "" {
+		if err := d.copyMaterial(d.Materials.Scrambled, filepath.Join(inDir, "scrambled_glyph.md")); err != nil {
+			return err
+		}
+		mats.Scrambled = "scrambled_glyph.md"
+	}
+	if d.Materials.OffTarget != "" {
+		if err := d.copyMaterial(d.Materials.OffTarget, filepath.Join(inDir, "off_target_glyph.md")); err != nil {
+			return err
+		}
+		mats.OffTarget = "off_target_glyph.md"
+	}
+	if d.Materials.Neutral != "" {
+		if err := d.copyMaterial(d.Materials.Neutral, filepath.Join(inDir, "neutral_prefix.md")); err != nil {
+			return err
+		}
+		mats.Neutral = "neutral_prefix.md"
+	}
+	if d.Materials.GlyphMinusRest != "" {
+		if err := d.copyMaterial(d.Materials.GlyphMinusRest, filepath.Join(inDir, "glyph_minus_rest.md")); err != nil {
+			return err
+		}
+		mats.GlyphMinusRest = "glyph_minus_rest.md"
+	}
+	if d.Materials.Duty != "" {
+		if err := d.copyMaterial(d.Materials.Duty, filepath.Join(inDir, "duty.md")); err != nil {
+			return err
+		}
+		mats.Duty = "duty.md"
+	}
+	if d.Materials.Corpus != "" {
+		if err := d.copyMaterial(d.Materials.Corpus, filepath.Join(inDir, "corpus.md")); err != nil {
+			return err
+		}
+		mats.Corpus = "corpus.md"
+	}
+	if d.Materials.Annotated != "" {
+		if err := d.copyMaterial(d.Materials.Annotated, filepath.Join(inDir, "annotated.md")); err != nil {
+			return err
+		}
+		mats.Annotated = "annotated.md"
+	}
+	if d.Materials.Cartographer != "" {
+		if err := d.copyMaterial(d.Materials.Cartographer, filepath.Join(inDir, "cartographer.md")); err != nil {
+			return err
+		}
+		mats.Cartographer = "cartographer.md"
+	}
+	if d.Materials.CartographerScan != "" {
+		if err := d.copyMaterial(d.Materials.CartographerScan, filepath.Join(inDir, "cartographer_scan.md")); err != nil {
+			return err
+		}
+		mats.CartographerScan = "cartographer_scan.md"
+	}
+	if d.Materials.DomainImperative != "" {
+		if err := d.copyMaterial(d.Materials.DomainImperative, filepath.Join(inDir, "domain_imperative.md")); err != nil {
+			return err
+		}
+		mats.DomainImperative = "domain_imperative.md"
+	}
+	if d.Materials.NonPrescriptiveGround != "" {
+		if err := d.copyMaterial(d.Materials.NonPrescriptiveGround, filepath.Join(inDir, "ground_nonprescriptive.md")); err != nil {
+			return err
+		}
+		mats.NonPrescriptiveGround = "ground_nonprescriptive.md"
+	}
+	if d.Materials.CanonAligned != "" {
+		if err := d.copyMaterial(d.Materials.CanonAligned, filepath.Join(inDir, "canon_aligned.md")); err != nil {
+			return err
+		}
+		mats.CanonAligned = "canon_aligned.md"
+	}
+	if d.Materials.CanonConflict != "" {
+		if err := d.copyMaterial(d.Materials.CanonConflict, filepath.Join(inDir, "canon_conflict.md")); err != nil {
+			return err
+		}
+		mats.CanonConflict = "canon_conflict.md"
+	}
+	if d.Materials.ScrambledCanon != "" {
+		if err := d.copyMaterial(d.Materials.ScrambledCanon, filepath.Join(inDir, "scrambled_canon.md")); err != nil {
+			return err
+		}
+		mats.ScrambledCanon = "scrambled_canon.md"
+	}
+	if d.Materials.OffTargetCanon != "" {
+		if err := d.copyMaterial(d.Materials.OffTargetCanon, filepath.Join(inDir, "off_target_canon.md")); err != nil {
+			return err
+		}
+		mats.OffTargetCanon = "off_target_canon.md"
+	}
+
+	loop, err := d.materializeLoop(inDir)
+	if err != nil {
+		return err
+	}
+
+	spec := runner.StudySpec{
+		Assay:  d.Assay,
+		ItemID: d.ItemID,
+		Model: runner.ModelSpec{
+			BaseURL:        d.Model.BaseURL,
+			ModelID:        d.Model.ModelID,
+			Version:        d.Model.Version,
+			Endpoint:       d.Model.Endpoint,
+			PromptTemplate: d.Model.PromptTemplate,
+		},
+		Conditions:  d.conditions(),
+		RunsPerCell: d.RunsPerCell,
+		Materials:   mats,
+		Sampling:    d.sampling(),
+		Loop:        loop,
+	}
+	raw, err := json.MarshalIndent(spec, "", "  ")
+	if err != nil {
+		return fmt.Errorf("study: marshal study.json: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(inDir, "study.json"), append(raw, '\n'), 0o644); err != nil {
+		return fmt.Errorf("study: write study.json: %w", err)
+	}
+	return nil
+}
+
+// materializeLoop copies the loop preamble and sandbox into inDir under
+// canonical local names and returns the runner LoopSpec that points at them. It
+// is a no-op (zero LoopSpec) for a non-loop assay, whose Loop fields are empty.
+func (d Def) materializeLoop(inDir string) (runner.LoopSpec, error) {
+	if d.Loop.Preamble == "" && d.Loop.Sandbox == "" {
+		return runner.LoopSpec{}, nil
+	}
+	if err := d.copyMaterial(d.Loop.Preamble, filepath.Join(inDir, "preamble.md")); err != nil {
+		return runner.LoopSpec{}, err
+	}
+	if err := d.copyMaterial(d.Loop.Sandbox, filepath.Join(inDir, "sandbox.json")); err != nil {
+		return runner.LoopSpec{}, err
+	}
+	return runner.LoopSpec{
+		Preamble:   "preamble.md",
+		Sandbox:    "sandbox.json",
+		StepCap:    d.Loop.StepCap,
+		CallTokens: d.Loop.CallTokens,
+		Stop:       d.Loop.Stop,
+	}, nil
+}
+
+// copyMaterial resolves src relative to the definition dir and copies it to
+// dst, failing loudly if the material is missing.
+func (d Def) copyMaterial(src, dst string) error {
+	if !filepath.IsAbs(src) {
+		src = filepath.Join(d.baseDir, src)
+	}
+	raw, err := os.ReadFile(src)
+	if err != nil {
+		return fmt.Errorf("study: read material %s: %w", src, err)
+	}
+	if err := os.WriteFile(dst, raw, 0o644); err != nil {
+		return fmt.Errorf("study: write material %s: %w", dst, err)
+	}
+	return nil
+}

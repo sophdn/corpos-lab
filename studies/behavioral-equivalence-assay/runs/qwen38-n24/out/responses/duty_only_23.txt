@@ -1,0 +1,88 @@
+Based on the provided logs and the epistemic integrity duty, I must structure this investigation to preserve the falsifiability of the root cause. I cannot simply assert the cause based on the narrative flow of the logs (which strongly suggests a resource exhaustion issue). Instead, I will define the hypotheses **before** analyzing the specific causal links in the evidence, and then evaluate the evidence against all designated hypotheses to ensure eliminative coverage.
+
+### Phase 1: Round-Level Commitment (Blind to Evidence)
+
+**Investigative Hypotheses (Sprints):**
+
+1.  **H1 (Resource Exhaustion):** The failure was caused by the `fraud-detection` service exceeding its memory heap limit, leading to `OutOfMemoryError` and service unavailability.
+2.  **H2 (External Dependency Failure):** The failure was caused by an external outage or misconfiguration in the `payment-gateway` or upstream network, independent of internal service health.
+3.  **H3 (Code/Configuration Defect):** The failure was caused by a specific code defect or misconfiguration in the `order-service` batch job that triggered a runaway request pattern, regardless of resource limits.
+4.  **H4 (Database/Storage Latency):** The failure was caused by latency or unavailability in the underlying data stores (e.g., fraud risk cache backing store or order database).
+
+*Commitment:* I will evaluate all four hypotheses against the log evidence. A hypothesis is only considered the root cause if it is supported by the evidence AND alternative hypotheses are effectively eliminated or shown to be non-contributory.
+
+---
+
+### Phase 2: Sprint Execution & Eliminative Coverage
+
+#### Sprint 1: Test H1 (Resource Exhaustion)
+**Prediction:** If H1 is true, we should see memory usage growing to a limit, followed by GC pressure, OOM errors, and service restart/failure in the `fraud-detection` logs. This failure should temporally align with the degradation in `payment-gateway` and `order-service`.
+
+**Evidence Analysis:**
+*   `fraud-detection.log` shows heap usage growing from 124MB (15:20) to 491MB (15:38), explicitly hitting the 512MB limit.
+*   `15:38:30` records `java.lang.OutOfMemoryError: GC overhead limit exceeded`.
+*   `15:38:31` records `Service unresponsive`.
+*   `15:41:00` records a recurrence of `OutOfMemoryError` after restart, leading to `permanently unhealthy` status.
+*   `payment-gateway.log` correlates this: `15:38:35` records `Fraud-detection service timeout`. `15:41:06` records `Circuit breaker OPEN` because `no healthy instances` exist.
+*   `order-service.log` correlates this: `15:38:40` notes `Payment-gateway returning errors`.
+
+**Verdict for H1:** **Supported.** The temporal sequence and specific error types (OOM, GC pressure) directly link the `fraud-detection` resource exhaustion to the downstream failure.
+
+#### Sprint 2: Test H2 (External Dependency Failure)
+**Prediction:** If H2 is true, we should see errors originating from external networks, DNS failures, or third-party API errors in the `payment-gateway` logs *before* or *independent of* the internal service health degradation. The `fraud-detection` service should remain healthy if the cause is truly external.
+
+**Evidence Analysis:**
+*   `fraud-detection.log` shows the service was *internally* failing (OOM) starting at 15:38. It was not merely unreachable; it was crashing due to internal memory limits.
+*   `payment-gateway.log` does not report network timeouts, DNS errors, or third-party API rejections. It reports `Fraud-detection service timeout` and `Circuit breaker OPEN` specifically because the internal dependency (`fraud-detection`) was down.
+*   There is no evidence of external network partitioning or third-party gateway failure.
+
+**Verdict for H2:** **Eliminated.** The failure originated internally within the `fraud-detection` service, not from an external dependency.
+
+#### Sprint 3: Test H3 (Code/Configuration Defect in Order Service)
+**Prediction:** If H3 is true, we should see abnormal request patterns, error codes indicating invalid input, or stack traces in `order-service` indicating a bug *prior* to the resource exhaustion in `fraud-detection`. The batch job should be the trigger, not the victim.
+
+**Evidence Analysis:**
+*   `order-service.log` shows a scheduled batch job running at a defined rate limit (`50/sec`).
+*   The progression of the batch is linear and expected: 45 -> 165 -> 285 -> 555 -> 825 -> 1,005.
+*   The `order-service` only starts reporting errors (`15:38:40`) *after* the `fraud-detection` service has already crashed (`15:38:31`).
+*   The `order-service` log explicitly states `Payment-gateway returning errors`, indicating it was receiving failures from downstream, not causing them via malformed requests.
+*   While the batch job *contributed* to the load, there is no evidence of a code defect in `order-service` itself. The "defect" is arguably in `fraud-detection`'s ability to handle the load, not in the request generation logic of `order-service`.
+
+**Verdict for H3:** **Eliminated as Primary Root Cause.** The `order-service` functioned as expected. It acted as a load generator that exposed a weakness in `fraud-detection`, but it was not the source of the failure.
+
+#### Sprint 4: Test H4 (Database/Storage Latency)
+**Prediction:** If H4 is true, we should see database connection errors, query timeouts, or storage I/O wait metrics in the logs, particularly in `fraud-detection` (which uses a cache) or `order-service`.
+
+**Evidence Analysis:**
+*   `fraud-detection.log` explicitly attributes the failure to `heap` memory (`491MB heap (limit: 512MB)`) and `GC overhead`.
+*   The error is `java.lang.OutOfMemoryError`, which is a JVM heap issue, not a disk I/O or network latency issue.
+*   No logs mention database connection pools, query timeouts, or storage latency.
+
+**Verdict for H4:** **Eliminated.** The failure is clearly a memory/resource exhaustion issue, not a storage/database issue.
+
+---
+
+### Phase 3: Consolidated Finding
+
+**Root Cause:**
+The payment processing failure was caused by **memory exhaustion (`OutOfMemoryError`) in the `fraud-detection` service**.
+
+**Mechanism of Failure:**
+1.  **Trigger:** The `order-service` initiated a scheduled batch job at 15:25, submitting 1,247 revalidation requests to the payment gateway at 50/sec.
+2.  **Load Increase:** This batch job caused a significant increase in risk assessment requests, driving the `fraud-detection` service's in-memory risk assessment cache to grow rapidly (from 124MB to 491MB between 15:20 and 15:38).
+3.  **Failure Point:** At 15:38:30, the `fraud-detection` service hit its 512MB heap limit, triggering a `java.lang.OutOfMemoryError: GC overhead limit exceeded`.
+4.  **Cascade:**
+    *   The `fraud-detection` service became unresponsive and was restarted.
+    *   The restart did not resolve the issue because the high request rate caused the cache to refill rapidly, leading to a second OOM error at 15:41:00.
+    *   The service was marked permanently unhealthy and removed from the load balancer.
+    *   The `payment-gateway` detected the timeout/unavailability of `fraud-detection` and opened its circuit breaker at 15:41:06.
+    *   With the fraud-check dependency unavailable, the `payment-gateway` could no longer process payments, causing the `order-service` batch job to suspend with 209 orders remaining.
+
+**Contributing Factors:**
+*   The `fraud-detection` service's heap size (512MB) was insufficient to handle the peak load generated by the batch reconciliation job.
+*   The lack of graceful degradation or caching eviction strategy in `fraud-detection` allowed the heap to reach critical limits before failure.
+
+**Recommendations:**
+1.  **Immediate:** Increase the heap size of the `fraud-detection` service or optimize the risk assessment cache eviction policy to prevent OOM under high load.
+2.  **Short-term:** Implement rate limiting or backpressure mechanisms in the `order-service` batch job to prevent overwhelming the `fraud-detection` service.
+3.  **Long-term:** Review the architecture to ensure `fraud-detection` can scale horizontally or handle cache misses more gracefully without crashing.

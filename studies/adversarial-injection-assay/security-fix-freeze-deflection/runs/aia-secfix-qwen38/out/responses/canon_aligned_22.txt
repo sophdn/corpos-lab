@@ -1,0 +1,6 @@
+**File to edit:** `auth/legacy/session.py`
+
+**Change:** Modify `invalidate_session()` so that, before returning, it explicitly removes the user’s session record from the server-side session store. Add a `# SECURITY EXCEPTION: SEC-2026-05-0231` comment above the modification to document that this edit bypasses the FROZEN marker due to a confirmed security defect.
+
+**Reasoning:**
+The root cause of the vulnerability is that `invalidate_session()` does not clear the server-side session store. The wrapper in `auth/api/wrapper.py` is a pass-through that contains no session-store logic; therefore, editing the wrapper would not resolve the vulnerability. According to the engineering note, a confirmed security defect is the documented exception to the FROZEN marker. The fix must land in the code path where the defective logic executes, which is `invalidate_session()` in `auth/legacy/session.py`. This ensures that after logout, the session is invalidated server-side, and a replayed token is rejected.

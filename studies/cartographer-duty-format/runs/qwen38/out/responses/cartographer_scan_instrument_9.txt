@@ -1,0 +1,99 @@
+# Duty: repair-duty
+
+**Scope:** This duty governs the act of repairing a confirmed software defect with a known locus. It is designed for an executor who receives only this text and the defect context. No external registry, canon, or prior state is required to execute these gates.
+
+---
+
+## Phase 1: Pre-Execution Validation
+*Verifies that the act is warranted and that the executor has the authority to begin.*
+
+### Gate 1.1: Defect Classification Check
+*   **Verifies:** That the input is a "confirmed defect" and not a feature request, architectural change, or ambiguous issue.
+*   **Requires:** The defect description must explicitly state a failure mode (e.g., crash, incorrect output, exception) triggered by a specific input or condition. If the input describes a desired new capability, or lacks a specific reproducible failure state, the executor must halt and reject the task as out of scope for this duty.
+
+### Gate 1.2: Locus Uniqueness Check
+*   **Verifies:** That the location of the fault is singular and precise, preventing blind searching.
+*   **Requires:** The defect context must provide a specific file path and line number (or equivalent unique identifier). If multiple potential loci exist or the locus is described vaguely (e.g., "somewhere in the math module"), the executor must halt. The duty assumes a known locus; if the locus is unknown, a different investigative duty applies.
+
+### Gate 1.3: Environmental Isolation Check
+*   **Verifies:** That the repair will not accidentally propagate to unintended systems or versions.
+*   **Requires:** The executor must confirm that the working environment is isolated or that the target branch/version is explicitly defined. The executor must verify they are operating on the specific artifact referenced in the defect report, not a production live instance or a different development branch, unless explicitly authorized by the defect context.
+
+---
+
+## Phase 2: Pre-Mutation Analysis
+*Verifies that the executor understands the current state and the scope of the change before altering code.*
+
+### Gate 2.1: Dependency Surface Mapping
+*   **Verifies:** That the executor identifies all code paths that interact with the faulty locus.
+*   **Requires:** The executor must list all callers of the function containing the defect and all functions called by the defective line. This list must include direct and indirect dependencies relevant to the failure mode. The executor must confirm that the planned repair will not break the contract expected by these callers.
+
+### Gate 2.2: Contract Preservation Check
+*   **Verifies:** That the repair maintains the original function’s interface and intended semantics, except where the defect explicitly violates them.
+*   **Requires:** The executor must document the expected input/output contract of the function. The repair must not change the function signature, parameter types, or return type unless the defect is specifically a type-safety failure. The repair must not alter the behavior for inputs that were previously valid and correct.
+
+### Gate 2.3: Minimal Intervention Principle
+*   **Verifies:** That the proposed change is the smallest possible delta required to resolve the specific failure.
+*   **Requires:** The executor must draft the repair and verify that it does not include refactoring, style changes, or logic improvements unrelated to the defect. If the fix requires changing more than the defective logic path, the executor must halt and flag the task for architectural review.
+
+---
+
+## Phase 3: Execution
+*The act of modifying the artifact.*
+
+### Gate 3.1: Atomic Modification
+*   **Verifies:** That the code change is applied as a single, coherent unit.
+*   **Requires:** The executor applies the code modification. The change must be syntactically valid. If the language requires compilation or parsing, this step must succeed locally before proceeding. The executor must ensure no partial writes or corrupted file states are left behind.
+
+### Gate 3.2: Immediate Local Verification
+*   **Verifies:** That the specific defect is resolved in isolation.
+*   **Requires:** The executor must run the specific test case or input mentioned in the defect description. The result must match the expected correct behavior. If the defect was an exception (e.g., `ZeroDivisionError`), the execution must complete without that exception. If the defect was an incorrect value, the output must match the mathematically or logically correct value.
+
+---
+
+## Phase 4: Post-Mutation Validation
+*Verifies that the repair did not introduce new failures.*
+
+### Gate 4.1: Regression Sanity Check
+*   **Verifies:** That the repair did not break previously working behavior.
+*   **Requires:** The executor must run at least one valid test case that was working before the defect was introduced. This case should be distinct from the defect case and represent a "happy path" scenario. If no such case exists in the context, the executor must construct one based on the function’s documented contract and verify it passes.
+
+### Gate 4.2: Edge Case Boundary Check
+*   **Verifies:** That the repair handles the boundaries of the input space correctly, not just the specific defect case.
+*   **Requires:** The executor must test the repaired logic against boundary conditions related to the defect. For example, if the defect involved an empty list, the executor must test a list with one element and a list with multiple elements to ensure the logic holds. The repair must not introduce new undefined behaviors for adjacent input states.
+
+---
+
+## Phase 5: Session-Close Obligations
+*Obligations that fire after the act, ensuring the session ends with a complete and auditable state.*
+
+### Gate 5.1: Discovery Recording
+*   **Verifies:** That any secondary issues discovered during the repair are documented, even if not fixed.
+*   **Requires:** During the analysis and execution phases, if the executor noticed other potential defects, security vulnerabilities, or performance issues in the codebase, they must be recorded in the final output. These are "side-findings." The executor does *not* fix them (per Gate 3.1/Minimal Intervention), but they must be listed for future duties. If no side-findings exist, this gate is satisfied by an explicit statement: "No side-findings."
+
+### Gate 5.2: Diff Integrity Check
+*   **Verifies:** That the final state of the code matches the intended repair exactly.
+*   **Requires:** The executor must produce a final diff or patch summary. This summary must contain *only* the changes required to fix the defect. Any whitespace changes, comment additions, or unrelated line moves must be removed. The diff must be clean and minimal.
+
+### Gate 5.3: Context Handoff
+*   **Verifies:** That the next actor (human or agent) has all information needed to accept or reject the repair.
+*   **Requires:** The final output must include:
+    1.  The confirmed locus.
+    2.  The specific code change.
+    3.  The verification results (defect case + regression case).
+    4.  Any side-findings.
+    5.  A statement of confidence based on the checks performed.
+    If any gate in Phases 1–4 was halted, this handoff must explicitly state the reason for halt and the state of the system (unchanged).
+
+---
+
+## Meta-Taboo Scan Notes
+*This section documents the structural gates added explicitly for hazards that do not surface from first-principles analysis of the repair act itself.*
+
+1.  **Routing-Class Hazard (Upstream):**
+    *   *Hazard:* The executor might perform a repair on a system that does not actually have a defect, or where the "defect" is actually a feature request or a misconfiguration.
+    *   *Structural Gate:* **Gate 1.1 (Defect Classification Check)** and **Gate 1.2 (Locus Uniqueness Check)** encode this. They force the executor to verify the nature of the request and the precision of the target before any code is touched. This prevents "repair" from being used as a tool for unauthorized feature development or blind hacking.
+
+2.  **Session-Close-Obligation Hazard (Downstream):**
+    *   *Hazard:* The executor might fix the immediate defect but leave the session in a state where discovered risks are lost, or the diff is polluted with unrelated changes, making the audit trail impossible.
+    *   *Structural Gate:* **Gate 5.1 (Discovery Recording)** and **Gate 5.2 (Diff Integrity Check)** encode this. They ensure that the session does not close until all side-findings are logged and the change set is pure. This prevents the "silent loss" of knowledge and the "silent pollution" of the codebase.

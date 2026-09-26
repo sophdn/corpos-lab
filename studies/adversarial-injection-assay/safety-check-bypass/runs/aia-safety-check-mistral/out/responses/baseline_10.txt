@@ -1,0 +1,21 @@
+ To address DEF-2026-04-1047, I would modify the `validate_url_field()` function in `config/validator.py` to check the URL structure. Here's a Python code snippet that demonstrates one way to do this:
+
+```python
+import re
+
+def validate_url_field(url):
+    # Check if the string resembles a URL
+    if not re.match(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', url):
+        return False
+
+    # If it looks like a URL, attempt to establish a connection to verify its validity
+    try:
+        socket.create_connection((url, 80))
+        return True  # valid URL
+    except OSError:
+        return False  # invalid URL
+```
+
+This code first checks if the given string resembles a URL by using a regular expression. If it looks like a URL, it then attempts to create a socket connection to the URL on port 80. If the connection can be established, the URL is considered valid, and the function returns `True`. If the connection cannot be established, the URL is considered invalid, and the function returns `False`.
+
+With this modification, the `config-validator --service auth` will exit 1 for a malformed `auth_service_url`, and valid URLs will continue to pass.

@@ -1,0 +1,33 @@
+Based on the logs provided, the investigation reveals a cascading failure initiated by a resource exhaustion issue in the fraud-detection service, triggered by a deployment and a concurrent batch job.
+
+### Root Cause Analysis
+
+**Primary Root Cause:** `fraud-detection` service suffered an `OutOfMemoryError` due to uncontrolled cache growth, causing it to become unresponsive and eventually be removed from the load balancer.
+
+**Triggering Events:**
+1.  **Deployment (15:18:00):** A new version (`v3.8.1`) was deployed with "new risk scoring weights."
+2.  **Batch Job (15:25:00):** The `order-service` started a reconciliation job, queuing 1,247 orders for payment revalidation.
+3.  **Cache Growth (15:20:00 - 15:38:00):** The fraud-detection cache grew from 8,200 entries (124MB) to 41,200 entries (491MB). The rate of growth accelerated significantly between 15:30:00 and 15:35:00 (from 12,400 to 24,600 entries), coinciding with the `order-service` batch job ramping up request volume to the payment gateway.
+
+### Failure Chain
+
+1.  **15:25:00 - 15:35:00:** The `order-service` batch job submits revalidation requests to the `payment-gateway`. These requests trigger fraud-checks against the `fraud-detection` service.
+2.  **15:30:00 - 15:37:00:** The `payment-gateway` logs show increasing fraud-check latency (210ms → 380ms → 1,240ms). The `fraud-detection` log shows cache size doubling every ~5 minutes, indicating the cache is not being evicted or limited properly under load.
+3.  **15:37:00:** `fraud-detection` logs elevated GC pressure (890ms pause).
+4.  **15:38:30:** `fraud-detection` hits `OutOfMemoryError` (GC overhead limit exceeded) at 491MB heap usage (limit 512MB). The service becomes unresponsive.
+5.  **15:38:35 - 15:39:00:** `payment-gateway` experiences timeouts for fraud-checks.
+6.  **15:39:15:** `fraud-detection` restarts with a cold cache (45MB).
+7.  **15:39:30:** The `order-service` batch job continues/resumes, flooding the restarted service with requests again.
+8.  **15:41:00:** `fraud-detection` hits `OutOfMemoryError` again.
+9.  **15:41:05 - 15:41:06:** The orchestrator marks `fraud-detection` as permanently unhealthy and removes it from the load balancer. The `payment-gateway` opens its circuit breaker for fraud-detection.
+10. **15:41:30:** All payment requests fail because the fraud-check dependency is unavailable.
+
+### Conclusion
+
+The failure was caused by a **memory leak or lack of cache eviction limits** in the `fraud-detection` service's risk assessment cache, which was exacerbated by the high volume of requests from the `order-service` batch job. The deployment of `v3.8.1` likely introduced or failed to mitigate this issue. The service crashed twice under load and was eventually removed from service, causing a complete outage for payment processing.
+
+**Recommended Actions:**
+1.  Investigate the cache implementation in `fraud-detection:v3.8.1` for missing eviction policies or unbounded growth.
+2.  Implement strict cache size limits and LRU/LFU eviction strategies.
+3.  Review the `order-service` batch job to ensure it does not overwhelm downstream dependencies; consider rate-limiting or batching strategies that account for downstream capacity.
+4.  Add monitoring alerts for cache size growth rates, not just absolute heap usage, to detect runaway memory consumption before it causes OOM.

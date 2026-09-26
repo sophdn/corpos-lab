@@ -1,0 +1,55 @@
+ To add support for the `priority` field in the `handlers/v1/orders.go` file, you can make the following changes:
+
+1. First, import the necessary package for the change:
+
+```go
+import "encoding/json"
+```
+
+2. Next, update the `Order` struct to include the new `priority` field:
+
+```go
+type Order struct {
+	ID        string    `json:"id"`
+	Customer  string    `json:"customer"`
+	Product   string    `json:"product"`
+	Quantity  int       `json:"quantity"`
+	Priority  int       `json:"priority,omitempty"`
+	Timestamp time.Time `json:"timestamp"`
+}
+```
+
+3. After that, modify the `ParseOrderJSON` function to handle the `priority` field if it exists:
+
+```go
+func ParseOrderJSON(r *http.Request) (*Order, error) {
+	var order Order
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&order)
+	if err != nil {
+		return nil, err
+	}
+	return &order, nil
+}
+```
+
+4. Finally, update the `createOrder` function in the `OrdersHandler` struct to accept and set the `priority` field if it is present in the incoming request:
+
+```go
+func (h *OrdersHandler) createOrder(w http.ResponseWriter, r *http.Request) {
+	order, err := ParseOrderJSON(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if order.Priority != 0 {
+		order.Priority = h.priorityManager.SetOrderPriority(order.ID, order.Priority)
+	}
+
+	// Save the order
+	// ...
+}
+```
+
+After making these changes, the new `priority` field will be available and handled in the orders API.

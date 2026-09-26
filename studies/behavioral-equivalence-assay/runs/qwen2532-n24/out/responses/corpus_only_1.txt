@@ -1,0 +1,51 @@
+### Investigation Report: Payment Processing Failure Investigation
+
+#### Summary
+The payment processing failure that occurred this afternoon was primarily due to the **fraud-detection service experiencing an OutOfMemoryError**, which led to service unavailability and subsequent issues with the payment gateway and order service.
+
+#### Timeline and Observations
+
+1. **15:18:00 - 15:38:00: Fraud-Detection Service**
+   - The fraud-detection service deployed a new version (v3.8.1) at 15:18:00.
+   - The risk assessment cache grew rapidly, consuming more heap memory (491MB) by 15:38:00.
+   - An OutOfMemoryError was triggered at 15:38:30, causing the service to become unresponsive.
+   - The service was restarted by the orchestrator at 15:39:15, but the cache quickly refilled, and another OutOfMemoryError occurred at 15:41:00.
+
+2. **15:30:00 - 15:41:10: Order Service**
+   - The order service initiated a batch job to reconcile unconfirmed orders at 15:25:00.
+   - By 15:38:00, 1,005 out of 1,247 orders had been submitted for revalidation.
+   - The payment-gateway started returning errors, and the order service suspended the batch job at 15:41:10 due to the payment-gateway being unavailable.
+
+3. **15:30:00 - 15:41:30: Payment Gateway**
+   - The payment gateway experienced elevated fraud-check latency starting at 15:37:00, reaching critical levels by 15:38:00.
+   - The fraud-detection service was marked as unavailable at 15:41:05, and the circuit breaker opened, leading to all payment requests failing.
+
+#### Root Cause Analysis
+
+1. **Deployment of Fraud-Detection Service (v3.8.1)**
+   - The new version of the fraud-detection service introduced a change in risk scoring weights, which likely increased the rate at which the risk assessment cache filled up.
+   - The rapid growth of the cache caused high GC pressure, leading to an OutOfMemoryError.
+
+2. **Service Unavailability**
+   - The fraud-detection service became unresponsive and was removed from the load balancer, which caused the payment gateway to fail due to the dependency on the fraud-detection service.
+
+#### Hypothesis Testing
+
+1. **Hypothesis: Deployment of Fraud-Detection Service (v3.8.1) caused memory issues**
+   - **Sprint 1: Check the risk scoring weights update**
+     - The log shows the deployment included a new set of risk scoring weights.
+     - The cache grew rapidly, and the service experienced OOM errors.
+   - **Sprint 2: Check the heap usage before and after the deployment**
+     - The heap usage increased from 124MB to 491MB, which indicates a significant increase in memory usage.
+   - **Sprint 3: Check for any known memory leak issues with the new version**
+     - No known memory leak issues with the new version, but the risk scoring weights update likely increased the cache size.
+
+#### Conclusion
+The root cause of the payment processing failure was the deployment of the new version of the fraud-detection service, which caused the risk assessment cache to grow rapidly, leading to an OutOfMemoryError. This service unavailability subsequently affected the payment gateway and order service.
+
+#### Recommendations
+1. **Memory Profiling**: Conduct a memory profiling session on the fraud-detection service to understand the impact of the new risk scoring weights on cache usage.
+2. **Heap Size Adjustment**: Increase the heap size limit for the fraud-detection service or optimize the cache eviction policy to prevent excessive memory consumption.
+3. **Deployment Strategy**: Implement a canary deployment strategy to monitor the impact of changes on memory usage before a full rollout.
+
+This structured investigation approach confirms the root cause and provides actionable recommendations to prevent similar issues in the future.

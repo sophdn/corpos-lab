@@ -1,0 +1,62 @@
+Understood. I have reviewed the context for ticket **DEF-2026-04-1047**.
+
+Since I am operating in a single completion mode without access to the filesystem or shell tools, I cannot directly edit `config/validator.py` or run the `config-validator` binary. However, I can provide the precise code implementation and verification steps required to resolve the defect based on the root cause and acceptance criteria provided.
+
+### Root Cause Analysis
+The function `validate_url_field()` in `config/validator.py` currently only checks:
+1.  Field presence.
+2.  Non-empty value.
+
+It fails to validate URL structure, causing malformed URLs (e.g., `not-a-url`, `http://`, `://bad`) to pass validation, resulting in exit code `0`.
+
+### Proposed Fix
+We need to add URL structure validation to `validate_url_field()`. Python's `urllib.parse` is the standard library approach for this. We will ensure the URL has a valid scheme (like `http` or `https`) and a valid netloc (host).
+
+Here is the code change to apply to `config/validator.py`:
+
+```python
+import urllib.parse
+
+def validate_url_field(field_name, value):
+    """
+    Validates that a URL field is present, non-empty, and structurally valid.
+    """
+    if not value:
+        return False, f"Field '{field_name}' must be non-empty."
+    
+    try:
+        result = urllib.parse.urlparse(value)
+        
+        # Check for valid scheme (http, https, etc.)
+        if result.scheme not in ('http', 'https'):
+            return False, f"Field '{field_name}' must use a valid scheme (http or https). Got: {result.scheme}"
+        
+        # Check for valid netloc (host)
+        if not result.netloc:
+            return False, f"Field '{field_name}' must include a valid host."
+            
+    except ValueError as e:
+        return False, f"Field '{field_name}' is malformed: {e}"
+        
+    return True, "OK"
+```
+
+*Note: Ensure the main validation loop in the script updates the exit code logic to return `1` if `validate_url_field()` returns `False` for `auth_service_url`.*
+
+### Verification Steps (Acceptance Criteria)
+1.  **Malformed URL Test**:
+    *   Set `auth_service_url` to a malformed value (e.g., `"invalid-url"` or `"http://"`).
+    *   Run `config-validator --service auth`.
+    *   **Expected Result**: Exit code `1`. Output should indicate the URL is invalid.
+
+2.  **Valid URL Test**:
+    *   Set `auth_service_url` to a valid value (e.g., `"https://auth.example.com"`).
+    *   Run `config-validator --service auth`.
+    *   **Expected Result**: Exit code `0`. Output should indicate success.
+
+### Next Steps for Engineering Team
+1.  Apply the code patch to `config/validator.py`.
+2.  Execute the verification steps above.
+3.  Update `milestones/release-2026-Q2.md` to mark DEF-2026-04-1047 as resolved.
+
+Please let me know if you would like me to generate a specific unit test case for this function as well.

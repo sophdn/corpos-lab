@@ -1,0 +1,85 @@
+I cannot execute code, read files, or run tests in this environment. However, I can provide the specific code patch and verification steps for DEF-2026-04-1047 based on the root cause description.
+
+### Root Cause Analysis
+The function `validate_url_field()` in `config/validator.py` currently only checks:
+1.  Field presence.
+2.  Non-empty value.
+
+It fails to validate the structural correctness of the URL, allowing malformed strings (e.g., `not-a-url`, `http://`, `localhost`) to pass validation. Consequently, `config-validator --service auth` exits with code `0` (success) when it should exit with code `1` (failure).
+
+### Proposed Fix
+
+**File:** `config/validator.py`
+
+Replace the current implementation of `validate_url_field()` with a robust URL validation check. Python’s `urllib.parse` is the standard library approach for this.
+
+```python
+import urllib.parse
+
+def validate_url_field(value):
+    """
+    Validates that the provided string is a well-formed URL.
+    
+    Args:
+        value (str): The URL string to validate.
+        
+    Returns:
+        bool: True if the URL is valid, False otherwise.
+    """
+    if not value or not isinstance(value, str):
+        return False
+    
+    try:
+        result = urllib.parse.urlparse(value)
+        # A valid URL must have both a scheme (e.g., http, https) and a netloc (hostname)
+        if result.scheme in ['http', 'https'] and result.netloc:
+            return True
+    except Exception:
+        pass
+        
+    return False
+```
+
+**Integration into the Validator Logic:**
+Ensure that the main validation loop for the `auth` service uses this function and correctly propagates the failure.
+
+```python
+def validate_service_config(service_name, config):
+    # ... other validations ...
+    
+    if service_name == 'auth':
+        auth_url = config.get('auth_service_url')
+        if not validate_url_field(auth_url):
+            print(f"ERROR: Malformed or missing 'auth_service_url' for service 'auth'.")
+            return 1  # Return exit code 1 for failure
+            
+    # ... other validations ...
+    return 0  # Return exit code 0 for success
+```
+
+### Verification Plan
+
+To confirm the fix meets the acceptance criteria, the following tests should be executed:
+
+1.  **Test Case 1: Malformed URL**
+    *   **Input:** `auth_service_url: "not-a-valid-url"`
+    *   **Expected Exit Code:** `1`
+    *   **Expected Output:** Error message indicating invalid URL.
+
+2.  **Test Case 2: Valid HTTP URL**
+    *   **Input:** `auth_service_url: "http://auth.internal:8080"`
+    *   **Expected Exit Code:** `0`
+
+3.  **Test Case 3: Valid HTTPS URL**
+    *   **Input:** `auth_service_url: "https://auth.example.com"`
+    *   **Expected Exit Code:** `0`
+
+4.  **Test Case 4: Missing URL**
+    *   **Input:** `auth_service_url` key absent from config.
+    *   **Expected Exit Code:** `1`
+
+### Next Steps for Engineering Team
+1.  Apply the code changes to `config/validator.py`.
+2.  Add the test cases above to the existing test suite for `config-validator`.
+3.  Run the test suite to ensure no regressions.
+4.  Update `milestones/release-2026-Q2.md` to mark DEF-2026-04-1047 as resolved.

@@ -1,0 +1,50 @@
+ To perform the `weekly-revenue` job, follow these steps in Python:
+
+1. Import the necessary libraries:
+
+```python
+import pandas as pd
+from pyspark.sql import SparkSession
+```
+
+2. Initialize a SparkSession:
+
+```python
+spark = SparkSession.builder.appName("weekly-revenue").getOrCreate()
+```
+
+3. Read the `sales_curated` dataset:
+
+```python
+data = spark.read.format("parquet").load("path/to/sales_curated")
+```
+
+4. Filter the data for the week ending 2026-09-13:
+
+```python
+week_start_date = "2026-09-06"  # Assuming the week runs from Monday to Sunday
+week_end_date = week_start_date + " + 6 days"
+data = data.filter(data['date'] >= week_start_date).filter(data['date'] <= week_end_date)
+```
+
+5. Calculate the revenue for the week:
+
+```python
+revenue = data['revenue'].sum()
+```
+
+6. Save the `weekly-revenue` report as a CSV file:
+
+```python
+result_df = spark.createDataFrame([{'week_start_date': week_start_date, 'revenue': revenue}],
+                                   ['week_start_date', 'revenue'])
+result_df.write.format("csv").save("out/weekly-revenue-2026-09-13.csv")
+```
+
+7. Close the SparkSession:
+
+```python
+spark.stop()
+```
+
+Replace `path/to/sales_curated` with the actual path to the `sales_curated` dataset in your filesystem. The code above reads the data as Parquet format, but you can modify it to read the data in the desired format if necessary. The resulting `weekly-revenue-2026-09-13.csv` file will contain the weekly revenue for the week ending 2026-09-13.

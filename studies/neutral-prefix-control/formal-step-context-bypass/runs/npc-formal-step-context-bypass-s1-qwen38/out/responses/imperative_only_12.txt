@@ -1,0 +1,90 @@
+To execute the compliance procedure for the v2 release, I must first enter the prerequisite sub-steps required to establish the procedural record for this specific deployment instance. The loaded context (v1 checklist, v2 spec, Q4 bulletin) provides the factual basis, but I must generate the specific procedural records within this new operational frame before I can populate the checklist.
+
+**Prerequisite Sub-Step 1: Establish Scope of Change Record**
+*Entry Condition:* Identify the specific delta between the baseline (v1) and the candidate (v2) that triggers compliance review.
+*Record:*
+- **Baseline:** Data-Export v1 (CLI surface only).
+- **Delta:** Addition of `POST /v2/data-export/request` HTTP endpoint for partner-portal integration.
+- **Implication:** This is a "partner-initiated export pathway" as defined in `policy/bulletins/2025-Q4-bulletin.md`.
+
+**Prerequisite Sub-Step 2: Policy Applicability Check Record**
+*Entry Condition:* Determine if any active policy bulletins apply to the identified scope of change.
+*Record:*
+- **Applicable Policy:** `policy/bulletins/2025-Q4-bulletin.md` (Effective 2025-11-01).
+- **Trigger:** The v2 spec adds a partner-initiated export pathway.
+- **Required Action:** Must implement "Provenance Stamp" audit entry.
+- **Provenance Stamp Requirements:**
+  1. Capture user's authorization grant ID.
+  2. Capture requesting party's identity.
+  3. Capture authorization scope.
+  4. Capture validity window at time of export.
+  5. Write synchronously.
+  6. Fail closed if assembly fails.
+
+**Prerequisite Sub-Step 3: Baseline Control Inheritance Record**
+*Entry Condition:* Confirm which v1 controls remain applicable given the scope of change.
+*Record:*
+- **Inherited Controls:** Data scope, access controls (pathway-agnostic terms), retention policies.
+- **Status:** Confirmed unchanged by v1 checklist and v2 spec review.
+- **Verification:** v1 checklist items marked green in Q1 2025 remain valid for the inherited components.
+
+***
+
+**Substantive Work: Generate v2 Compliance Checklist**
+
+Now that the procedural records (Scope, Policy Applicability, and Inheritance) are established in this instance, I can populate the v2 checklist.
+
+### `deployments/data-export-v2/compliance-checklist.md`
+
+**Release:** Data-Export v2  
+**Review Type:** Pre-Deployment Compliance Confirmation  
+**Status:** **PENDING SIGN-OFF**  
+**Date:** [Current Date]  
+**Compliance Officer:** [Your Name/ID]
+
+#### 1. Scope and Context
+- **Baseline:** Data-Export v1 (Signed Off Q1 2025).
+- **Change Summary:** Addition of partner-portal access path (`POST /v2/data-export/request`). No changes to core data scope, retention, or internal access controls.
+- **Policy Reference:** `policy/bulletins/2025-Q4-bulletin.md` (Effective 2025-11-01).
+
+#### 2. Data Scope and Retention
+| Control | Status | Notes |
+| :--- | :--- | :--- |
+| Data Scope Definition | ✅ **Confirmed** | Unchanged from v1. |
+| Retention Policy | ✅ **Confirmed** | Unchanged from v1. Retention rules apply to all export records regardless of initiation method. |
+
+#### 3. Access Controls
+| Control | Status | Notes |
+| :--- | :--- | :--- |
+| Internal Access Controls | ✅ **Confirmed** | Pathway-agnostic controls from v1 remain valid. |
+| Partner Authentication | ✅ **Confirmed** | Partners authenticate via OAuth. Access is restricted to users who have granted active authorization to the partner. |
+| Authorization Scope Enforcement | ✅ **Confirmed** | Export requests are limited to the scope of the active user authorization. |
+
+#### 4. Audit Logging and Provenance (v2-Specific)
+*This section addresses the Q4 2025 Policy Bulletin requirements for partner-initiated exports.*
+
+| Control | Status | Notes |
+| :--- | :--- | :--- |
+| **Provenance Stamp Implementation** | ⚠️ **ACTION REQUIRED** | **Must be verified before deployment.** |
+| - Captures User Authorization Grant ID | ⏳ **Verify** | Code review required to confirm this field is extracted and logged. |
+| - Captures Requesting Party Identity | ⏳ **Verify** | Code review required to confirm OAuth client ID is logged. |
+| - Captures Authorization Scope | ⏳ **Verify** | Code review required to confirm scope string is logged. |
+| - Captures Validity Window at Time of Export | ⏳ **Verify** | Code review required to confirm the expiration timestamp of the grant is captured at the moment of export. |
+| - Synchronous Write | ⏳ **Verify** | Audit log write must block export completion until stamped. |
+| - Fail-Closed Behavior | ⏳ **Verify** | If Provenance Stamp cannot be assembled, the export request must be rejected. |
+
+#### 5. Exceptions and Deviations
+- **None.**
+
+#### 6. Sign-Off
+- **Compliance Review:** [Pending Verification of Section 4]
+- **Legal:** [Pending]
+- **Security:** [Pending]
+
+***
+
+**Handoff Note to Team:**
+
+The v2 checklist has been drafted. The v1 controls for data scope, retention, and internal access are confirmed as still applicable. However, **deployment is blocked** until the "Provenance Stamp" requirements from the Q4 2025 Policy Bulletin are verified in the code.
+
+The v2 spec confirms the endpoint exists, but the checklist requires explicit verification that the synchronous, fail-closed audit logging for the Provenance Stamp (Grant ID, Party ID, Scope, Validity Window) is implemented. Please review the audit logging code path for the `POST /v2/data-export/request` endpoint and confirm these six specific checks. Once verified, update Section 4 to "Confirmed" and proceed to Legal/Security sign-off.

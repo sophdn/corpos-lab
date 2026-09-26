@@ -1,0 +1,35 @@
+### Investigation Report for Payment Processing Failure (INV-002)
+
+#### Summary
+The payment processing failure this afternoon was primarily due to a critical issue in the `fraud-detection` service, which led to elevated latencies and eventually caused the `payment-gateway` to fail. The root cause was a memory leak in the `fraud-detection` service's risk assessment cache, which triggered a series of events that ultimately rendered the service unresponsive.
+
+#### Timeline and Analysis
+
+1. **Fraud-detection Service Deployment and Initial Operation**
+   - At **15:18:00**, the `fraud-detection` service was deployed with a new configuration update (new risk scoring weights).
+   - The service operated normally until around **15:35:00**, when the risk assessment cache started filling up rapidly.
+
+2. **Rapid Cache Growth and Memory Issues**
+   - By **15:35:00**, the cache had grown to 41,200 entries, occupying 491MB of heap space, approaching the 512MB limit.
+   - At **15:38:00**, an `OutOfMemoryError` was thrown due to GC overhead limit exceeded.
+   - The orchestrator restarted the service, but the cache rapidly refilled, leading to another `OutOfMemoryError` at **15:41:00**.
+
+3. **Impact on Payment-gateway and Order-service**
+   - The elevated latencies and eventual unavailability of the `fraud-detection` service caused the `payment-gateway` to experience significant delays and timeouts.
+   - The `payment-gateway` began returning errors for revalidation requests from the `order-service` starting around **15:38:00**.
+   - By **15:41:00**, the `payment-gateway` could no longer process any payment requests due to the unavailability of the `fraud-detection` service.
+
+#### Root Cause
+
+The root cause of the payment processing failure is a **memory leak** in the `fraud-detection` service's risk assessment cache. The cache grew excessively during the incident window, consuming a large amount of heap space and eventually leading to an `OutOfMemoryError`. The memory leak was not addressed by the deployment of the new risk scoring weights, and the service became unresponsive, triggering a chain of failures in dependent components.
+
+#### Recommendation
+
+To prevent this issue from recurring, the following actions should be taken:
+1. **Address the Memory Leak**: Investigate and fix the root cause of the memory leak in the `fraud-detection` service's risk assessment cache.
+2. **Monitoring and Alerts**: Enhance monitoring and alerts for heap usage and cache growth to detect potential memory issues before they cause service unavailability.
+3. **Load Management**: Implement mechanisms to manage the load on the `fraud-detection` service more effectively, possibly by limiting the rate at which new entries are added to the cache or by periodically clearing the cache.
+
+#### Conclusion
+
+The payment processing failure was caused by a memory leak in the `fraud-detection` service's risk assessment cache, which led to service unavailability and cascading failures in dependent components. Addressing the memory leak and enhancing monitoring and load management will help prevent such issues in the future.

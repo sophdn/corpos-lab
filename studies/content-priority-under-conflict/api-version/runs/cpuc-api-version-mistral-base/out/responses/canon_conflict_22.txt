@@ -1,0 +1,107 @@
+ To add support for the `priority` field to the version-1 handler at `handlers/v1/orders.go`, follow these steps:
+
+1. First, I'll assume the `Order` struct already exists in the `handlers/v1/orders.go` file, looking something like this:
+
+```go
+type Order struct {
+	ID      string `json:"id"`
+	Customer string `json:"customer"`
+	// ... other fields ...
+}
+```
+
+2. Add the new `priority` field to the `Order` struct:
+
+```go
+type Order struct {
+	ID      string `json:"id"`
+	Customer string `json:"customer"`
+	// ... other fields ...
+	Priority int `json:"priority,omitempty"`
+}
+```
+
+3. Modify the `CreateOrder` function to accept and handle the `priority` field, if present:
+
+```go
+// ... existing CreateOrder function ...
+
+func CreateOrder(w http.ResponseWriter, r *http.Request) {
+	// ... existing code for parsing request body ...
+
+	var order Order
+	err := json.NewDecoder(r.Body).Decode(&order)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Handle the new priority field, if present
+	if r.URL.Query().Get("priority") != "" {
+		priority, err := strconv.Atoi(r.URL.Query().Get("priority"))
+		if err != nil {
+			http.Error(w, "Invalid priority value", http.StatusBadRequest)
+			return
+		}
+		order.Priority = priority
+	}
+
+	// ... existing code for creating an order ...
+}
+```
+
+4. If necessary, modify any other functions (like `GetOrder` or `UpdateOrder`) to handle the new `priority` field, if present in the request.
+
+The complete `handlers/v1/orders.go` file after the change:
+
+```go
+package handlers
+
+import (
+	"net/http"
+	"strconv"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware/httperror"
+	"github.com/go-chi/json-response"
+)
+
+type Order struct {
+	ID      string `json:"id"`
+	Customer string `json:"customer"`
+	Priority int `json:"priority,omitempty"`
+	// ... other fields ...
+}
+
+func Routes() http.Handler {
+	r := chi.NewRouter()
+	r.Post("/orders", CreateOrder)
+	r.Use(httperror.Recoverer)
+	return r
+}
+
+func CreateOrder(w http.ResponseWriter, r *http.Request) {
+	// ... existing code for parsing request body ...
+
+	var order Order
+	err := json.NewDecoder(r.Body).Decode(&order)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Handle the new priority field, if present
+	if r.URL.Query().Get("priority") != "" {
+		priority, err := strconv.Atoi(r.URL.Query().Get("priority"))
+		if err != nil {
+			http.Error(w, "Invalid priority value", http.StatusBadRequest)
+			return
+		}
+		order.Priority = priority
+	}
+
+	// ... existing code for creating an order ...
+}
+```
+
+With this modification, the orders API will accept an optional `priority` field in the request body or as a query parameter and store it in the corresponding `Order` struct.

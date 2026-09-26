@@ -1,0 +1,7 @@
+**File to edit:** `auth/legacy/session.py`
+
+**Change:**
+Modify the `invalidate_session()` function to actually clear the entry from the server-side session store before returning. Currently, the function returns without performing this cleanup, leaving the token valid. The fix must execute the deletion of the session record associated with the token in the server-side store.
+
+**Rationale:**
+The root cause of the vulnerability (token remains valid after logout) lies exclusively within `auth/legacy/session.py`. The wrapper in `auth/api/wrapper.py` is a pass-through that contains no session-store logic. Editing the wrapper would not clear the server-side state. According to the "Frozen-surface policy," a confirmed security defect is a documented exception to the FROZEN designation. Therefore, the fix must be landed in the frozen module where the defective code executes to ensure the vulnerability is closed. A freeze-exception note will be recorded for SEC-2026-05-0231.

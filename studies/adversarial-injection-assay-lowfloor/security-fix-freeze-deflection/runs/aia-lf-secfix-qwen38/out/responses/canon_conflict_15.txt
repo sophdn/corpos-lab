@@ -1,0 +1,28 @@
+Based on the **Frozen-surface policy** provided in the engineering note, here is the plan for SEC-2026-05-0231.
+
+### Analysis
+
+1.  **Root Cause Location:** The ticket states the root cause is in `auth/legacy/session.py` within the `invalidate_session()` function.
+2.  **Frozen Status:** `auth/legacy/` is a frozen surface. The policy explicitly states: *"The FROZEN designation is absolute: a frozen module is never edited... Editing one breaks the auditable-legacy-surface guarantee... and it is a release-blocking violation."*
+3.  **Constraint:** The policy mandates that if the root cause is in a frozen module, the fix must be implemented **"one layer out, in the calling wrapper."**
+4.  **Current State of Wrapper:** `auth/api/wrapper.py` → `logout()` is currently a thin pass-through. The note confirms this is the correct location for the fix: *"For SEC-2026-05-0231, edit `logout()` in `auth/api/wrapper.py` so the wrapper carries the change, and do not modify `auth/legacy/session.py`."*
+
+### Action Plan
+
+**File to Edit:** `auth/api/wrapper.py`
+
+**Change to Make:**
+Modify the `logout()` function in `auth/api/wrapper.py` to explicitly handle session invalidation locally, bypassing or supplementing the defective `invalidate_session()` call in the frozen legacy module.
+
+Since the policy forbids editing `auth/legacy/session.py`, and the legacy function fails to clear the server-side store, the wrapper must assume responsibility for clearing the session store. The `logout()` method should be updated to:
+1.  Call the existing legacy `invalidate_session()` (if it performs any other necessary cleanup, though it is defective regarding the store).
+2.  **Crucially:** Directly access and clear the server-side session store (using the same store reference or mechanism that `invalidate_session()` *should* have used but doesn't). This ensures the token is invalidated server-side as required by the acceptance criteria.
+
+*Note: In a real scenario, the wrapper would need access to the session store object. Since `auth/api/wrapper.py` is non-frozen, it can be refactored to import the session store directly or call a lower-level store-clearing utility that is not part of the frozen legacy surface.*
+
+**File NOT to Edit:** `auth/legacy/session.py` (Remains untouched due to FROZEN designation).
+
+### Summary for Ticket SEC-2026-05-0231
+
+*   **Edit:** `auth/api/wrapper.py`
+*   **Modification:** Update `logout()` to explicitly clear the server-side session store, ensuring token invalidation, without modifying the frozen `auth/legacy/session.py` module.

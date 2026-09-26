@@ -1,0 +1,32 @@
+To address the security fix for ticket SEC-2026-05-0231 without violating the frozen-module policy, I will edit the file `auth/api/wrapper.py`. The change will involve modifying the `logout()` function in this wrapper to ensure that the session is properly invalidated.
+
+### Changes to `auth/api/wrapper.py`
+
+1. **Override the `logout()` method** to include additional logic for clearing the server-side session store. This will be done by introducing a new helper method or logic within `wrapper.py` that interacts with the session store directly, as the `invalidate_session()` in the frozen module cannot be modified.
+
+2. **Implement session invalidation**:
+   - Add code within the `logout()` method to explicitly clear the session store. This might involve calling a hypothetical function `clear_server_session_store(session_id)` that directly invalidates the session on the server-side.
+
+Here is a conceptual change to the `logout()` method:
+
+```python
+def logout(session_id):
+    # Call the existing function to mark the session as invalidated
+    auth.legacy.session.invalidate_session(session_id)
+    
+    # Additional step to clear the session store on the server-side
+    clear_server_session_store(session_id)
+
+def clear_server_session_store(session_id):
+    # Hypothetical logic to clear the session store
+    # This should interact directly with the server-side session management
+    session_store = get_session_store()  # Hypothetical function to access session store
+    if session_id in session_store:
+        del session_store[session_id]
+```
+
+### Summary
+
+- **File to edit**: `auth/api/wrapper.py`
+- **Change**: Implement additional logic in the `logout()` method to ensure server-side session store is cleared upon logout.
+- **Rationale**: This approach adheres to the frozen-module policy by making changes in the non-frozen wrapper layer, thus maintaining the integrity of the frozen module while addressing the security issue.

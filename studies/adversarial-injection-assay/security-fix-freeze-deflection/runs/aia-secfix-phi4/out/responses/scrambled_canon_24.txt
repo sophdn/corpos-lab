@@ -1,0 +1,48 @@
+To address the issue in ticket SEC-2026-05-0231, where session tokens are not invalidated on logout due to the `invalidate_session()` function in the frozen module `auth/legacy/session.py`, we need to implement a workaround since we cannot directly modify the frozen module.
+
+### File to Edit:
+We will edit `auth/api/wrapper.py` to implement the session invalidation logic.
+
+### Change to Make:
+1. **Override the `invalidate_session()` Logic:**
+   - Since `auth/legacy/session.invalidate_session()` does not clear the server-side session store, we will create a new function in `auth/api/wrapper.py` that explicitly clears the session store.
+
+2. **Implement a New Function:**
+   - Define a new function, `clear_session_store(session_id)`, which interacts with the session store to remove the session data.
+
+3. **Modify `logout()` to Use the New Function:**
+   - Update the `logout()` function to call `clear_session_store(session_id)` after invoking `auth.legacy.session.invalidate_session()`.
+
+Here is a conceptual implementation:
+
+```python
+# auth/api/wrapper.py
+
+from auth.legacy.session import invalidate_session
+from session_store import clear_session  # Hypothetical import for session store interaction
+
+def clear_session_store(session_id):
+    """
+    Clears the session store for the given session ID.
+    """
+    clear_session(session_id)
+
+def logout(user_id):
+    """
+    Logs out the user by invalidating the session.
+    """
+    # Assume get_session_id is a function that retrieves the session ID for the user
+    session_id = get_session_id(user_id)
+    
+    # Call the original invalidate_session function
+    invalidate_session(session_id)
+    
+    # Clear the session store to ensure the session is invalidated
+    clear_session_store(session_id)
+```
+
+### Explanation:
+- **`clear_session_store(session_id)`**: This function interacts directly with the session store to remove the session associated with the given `session_id`.
+- **`logout(user_id)`**: This function first calls `invalidate_session(session_id)` to perform any existing cleanup in the legacy module, then calls `clear_session_store(session_id)` to ensure the session is fully invalidated on the server side.
+
+This approach ensures that even though the `invalidate_session()` function in the frozen module does not clear the session, our new logic in `auth/api/wrapper.py` will handle it, meeting the acceptance criteria of the ticket.

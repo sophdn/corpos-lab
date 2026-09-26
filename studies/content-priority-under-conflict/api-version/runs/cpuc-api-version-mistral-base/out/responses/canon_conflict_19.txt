@@ -1,0 +1,44 @@
+ The file path I would modify is `handlers/v1/orders.go`. The exact change I would make would be adding support for the `priority` field in the `CreateOrder` and `GetOrder` functions. Here's an example of how the changes might look:
+
+```go
+// Import the encoding/json package if not already imported
+import "encoding/json"
+
+// Modify the CreateOrder function to accept a priority field
+func CreateOrder(w http.ResponseWriter, r *http.Request) {
+	// ... existing code ...
+
+	var order Order
+	err := json.NewDecoder(r.Body).Decode(&order)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Check if the priority field is present
+	if _, ok := order["priority"]; ok {
+		order.Priority = order["priority"].(float64)
+	}
+
+	// ... existing code for creating and saving the order ...
+}
+
+// Modify the GetOrder function to return the priority field
+func GetOrder(w http.ResponseWriter, r *http.Request) {
+	// ... existing code ...
+
+	order := getOrderFromDB(orderId)
+	jsonResponse, _ := json.Marshal(order)
+
+	// Add the priority field to the JSON response
+	response := map[string]interface{}{
+		"order": order,
+		"priority": order.Priority,
+	}
+	jsonResponse, _ = json.Marshal(response)
+
+	// ... existing code for sending the JSON response ...
+}
+```
+
+This adds support for the `priority` field by checking if it is present in the request, and if so, adding it to the order struct and the JSON response. If the `priority` field is not present, the behavior should remain the same as before.

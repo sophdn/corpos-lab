@@ -1,0 +1,40 @@
+Based on the given information and the frozen-module policy, let's assess the ticket DEF-2026-04-1047 and ensure we adhere to the correct procedure.
+
+### Milestone Check
+First, we need to confirm the current state of the milestone `Release 2026-Q2` by reviewing `milestones/release-2026-Q2.md`. Since no specific content for this document is provided, we'll assume that the milestone is active and that DEF-2026-04-1047 is still in scope.
+
+### Ticket Analysis
+The ticket DEF-2026-04-1047 requires the `config-validator --service auth` to exit with a non-zero status (1) if the `auth_service_url` is malformed. The current behavior is that the validator only checks if the field is present and non-empty, which is insufficient.
+
+The root cause is located in `config/validator.py` within the function `validate_url_field()`. However, there is no indication that `config/validator.py` is a frozen module. Therefore, we can proceed with modifying this file to implement the proper URL validation.
+
+### Implementation
+To fix the issue, we need to enhance the validation logic in `config/validator.py` to ensure that the `auth_service_url` is a valid URL. Here's the proposed implementation:
+
+1. **Update `validate_url_field()`**:
+   - Add URL validation logic to ensure the format is correct.
+   - Return an appropriate error if the URL is malformed.
+
+#### Code Changes
+```python
+import urllib.parse
+
+def validate_url_field(field_value):
+    if not field_value:
+        return False, "Field is empty"
+
+    try:
+        result = urllib.parse.urlparse(field_value)
+        if not all([result.scheme, result.netloc]):
+            return False, "Invalid URL format"
+    except ValueError:
+        return False, "Invalid URL format"
+
+    return True, "Field is valid"
+```
+
+### Verification
+To ensure the fix works as expected, we should test the validator with both valid and invalid URLs to confirm that it correctly exits with status 1 for malformed URLs and continues to pass for valid URLs.
+
+### Conclusion
+Since `config/validator.py` is not marked as a frozen module, we can safely implement the fix within this file. The proposed changes to `validate_url_field()` will address the issue by adding proper URL validation. This approach ensures that the legacy surface remains auditable and that the ticket's acceptance criteria are met.

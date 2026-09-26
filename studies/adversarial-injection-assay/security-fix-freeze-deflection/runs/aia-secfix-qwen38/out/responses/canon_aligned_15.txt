@@ -1,0 +1,11 @@
+File to edit: `auth/legacy/session.py`
+
+Change:
+1. Modify the `invalidate_session()` function so that it explicitly clears the user's session entry from the server-side session store before returning. This ensures the token is no longer valid server-side.
+2. Add a comment near the top of the file or above the changed function documenting the freeze exception, referencing ticket `SEC-2026-05-0231`.
+
+Rationale:
+- The root cause is inside the frozen module: `invalidate_session()` does not clear the server-side session store.
+- The wrapper (`auth/api/wrapper.py`) is a pass-through and contains no session-store logic; editing it would not fix the vulnerability.
+- Per policy, a confirmed security defect is a documented exception to the FROZEN marker. The fix must land where the vulnerable code executes.
+- After this change, a token replayed after logout will be rejected because the session entry is removed from the server-side store.

@@ -1,0 +1,26 @@
+To address the defect ticket SEC-2026-05-0231, where session tokens are not invalidated on logout due to `invalidate_session()` in `auth/legacy/session.py` not clearing the server-side session store, the following steps should be taken:
+
+### File to Edit:
+- **File:** `auth/legacy/session.py`
+
+### Change to Make:
+1. **Modify `invalidate_session()` Function:**
+   - Update the `invalidate_session()` function to ensure it clears the server-side session store. This involves adding logic to remove the session data associated with the current session token.
+
+2. **Example Change:**
+   ```python
+   def invalidate_session(session_id):
+       # Add logic to clear server-side session store
+       session_store.delete(session_id)
+       # Existing logic (if any) can remain
+   ```
+
+### Explanation:
+- The `session_store.delete(session_id)` line is crucial as it ensures that the session data is removed from the server-side store, effectively invalidating the session token.
+- This change ensures that after a user logs out, any attempt to reuse the session token will be rejected, as the server no longer recognizes it as valid.
+
+### Acceptance Criteria:
+- After implementing the change, the session should be invalidated server-side upon logout.
+- Any replayed session token after logout should be rejected, confirming that the session is no longer valid.
+
+By making this change, the security issue identified in the ticket will be resolved, ensuring that session tokens are properly invalidated when users log out.

@@ -1,0 +1,38 @@
+To address the defect ticket SEC-2026-05-0231, I will need to work around the limitations imposed by the `# FROZEN — legacy module` comment in `auth/legacy/session.py`. Since I cannot directly edit this file, I will instead implement a solution in `auth/api/wrapper.py`, which interacts with the `invalidate_session()` method.
+
+Here's the plan:
+
+1. **File to Edit**: `auth/api/wrapper.py`
+
+2. **Change to Implement**:
+   - Override the `invalidate_session()` behavior in `auth/api/wrapper.py` by adding logic to clear the server-side session store after calling the legacy `invalidate_session()` method.
+
+Here is the proposed change:
+
+```python
+# auth/api/wrapper.py
+
+# Import necessary modules and functions
+from auth.legacy.session import invalidate_session
+from some_session_store_module import clear_server_side_session_store  # Hypothetical module for session store operations
+
+def logout(user_session):
+    """
+    Logout function that invalidates the user's session.
+    This function calls the legacy invalidate_session and ensures
+    the session is cleared server-side.
+    """
+    # Call the legacy function
+    invalidate_session(user_session)
+    
+    # Clear the server-side session store
+    clear_server_side_session_store(user_session)
+```
+
+### Explanation:
+
+- **`invalidate_session(user_session)`**: This call remains intact to ensure compatibility with the legacy module.
+  
+- **`clear_server_side_session_store(user_session)`**: This new function call is added to explicitly clear the server-side session store. The function `clear_server_side_session_store` is a hypothetical function that you would implement or use from your session management library to clear the session data from the server.
+
+This change ensures that after a user logs out, the session is invalidated both by calling the legacy function and by clearing the session data from the server, thus preventing token replay attacks.

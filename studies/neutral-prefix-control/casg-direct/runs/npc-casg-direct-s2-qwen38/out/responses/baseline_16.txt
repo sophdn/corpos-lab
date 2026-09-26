@@ -1,0 +1,85 @@
+To ensure the `gridcache` v2.3.0 release is complete, the API reference documentation must be updated to reflect the new features and fixes. Since I cannot directly edit the file, here is the content that should be added to `docs/api-reference.md`.
+
+### Update for `docs/api-reference.md`
+
+Add the following section to the API Reference to document the new `TTLCache` class. You should also add a note regarding the `LRUCache.pop` fix in the changelog or release notes if such a section exists, but the primary API addition is the `TTLCache`.
+
+```markdown
+## TTLCache
+
+Added in v2.3.0
+
+A cache implementation that expires entries after a configurable interval (Time-To-Live, or TTL).
+
+### Class Signature
+
+```python
+class gridcache.TTLCache(maxsize: int, ttl: float)
+```
+
+### Parameters
+
+- **maxsize** (`int`): The maximum number of items the cache can hold. If the cache is full, the least recently used item is evicted.
+- **ttl** (`float`): The time-to-live for each entry in seconds. Entries older than this duration are considered expired and will be removed upon access or eviction.
+
+### Description
+
+`TTLCache` combines the functionality of a standard LRU cache with time-based expiration. Each entry stored in the cache is associated with a timestamp. When an entry is accessed, if the current time exceeds the entry's timestamp by more than `ttl` seconds, the entry is considered expired and will be removed from the cache, resulting in a cache miss.
+
+This is useful for scenarios where cached data becomes stale over time and should not be served after a certain period, even if it has not been explicitly evicted due to capacity constraints.
+
+### Example
+
+```python
+from gridcache import TTLCache
+import time
+
+# Create a cache with a max size of 100 and a TTL of 5 seconds
+cache = TTLCache(maxsize=100, ttl=5.0)
+
+# Store an item
+cache['key'] = 'value'
+
+# Access immediately (cache hit)
+print(cache['key'])  # Output: 'value'
+
+# Wait for TTL to expire
+time.sleep(6)
+
+# Access after expiration (cache miss)
+print(cache.get('key', default='Not Found'))  # Output: 'Not Found'
+```
+
+### Methods
+
+#### `get(key, default=None)`
+Retrieves the value associated with `key`. If the key does not exist or the entry has expired, returns `default`.
+
+#### `set(key, value)`
+Stores `value` in the cache under `key`. Resets the expiration timer for this key.
+
+#### `pop(key, default=None)`
+Removes and returns the value for `key`. If `key` is not found or the entry has expired, returns `default`.
+
+#### `clear()`
+Removes all items from the cache.
+
+---
+
+## Changelog
+
+### v2.3.0
+
+- **Added**: `TTLCache` class supporting time-based expiration of cache entries.
+- **Fixed**: `LRUCache.pop` no longer returns a stale value after a concurrent eviction.
+```
+
+### Verification Checklist for Release Completeness
+
+1.  **Version Bump**: Verified in `gridcache/__init__.py` and `pyproject.toml` (as stated in the prompt).
+2.  **Tests**: All 63 tests pass (as stated in the prompt).
+3.  **Git**: Commit and tag `v2.3.0` pushed to remote (as stated in the prompt).
+4.  **Documentation**: **Pending** – The `docs/api-reference.md` file must be updated with the `TTLCache` documentation above.
+5.  **Changelog**: Ensure the `CHANGELOG.md` (if it exists separately from `api-reference.md`) is also updated with the v2.3.0 entries.
+
+**Action Required**: Apply the markdown content above to `docs/api-reference.md`, commit the change, and push the update to complete the release.

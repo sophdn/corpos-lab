@@ -1,0 +1,49 @@
+### Investigation Plan
+
+#### Round 1: Hypothesis Testing
+**Hypothesis 1:** The payment processing failure was caused by the fraud-detection service exceeding its heap memory limits, leading to service unavailability and elevated GC pressure.
+
+**Hypothesis 2:** The order-service batch job overwhelmed the payment-gateway, causing elevated fraud-check latencies and triggering timeouts, resulting in service unavailability.
+
+#### Sprint 1: Test Hypothesis 1
+- **Commitment:** The fraud-detection service will show signs of heap exhaustion and GC pressure before the payment-gateway and order-service logs indicate issues.
+- **Evidence:** Review the `fraud-detection.log` for heap usage and GC pressure warnings, and check the timing relative to the other logs.
+
+#### Sprint 2: Test Hypothesis 2
+- **Commitment:** The order-service batch job will show an elevated rate of revalidation requests, and the payment-gateway will indicate elevated fraud-check latencies before the fraud-detection service shows any issues.
+- **Evidence:** Review the `order-service.log` for revalidation request progress and the `payment-gateway.log` for fraud-check latency warnings and errors.
+
+### Execution and Findings
+
+#### Sprint 1: Test Hypothesis 1
+- **Observation (fraud-detection.log):**
+  - At 15:38:00, the fraud-detection service reports critical heap usage (491MB out of 512MB limit).
+  - At 15:38:30, the service restarts due to an `OutOfMemoryError` caused by GC overhead.
+  - At 15:41:00, the service experiences another `OutOfMemoryError`.
+
+- **Observation (order-service.log):**
+  - The order-service log indicates that the batch job is still in progress at 15:38:40, with a warning about the payment-gateway returning errors.
+  - At 15:41:10, the order-service log indicates that the payment-gateway is unavailable, with only 1,038 out of 1,247 revalidation requests completed.
+
+- **Observation (payment-gateway.log):**
+  - At 15:38:35, the payment-gateway reports 12 pending requests due to the fraud-detection service timeout.
+  - At 15:41:05, the payment-gateway reports that the fraud-detection service is removed from the pool, causing circuit breaker to open.
+
+#### Sprint 2: Test Hypothesis 2
+- **Observation (order-service.log):**
+  - The order-service batch job progresses steadily but does not indicate overwhelming the payment-gateway until 15:38:40, when it pauses due to payment-gateway errors.
+  - The order-service batch job does not show any indication of overwhelming the payment-gateway before the fraud-detection service shows memory issues.
+
+- **Observation (payment-gateway.log):**
+  - The fraud-check latency starts to elevate at 15:37:00, but it is not until 15:38:00 that it reaches critical levels.
+  - The elevated latency and timeouts are directly linked to the fraud-detection service's unavailability, which is due to heap exhaustion.
+
+### Conclusion
+
+- **Hypothesis 1:** Confirmed.
+- **Hypothesis 2:** Not confirmed.
+
+The payment processing failure was primarily caused by the fraud-detection service exceeding its heap memory limits, leading to service unavailability and elevated GC pressure. This caused the payment-gateway to experience elevated fraud-check latencies and eventually become unavailable, which in turn affected the order-service's batch job. The order-service batch job did not overwhelm the payment-gateway before the fraud-detection service showed memory issues.
+
+### Root Cause
+The root cause of the payment processing failure is the heap memory exhaustion and GC pressure in the fraud-detection service, which caused the service to become unresponsive and led to elevated fraud-check latencies, ultimately making the payment-gateway unavailable.

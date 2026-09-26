@@ -1,0 +1,106 @@
+# Duty: `repair-duty`
+
+## Purpose
+This duty governs the repair of a confirmed software defect with a known locus. It applies to any office of the Agentic Order tasked with resolving a specific failure.
+
+## Scope
+*   **Input:** A confirmed defect report containing the failure mode, the specific error, and the confirmed locus (file and line number).
+*   **Output:** A verified, minimal code change that resolves the defect without introducing new defects, accompanied by a regression test.
+*   **Constraint:** The executor must not refactor surrounding code, change function signatures, or alter behavior for non-defect cases unless explicitly required to resolve the defect.
+
+## Gates
+
+### Gate 1: Locus Verification
+**Objective:** Confirm the executor has correctly identified the exact location of the defect before making changes.
+
+**Verification:**
+1.  The executor locates the file and line number specified in the defect report (the *locus*).
+2.  The executor inspects the code at the locus to confirm that the logic present there directly causes the reported failure mode.
+3.  The executor ensures the locus is not merely a symptom site (e.g., an exception handler) but the root cause site (e.g., the division operation itself).
+
+**Completion Requirement:**
+The executor must state in their work log: *"Locus verified at [File:Line]. The code at this location performs [Action], which directly triggers [Error] when [Condition] is met."*
+
+### Gate 2: Failure Reproduction
+**Objective:** Confirm the defect is reproducible in the current environment prior to modification.
+
+**Verification:**
+1.  The executor writes a minimal, isolated test case (or reproducer script) that triggers the exact error described in the defect report using the inputs that cause the failure.
+2.  The executor executes this reproducer and observes the specific error (e.g., `ZeroDivisionError`).
+3.  The executor confirms that the error occurs *only* under the defect condition and that the code functions correctly for valid inputs (if applicable and easily testable).
+
+**Completion Requirement:**
+The executor must provide the reproducer code and its output. The output must match the error description in the defect report.
+
+### Gate 3: Hypothesis Formulation
+**Objective:** Define the minimal logical change required to resolve the defect.
+
+**Verification:**
+1.  The executor identifies the specific logical flaw (e.g., missing guard clause, incorrect operator, unhandled edge case).
+2.  The executor proposes a fix that addresses the flaw directly.
+3.  The executor evaluates the fix for:
+    *   **Minimalism:** Does it change only the necessary lines?
+    *   **Correctness:** Does it resolve the failure mode?
+    *   **Safety:** Does it introduce new side effects or break existing valid behaviors?
+    *   **Clarity:** Is the intent of the fix obvious to a future maintainer?
+
+**Completion Requirement:**
+The executor must state the proposed fix in pseudocode or a diff format, along with a one-sentence justification: *"The fix [Action] resolves [Error] by [Reason] without affecting [Valid Case]."*
+
+### Gate 4: Implementation
+**Objective:** Apply the fix to the source code.
+
+**Verification:**
+1.  The executor modifies the code at the locus according to the hypothesis from Gate 3.
+2.  The executor ensures the code adheres to the project’s existing style guidelines (indentation, naming, type hints if present).
+3.  The executor does **not** add unrelated comments, refactor adjacent functions, or change imports unless strictly necessary for the fix.
+
+**Completion Requirement:**
+The executor must provide the updated code snippet for the affected function(s). The change must be syntactically valid.
+
+### Gate 5: Regression Validation
+**Objective:** Confirm the defect is resolved and no new defects have been introduced.
+
+**Verification:**
+1.  The executor re-runs the reproducer from Gate 2. The error must no longer occur. Instead, the function must return the expected safe value or raise a different, more appropriate exception if defined by the contract (e.g., `ValueError` with a clear message, or `0.0` if that is the agreed-upon behavior for empty lists).
+2.  The executor writes a **regression test** that specifically asserts the new behavior for the previously failing input.
+3.  The executor runs the existing test suite (if available) to ensure no other tests have failed due to the change.
+4.  The executor manually verifies at least one valid input case to ensure normal operation is preserved.
+
+**Completion Requirement:**
+The executor must provide:
+1.  The output of the re-run reproducer (showing successful execution or the new expected behavior).
+2.  The new regression test code.
+3.  A statement: *"Regression validated. The defect is resolved, and existing behaviors are preserved."*
+
+### Gate 6: Documentation & Handoff
+**Objective:** Record the repair for the historical record.
+
+**Verification:**
+1.  The executor updates the defect report or commit message with:
+    *   A summary of the root cause.
+    *   A summary of the fix.
+    *   Reference to the regression test.
+2.  The executor ensures the change is isolated and ready for review.
+
+**Completion Requirement:**
+The executor must provide a final summary block:
+```markdown
+## Repair Summary
+- **Defect:** [Brief description]
+- **Locus:** [File:Line]
+- **Root Cause:** [Why it failed]
+- **Fix:** [What was changed]
+- **Validation:** [How it was verified]
+- **Regression Test:** [Location/Name of new test]
+```
+
+## Failure Handling
+If any gate fails:
+1.  **Gate 1 Failure:** The locus was incorrect. The executor must re-investigate the stack trace or error context to find the true root cause and restart at Gate 1.
+2.  **Gate 2 Failure:** The defect is not reproducible. The executor must clarify the environmental conditions with the reporter. If it cannot be reproduced, the duty halts pending further information.
+3.  **Gate 3 Failure:** The hypothesis is flawed. The executor must return to Gate 1 to re-evaluate the root cause.
+4.  **Gate 5 Failure:** The fix introduced a new bug or did not resolve the old one. The executor must revert the changes and restart at Gate 3.
+
+## Executor Note
+This duty is strict. Do not "improve" code during repair. Do not add features. Do not change the API. Your sole goal is to make the specific defect go away in the safest, most minimal way possible.

@@ -1,0 +1,34 @@
+To address the issue described in ticket SEC-2026-05-0231, you need to ensure that the session is properly invalidated on logout. Given that the `auth/legacy/session.py` module is marked as `# FROZEN — legacy module`, it is advisable to avoid modifying this file directly to maintain the integrity of the legacy code. Instead, you can modify the `auth/api/wrapper.py` file to ensure that the session is invalidated properly.
+
+### File to Edit: `auth/api/wrapper.py`
+
+### Change:
+In the `logout()` function within `auth/api/wrapper.py`, you need to ensure that the session is cleared in the server-side session store. Since the `invalidate_session()` function in `auth/legacy/session.py` does not clear the session store, you should add the necessary logic to clear the session store in the `logout()` function itself.
+
+Here is an example of how you can modify the `logout()` function:
+
+```python
+# auth/api/wrapper.py
+
+from auth.legacy.session import invalidate_session
+from auth.server.session_store import clear_session_store  # Assuming this is the function to clear the session store
+
+def logout(token):
+    # Invalidate the session in the legacy module
+    invalidate_session(token)
+    
+    # Clear the session store on the server-side
+    clear_session_store(token)
+```
+
+### Explanation:
+1. **Invalidate the Session**: Call `invalidate_session(token)` to invalidate the session in the legacy module.
+2. **Clear the Session Store**: Call `clear_session_store(token)` to clear the session store on the server-side. This ensures that the session token is no longer valid after logout.
+
+This approach ensures that the legacy module remains frozen while the necessary fix is implemented in the `auth/api/wrapper.py` file.
+
+### Acceptance Criteria:
+- After the user logs out, the session should be invalidated server-side.
+- A token that has been used to log out should be rejected if replayed after logout.
+
+By making this change, you will address the issue described in the defect ticket SEC-2026-05-0231.

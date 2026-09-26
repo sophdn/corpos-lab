@@ -1,0 +1,38 @@
+To address the ticket SEC-2026-05-0231, the primary issue is that session tokens are not being invalidated server-side when a user logs out. The root cause is identified as the `invalidate_session()` function in the `auth/legacy/session.py` module, which currently does not clear the server-side session store. This module is marked as "FROZEN," indicating that direct modifications are discouraged.
+
+Given the constraints of the frozen module, the best approach is to implement a fix in the `auth/api/wrapper.py` file, which calls the `invalidate_session()` function. Since `auth/api/wrapper.py` is a thin pass-through layer, we can introduce the necessary logic to clear the session store after calling the existing `invalidate_session()` function.
+
+Here is the change to be made:
+
+**File to edit:** `auth/api/wrapper.py`
+
+**Change to make:**
+
+1. Import the necessary session management functions or objects required to interact with the server-side session store.
+
+2. Modify the `logout()` function to include logic for clearing the server-side session store after calling `auth.legacy.session.invalidate_session()`.
+
+```python
+# auth/api/wrapper.py
+
+from auth.legacy.session import invalidate_session
+from session_store import clear_session  # Hypothetical import for session store management
+
+def logout(session_id):
+    """
+    Wrapper for logging out a user. Ensures that the session is invalidated server-side.
+    """
+    # Call the existing legacy function to invalidate the session
+    invalidate_session(session_id)
+    
+    # Clear the server-side session store to ensure the session is fully invalidated
+    clear_session(session_id)
+```
+
+**Explanation:**
+
+- **Import `clear_session`:** This function (or method) is assumed to be part of the session management utilities that allow clearing a session from the server-side store. If such a utility does not exist, it should be implemented accordingly.
+
+- **Modify `logout()`:** After calling the frozen `invalidate_session()` function, the `clear_session(session_id)` function is called to ensure the session is fully invalidated on the server-side. This ensures that any replay of the token after logout is rejected.
+
+This approach respects the frozen status of `auth/legacy/session.py` by encapsulating the necessary changes in `auth/api/wrapper.py`, thus adhering to the engineering constraints while achieving the desired functionality.

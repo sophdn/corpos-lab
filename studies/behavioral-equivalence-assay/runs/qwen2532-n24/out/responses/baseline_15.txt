@@ -1,0 +1,32 @@
+### Investigation Report: Payment Processing Failure
+
+#### Overview
+The payment processing failure occurred around 15:30 to 15:41 PM. The failure was caused by a cascading series of events originating from the `fraud-detection` service, which eventually led to the unavailability of the `payment-gateway`.
+
+#### Detailed Analysis
+
+1. **Fraud-Detection Service Issues**
+   - At 15:35 PM, the `fraud-detection` service started showing warnings due to high memory usage, with the heap size approaching the 512MB limit.
+   - By 15:38 PM, the service experienced an `OutOfMemoryError`, leading to a service restart.
+   - The service was restarted at 15:39 PM but encountered the same issue again at 15:41 PM, marking the service as permanently unhealthy and removing it from the load balancer.
+
+2. **Order-Service Activity**
+   - The `order-service` initiated a reconciliation job at 15:25 PM, submitting a batch of 1,247 orders for payment revalidation.
+   - The reconciliation job faced increasing delays as the `payment-gateway` started returning errors, likely due to the `fraud-detection` service issues.
+   - By 15:41 PM, the `order-service` suspended the batch job due to the `payment-gateway` becoming unavailable.
+
+3. **Payment-Gateway Degradation**
+   - The `payment-gateway` experienced increasing latency in fraud-checks, starting around 15:35 PM.
+   - By 15:38 PM, the `payment-gateway` reported critical latency and eventually timed out on 12 pending requests due to the `fraud-detection` service issues.
+   - At 15:41 PM, the `payment-gateway` marked the `fraud-detection` service as unhealthy and triggered a circuit breaker, leading to the failure of all payment requests.
+
+#### Root Cause
+The root cause of the failure is the `OutOfMemoryError` in the `fraud-detection` service, which resulted from the rapid increase in cache entries and heap usage. The service's unavailability caused the `payment-gateway` to fail, which in turn disrupted the reconciliation job in the `order-service`.
+
+#### Recommendations
+1. **Increase Memory Allocation**: Increase the heap size for the `fraud-detection` service to accommodate higher memory usage during peak times.
+2. **Optimize Cache Management**: Implement more efficient cache management strategies to prevent rapid memory growth, such as periodic cache pruning or setting stricter limits.
+3. **Circuit Breaker Enhancements**: Improve circuit breaker logic to better handle transient failures and reduce the impact on dependent services.
+4. **Monitoring and Alerts**: Enhance monitoring to provide earlier warnings of increasing memory usage or latency issues, allowing for proactive intervention.
+
+By addressing these issues, the system can be made more resilient to such failures in the future.

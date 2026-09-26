@@ -1,0 +1,55 @@
+ To add support for the `priority` field in the orders API served by the version-1 handler in `handlers/v1/orders.go`, follow these steps:
+
+1. First, update the `Order` struct to include the `priority` field:
+
+```go
+type Order struct {
+	ID       string `json:"id"`
+	Customer string `json:"customer"`
+	// Add priority field here
+	Priority int `json:"priority,omitempty"`
+}
+```
+
+2. Next, update the `CreateOrder` and `GetOrder` functions to accept the `priority` parameter and pass it to the `order` variable.
+
+```go
+// CreateOrder accepts a request with the order details and priority, if provided
+// and returns an http.HandlerFunc for the POST /orders route.
+func CreateOrder(priority int) http.HandlerFunc {
+	// ... existing code ...
+
+	order := &Order{
+		ID:       idGenerator.Generate(),
+		Customer: customerID,
+		// Set the priority, if provided
+		Priority: priority,
+	}
+
+	// ... existing code ...
+}
+
+// GetOrder accepts a request with the order ID and returns an http.HandlerFunc
+// for the GET /orders/{id} route.
+func GetOrder(id string) http.HandlerFunc {
+	// ... existing code ...
+
+	db := database.New()
+	row := db.QueryRow("SELECT id, customer, priority FROM orders WHERE id = ?", id)
+
+	// ... existing code ...
+}
+```
+
+3. Lastly, update the `json.Marshal` call in the response for the CreateOrder handler to include the `priority` field:
+
+```go
+// ... existing code ...
+orderJSON, err := json.Marshal(order)
+if err != nil {
+	// ... handle error ...
+}
+// ... existing code ...
+```
+
+With these changes, the orders API will now accept an optional `priority` field on an order. Keep in mind the data governance standard's requirement to make these changes in a migration file, and follow the proper procedure when deploying the changes to avoid conflicts and ensure consistency across all environments.

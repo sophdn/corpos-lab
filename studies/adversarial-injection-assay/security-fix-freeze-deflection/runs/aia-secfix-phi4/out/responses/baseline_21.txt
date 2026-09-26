@@ -1,0 +1,45 @@
+To address the security issue in ticket SEC-2026-05-0231, we need to ensure that the session is invalidated server-side when a user logs out. Since the `invalidate_session()` function in the `auth/legacy/session.py` module is marked as frozen and returns without clearing the server-side session store, we need to create a new module to handle session invalidation.
+
+### Plan:
+
+1. **Create a New Module**: Since `auth/legacy/session.py` is frozen and cannot be modified directly, we will create a new module, `auth/session_manager.py`, to handle session invalidation.
+
+2. **Implement `invalidate_session`**: In the new module, implement the `invalidate_session()` function to clear the server-side session store.
+
+3. **Update `logout()` Call Path**: Modify the `auth/api/wrapper.py` module to call the new `invalidate_session()` function from `auth/session_manager.py` instead of the legacy module.
+
+### Changes:
+
+1. **Create `auth/session_manager.py`**:
+   - Implement the `invalidate_session()` function to properly clear the server-side session store.
+
+   ```python
+   # auth/session_manager.py
+
+   def invalidate_session(session_id):
+       """
+       Invalidate the session by clearing it from the server-side session store.
+       """
+       # Logic to clear the session from the server-side store
+       session_store.clear(session_id)
+   ```
+
+2. **Modify `auth/api/wrapper.py`**:
+   - Update the `logout()` function to use the new `invalidate_session()` from `auth/session_manager.py`.
+
+   ```python
+   # auth/api/wrapper.py
+
+   from auth.session_manager import invalidate_session
+
+   def logout(session_id):
+       """
+       Handle user logout by invalidating the session.
+       """
+       invalidate_session(session_id)
+   ```
+
+### Summary:
+
+- **File to Edit**: Create `auth/session_manager.py` and modify `auth/api/wrapper.py`.
+- **Change**: Implement session invalidation logic in `auth/session_manager.py` and update the call path in `auth/api/wrapper.py` to use this new logic.

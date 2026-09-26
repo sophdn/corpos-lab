@@ -1,0 +1,95 @@
+# casg-direct — grounded glyph probe, corpos-lab study definition
+#
+# Does a domain ground close the execution gap a universal glyph alone leaves open?
+# Materials exhumed from corpus/private/studies/assay-grounded-casg-direct/v3,
+# byte-verbatim. Scoring rubric: SCORING_RUBRIC.md. April observation (orientation,
+# NOT a target): PRIOR_GRID_2026-04-06.md. Read README.md first — the parity premise
+# this was built for is void.
+#
+# There are no study "versions" here any more. Change this file when you learn
+# better; the run records say what each run actually used.
+#
+# Run headless:  corpos-lab run-study studies/casg-direct-grounded-probe/study.toml
+# Material paths resolve relative to THIS file.
+
+name = "casg-direct-grounded-probe"
+assay = "grounded-glyph-probe"
+item_id = "casg-direct"
+
+# Digest-pinned so a run record says exactly what executed (recorded, not enforced).
+# Built by scripts/build-lab-images.sh.
+image = "localhost/lab-grounded-glyph-probe@sha256:c0d44d61f1fc83afe4b37f83beda68a1e812adf7179d780021d14b40da8b3bbf"
+network = "corpos-net"
+
+conditions = ["baseline", "glyph_only", "grounded_glyph"]
+runs_per_cell = 8
+
+[model]
+# Reached over corpos-net by container DNS — never --network host.
+#
+# Mistral-7B-Instruct-v0.3, Q4_K_M, 7.2B. GGUF sha256 f5074b12...
+# (gguf metadata general.name = "Mistral-7B-Instruct-v0.3", arch llama, 291 tensors).
+# Served by llama-server — the ONE local inference portal. Ollama was uninstalled
+# 2026-07-14; see memory one-local-inference-portal-llama-cpp.
+base_url = "http://llama-server:8081/v1"
+model_id = "Mistral-7B-Instruct-v0.3.Q4_K_M.gguf"
+version = "v0.3-q4km"
+
+[materials]
+scenario = "materials/scenario.md"  # SCENARIO_casg-direct_mistral.md, verbatim
+glyph    = "materials/glyph.md"     # GLYPH_casg-direct.md, verbatim
+ground   = "materials/ground.md"    # GROUND_casg-direct.md, verbatim
+
+# Sampling regime — declared here rather than hardcoded in Go, so a run records
+# the sampler it actually used.
+#
+# THE WHOLE CHAIN IS DECLARED, and that is the point. llama.cpp runs a sampler
+# CHAIN — penalties, dry, top_n_sigma, top_k, typ_p, top_p, min_p, xtc,
+# temperature — and any stage not named here inherits whatever the server binary
+# defaults to. Temperature alone does not define a sampling distribution. This
+# file previously declared three of them and borrowed the rest from an accident
+# of deployment; validation now refuses that, so a llama.cpp upgrade that moves a
+# default cannot silently move the study.
+#
+# These values were chosen for THIS measurement. They are not copied from any
+# runtime's defaults — notably not Ollama's, which an earlier version of the
+# sampler bug told us to match. Ollama is uninstalled, its defaults were never a
+# principled choice, and parity with a retired tool is not a goal.
+#
+#   temperature 0.8 — above greedy. Greedy decoding returns an identical reply
+#     per replicate, so a cell could only ever score 0/8 or 8/8 and a graded grid
+#     is structurally impossible. Seeds keep replicates varied AND repeatable.
+#   min_p 0.05 — the SOLE truncation stage. One truncation sampler is legible;
+#     stacked truncation (top_k AND top_p AND min_p) makes the effective
+#     distribution a function of three interacting cutoffs that nobody can
+#     reason about afterwards.
+#   top_k / top_p / typical_p / top_n_sigma / xtc / dry — all disabled, so min_p
+#     alone defines the tail.
+#   repeat_penalty 1.0 (neutral), repeat_last_n 0, presence/frequency 0 — ALL
+#     PENALTIES OFF, and this one is a measurement decision rather than a
+#     simplification. Penalties suppress repeated structure. A glyph scaffold
+#     induces repeated structure by design (Marker/Aim/Rest, walked axis by
+#     axis). A live penalty would therefore attenuate exactly the behaviour
+#     under study, and its effect would be indistinguishable from the glyph
+#     failing to work.
+[sampling]
+temperature = 0.8
+seeds = [1, 2, 3, 4, 5, 6, 7, 8]
+max_tokens = 512
+
+# Truncation: min_p only.
+top_n_sigma = -1.0
+top_k = 0
+typical_p = 1.0
+top_p = 1.0
+min_p = 0.05
+
+# Penalties: off — they would attenuate the structure being measured.
+repeat_penalty = 1.0
+repeat_last_n = 0
+presence_penalty = 0.0
+frequency_penalty = 0.0
+
+# Remaining stages: off.
+xtc_probability = 0.0
+dry_multiplier = 0.0

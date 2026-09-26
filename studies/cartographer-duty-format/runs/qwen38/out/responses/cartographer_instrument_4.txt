@@ -1,0 +1,56 @@
+# Duty: `repair-duty`
+
+## Purpose
+This duty governs the execution of a repair act for a confirmed software defect. It is designed for an executor who possesses only this text and the codebase containing the defect. The executor must not consult external registries, canon, or historical logs. The duty is a map; every gate is a checkable step that must be passed in order. Failure to verify a gate’s preconditions before proceeding constitutes a divergence.
+
+## Phase I: Locus Verification and Baseline Establishment
+*The act begins by confirming the target exists and establishing the state of the system before change.*
+
+**Gate 1: Confirm Locus Integrity**
+*   **Verification:** The executor verifies that the file and line number cited in the defect report (`calculator.py:2`) contain the function `calculate_average` and that the error mechanism (`ZeroDivisionError` via division by `len(values)`) is present in the source code at that exact location.
+*   **Completion Requirement:** The executor has read the source at the locus and confirmed the code structure matches the defect description. If the code has changed or the locus is empty, the duty terminates; the defect is no longer confirmed.
+
+**Gate 2: Establish Baseline Reproduction**
+*   **Verification:** The executor constructs a minimal test case that triggers the specific failure mode described (e.g., passing an empty list to `calculate_average`). The executor runs this test case against the current codebase.
+*   **Completion Requirement:** The test case fails with the exact error type cited (`ZeroDivisionError`). The executor has recorded the output of this failure. If the test case does not reproduce the error, the defect is not active at the locus; the duty terminates.
+
+**Gate 3: Define Correctness Criteria**
+*   **Verification:** The executor determines the expected behavior for the edge case that caused the failure. This is derived from the function’s contract (returning a `float` average) and standard mathematical conventions. For an empty set, the average is undefined or zero, depending on the system’s domain rules. The executor must choose one valid resolution (e.g., returning `0.0` or raising a specific `ValueError`) and document this choice.
+*   **Completion Requirement:** The executor has written a one-sentence specification of the correct behavior for the edge case (e.g., "If `values` is empty, return `0.0`"). This specification is the target state for the repair.
+
+## Phase II: Minimal Intervention
+*The act proceeds by making the smallest possible change that satisfies the correctness criteria without altering unrelated logic.*
+
+**Gate 4: Scope Constraint Check**
+*   **Verification:** The executor identifies the minimal set of lines within the function that must be modified to satisfy the Correctness Criteria from Gate 3. The executor verifies that no other functions, imports, or files are required to change.
+*   **Completion Requirement:** The executor has isolated the change to the specific line(s) performing the division. The plan for the edit is limited to adding a guard clause or modifying the division logic within `calculate_average`.
+
+**Gate 5: Implement the Guard**
+*   **Verification:** The executor writes the code change. The change must explicitly handle the condition where the divisor (`len(values)`) is zero before the division occurs.
+*   **Completion Requirement:** The code at `calculator.py:2` (or immediately following it) now contains a conditional check (e.g., `if not values:`) that prevents execution of the division when the list is empty. The code syntax is valid.
+
+## Phase III: Validation
+*The act confirms that the change fixes the defect and does not introduce new divergences.*
+
+**Gate 6: Regression Test for Edge Case**
+*   **Verification:** The executor re-runs the minimal test case from Gate 2 (passing an empty list) against the modified code.
+*   **Completion Requirement:** The function now returns the value specified in Gate 3 (e.g., `0.0`) or raises the specified alternative error, and does *not* raise `ZeroDivisionError`. The output matches the Correctness Criteria.
+
+**Gate 7: Regression Test for Standard Cases**
+*   **Verification:** The executor constructs a test case with a non-empty list of valid numbers (e.g., `[1, 2, 3]`) and runs it against the modified code.
+*   **Completion Requirement:** The function returns the correct average (`2.0`). This verifies that the added guard clause has not broken the primary function of the code. If the standard case fails, the duty returns to Phase II.
+
+**Gate 8: Syntax and Lint Integrity**
+*   **Verification:** The executor verifies that the modified file parses without syntax errors. The executor checks that the indentation and structure of the function remain consistent with the surrounding code.
+*   **Completion Requirement:** The code is syntactically valid. No new imports are required unless specified in Gate 3 (which should have been avoided in favor of pure logic guards). The file is ready for commit.
+
+## Phase IV: Closure
+*The act ends by documenting the repair and confirming the state is stable.*
+
+**Gate 9: Documentation of Resolution**
+*   **Verification:** The executor writes a brief summary of the change. This summary must state: (1) the defect was at `calculator.py:2`, (2) the cause was division by zero on empty input, (3) the fix was a guard clause preventing division, and (4) the expected behavior for empty input is now [Value from Gate 3].
+*   **Completion Requirement:** The summary is written. It contains no references to external canon or registry slugs. It is self-contained.
+
+**Gate 10: Final State Confirmation**
+*   **Verification:** The executor reviews the final state of the file. The executor confirms that the locus contains the new guard clause, the standard tests pass, and the edge case tests pass.
+*   **Completion Requirement:** The executor has mentally re-verified Gates 6 and 7. The duty is complete. The executor may proceed to commit the change.

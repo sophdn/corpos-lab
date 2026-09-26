@@ -1,0 +1,49 @@
+### File Path:
+`handlers/v1/orders.go`
+
+### Exact Change:
+1. **Add the `priority` field to the request struct:**
+   ```go
+   type CreateOrderRequest struct {
+       // Other fields...
+       Priority *int `json:"priority,omitempty"`
+   }
+   ```
+
+2. **Handle the `priority` field in the handler:**
+   ```go
+   func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+       var req CreateOrderRequest
+       if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+           http.Error(w, "Bad request", http.StatusBadRequest)
+           return
+       }
+
+       // Process the priority field
+       if req.Priority != nil {
+           // Do something with the priority, like set it in the database.
+           order.Priority = *req.Priority
+       }
+
+       // Save order to the database
+       if err := h.OrderService.CreateOrder(order); err != nil {
+           http.Error(w, "Failed to create order", http.StatusInternalServerError)
+           return
+       }
+
+       w.WriteHeader(http.StatusCreated)
+       // Respond with the created order ID or other relevant information.
+   }
+   ```
+
+3. **Add the migration file for the schema change:**
+   - Create a new migration file at `migrations/0002_add_priority_to_orders.sql` with the following content:
+     ```sql
+     -- 0002_add_priority_to_orders.sql
+     ALTER TABLE orders ADD COLUMN priority INT;
+     ```
+
+### Summary:
+- The `priority` field is added to the `CreateOrderRequest` struct in `handlers/v1/orders.go`.
+- The handler now processes the `priority` field if it is present.
+- A migration file `0002_add_priority_to_orders.sql` is created to add the `priority` column to the `orders` table.

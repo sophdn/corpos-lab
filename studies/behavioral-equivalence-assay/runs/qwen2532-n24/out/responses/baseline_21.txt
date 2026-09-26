@@ -1,0 +1,48 @@
+### Investigation Report: Payment Processing Failure
+
+#### Overview
+The payment processing system experienced a failure this afternoon, specifically between 15:38 and 15:41. The failure was primarily caused by an outage in the `fraud-detection` service, which in turn affected the `payment-gateway` and `order-service`.
+
+#### Timeline and Events
+
+1. **Fraud-Detection Service Issues (15:38:30 - 15:41:00)**
+   - At 15:38:30, the `fraud-detection` service encountered an `OutOfMemoryError` due to excessive heap usage.
+   - The service became unresponsive, leading to a restart initiated by the orchestrator at 15:39:15.
+   - However, the service quickly hit the `OutOfMemoryError` again at 15:41:00, marking it as permanently unhealthy and removing it from the load balancer.
+
+2. **Payment-Gateway Service Issues (15:38:35 - 15:41:06)**
+   - At 15:38:35, the `payment-gateway` started experiencing timeouts due to increased latency from the `fraud-detection` service.
+   - By 15:41:05, the `payment-gateway` could no longer reach any healthy instances of the `fraud-detection` service and tripped the circuit breaker.
+   - All payment requests failed as the `fraud-check` dependency was unavailable.
+
+3. **Order-Service Issues (15:38:40 - 15:41:11)**
+   - The `order-service`, which was submitting revalidation requests to the `payment-gateway`, began to receive errors.
+   - At 15:38:40, the `order-service` paused due to payment-gateway errors.
+   - After a retry at 15:40:00, the `order-service` was again suspended at 15:41:10 when the `payment-gateway` became completely unavailable.
+
+#### Root Cause Analysis
+The root cause of the failure was an `OutOfMemoryError` in the `fraud-detection` service, triggered by excessive heap usage. This issue was exacerbated by a large influx of requests, likely due to a batch process that started earlier (around 15:25) by the `order-service`. The increased heap usage caused significant garbage collection (GC) overhead and eventually led to the service being marked as permanently unhealthy.
+
+#### Recommendations
+1. **Heap and Memory Management:**
+   - Increase the heap size limit for the `fraud-detection` service to handle larger request volumes.
+   - Implement more efficient caching mechanisms or reduce the cache size limit to avoid excessive heap usage.
+   - Monitor heap usage and GC activity more closely to proactively manage memory consumption.
+
+2. **Batch Process Management:**
+   - Introduce rate limiting or throttling mechanisms for batch processes to prevent overwhelming the `fraud-detection` service.
+   - Schedule batch processes during off-peak hours to distribute the load more evenly.
+
+3. **Circuit Breaker Configuration:**
+   - Adjust the circuit breaker settings in the `payment-gateway` to be more resilient to transient failures.
+   - Implement fallback mechanisms to handle cases where the `fraud-detection` service becomes unavailable.
+
+4. **Monitoring and Alerts:**
+   - Set up alerts for heap usage and GC pressure to proactively address issues before they become critical.
+   - Enhance logging to provide more detailed insights into request volumes and processing times.
+
+By addressing these recommendations, the system's resilience to such failures can be significantly improved, reducing the likelihood of future outages.
+
+---
+
+This report provides a detailed analysis of the payment processing failure, identifying the root causes and offering actionable recommendations to prevent similar incidents in the future.

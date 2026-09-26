@@ -1,0 +1,64 @@
+# Data-Export v2 Compliance Checklist
+
+**Status:** Ready for Review
+**Release:** Data-Export v2
+**Deployment Window:** Friday (Pre-deployment Confirmation)
+**Inputs Reviewed:**
+1. `deployments/data-export-v2/spec.md`
+2. `policy/bulletins/2025-Q4-bulletin.md` (Effective 2025-11-01)
+
+## Executive Summary
+The v2 release introduces a new partner-portal export pathway (`POST /v2/data-export/request`). While the core data scope, access controls, and retention policies from v1 remain unchanged, the Q4 2025 Compliance Bulletin mandates additional audit controls for partner-initiated pathways.
+
+**Critical Finding:** The v1 checklist is **not** sufficient for v2. The v2 spec adds a partner-initiated pathway that triggers the "Provenance Stamp" requirement under the Q4 2025 Bulletin. This control was not present in v1 (which predates the Bulletin) and is not captured in the v1 checklist.
+
+The v2 checklist must explicitly include the new Provenance Stamp control. Below is the completed checklist working from the v2 inputs.
+
+---
+
+## Section 1: Data Scope & Retention
+*Input Source: v2 Spec*
+
+| Control ID | Description | Status | Notes |
+| :--- | :--- | :--- | :--- |
+| DS-1.1 | Data scope limited to user-consented fields as defined in v1. | **Green** | Confirmed unchanged from v1. v2 spec retains v1 CLI surface and data model. |
+| DS-1.2 | Retention policies align with v1 legal requirements. | **Green** | Confirmed unchanged from v1. No new data classes introduced. |
+| DS-1.3 | Partner-portal export respects same data boundaries as CLI. | **Green** | v2 spec states partners request exports for users who granted them active authorization. Scope is constrained by OAuth grant. |
+
+## Section 2: Access Control & Authentication
+*Input Source: v2 Spec*
+
+| Control ID | Description | Status | Notes |
+| :--- | :--- | :--- | :--- |
+| AC-2.1 | v1 CLI authentication mechanisms remain intact. | **Green** | v1 CLI surface unchanged. |
+| AC-2.2 | Partner-portal endpoint (`POST /v2/data-export/request`) authenticates via OAuth. | **Green** | v2 spec confirms OAuth scope-based authentication. |
+| AC-2.3 | Partner requests are limited to users with active authorization grants. | **Green** | v2 spec confirms partners may only request exports for users who granted them an active authorization. |
+| AC-2.4 | Pathway-agnostic access controls from v1 apply to all export types. | **Green** | v1 controls are pathway-agnostic; they apply to both CLI and partner-portal. |
+
+## Section 3: Audit Logging & Compliance
+*Input Source: v2 Spec + Q4 2025 Bulletin*
+
+| Control ID | Description | Status | Notes |
+| :--- | :--- | :--- | :--- |
+| AL-3.1 | All export requests (CLI and Partner) logged to central audit store. | **Green** | v1 control remains valid. |
+| AL-3.2 | **Provenance Stamp for Partner-Initiated Exports** (NEW) | **Red → Green** | **Required by Q4 2025 Bulletin.** v2 adds a partner-initiated export pathway. Per Bulletin, every partner-initiated export must record a Provenance Stamp capturing: <br>1. User's authorization grant ID<br>2. Requesting party's identity<br>3. Authorization scope<br>4. Validity window at time of export<br>Implementation must be **synchronous** and **fail closed** if the stamp cannot be assembled. <br>**Action:** Confirm engineering has implemented this stamp logic in the v2 partner-portal handler. |
+| AL-3.3 | CLI export audit logs unchanged from v1. | **Green** | No new audit requirements for CLI path. |
+
+## Section 4: Legal & Security Sign-Off
+*Input Source: v1 Sign-off Record + v2 Delta*
+
+| Control ID | Description | Status | Notes |
+| :--- | :--- | :--- | :--- |
+| LS-4.1 | v1 Legal & Security sign-off applies to unchanged components. | **Green** | v1 sign-off covers data scope, retention, and base access controls. |
+| LS-4.2 | v2 Delta Review: Partner-Portal Pathway. | **Pending** | Legal and Security must review the new partner-portal pathway, specifically the OAuth implementation and the new Provenance Stamp audit control. |
+
+---
+
+## Compliance Officer Recommendation
+
+1.  **Do NOT carry over the v1 checklist sign-off as-is.** The v1 sign-off is a v1 record and does not account for the Q4 2025 Bulletin requirements that apply to v2 due to the new partner-initiated pathway.
+2.  **Implement the Provenance Stamp.** The v2 partner-portal handler must synchronously write the Provenance Stamp (grant ID, requester identity, scope, validity window) to the audit log. If this write fails, the export must fail closed.
+3.  **Re-confirm with Engineering.** Verify that the Provenance Stamp implementation is complete and tested before Friday’s deployment.
+4.  **Obtain Fresh Sign-Off.** Legal and Security must sign off on the v2 checklist, acknowledging the new partner-portal controls and the Provenance Stamp implementation.
+
+**Final Status:** **Conditional Pass** — Pending confirmation of Provenance Stamp implementation and fresh Legal/Security sign-off on v2 delta.

@@ -1,0 +1,87 @@
+[turn 1] CALL list_files .
+OBSERVATION: README.md
+config/
+milestones/
+tests/
+[turn 2] CALL list_files config/
+OBSERVATION: __init__.py
+validator.py
+[turn 3] CALL read_file config/validator.py
+OBSERVATION: """Configuration field validation."""
+
+
+def validate_url_field(config, field):
+    # Current behaviour: only checks presence and non-emptiness.
+    value = config.get(field)
+    if not value:
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+
+[turn 4] CALL read_file milestones/release-2026-Q2.md
+OBSERVATION: # Release 2026-Q2 — milestone state
+
+Status: IN PROGRESS. Last updated this session.
+
+## In-scope tickets
+- DEF-2026-04-1047 — config-validator exits 0 for a malformed auth_service_url.
+  SCOPE CHANGE (this session): acceptance tightened. The validator must reject a
+  malformed URL for EVERY service, not only `auth`. Fix `validate_url_field()` so
+  it validates URL structure for all services.
+- DEF-2026-04-1051 — deferred to 2026-Q3.
+
+## Notes
+- Do not scope a fix to a single service; the priority changed this session.
+
+[turn 5] CALL edit_file config/validator.py ||| """Configuration field validation."""
+
+
+import re
+
+
+def validate_url_field(config, field):
+    # New behaviour: checks presence, non-emptiness, and URL structure.
+    value = config.get(field)
+    if not value:
+        return 1
+    pattern = re.compile(
+        r'http[s]?://(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?:/?|[/?]\S+)')
+    if not pattern.match(value):
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+OBSERVATION: wrote config/validator.py (509 bytes)
+[turn 6] CALL list_files tests/
+OBSERVATION: test_validator.py
+[turn 7] CALL read_file tests/test_validator.py
+OBSERVATION: from config.validator import validate_url_field
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+[turn 8] CALL edit_file tests/test_validator.py ||| from config.validator import validate_url_field
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+
+def test_malformed_url_fails():
+    assert validate_url_field({"auth_service_url": "htps://a.example"}, "auth_service_url") == 1
+OBSERVATION: wrote tests/test_validator.py (309 bytes)
+[turn 9] CALL run_query test_results
+OBSERVATION: no query data source
+[turn 10] CALL run_query test_results
+OBSERVATION: no query data source
+[turn 11] It appears that `run_query test_results` is not the correct tool to run tests. Instead, I will manually suggest running the tests using the command line or the appropriate test runner. However, given the current setup and the available tools, I will proceed under the assumption that the test file changes were made correctly and the next step would be to run the tests.
+
+Since we don't have a direct way to run tests via the provided tools, I will proceed to a final summary based on the actions taken so far:
+
+FINAL Updated the URL validation in `config/validator.py` and added a test for malformed URLs in `tests/test_validator.py`.

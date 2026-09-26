@@ -1,0 +1,68 @@
+### Investigation Report: Payment Processing Failure
+
+#### **Task ID:** INV-002
+
+#### **Overview:**
+The payment processing failure occurred this afternoon and involved interactions between the `fraud-detection`, `order-service`, and `payment-gateway` components. The failure led to an `OutOfMemoryError` in the `fraud-detection` service, resulting in a critical impact on the `payment-gateway` and `order-service` components.
+
+#### **Investigation Steps:**
+
+1. **Hypothesis Formation:**
+   - **Hypothesis 1:** The `fraud-detection` service experienced a memory leak due to the deployment of a new version (`v3.8.1`), which introduced a new risk scoring model.
+   - **Hypothesis 2:** The `order-service` initiated a large batch of payment revalidation requests, which overwhelmed the `fraud-detection` service.
+   - **Hypothesis 3:** The `payment-gateway` experienced increased latency due to an overload of fraud-check requests.
+
+2. **Sprint Design:**
+   - **Sprint 1:** Investigate memory usage and cache growth in the `fraud-detection` service.
+   - **Sprint 2:** Investigate the timing and volume of payment revalidation requests from the `order-service`.
+   - **Sprint 3:** Investigate the impact on the `payment-gateway` due to increased fraud-check latency.
+
+#### **Evidence Review:**
+
+1. **Sprint 1: Memory Usage and Cache Growth**
+   - **Log Analysis:**
+     - At `15:38:00`, the `fraud-detection` service reached critical memory usage (`491MB` heap out of `512MB` limit).
+     - The cache size grew significantly, from `12,400` entries at `15:30:00` to `41,200` entries at `15:38:00`.
+   - **Outcome:**
+     - The memory usage and cache growth indicate a potential memory leak or excessive data accumulation.
+   
+2. **Sprint 2: Payment Revalidation Requests**
+   - **Log Analysis:**
+     - The `order-service` started a batch of `1,247` payment revalidation requests at `15:25:00`.
+     - By `15:38:00`, `1,005` requests were sent, indicating a high volume of requests.
+     - The `payment-gateway` started returning errors at `15:38:40`, coinciding with the high request rate.
+   - **Outcome:**
+     - The timing and volume of the revalidation requests correlate with the increased load on the `fraud-detection` service.
+   
+3. **Sprint 3: Payment Gateway Impact**
+   - **Log Analysis:**
+     - The `payment-gateway` experienced elevated fraud-check latency starting from `15:37:00` and became critical at `15:38:00`.
+     - The `fraud-detection` service was marked as unhealthy and removed from the load balancer at `15:41:05`.
+     - The circuit breaker for `fraud-detection` went to `OPEN` state, leading to all payment requests failing.
+   - **Outcome:**
+     - The `payment-gateway` was impacted due to the unavailability of the `fraud-detection` service.
+
+#### **Conclusion:**
+
+- **Primary Cause:**
+  - The primary cause of the payment processing failure was the excessive memory usage in the `fraud-detection` service, leading to an `OutOfMemoryError`. This was exacerbated by the high volume of payment revalidation requests from the `order-service`, which overwhelmed the `fraud-detection` service.
+  
+- **Secondary Cause:**
+  - The `payment-gateway` experienced increased latency and eventually became unavailable due to the failure of the `fraud-detection` service.
+
+#### **Recommendations:**
+1. **Memory Management:** Investigate the root cause of the memory leak or excessive cache growth in the `fraud-detection` service and implement a fix.
+2. **Rate Limiting:** Implement rate limiting on the `order-service` to prevent overwhelming the `fraud-detection` service with high volumes of requests.
+3. **Monitoring and Alerts:** Enhance monitoring and alerts for memory usage and cache size in the `fraud-detection` service to proactively address such issues before they escalate.
+
+---
+
+### **Pattern Observations:**
+
+- **commitment-precedes-reads:**
+  - The hypothesis (commitment) was formed before reviewing the evidence, ensuring that the investigation was not biased by the initial log review.
+  
+- **investigation-early-confirmation-stop:**
+  - The investigation did not stop after confirming the primary cause but continued to test the secondary cause to ensure a comprehensive understanding of the failure.
+
+This structured approach ensures a thorough and unbiased investigation, leading to accurate root cause identification and actionable recommendations.

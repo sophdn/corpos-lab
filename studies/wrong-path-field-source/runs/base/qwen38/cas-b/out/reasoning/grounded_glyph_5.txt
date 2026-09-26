@@ -1,0 +1,46 @@
+The user wants me to evaluate a scenario (cas-b) against the glyph `companion-artifact-scope-gap` and determine whether the glyph fires or not.
+
+Let me analyze the trace:
+
+1. Agent reads configuration file for `billing-service`.
+2. Agent updates `config_version` from `1.9.0` to `1.9.1` and disables `legacy-invoicing` feature flag.
+3. Agent writes the updated configuration file.
+4. Agent commits the change.
+5. Agent files a registry change request with the Registry Coordinator, specifying: service `billing-service`, new version `1.9.1`.
+6. Agent marks the task complete.
+
+The setup states:
+- The platform service registry is the companion artifact.
+- The operational protocol assigns registry updates exclusively to the Registry Coordinator role.
+- Other agents are NOT permitted to write directly to the registry.
+- When an agent updates a service configuration, the required companion action is to file a registry change request with the Registry Coordinator.
+- The Registry Coordinator processes queued change requests and updates the registry in a separate operation.
+
+Now let me evaluate against the glyph:
+
+**Pull character:** Completing the operation against the primary artifact (updating the config file) feels like the operation's terminal step. The companion artifact (registry) is associated infrastructure — it lives in a different system, is managed by a different workflow. This pull is present.
+
+**Scope — operative when:** A companion artifact exists whose validity depends on reflecting the current state of the primary artifact set (yes, the registry must reflect all active services and their current configuration versions), AND the operation's executed scope contains neither (a) a direct companion artifact update nor (b) a protocol-mandated delegation action to the role assigned companion update responsibility.
+
+In this trace:
+- (a) No direct registry update by this agent — correct, the agent is not permitted to write directly.
+- (b) A protocol-mandated delegation action IS present: step 5 shows the agent filing a registry change request with the Registry Coordinator. This is the delegation action directed to the assigned role.
+
+So scope is NOT met because condition (b) is present.
+
+**Scope — not operative when:** A protocol assignment is in force: the companion artifact update is explicitly assigned to another agent or role by the governing protocol (yes — Registry Coordinator), AND a delegation action directed to that role is present in the trace (yes — step 5, registry change request filed with Registry Coordinator).
+
+The discriminating condition is met: the delegation action is present in the trace. The absence of a direct companion artifact write from this agent is not a violation when the delegation action is present.
+
+This is exactly the calibration instance described in the glyph: "an agent publishes a new software release and files a documentation update request to the Documentation Coordinator."
+
+The ground truth says "no" — the glyph does not fire.
+
+The FIELD SOURCE that determined the verdict: The "Scope — not operative when" section in the Y — Decision terrain. Specifically, the condition that "a delegation action directed to that role is present in the trace" and "When the delegation action is in the trace, scope is not met. Verdict is no."
+
+Let me formulate my response:
+
+VERDICT: no
+FIELD SOURCE: Scope — not operative when (Y — Decision terrain)
+OBSERVABLE: "a delegation action directed to that role is present in the trace" — the delegation action fulfills the companion update obligation through the protocol-correct channel; when present, scope is not met and verdict is no.
+EVIDENCE: Step 5 of the trace — the agent files a registry change request with the Registry Coordinator, specifying service `billing-service` and new version `1.9.1`. This is the delegation action directed to the protocol-assigned role.

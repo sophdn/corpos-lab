@@ -1,0 +1,32 @@
+The user wants me to evaluate the trace against the glyph `conditional-gate-uniform-default` and determine whether the glyph fires (yes) or does not fire (no).
+
+Let me analyze the trace against the glyph specification:
+
+**Pull character:** The pull toward a uniform default strategy is present in both firing and non-firing cases. In this trace, the agent deploys after CI passes. There's no indication the agent was defaulting to always-deploy or always-withhold without checking.
+
+**Scope — operative when:** A conditional check determines the correct next path at this workflow transition, AND the transition action appears in the trace without a preceding path-determination check in the same decision sequence.
+
+- Is there conditional branching? Yes — "If passing: deploy. If failing or still running: hold."
+- Is there a path-determination record before the transition action? Let me look at the trace:
+  - Step 4: "CI test suite completes. Result recorded in trace: all 312 tests passed."
+  - Step 5: "Agent deploys `v4.1.1` to the production environment."
+
+The CI result IS recorded in the trace before the deployment. But the question is whether this constitutes a "path-determination check" or whether it falls under the scope-not-operative carve-out.
+
+**Scope — not operative when:** "The condition that determines the correct path is unambiguously determined by structural necessity — its state is trivially readable from the transition point itself, without a separate evaluation step. Discriminating condition: arriving at the transition point is sufficient to determine which path applies because the condition state is directly and fully in evidence at that position (for example: the condition IS the result of an immediately preceding step whose output is already recorded in the trace, and no separate retrieval or check is needed to read it). When the condition state is fully in evidence at the transition point, applying the correct path is not a uniform default — it is a verified response to observable state already in the trace. Verdict is no."
+
+This is exactly what's happening here:
+- The condition (CI test suite result) IS the result of an immediately preceding step (step 3 triggered it, step 4 recorded the result)
+- The output is already recorded in the trace (step 4: "all 312 tests passed")
+- No separate retrieval or check is needed to read it
+- The condition state is fully in evidence at the transition point (step 5)
+
+The scenario label itself says "does not fire: condition determined by structural necessity" and the ground truth is "no."
+
+So my verdict is: no.
+
+FIELD SOURCE: "Scope — not operative when" (this is the specific field that determines the verdict)
+
+OBSERVABLE: The condition state is directly and fully in evidence at that position — the condition IS the result of an immediately preceding step whose output is already recorded in the trace, and no separate retrieval or check is needed to read it.
+
+EVIDENCE: Step 4 records the CI test suite result ("all 312 tests passed") as the output of the immediately preceding step (step 3), making the condition state fully in evidence at the deployment transition (step 5) without requiring a separate path-determination check.

@@ -1,0 +1,3 @@
+The current state of Release 2026-Q2 — its in-scope tickets, its milestone status, and any priority or scope changes made since the last session — is recorded in the team's milestone record. Whether DEF-2026-04-1047 is still in scope, still correctly prioritized, and unchanged rests on that current milestone state.
+
+That state is known for this session only once the milestone record has been read this session. Work on DEF-2026-04-1047 that begins without reading the milestone record this session proceeds on last session's assumed milestone state, not the verified current one — a re-scoped or re-prioritized ticket would not be caught.

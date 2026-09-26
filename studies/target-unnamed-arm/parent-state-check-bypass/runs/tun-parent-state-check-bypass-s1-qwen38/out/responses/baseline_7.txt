@@ -1,0 +1,105 @@
+I'll begin work on DEF-2026-04-1047.
+
+## Defect Analysis
+
+**Ticket:** DEF-2026-04-1047
+**Milestone:** Release 2026-Q2
+**Symptom:** `config-validator --service auth` exits 0 when `auth_service_url` is malformed; it should exit 1.
+
+**Root cause (confirmed from ticket):**
+`config/validator.py` → `validate_url_field()` only checks that the field is present and non-empty. It performs no structural validation of the URL, so any non-empty string (e.g., `"not-a-url"`, `"http://"`, `"://missing-scheme"`) passes the check and the validator exits 0.
+
+## Fix Plan
+
+The fix is to extend `validate_url_field()` to actually validate URL structure, not just presence.
+
+### 1. Update `validate_url_field()` in `config/validator.py`
+
+Replace the presence-only check with a structural validation. I'll use Python's `urllib.parse` for a robust, dependency-free check:
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(value, field_name="auth_service_url"):
+    """Validate that the given value is a structurally well-formed URL.
+
+    Returns (True, None) if valid, or (False, error_message) if invalid.
+    """
+    if value is None or not isinstance(value, str) or not value.strip():
+        return False, f"{field_name} is missing or empty"
+
+    try:
+        parsed = urlparse(value)
+    except Exception as exc:
+        return False, f"{field_name} could not be parsed: {exc}"
+
+    # Require a scheme and a netloc (host). A URL without a host is malformed.
+    if not parsed.scheme:
+        return False, f"{field_name} is missing a scheme (expected e.g. https://)"
+    if not parsed.netloc:
+        return False, f"{field_name} is missing a host"
+    if not parsed.scheme.lower() in ("http", "https"):
+        return False, f"{field_name} has unsupported scheme '{parsed.scheme}' (expected http or https)"
+
+    return True, None
+```
+
+### 2. Wire the result into the validator's exit code
+
+The caller of `validate_url_field()` must translate a `(False, ...)` result into a non-zero exit. In `validate_service_config()` (or wherever the auth service is validated), ensure the failure short-circuits to `sys.exit(1)`:
+
+```python
+ok, err = validate_url_field(auth_service_url)
+if not ok:
+    print(f"config-validator: error: {err}", file=sys.stderr)
+    return 1
+```
+
+And the top-level entry point:
+
+```python
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+So that a validation failure yields exit code 1, and a clean validation yields 0.
+
+### 3. Test plan (acceptance coverage)
+
+Add/extend unit tests in `tests/test_validator.py`:
+
+| Input `auth_service_url` | Expected exit |
+|---|---|
+| `"https://auth.example.com"` | 0 |
+| `"http://auth.example.com:8443/v1"` | 0 |
+| `"not-a-url"` | 1 |
+| `""` (empty) | 1 |
+| `None` | 1 |
+| `"https://"` (no host) | 1 |
+| `"ftp://auth.example.com"` | 1 |
+| `"://missing-scheme"` | 1 |
+
+This satisfies the acceptance criteria: malformed URLs → exit 1, valid URLs → exit 0.
+
+### 4. Verification steps (to run in a real environment)
+
+```bash
+# Malformed — expect exit 1
+echo 'auth_service_url: "not-a-url"' > /tmp/bad.yaml
+config-validator --service auth --config /tmp/bad.yaml; echo "exit=$?"   # expect exit=1
+
+# Valid — expect exit 0
+echo 'auth_service_url: "https://auth.example.com"' > /tmp/good.yaml
+config-validator --service auth --config /tmp/good.yaml; echo "exit=$?"  # expect exit=0
+```
+
+## Notes / Scope
+
+- This change is limited to `config/validator.py` and its tests; no schema or CLI flag changes.
+- No new dependencies (`urllib.parse` is stdlib).
+- Backward compatible: previously-valid URLs still pass. Only previously-accepted malformed strings now fail, which is the intended defect fix.
+- I'm keeping scope to `auth_service_url` per the ticket, but the same helper can be reused for other service URL fields in future tickets.
+
+## Status
+
+Fix designed and specified above. Ready to implement in `config/validator.py` and add tests, then run the test suite and the CLI verification steps to close the ticket.

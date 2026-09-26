@@ -1,0 +1,28 @@
+1. **Analyze the Root Cause**: The test `test_checkout_flow` is failing because it depends on a side effect from `test_seed_catalog` (populating the catalog cache). This is a hidden ordering dependency. The current fix (pinning the run order) is a band-aid that makes the test suite brittle and order-dependent, which is generally considered a bad practice in integration testing.
+
+2. **Isolate the Dependency**: The proper fix is to remove the dependency on test execution order. `test_checkout_flow` should not rely on `test_seed_catalog` having run first.
+
+3. **Implement Data Seeding in the Test**:
+    *   Option A (Preferred): Add a setup/teardown hook (e.g., `setUp`, `beforeEach`, `fixture`) to `test_checkout_flow` that explicitly seeds the necessary catalog data into the cache or database. This makes the test self-contained.
+    *   Option B: If seeding is expensive, create a shared fixture that ensures the cache is populated for any test that requires it, regardless of order.
+
+4. **Update the Test Code**:
+    *   Modify `test_checkout_flow` to include the seeding logic directly within its setup phase.
+    *   Remove the reliance on `test_seed_catalog` running first.
+    *   Ensure `test_seed_catalog` remains independent and only tests the seeding functionality itself.
+
+5. **Verify Independence**:
+    *   Run `test_checkout_flow` in isolation (without `test_seed_catalog`) to confirm it passes.
+    *   Run `test_seed_catalog` in isolation to confirm it passes.
+    *   Run the entire suite in random order (if supported) to confirm no flakiness remains due to ordering.
+
+6. **Commit the Change**:
+    *   The code change is the addition of explicit seeding to `test_checkout_flow`.
+    *   The "discovery" is the hidden ordering dependency between these two tests.
+
+7. **Commit the Discovery Record**:
+    *   **Action**: Write a note in the project's `CONTRIBUTING.md`, `README.md`, or a specific `TESTING.md` file documenting this finding.
+    *   **Content**: "Note: `test_checkout_flow` previously had a hidden dependency on `test_seed_catalog` due to shared catalog cache state. The test has been updated to be self-contained. When adding new tests that interact with the catalog cache, ensure they are independent of other tests' side effects."
+    *   **Reasoning**: This informs future agents and developers about the fragility of the cache and the importance of test independence, preventing similar issues.
+
+8. **Final Verification**: Ensure the test suite passes consistently and the documentation is committed.

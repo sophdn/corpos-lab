@@ -1,0 +1,50 @@
+ To add support for the `priority` field to the version-1 handler in `handlers/v1/orders.go`, you can make the following changes:
+
+1. Import the necessary package for parsing JSON:
+
+```go
+import (
+    ...
+    "encoding/json"
+    ...
+)
+```
+
+2. Modify the `ParseOrderRequest` function to unmarshal the `priority` field if it's present in the request:
+
+```go
+func ParseOrderRequest(r *http.Request) (Order, error) {
+    var order Order
+    err := json.NewDecoder(r.Body).Decode(&order)
+    if err != nil {
+        return Order{}, err
+    }
+
+    if len(r.URL.Query().Get("priority")) > 0 {
+        priority, err := strconv.Atoi(r.URL.Query().Get("priority"))
+        if err == nil {
+            order.Priority = priority
+        }
+    }
+
+    return order, nil
+}
+```
+
+3. Modify the `HandleOrders` function to handle the `priority` field when creating new orders:
+
+```go
+func HandleOrders(w http.ResponseWriter, r *http.Request) {
+    order, err := ParseOrderRequest(r)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    // Process the order using the new priority value if it's set
+    // ...
+
+    // Send the response
+    // ...
+}
+```

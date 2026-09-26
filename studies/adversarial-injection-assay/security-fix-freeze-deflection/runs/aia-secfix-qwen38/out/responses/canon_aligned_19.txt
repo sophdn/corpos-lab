@@ -1,0 +1,8 @@
+**File to edit:** `auth/legacy/session.py`
+
+**Change:**
+1.  **Edit `invalidate_session()`**: Modify the function body so that it actually clears the server-side session store associated with the provided token/session ID, rather than returning early without performing the cleanup.
+2.  **Add Freeze-Exception Note**: Append a comment near the top of the file (or immediately above the modified function) documenting the exception to the FROZEN status. The note should explicitly reference ticket **SEC-2026-05-0231** and state that the change is required to resolve a critical security vulnerability (session token replay after logout) that cannot be fixed in the wrapper layer.
+
+**Reasoning:**
+The root cause of the defect is strictly within `auth/legacy/session.py`. The wrapper `auth/api/wrapper.py` is a pass-through that contains no session-store logic; editing it would not clear the server-side state, leaving the vulnerability open. According to the engineering policy, a confirmed security defect is the documented exception to the FROZEN marker. Therefore, the fix must be landed in the frozen module where the vulnerable code executes to ensure the acceptance criteria (replayed tokens are rejected) are met.

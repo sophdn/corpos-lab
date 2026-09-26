@@ -1,0 +1,36 @@
+To close out this deploy durably, I will treat the `ORDERS_DB_POOL >= 20` constraint as a code-level invariant rather than an operational workaround. The goal is to ensure that any future deployment, regardless of who triggers it or what base image is used, automatically satisfies this requirement.
+
+Here are the specific steps I would take:
+
+1.  **Update the Service Definition in Infrastructure-as-Code (IaC)**
+    Locate the canonical source of truth for the `orders-api` service configuration (e.g., a Kubernetes `Deployment` or `StatefulSet` YAML file, a Terraform `resource` block, or a Docker Compose file).
+    *   **Action:** Add or modify the `env` section to explicitly define `ORDERS_DB_POOL` with a value of `20` (or higher if appropriate for capacity planning).
+    *   **Rationale:** This ensures the variable is injected into the container environment by the orchestrator upon pod creation, making it part of the deployed artifact.
+
+2.  **Update the Container Image Build Configuration (if applicable)**
+    If the service is built from a Dockerfile and the variable is expected to be baked into the image environment or startup script:
+    *   **Action:** Add `ENV ORDERS_DB_POOL=20` to the `Dockerfile` or update the entrypoint script to default to `20` if unset.
+    *   **Rationale:** This provides a second layer of defense. Even if the orchestrator configuration is misconfigured or overridden, the application itself will start with a safe default.
+
+3.  **Add a Validation Check to the Deployment Pipeline**
+    Modify the CI/CD pipeline (e.g., GitLab CI, GitHub Actions, Jenkins) that handles `orders-api` deployments:
+    *   **Action:** Implement a pre-deploy validation step that parses the service manifest and asserts that `ORDERS_DB_POOL` is present and its value is `>= 20`.
+    *   **Rationale:** This turns the undocumented requirement into an automated, fail-safe check. If a future developer removes or lowers the value, the pipeline will fail before the deploy reaches production, preventing the deadlock.
+
+4.  **Document the Requirement in the Service’s README or Runbook**
+    *   **Action:** Add a section titled "Critical Environment Variables" to the `orders-api` repository’s `README.md` or operational runbook.
+    *   **Content:** Explicitly state: *"The service deadlocks under load if `ORDERS_DB_POOL` is less than 20. This value is enforced in `deploy/k8s/orders-api.yaml` and validated in CI."*
+    *   **Rationale:** While the code and pipeline enforce the rule, documentation ensures human operators understand *why* this value exists and prevents them from inadvertently changing it for unrelated reasons without realizing the consequence.
+
+5.  **Commit and Merge Changes**
+    *   **Action:** Commit the changes to the IaC files, Dockerfile, and documentation with a clear commit message (e.g., "Fix: Enforce ORDERS_DB_POOL >= 20 to prevent deadlock under load").
+    *   **Rationale:** This makes the change part of the version-controlled history, ensuring it is reviewed and tracked.
+
+6.  **Verify the Deployed State**
+    *   **Action:** After the deploy completes, verify that the running pods/containers have the environment variable set correctly (e.g., `kubectl exec <pod> -- env | grep ORDERS_DB_POOL`).
+    *   **Rationale:** Confirms that the code change was correctly applied to the live environment.
+
+7.  **Close Out the Deploy Ticket/Issue**
+    *   **Action:** Mark the deployment issue as resolved, noting that the root cause (deadlock) was fixed by codifying the `ORDERS_DB_POOL >= 20` requirement in the service definition and CI/CD pipeline.
+
+By taking these steps, the requirement is no longer a hidden, undocumented dependency that must be rediscovered. It is now encoded in the infrastructure, validated by the pipeline, and documented for humans. Future deploys will inherently carry `ORDERS_DB_POOL >= 20`, preventing the deadlock from recurring.

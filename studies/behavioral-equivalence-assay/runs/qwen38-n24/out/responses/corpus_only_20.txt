@@ -1,0 +1,89 @@
+Based on the behavioral pattern registry provided, specifically the `investigation-early-confirmation-stop` pattern, I must conduct a structured investigation that tests the designated hypotheses (sprints) to completion before declaring a root cause. I will not stop at the first plausible explanation.
+
+### Investigation Structure
+
+**Round 1: Identifying the Failure Mechanism**
+
+I have identified two distinct behavioral patterns in the logs that could serve as the root cause, or at least contributing factors. To ensure falsifiability and eliminative coverage, I must run two sprints:
+
+1.  **Sprint A (Hypothesis 1):** The failure is caused by resource exhaustion in the `fraud-detection` service (Memory Leak/OOM).
+2.  **Sprint B (Hypothesis 2):** The failure is caused by excessive load from the `order-service` reconciliation batch overwhelming the payment stack.
+
+---
+
+### Sprint A: Testing Resource Exhaustion in `fraud-detection`
+
+**Commitment (Pre-evidence):** If the `fraud-detection` service is the root cause, I expect to see a direct correlation between memory growth and service failure, independent of external traffic spikes. The service should fail even if traffic were normal, or the failure should precede any significant spike in upstream requests.
+
+**Evidence Analysis:**
+1.  **Log Source:** `fraud-detection.log`
+2.  **Timeline:**
+    *   `15:18:00`: New version `v3.8.1` deployed with "new risk scoring weights."
+    *   `15:20:00`: Cache heap at 124MB.
+    *   `15:33:00`: Cache heap at 312MB.
+    *   `15:38:30`: `java.lang.OutOfMemoryError`.
+    *   `15:39:15`: Service restarts.
+    *   `15:41:00`: Recurrence of `OutOfMemoryError`.
+3.  **Observation:** The heap usage grows continuously and sharply after the deployment. The growth is linear/accelerating relative to time, not just request count. The service crashes due to `GC overhead limit exceeded` and `OutOfMemoryError`.
+4.  **Falsification Check:** Does the service fail *only* because of the batch job?
+    *   The batch job from `order-service` starts at `15:25:00`.
+    *   The memory growth starts accelerating immediately after deployment at `15:18:00` and is already significant by `15:25:00` (124MB -> 138MB -> 189MB).
+    *   However, the *critical* spike happens between `15:33:00` and `15:38:30`.
+    *   During this window, the `order-service` batch is actively sending requests (`15:33:00` progress 555/1247).
+    *   Crucially, the log states at `15:39:30` "Requests still arriving at elevated rate — cache refilling rapidly." This implies the cache is not evicting entries properly or is caching unbounded data.
+    *   **Key Finding:** The `fraud-detection` service crashes due to OOM. This is a direct technical failure of the component.
+
+**Sprint A Conclusion:** The `fraud-detection` service *did* fail due to resource exhaustion. However, is this the *root cause* of the payment processing failure, or is it a symptom of an upstream trigger? The OOM is the immediate mechanism of the `fraud-detection` outage. But did the OOM happen *because* of the load, or *despite* normal load? The log says "config update: new risk scoring weights." This suggests a code/configuration change might have introduced a memory leak or inefficient caching strategy that was triggered by the volume.
+
+---
+
+### Sprint B: Testing Excessive Load from `order-service`
+
+**Commitment (Pre-evidence):** If the `order-service` batch is the root cause, I expect the `fraud-detection` service to remain stable under the same load in previous periods, or for the load to be abnormally high compared to baseline. Furthermore, if the load is the sole cause, fixing the load should prevent the OOM. I must check if the load was *unusual* or if the service was *fragile*.
+
+**Evidence Analysis:**
+1.  **Log Source:** `order-service.log`
+2.  **Timeline:**
+    *   `15:25:00`: Batch job starts.
+    *   `15:25:15`: Submitting 1,247 orders at **50/sec rate limit**.
+    *   `15:38:40`: `order-service` pauses because `payment-gateway` is returning errors.
+3.  **Load Calculation:**
+    *   The batch sends 1,247 orders over roughly 15 minutes (15:25 to 15:40).
+    *   Average rate: $1247 / 900 \text{ seconds} \approx 1.4$ requests/second.
+    *   The log explicitly states a **50/sec rate limit**. This is a very low load for a payment gateway.
+4.  **Correlation with `fraud-detection` Crash:**
+    *   The `fraud-detection` service crashes at `15:38:30`.
+    *   By `15:38:00`, the `order-service` has only sent 1,005 requests total since `15:25:00`.
+    *   Is 1,005 requests in 13 minutes enough to cause an OOM in a service with a 512MB heap limit?
+    *   Look at `fraud-detection.log` at `15:35:00`: "Risk assessment cache: 34,100 entries, 418MB heap".
+    *   The cache has **34,100 entries** while the `order-service` has only sent ~800 requests in that window (285 at 15:30 to 825 at 15:36).
+    *   This discrepancy (34k cache entries vs ~500 new requests) suggests the cache is **not** just storing the current batch requests. It is likely storing historical data or has a memory leak where entries are not being evicted.
+    *   The "new risk scoring weights" deployment at `15:18:00` is the most likely introduction of this leak or inefficiency.
+5.  **Falsification Check:** If the load was the sole cause, the 50/sec rate should have been handled. The fact that the cache grew to 34k entries (likely from pre-existing data or a leak) while processing only a few hundred new requests indicates the service was **unstable** independent of the batch's specific volume. The batch provided *some* load, but the primary driver of the heap exhaustion was the internal state of the `fraud-detection` service (likely a bug in `v3.8.1`).
+
+**Sprint B Conclusion:** The `order-service` batch load was **not** exceptional. The rate was limited to 50/sec, and the total volume (1,247 orders) is modest. The `fraud-detection` service's cache contained tens of thousands of entries far exceeding the number of requests processed during the incident window. This indicates an internal defect (memory leak/bad eviction policy) in `fraud-detection` version `v3.8.1`, not an external load issue.
+
+---
+
+### Synthesis and Final Report
+
+**Round 1 Completion:**
+*   **Sprint A (Resource Exhaustion):** Confirmed. `fraud-detection` crashed due to OOM.
+*   **Sprint B (Excessive Load):** **Falsified.** The load from `order-service` was within normal/limited parameters (50/sec). The memory growth in `fraud-detection` (34,100 cache entries) was disproportionate to the incoming request volume, indicating an internal defect rather than external overload.
+
+**Root Cause Identification:**
+The root cause is a **memory leak or inefficient caching bug in `fraud-detection` version `v3.8.1`**, deployed at `15:18:00`.
+
+**Causal Chain:**
+1.  `15:18:00`: `fraud-detection:v3.8.1` is deployed with new risk scoring weights.
+2.  `15:18:00 – 15:35:00`: The service's risk assessment cache grows abnormally (from 8,200 to 34,100 entries) despite moderate traffic. The heap grows from 124MB to 418MB.
+3.  `15:25:00`: `order-service` begins a routine reconciliation batch (limited to 50/sec). This adds a steady stream of traffic but is not the primary driver of the memory bloat.
+4.  `15:38:30`: `fraud-detection` hits the 512MB heap limit and throws `OutOfMemoryError`.
+5.  `15:38:35`: `payment-gateway` detects timeouts from `fraud-detection`.
+6.  `15:39:15`: `fraud-detection` restarts, but the cache refills rapidly (likely due to the bug persisting or the cache being rebuilt from persistent storage/leaking state).
+7.  `15:41:00`: `fraud-detection` crashes again (OOM).
+8.  `15:41:06`: `payment-gateway` circuit breaker opens for `fraud-detection` due to no healthy instances.
+9.  `15:41:30`: All payment requests fail because the fraud-check dependency is unavailable.
+
+**Finding:**
+The payment processing failure was caused by a **defective deployment of `fraud-detection:v3.8.1`** which introduced a memory leak (or unbounded cache growth) in the risk assessment cache. This led to repeated `OutOfMemoryError` crashes, causing the `payment-gateway` to trigger its circuit breaker and halt all payment processing. The `order-service` batch job was a coincidental concurrent event and was not the cause of the resource exhaustion.

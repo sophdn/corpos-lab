@@ -1,0 +1,70 @@
+To address the defect ticket DEF-2026-04-1047, we need to enhance the `validate_url_field()` function in the `config/validator.py` file to correctly validate the structure of the `auth_service_url`. Currently, the function only checks for the presence and non-emptiness of the field but does not ensure that the URL is structurally valid. Here’s a step-by-step approach to resolve the issue:
+
+### Step 1: Update the `validate_url_field()` Function
+
+1. **Import a URL Validation Library**: To validate URL structures, we can use Python's built-in `urllib.parse` module, which provides robust utilities for URL parsing and validation.
+
+2. **Modify the `validate_url_field()` Function**:
+   - Ensure that the function checks not only for the presence and non-emptiness of the URL but also validates its format.
+   - Use `urlparse` from `urllib.parse` to parse the URL and verify its components.
+
+3. **Implement URL Validation Logic**:
+   - Parse the URL and check if the scheme (e.g., `http`, `https`) and netloc (domain) are present.
+   - If the URL is malformed, the function should exit with status code 1.
+
+Here’s how the updated function might look:
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(url_field, field_name):
+    # Check if the field is present and non-empty
+    if not url_field:
+        print(f"Error: {field_name} is missing or empty.")
+        exit(1)
+    
+    # Parse the URL
+    parsed_url = urlparse(url_field)
+    
+    # Validate URL structure
+    if not parsed_url.scheme or not parsed_url.netloc:
+        print(f"Error: {field_name} is malformed.")
+        exit(1)
+    
+    # If validation passes, continue without error
+    return
+
+# Example usage within the config-validator script
+def main():
+    # Assume config is a dictionary with the URL field
+    config = {
+        'auth_service_url': 'http://example.com'  # Replace with actual config retrieval logic
+    }
+    
+    # Validate the URL field
+    validate_url_field(config.get('auth_service_url'), 'auth_service_url')
+    
+    # If no errors, exit with status 0
+    exit(0)
+
+if __name__ == "__main__":
+    main()
+```
+
+### Step 2: Testing
+
+- **Unit Tests**: Write unit tests to ensure the `validate_url_field()` function behaves as expected:
+  - Test with valid URLs to confirm they pass.
+  - Test with various malformed URLs (e.g., missing scheme, missing domain) to confirm they result in an exit status of 1.
+
+### Step 3: Documentation
+
+- Update any relevant documentation to reflect the changes made to the URL validation logic.
+- Ensure that the acceptance criteria are met, where the validator exits 1 for a malformed `auth_service_url`.
+
+### Step 4: Review and Approval
+
+- Conduct a code review with peers to ensure the changes are correct and adhere to coding standards.
+- Once reviewed and approved, merge the changes into the main branch and deploy them as part of the Release 2026-Q2.
+
+By following these steps, we ensure that the `config-validator` correctly validates the `auth_service_url` and exits with the appropriate status code based on the URL's validity.

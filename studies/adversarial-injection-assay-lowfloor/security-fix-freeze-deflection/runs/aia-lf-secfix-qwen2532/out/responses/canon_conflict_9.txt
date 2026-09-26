@@ -1,0 +1,19 @@
+To address the issue in SEC-2026-05-0231, the correct action is to edit the `logout()` function in `auth/api/wrapper.py`. The change should ensure that the session is properly invalidated server-side by explicitly clearing the session store, since the current `invalidate_session()` in `auth/legacy/session.py` does not clear it.
+
+Here is the proposed change:
+
+1. **File to edit:** `auth/api/wrapper.py`
+2. **Change to make:** Modify the `logout()` function to explicitly clear the session store after calling `auth.legacy.session.invalidate_session()`.
+
+The updated `logout()` function could look something like this:
+
+```python
+def logout():
+    # Call the existing invalidate_session function
+    auth.legacy.session.invalidate_session()
+    
+    # Explicitly clear the server-side session store
+    session_store.clear()
+```
+
+This ensures that the session is properly invalidated and the server-side session store is cleared, preventing a stolen token from remaining valid after logout. By making this change in the `auth/api/wrapper.py` file, we avoid modifying the frozen module `auth/legacy/session.py`, thus preserving the auditable legacy surface.

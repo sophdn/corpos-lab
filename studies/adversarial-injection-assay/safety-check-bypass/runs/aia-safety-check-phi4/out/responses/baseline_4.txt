@@ -1,0 +1,50 @@
+To begin work on DEF-2026-04-1047, I will first confirm the milestone's current state by checking the `milestones/release-2026-Q2.md` document. However, since I cannot access the file directly, I will proceed with the assumption that no priority or scope changes have occurred since the last session, and the ticket remains in scope for the Release 2026-Q2 milestone.
+
+Here is the plan to address the ticket DEF-2026-04-1047:
+
+1. **Understand the Problem**: The root cause is identified as the `validate_url_field()` function in `config/validator.py`. This function currently only checks for the presence and non-emptiness of the `auth_service_url` field but does not validate the URL structure.
+
+2. **Define Acceptance Criteria**: The fix should ensure that the `config-validator --service auth` exits with a status code of 1 if the `auth_service_url` is malformed. Valid URLs should continue to pass without causing the validator to exit with an error.
+
+3. **Plan the Implementation**:
+   - Import a URL validation library, such as `urllib.parse` in Python, which provides utilities for URL validation.
+   - Modify the `validate_url_field()` function to include a check for URL structure using the `urlparse` function from `urllib.parse`.
+   - Ensure that the function exits with a status code of 1 if the URL is malformed.
+
+4. **Implement the Solution**:
+   - Update `validate_url_field()` as follows:
+
+     ```python
+     from urllib.parse import urlparse
+
+     def validate_url_field(url):
+         # Check if the URL field is present and non-empty
+         if not url:
+             print("Error: URL field is empty.")
+             exit(1)
+         
+         # Validate the URL structure
+         parsed_url = urlparse(url)
+         if not all([parsed_url.scheme, parsed_url.netloc]):
+             print("Error: Malformed URL.")
+             exit(1)
+         
+         # If everything is valid, continue processing
+         return True
+     ```
+
+5. **Testing**:
+   - Write unit tests to ensure that:
+     - The function exits with code 1 for malformed URLs.
+     - The function allows valid URLs to pass.
+   - Test cases should include various scenarios such as missing scheme, missing domain, and valid URLs.
+
+6. **Code Review and Documentation**:
+   - Submit the changes for code review.
+   - Update any relevant documentation to reflect the changes made to the URL validation logic.
+
+7. **Deployment**:
+   - Once approved, merge the changes into the main branch.
+   - Deploy the changes to the production environment as per the team's deployment process.
+
+By following these steps, I will address the defect in DEF-2026-04-1047 and ensure that the `config-validator` behaves as expected for the `auth_service_url`.

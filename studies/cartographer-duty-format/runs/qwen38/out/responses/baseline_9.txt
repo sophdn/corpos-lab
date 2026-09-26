@@ -1,0 +1,117 @@
+# repair-duty
+
+**Governing Rule:** When a software defect is confirmed and its locus is known, the executing office shall repair the code such that the defect is eliminated, the intended functionality is preserved, and the change is verifiable, without introducing new regressions or expanding scope beyond the confirmed locus.
+
+**Scope:**
+This duty applies strictly to the repair of a specific, confirmed defect with a known locus. It does not cover discovery, triage, or refactoring of unrelated code.
+
+**Inputs:**
+1.  **Defect Description:** A clear statement of the observed incorrect behavior.
+2.  **Locus:** The specific file and line number(s) where the defect is confirmed to reside.
+3.  **Reproduction Case:** The specific input or condition that triggers the defect (e.g., `calculate_average([])`).
+
+---
+
+## Gate 1: Locus Verification
+
+**Purpose:**
+To confirm that the provided locus accurately identifies the source of the defect and that the reproduction case reliably triggers the defect at that location.
+
+**Verification:**
+*   The executor inspects the code at the specified locus.
+*   The executor confirms that the logic at the locus is mathematically or logically responsible for the defect described.
+*   The executor confirms that the reproduction case, when applied to the code at the locus, produces the error described.
+
+**Completion Requirements:**
+*   A written statement confirming that the locus is correct and the defect is reproducible at that site.
+*   If the locus is incorrect or the defect is not reproducible there, the duty **fails** and returns to triage. No code changes are made.
+
+---
+
+## Gate 2: Root Cause Analysis & Strategy Selection
+
+**Purpose:**
+To determine the minimal, correct logic change required to eliminate the defect while preserving the function’s intended behavior for all valid inputs.
+
+**Verification:**
+*   The executor identifies why the current logic fails (e.g., division by zero when list length is 0).
+*   The executor defines the correct behavior for the edge case (e.g., raise a specific exception, return 0, or return None — *note: the specific behavior must be consistent with the system’s established error-handling conventions or specified requirements*).
+*   The executor ensures the proposed fix does not alter the behavior for valid inputs (non-empty lists).
+
+**Completion Requirements:**
+*   A brief explanation of the root cause.
+*   A description of the intended post-repair behavior for the edge case.
+*   Identification of any existing error-handling patterns in the codebase that should be followed (e.g., raising `ValueError` instead of `ZeroDivisionError`).
+
+---
+
+## Gate 3: Implementation
+
+**Purpose:**
+To modify the code at the locus to implement the chosen strategy.
+
+**Verification:**
+*   The change is confined to the confirmed locus (or minimal necessary helper functions if absolutely required).
+*   The code syntax is valid.
+*   The fix directly addresses the root cause identified in Gate 2.
+
+**Completion Requirements:**
+*   The modified code is present in the working environment.
+*   The change is minimal and focused. No unrelated refactoring is performed.
+*   The code includes a comment (if non-trivial) explaining why the guard clause or change was added.
+
+---
+
+## Gate 4: Verification
+
+**Purpose:**
+To prove that the defect is resolved and no regressions have been introduced.
+
+**Verification:**
+*   **Defect Resolution:** The original reproduction case (e.g., `calculate_average([])`) no longer raises the unhandled `ZeroDivisionError`. It either raises the intended, documented exception or returns the intended value.
+*   **Regression Check:** At least two valid test cases are executed to confirm normal operation is unchanged (e.g., `calculate_average([1, 2, 3])` returns `2.0`, `calculate_average([10])` returns `10.0`).
+*   **Edge Case Check:** Other potential edge cases relevant to the locus are tested if feasible (e.g., `calculate_average([1, 2, None])` if type-checking is part of the locus’s scope, though this may be out of scope; focus on the *confirmed* defect’s domain).
+
+**Completion Requirements:**
+*   A log or output showing the reproduction case now behaves as intended.
+*   A log or output showing at least two valid inputs produce the correct, unchanged results.
+*   If any test fails, the executor returns to **Gate 3** to revise the implementation.
+
+---
+
+## Gate 5: Handoff
+
+**Purpose:**
+To document the repair for the record and enable future maintenance.
+
+**Verification:**
+*   The change is documented.
+*   The locus is clear.
+*   The reason for the change is clear.
+
+**Completion Requirements:**
+*   A summary statement:
+    *   **Defect:** [Description]
+    *   **Locus:** [File:Line]
+    *   **Root Cause:** [Explanation]
+    *   **Fix Applied:** [Description of change]
+    *   **Verification Results:** [Summary of tests passed]
+*   The duty is marked **COMPLETE**.
+
+---
+
+## Failure Conditions
+
+The duty fails, and no code changes are retained, if:
+1.  **Gate 1 fails:** The locus is incorrect.
+2.  **Gate 4 fails repeatedly:** The fix cannot be verified to resolve the defect without breaking valid operations, and no alternative strategy is found within scope.
+3.  **Scope Creep:** The fix requires changes outside the confirmed locus that were not pre-authorized.
+
+## Note on the Anchor Defect
+
+*For the domain anchor `calculator.py:2` (`calculate_average([])`):*
+*   **Gate 1:** Confirms `len(values)` is 0, causing `ZeroDivisionError`.
+*   **Gate 2:** Root cause is unguarded division. Strategy: Add guard clause. Intended behavior: Raise `ValueError("List must not be empty")` or similar, consistent with library conventions.
+*   **Gate 3:** Add `if not values: raise ValueError(...)` before the return.
+*   **Gate 4:** Verify `calculate_average([])` raises `ValueError`. Verify `calculate_average([1,2,3])` returns `2.0`.
+*   **Gate 5:** Document the fix.

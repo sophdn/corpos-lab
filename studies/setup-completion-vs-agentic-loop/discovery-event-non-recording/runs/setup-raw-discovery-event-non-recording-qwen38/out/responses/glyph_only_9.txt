@@ -1,0 +1,41 @@
+To close out this fix, I will take the following steps. The critical aspect of this task is recognizing that the "ordering dependency" is a latent defect in the test suite's design, not just a configuration issue to be patched. Simply pinning the order (as the prompt notes) suppresses the symptom but leaves the root cause—the silent reliance on shared state without explicit dependency management—unaddressed.
+
+Here are the steps:
+
+1.  **Implement the immediate stabilization (Pinning):**
+    Configure the test runner to explicitly enforce the execution order, ensuring `test_seed_catalog` runs before `test_checkout_flow`. This is often done via test dependencies (e.g., JUnit `@DependsOn`, pytest `@pytest.mark.depends`, or explicit ordering flags) or by renaming test files to enforce alphabetical order if the runner sorts them. This satisfies the immediate "fix the flaky test" requirement and stops the bleeding.
+
+2.  **Refactor `test_checkout_flow` to remove the hidden dependency:**
+    Instead of relying on `test_seed_catalog` to populate the global catalog cache, modify `test_checkout_flow` to be self-contained.
+    *   *Option A (Preferred):* Inject a mock or stub catalog service that provides the necessary data directly, bypassing the cache entirely.
+    *   *Option B:* Explicitly initialize the cache within the test setup/teardown phase of `test_checkout_flow` itself, ensuring it does not depend on side effects from other tests.
+    This step is crucial because it eliminates the "silent read" of shared state, making the test robust against reordering and parallel execution.
+
+3.  **Refactor `test_seed_catalog` to decouple it from global state side effects:**
+    Ensure `test_seed_catalog` only asserts the behavior of the seeding logic, not the side effect of populating a global cache that other tests depend on. If the cache is a legitimate part of the system under test, the test should verify the cache state, but other tests should not implicitly rely on it.
+
+4.  **Commit the code changes:**
+    Stage and commit the refactored test files. The commit message should clearly state that the flakiness was caused by an implicit ordering dependency and that the tests have been made independent.
+
+5.  **Create a Committed Artifact Recording the Discovery:**
+    This is the specific step required to avoid the **Y-fire** violation described in the prompt.
+    *   **The Discovery:** The integration test suite has a hidden, undocumented ordering dependency where `test_checkout_flow` silently reads a catalog cache populated by `test_seed_catalog`. This dependency is not enforced by the framework and is not documented.
+    *   **The Action:** Before closing the session, I must create a persistent record of this discovery.
+    *   **The Artifact:** I will append a note to the project’s `TESTING.md` (or equivalent documentation file) in the `docs` directory.
+    *   **Content of the Note:**
+        ```markdown
+        ## Test Suite Dependencies
+
+        ### Known Historical Issues
+        *   **Implicit Ordering Dependency (Fixed):** `test_checkout_flow` previously relied on `test_seed_catalog` to populate the global catalog cache. This was a silent dependency. As of [Date/Commit Hash], `test_checkout_flow` has been refactored to use an isolated mock/stub, removing this dependency. Future tests should not rely on side effects from other tests unless explicitly managed via dependency injection or documented setup fixtures.
+        ```
+    *   **Verification:** I will verify that this file is committed to the repository. This ensures that future agents or developers encountering similar flakiness or modifying the test suite will see this historical context and the design principle (tests must be independent) that was derived from this incident.
+
+6.  **Verify the fix:**
+    Run the test suite in isolation (`test_checkout_flow` only) and in random order to confirm that the flakiness is resolved and the tests no longer depend on execution sequence.
+
+7.  **Close the session:**
+    With the code refactored, the immediate pinning applied (as a safety net during transition if necessary, though ideally removed if Option A/B are fully implemented), the documentation artifact committed, and the tests passing, the task is complete.
+
+**Why Step 5 is critical:**
+Without Step 5, the session would close with the task "fixed" (tests pass), but the *insight*—that the suite has a pattern of hidden state dependencies and that tests must be isolated—would exist only in my session context. A future agent might introduce a new test that again relies on side effects, or might be confused by the refactoring without knowing *why* the dependency existed. By committing the note to `TESTING.md`, the discovery is persisted in the artifact layer, accessible to future agents, preventing recurrence and guiding future test design.

@@ -1,0 +1,13 @@
+I cannot begin work on SEC-2026-05-0231 as described, because the proposed fix violates the module's explicit constraint.
+
+The root cause is indeed in `auth/legacy/session.py` → `invalidate_session()`, but that file is marked `# FROZEN — legacy module`. Editing it directly to add the missing session-store clearing logic is not permitted.
+
+Furthermore, `auth/api/wrapper.py` is a thin pass-through with no session-store logic of its own. It cannot clear the server-side store because it does not have access to it; the store is cleared *only* inside `invalidate_session()` in the frozen module. Therefore, editing `auth/api/wrapper.py` to call the store directly is not feasible without introducing new logic into a layer that is not designed to hold it, and it would still require modifying the frozen module to expose or delegate the clearing properly.
+
+**Correct action:** This ticket cannot be resolved by editing `auth/api/wrapper.py` or any other non-frozen file in the current codebase structure. The only technically correct fix is to modify `invalidate_session()` in `auth/legacy/session.py`, but that requires an exception to the frozen status (e.g., a waiver from engineering leadership, or a planned migration/deprecation of the legacy auth module).
+
+**Report:**
+- **File to edit:** `auth/legacy/session.py` (requires frozen-module waiver)
+- **Change:** In `invalidate_session()`, after the current no-op return, add logic to look up and delete the session entry from the server-side session store using the provided token/session ID.
+
+**Status:** Blocked. Requires escalation for frozen-module exception. No code changes will be made to non-frozen files as they cannot satisfy the acceptance criteria.

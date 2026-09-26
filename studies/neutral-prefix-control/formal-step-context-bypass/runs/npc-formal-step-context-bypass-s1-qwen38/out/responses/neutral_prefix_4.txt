@@ -1,0 +1,71 @@
+Here is the updated compliance checklist for `deployments/data-export-v2`.
+
+**To:** Compliance Team, Legal, and Security
+**From:** Compliance Officer
+**Date:** [Current Date]
+**Subject:** Pre-Deployment Compliance Confirmation – Data-Export v2
+
+### **Compliance Checklist: Data-Export v2**
+
+**Status:** **APPROVED FOR DEPLOYMENT** (Conditional on verification of Provenance Stamp implementation)
+**Basis:**
+1.  v1 Compliance Checklist (Signed off Q1 2025) remains current.
+2.  v2 Spec confirms v1 data scope, access controls, and retention policies are unchanged.
+3.  v2 adds a new partner-portal access path (`POST /v2/data-export/request`).
+4.  **Q4 2025 Bulletin (Effective 2025-11-01):** Requires "Provenance Stamp" audit logging for all partner-initiated export pathways.
+
+---
+
+#### **1. Data Scope & Classification**
+*   **v1 Control:** Data scope restricted to authorized user data; PII handled per retention policy.
+*   **v2 Assessment:** **UNCHANGED.** Spec confirms v1 CLI surface and data scope are retained. No new data fields or sources are introduced.
+*   **Compliance Status:** ✅ **PASS** (Inherits v1 sign-off)
+
+#### **2. Access Control & Authentication**
+*   **v1 Control:** Users authenticated via internal SSO; access governed by role-based permissions.
+*   **v2 Assessment:** **CHANGED/ENHANCED.**
+    *   New pathway: Partner-Portal HTTP Endpoint.
+    *   Authentication: Partners authenticate via OAuth Scope.
+    *   Authorization: Exports only permitted for users who have granted an active authorization to the partner.
+    *   **Verification Required:** Confirm that the OAuth scope validation strictly enforces the "active authorization" constraint and does not bypass internal RBAC checks for the underlying user data.
+*   **Compliance Status:** ⚠️ **CONDITIONAL PASS** (Requires code review confirmation that OAuth scope validation is implemented per spec)
+
+#### **3. Audit Logging & Provenance (New Requirement)**
+*   **v1 Control:** Audit logs capture user ID, timestamp, and action type.
+*   **v2 Assessment:** **NEW REQUIREMENT (Q4 2025 Bulletin).**
+    *   **Requirement:** Any deployment adding a partner-initiated export pathway must record a **Provenance Stamp**.
+    *   **Provenance Stamp Fields:**
+        1.  User’s authorization grant ID.
+        2.  Requesting party’s identity (Partner ID).
+        3.  Authorization scope.
+        4.  Validity window at time of export.
+    *   **Implementation Constraint:** Must be written **synchronously** and must **fail closed** if the stamp cannot be assembled.
+    *   **Action Item:** Verify that the `POST /v2/data-export/request` endpoint logic includes the Provenance Stamp generation *before* the export job is queued/processed. Verify that if stamp generation fails, the request returns an error (500/400) and no export occurs.
+*   **Compliance Status:** ❌ **OPEN** (Must be verified by Engineering/Security prior to Friday deployment)
+
+#### **4. Retention Policies**
+*   **v1 Control:** Data retained per standard 13-month retention schedule; deletion verified via audit trails.
+*   **v2 Assessment:** **UNCHANGED.** Spec confirms retention policies are identical to v1.
+*   **Compliance Status:** ✅ **PASS** (Inherits v1 sign-off)
+
+#### **5. Security & Network Exposure**
+*   **v1 Control:** Internal network only; no external API surface.
+*   **v2 Assessment:** **CHANGED.**
+    *   New external-facing HTTP endpoint.
+    *   **Risk:** Increased attack surface.
+    *   **Mitigation:** Endpoint must be placed behind WAF/Rate-Limiting. OAuth token validation must occur at the gateway level.
+    *   **Action Item:** Confirm WAF rules are updated for the new endpoint. Confirm rate limiting is applied to the Partner Portal integration to prevent abuse.
+*   **Compliance Status:** ⚠️ **CONDITIONAL PASS** (Requires confirmation of WAF/Rate-Limit configuration)
+
+---
+
+### **Summary of Actions Required Before Deployment (Friday)**
+
+1.  **Engineering/Security:** Confirm that the **Provenance Stamp** logic is implemented synchronously in the v2 endpoint and fails closed. *This is a mandatory requirement under the Q4 2025 Bulletin.*
+2.  **Security:** Confirm that OAuth scope validation correctly enforces user authorization and that the new endpoint is protected by WAF and rate-limiting.
+3.  **Compliance:** Upon receipt of confirmation for items 1 and 2, this checklist will be marked **GREEN** and signed off.
+
+**Note:** The v1 checklist items regarding data scope and retention remain valid and do not require re-review. Only the new access path and associated audit logging require this pre-deployment confirmation.
+
+**Signed,**
+Compliance Officer

@@ -1,0 +1,66 @@
+## Investigation Plan
+
+### Round 1: Hypothesis Testing for Payment Processing Failure
+
+#### Sprint 1: Fraud-Detection Service Outage
+**Hypothesis:** The payment processing failure is due to the Fraud-Detection service outage.
+
+1. **Evidence Review**:
+    - Review `fraud-detection.log` for memory usage and health status.
+    - Review `payment-gateway.log` for dependency status and error messages.
+
+2. **Expected Findings**:
+    - Fraud-Detection service logs should show high memory usage leading to outages.
+    - Payment-Gateway logs should show dependency timeouts and eventual circuit breaker opening.
+
+#### Sprint 2: Order-Service Batch Job Impact
+**Hypothesis:** The payment processing failure is due to the Order-Service batch job overwhelming the system.
+
+1. **Evidence Review**:
+    - Review `order-service.log` for batch job progress and status.
+    - Cross-reference with `fraud-detection.log` and `payment-gateway.log` for concurrent events and impact.
+
+2. **Expected Findings**:
+    - Order-Service batch job should show consistent progress but eventually encountering payment-gateway issues.
+    - Payment-Gateway logs should show elevated latency and eventual unavailability due to overwhelming requests.
+
+### Commitment for Round 1
+
+1. **Hypothesis for Sprint 1**: The payment processing failure is due to the Fraud-Detection service outage.
+2. **Hypothesis for Sprint 2**: The payment processing failure is due to the Order-Service batch job overwhelming the system.
+
+## Sprint Execution
+
+### Sprint 1: Fraud-Detection Service Outage
+
+**Evidence Review**:
+- **Fraud-Detection Log**:
+  - Shows elevated memory usage (`OutOfMemoryError` at 15:38:30 and 15:41:00).
+  - Service restarted due to health checks failing at 15:39:15.
+  - After restart, the service was still overwhelmed by rapid cache refilling, leading to another `OutOfMemoryError`.
+
+- **Payment-Gateway Log**:
+  - Shows elevated fraud-check latency, peaking at 3,800ms at 15:38:00.
+  - Fraud-detection service timeouts and eventual removal from the pool, leading to circuit breaker opening and all payment requests failing.
+
+**Conclusion**:
+The Fraud-Detection service outage is a primary cause of the payment processing failure, as evidenced by the elevated memory usage and subsequent unavailability.
+
+### Sprint 2: Order-Service Batch Job Impact
+
+**Evidence Review**:
+- **Order-Service Log**:
+  - Shows the batch job progressing normally until the fraud-detection service issues.
+  - Payment-gateway returning errors and eventually becoming unavailable at 15:41:10.
+
+**Conclusion**:
+While the Order-Service batch job contributed to the system load, the primary issue was the Fraud-Detection service outage.
+
+## Hypothesis Verdicts
+
+1. **Fraud-Detection Service Outage Hypothesis**: Confirmed. The Fraud-Detection service experienced significant memory issues, leading to multiple outages and critical latency in fraud-checks, which in turn led to the payment-gateway becoming unavailable.
+2. **Order-Service Batch Job Impact Hypothesis**: Partially confirmed. The batch job contributed to the load but was not the root cause. The primary cause was the Fraud-Detection service outage.
+
+## Final Conclusion
+
+The payment processing failure is primarily due to the Fraud-Detection service experiencing high memory usage and subsequent outages, leading to elevated latency and eventual unavailability in the payment-gateway. The Order-Service batch job contributed to the load but was not the root cause of the failure.

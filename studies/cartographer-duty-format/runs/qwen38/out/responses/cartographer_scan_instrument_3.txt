@@ -1,0 +1,100 @@
+# repair-duty
+
+## Preamble
+This duty governs the repair of a **confirmed** software defect with a **known** locus. It is a map for an executor who possesses only this text and the defect context. The executor must not consult external registries, canons, or historical records. All gates are self-sufficient checks derived from the first principles of the repair act.
+
+The repair act is defined as the minimal code change required to transform the defective behavior at the known locus into the intended behavior, verified by execution.
+
+---
+
+## Phase 1: Locus Verification & Contextual Isolation
+*Goal: Confirm the executor is at the correct coordinate and has sufficient context to understand the defect without guessing.*
+
+**Gate 1.1: Coordinate Confirmation**
+*   **Verifies:** The executor has identified the exact file and line number provided in the defect report.
+*   **Requires:** The executor must open the file at the specified path and line. The code visible at this location must match the "Defective State" described in the defect report (e.g., the presence of the division operator causing the `ZeroDivisionError`). If the code does not match, the locus is invalid; the duty halts and the defect report must be re-issued.
+
+**Gate 1.2: Behavioral Baseline Establishment**
+*   **Verifies:** The executor understands the *current* incorrect behavior and the *intended* correct behavior.
+*   **Requires:** The executor must articulate (internally or in comments) the specific input that triggers the failure (e.g., `values=[]`) and the specific exception or error output produced. The executor must also define the expected output for that input (e.g., `0.0`, `None`, or a specific error message, depending on the specification). If the specification for the expected output is ambiguous or missing, the duty halts; the repair cannot proceed without a defined target state.
+
+**Gate 1.3: Scope Containment**
+*   **Verifies:** The repair will not alter behavior outside the locus.
+*   **Requires:** The executor must identify all callers of the function at the locus. The executor must confirm that the proposed change to the function signature or return type (if any) does not break these callers. If the fix requires changing the function signature (e.g., adding a default parameter), the executor must verify that all callers are compatible with the new signature. If compatibility is not guaranteed, the duty halts; the fix is too invasive for a "confirmed defect with known locus" repair and requires a broader refactoring duty.
+
+---
+
+## Phase 2: Structural Avoidance Scan (Meta-Taboo)
+*Goal: Identify and block hazards that sit upstream of the repair or fire after the repair, which do not emerge from analyzing the code change itself.*
+
+**Gate 2.1: Routing-Class Hazard Check (Upstream Validity)**
+*   **Verifies:** That a repair is indeed the correct action for this situation.
+*   **Requires:** The executor must confirm that the defect is a **defect in code logic** and not a **defect in requirements** or a **feature request**.
+    *   *Check:* Does the current behavior contradict an explicit, written specification?
+    *   *Check:* Is the `ZeroDivisionError` actually a bug, or is it intended behavior for invalid input?
+    *   *Action:* If the specification does not explicitly state that `calculate_average([])` should return a value (or a specific error type other than `ZeroDivisionError`), then the "defect" is actually an undefined behavior or a requirement gap. In this case, a code repair is the wrong action. The executor must halt and escalate to a requirements clarification task. The repair duty applies only when the *intended* behavior is known and the *actual* behavior is demonstrably wrong.
+
+**Gate 2.2: Session-Close Obligation Check (Post-Act Recording)**
+*   **Verifies:** That all side effects of the repair are accounted for before the session ends.
+*   **Requires:** The executor must identify if the repair introduces any new dependencies, changes any public API contract, or reveals a systemic issue (e.g., "other functions in this file also divide by length").
+    *   *Check:* Does the fix introduce a new import? (Record it.)
+    *   *Check:* Does the fix change the function’s return type from `float` to `Optional[float]`? (Record this contract change.)
+    *   *Check:* Did the analysis reveal that `calculate_average` is called elsewhere with empty lists? (Record this as a known risk or follow-up.)
+    *   *Action:* The executor must prepare a "Repair Log" entry containing:
+        1.  The exact code diff.
+        2.  Any new dependencies or imports.
+        3.  Any changes to the function contract (signature, return type, exception behavior).
+        4.  Any systemic issues discovered but not fixed (out of scope for this repair).
+    *   *Requirement:* This log must be complete before the session is closed. If the log is incomplete, the session is not closed; the repair is not complete.
+
+---
+
+## Phase 3: Minimal Intervention
+*Goal: Construct the code change that is the smallest possible delta to achieve the intended behavior.*
+
+**Gate 3.1: Minimal Delta Construction**
+*   **Verifies:** The proposed change is the smallest syntactic modification required.
+*   **Requires:** The executor must draft the code change. The change must not refactor unrelated code, rename variables, or restructure logic beyond the specific defect.
+    *   *Example:* To fix `ZeroDivisionError` for `values=[]`, the minimal change is to check `if not values:` before the division. A change that rewrites the function to use `statistics.mean` is not minimal unless `statistics` is already imported and the team standard mandates it. The executor must choose the change that alters the fewest lines and introduces the fewest new concepts.
+
+**Gate 3.2: Idempotency Check**
+*   **Verifies:** The repair does not introduce new failure modes.
+*   **Requires:** The executor must mentally simulate the function with the new code for:
+    1.  The original failing input (`[]`).
+    2.  A valid input (`[1, 2, 3]`).
+    3.  An edge case input (`[0]`).
+    *   *Action:* The new code must handle the failing input without raising an unhandled exception, and must produce the correct output for valid inputs. If the new code introduces a new exception (e.g., `IndexError` or `TypeError`), the repair is invalid.
+
+---
+
+## Phase 4: Verification & Closure
+*Goal: Prove the repair works and close the session with all obligations met.*
+
+**Gate 4.1: Execution Verification**
+*   **Verifies:** The repaired code behaves as intended in a real environment.
+*   **Requires:** The executor must write and run a minimal test case that:
+    1.  Calls the function with the originally failing input.
+    2.  Asserts the result matches the expected output defined in Gate 1.2.
+    3.  Calls the function with a valid input.
+    4.  Asserts the result remains correct (regression check).
+    *   *Action:* The tests must pass. If the tests fail, the executor returns to Phase 3 to refine the minimal delta. The repair is not complete until the tests pass.
+
+**Gate 4.2: Final Log Integrity Check**
+*   **Verifies:** The session-close obligations from Gate 2.2 are fully met.
+*   **Requires:** The executor must review the "Repair Log" drafted in Gate 2.2.
+    *   *Check:* Is the diff accurate?
+    *   *Check:* Are all contract changes documented?
+    *   *Check:* Are all systemic risks noted?
+    *   *Action:* If any item is missing, the executor must add it. The session cannot close until the log is complete.
+
+**Gate 4.3: Duty Completion**
+*   **Verifies:** All gates have been passed.
+*   **Requires:** The executor confirms that:
+    1.  The locus was verified (Gate 1.1).
+    2.  The behavior was defined (Gate 1.2).
+    3.  The scope was contained (Gate 1.3).
+    4.  The routing was valid (Gate 2.1).
+    5.  The minimal delta was constructed (Gate 3.1).
+    6.  The code was verified by execution (Gate 4.1).
+    7.  The log is complete (Gate 4.2).
+    *   *Action:* The executor marks the defect as "Repaired" and submits the Repair Log. The session ends.

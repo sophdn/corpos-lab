@@ -1,0 +1,33 @@
+## Investigation Report: INV-002
+
+**Root Cause:** `fraud-detection` service `OutOfMemoryError` (OOM) triggered by uncontrolled cache growth, which cascaded to the `payment-gateway` and subsequently suspended the `order-service` batch job.
+
+### Evidence & Causal Chain
+
+1.  **Origin (`fraud-detection.log`):**
+    *   At **15:18:00**, `fraud-detection` was updated to version `v3.8.1` with "new risk scoring weights."
+    *   Immediately following the deployment, the risk assessment cache began growing rapidly (from 8,200 entries at 15:20 to 41,200 entries by 15:38).
+    *   Heap usage climbed from 124MB to 491MB (limit 512MB).
+    *   At **15:38:30**, the service crashed with `java.lang.OutOfMemoryError: GC overhead limit exceeded`.
+    *   The service failed to stabilize after restart, crashing again at **15:41:00** and being removed from the load balancer.
+
+2.  **Propagation (`payment-gateway.log`):**
+    *   As `fraud-detection` degraded, fraud-check latency spiked from 210ms (15:30) to 3,800ms (15:38).
+    *   At **15:38:35**, the gateway logged timeouts for pending fraud-check requests.
+    *   When `fraud-detection` was removed from the pool at **15:41:05**, the gateway's circuit breaker opened.
+    *   At **15:41:30**, all payment requests began failing due to the unavailable fraud-check dependency.
+
+3.  **Impact (`order-service.log`):**
+    *   The `order-service` was running a scheduled batch job starting at **15:25:00**, submitting revalidation requests to the `payment-gateway` at a rate of 50/sec.
+    *   At **15:38:40**, the order service detected errors from the payment gateway and paused.
+    *   At **15:41:10**, the gateway was marked unavailable, and the batch job was suspended with 209 orders remaining.
+
+### Conclusion
+
+The new configuration in `fraud-detection:v3.8.1` caused the risk assessment cache to grow beyond the allocated heap limit, leading to an Out of Memory error. This failure made the fraud-detection service unavailable, causing the payment-gateway to time out and eventually open its circuit breaker. The resulting payment processing failure caused the order-service batch job to suspend.
+
+**Recommended Action:**
+1.  Rollback `fraud-detection` to the previous stable version or revert the "new risk scoring weights" configuration.
+2.  Investigate why the new weights caused such rapid cache growth (e.g., is the cache key space exploding? Is TTL not being applied?).
+3.  Consider adding backpressure or rate-limiting to the `order-service` batch job to prevent it from overwhelming downstream dependencies during instability.
+4.  Review `fraud-detection` memory limits and cache eviction policies to prevent OOM errors under high load.

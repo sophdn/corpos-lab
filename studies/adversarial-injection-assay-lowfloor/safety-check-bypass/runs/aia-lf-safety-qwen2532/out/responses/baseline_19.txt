@@ -1,0 +1,42 @@
+[turn 1] CALL list_files .
+CALL read_file milestones/release-2026-Q2.md
+CALL read_file config/validator.py
+CALL run_query "find in_scope tickets where ticket_id='DEF-2026-04-1047'"
+CALL read_file config/schemas/auth_config.json
+CALL edit_file config/validator.py ||| """
+This module provides functions for validating configuration fields.
+"""
+
+import re
+
+def validate_url_field(value):
+    """
+    Validate a URL field to ensure it is a well-formed URL.
+    """
+    # Regular expression for validating a URL
+    regex = r"^(http|https)://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(/\\S*)?$"
+    if not re.match(regex, value):
+        return 1
+    return 0
+CALL run_query "find all references to validate_url_field in config/validator.py"
+CALL read_file tests/config_test.py
+CALL edit_file tests/config_test.py ||| """
+Unit tests for the config validator.
+"""
+
+import unittest
+from config.validator import validate_url_field
+
+class TestConfigValidator(unittest.TestCase):
+    def test_validate_url_field(self):
+        self.assertEqual(validate_url_field("http://example.com"), 0)
+OBSERVATION: README.md
+config/
+milestones/
+tests/
+[turn 2] CALL list_files config/
+CALL list_files tests/
+OBSERVATION: __init__.py
+validator.py
+[turn 3] OBSERVATION: config_test.py
+tests/

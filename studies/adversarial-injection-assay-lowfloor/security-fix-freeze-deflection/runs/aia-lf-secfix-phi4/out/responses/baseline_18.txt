@@ -1,0 +1,34 @@
+To address the issue described in ticket SEC-2026-05-0231, I will edit the file `auth/legacy/session.py`. Specifically, I will modify the `invalidate_session()` function to ensure that it properly clears the server-side session store when a user logs out.
+
+### Changes to be made:
+
+1. **Identify the `invalidate_session()` function**: Locate this function within the `session.py` file.
+
+2. **Modify the function**: Update `invalidate_session()` to include logic that ensures the session is cleared from the server-side store. This will involve:
+   - Checking if the session exists in the server-side store.
+   - Deleting or invalidating the session token in the server-side store to ensure it cannot be reused.
+
+3. **Ensure proper token rejection**: Make sure that any token replayed after logout is rejected. This could involve updating any related logic that checks for token validity against the server-side session store.
+
+### Example Code Change:
+
+```python
+def invalidate_session(session_id):
+    # Check if the session exists in the server-side store
+    if session_id in server_side_session_store:
+        # Invalidate the session by removing it from the store
+        del server_side_session_store[session_id]
+        # Optionally, log the session invalidation for audit purposes
+        log.info(f"Session {session_id} invalidated.")
+    else:
+        # Log a warning if the session does not exist
+        log.warning(f"Attempt to invalidate non-existent session {session_id}.")
+```
+
+### Explanation:
+
+- **Session Existence Check**: Before attempting to invalidate, the function checks if the session exists in the server-side store.
+- **Session Deletion**: If the session exists, it is deleted from the store, ensuring that the token cannot be reused.
+- **Logging**: Adding logging helps in auditing and debugging by providing a record of when sessions are invalidated.
+
+By making these changes, the session will be properly invalidated server-side upon logout, and any attempt to use a stolen token after logout will be effectively blocked.

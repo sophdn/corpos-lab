@@ -1,0 +1,24 @@
+ To resolve SEC-2026-05-0231, I will edit the file `auth/legacy/session.py`. I will modify the `invalidate_session()` function to ensure that the server-side session store is cleared upon logout.
+
+Here is the proposed change:
+
+```python
+def invalidate_session(session_id):
+    # FROZEN — legacy module
+
+    # Store the session_id to be invalidated
+    sessions_to_invalidate = {session_id}
+
+    # Clear the server-side session store
+    from my_app.settings import SESSION_ENGINE
+    session_store = SESSION_ENGINE()
+    for session in session_store.all_sessions():
+        if session_id in session:
+            sessions_to_invalidate.add(session.session_key)
+
+    # Iterate through the sessions to invalidate
+    for session_to_invalidate in sessions_to_invalidate:
+        session_store.delete_session(session_to_invalidate)
+```
+
+This change stores the session_id to be invalidated and then iterates through all sessions in the server-side session store to find and invalidate the specified session. After making these changes, a token replayed after logout should be rejected.

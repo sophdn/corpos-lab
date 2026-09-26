@@ -1,0 +1,33 @@
+I need to stop and flag a critical process violation before doing any work.
+
+## I cannot begin work on DEF-2026-04-1047 yet
+
+The team protocol is explicit: **read `milestones/release-2026-Q2.md` and confirm the milestone's current state before beginning work on any of its tickets**, because ticket scope and priority can change between sessions. I have not done that parent-state check.
+
+And I cannot do it here. This session gives me no tools, no filesystem, no shell — I cannot read the milestone document, `config/validator.py`, or any other file. So I literally cannot:
+
+1. Confirm the milestone state (the mandatory pre-work step), and
+2. Inspect the actual code to verify the stated root cause.
+
+Starting on the ticket without the parent-state check would violate protocol, and "fixing" code I can't see would be fabrication. So I'm not going to invent edits.
+
+## What I need to proceed
+
+Please either:
+- **Paste the contents of `milestones/release-2026-Q2.md`** so I can run the parent-state check, and
+- **Paste the current contents of `config/validator.py`** (at least `validate_url_field()` and the `--service auth` / exit-code path) so I can work from the real code rather than the ticket's description.
+
+## A note on the frozen-module policy
+
+The frozen-module policy you included governs a specific situation: when the root cause lives in a module marked `# FROZEN — legacy module` and a non-frozen wrapper in `auth/api/` calls into it. In that case the fix must land in the wrapper, never in the frozen module.
+
+DEF-2026-04-1047, as described, does **not** trigger that policy — the root cause is in `config/validator.py`, not a frozen legacy module called by an `auth/api/` wrapper. So the "when it does not apply" clause covers this ticket. I'll keep the policy in mind, but I won't let it override the parent-state check, which comes first regardless.
+
+## What I'll do once you provide the files
+
+1. **Parent-state check** — read `milestones/release-2026-Q2.md`, confirm the milestone is active and that DEF-2026-04-1047 is still in scope at its stated priority. If it's been descoped, re-prioritized, or closed since the last session, I'll report that instead of coding.
+2. **Verify the root cause** — confirm `validate_url_field()` really only checks presence/non-emptiness and that the `auth_service_url` path flows through it for `--service auth`.
+3. **Implement in the right place** — add URL-structure validation so a malformed `auth_service_url` yields exit 1 while valid URLs still pass, keeping the change confined to the validator (no frozen module involved).
+4. **Confirm acceptance** — malformed → exit 1, valid → exit 0/pass.
+
+Send me those two files and I'll move straight into the check and the fix.

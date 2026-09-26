@@ -1,0 +1,87 @@
+# Duty: repair-duty
+
+**Scope:** This duty governs the repair of a confirmed software defect with a known locus. It is the only text the executor may rely upon. No external registry, canon, or prior conversation is required for execution.
+
+**Definition of Terms:**
+- **Locus:** The specific file, line, and symbol identified as the source of the defect.
+- **Defect:** The observed incorrect behavior (e.g., exception, wrong output) traced to the Locus.
+- **Executor:** The office performing the repair.
+
+## Phase 1: Pre-Repair Verification (Routing & Locus)
+
+This phase ensures that the work being performed is actually a repair of a confirmed defect, and that the target of that repair is unambiguous.
+
+**Gate 1.1: Confirmation of Repair Intent**
+- **Verifies:** That the current situation calls for a *repair* of a defect, and not for a new feature, a refactoring, a documentation update, or a configuration change.
+- **Completing Requirement:** The executor must articulate, in the final record, that the action taken is a fix for a known, confirmed error. If the desired change adds functionality or alters non-broken behavior, this duty is inapplicable; stop and re-route to the correct duty.
+
+**Gate 1.2: Locus Integrity**
+- **Verifies:** That the Locus is specific, syntactically valid, and corresponds to the code actually responsible for the defect.
+- **Completing Requirement:** The executor must confirm that the identified file exists, the specified line/symbol exists, and that the logic at that location is the direct cause of the observed defect. If the Locus is ambiguous, missing, or points to code that is not the root cause, the defect is not "confirmed with a known locus"; stop and return to diagnosis.
+
+## Phase 2: Pre-Mutation Baseline
+
+This phase ensures that the executor knows what the correct behavior should be and has verified the defect before changing any code.
+
+**Gate 2.1: Reproduction of Defect**
+- **Verifies:** That the defect is reproducible at the Locus under the current state of the codebase.
+- **Completing Requirement:** The executor must demonstrate (via test execution or manual tracing) that the specific input causing the failure produces the expected error when run against the current, unmodified code. If the defect cannot be reproduced, the Locus may be incorrect or the environment may be unstable; stop.
+
+**Gate 2.2: Specification of Expected Behavior**
+- **Verifies:** That the correct behavior for the failing case is defined and agreed upon.
+- **Completing Requirement:** The executor must explicitly state what the function *should* do in the failing case (e.g., "return 0.0," "raise a specific custom exception," "return None"). This specification must be derived from the system’s requirements or standard mathematical/logical conventions, not from the current broken code.
+
+## Phase 3: Repair Execution
+
+This phase governs the actual change to the code.
+
+**Gate 3.1: Minimal Intervention**
+- **Verifies:** That the change addresses only the defect at the Locus and does not introduce unrelated modifications.
+- **Completing Requirement:** The code change must be scoped strictly to the function or block identified in the Locus. Any change to other functions, files, or global state must be explicitly justified as necessary for the repair. If the repair requires changes outside the Locus, the Locus was insufficiently defined; return to Phase 1.
+
+**Gate 3.2: Logical Correctness**
+- **Verifies:** That the modified code logically satisfies the Expected Behavior defined in Gate 2.2.
+- **Completing Requirement:** The executor must trace the logic of the new code against the failing input and confirm it produces the Expected Behavior. The change must handle the specific edge case that caused the defect without breaking the happy path.
+
+## Phase 4: Post-Repair Verification
+
+This phase ensures the repair is effective and has not introduced new failures.
+
+**Gate 4.1: Defect Resolution**
+- **Verifies:** That the original failing input no longer produces the defect.
+- **Completing Requirement:** The executor must re-run the reproduction case from Gate 2.1 against the modified code. The result must match the Expected Behavior defined in Gate 2.2.
+
+**Gate 4.2: Regression Check**
+- **Verifies:** That existing correct behavior has not been broken by the repair.
+- **Completing Requirement:** The executor must execute the relevant test suite or perform a manual check of adjacent valid inputs to confirm that normal operations still function correctly. If the test suite is unavailable, the executor must manually verify at least one valid input case.
+
+## Phase 5: Session Close & Record
+
+This phase ensures that all obligations arising from the repair are recorded before the session ends.
+
+**Gate 5.1: Discovery Record**
+- **Verifies:** That any new issues, risks, or anomalies discovered during the repair are documented.
+- **Completing Requirement:** If the executor observed anything during the repair that was not part of the original defect (e.g., a nearby bug, a missing test, a code smell), it must be recorded in the session log as a "Discovered Issue." If nothing was discovered, this gate is satisfied by the absence of new findings.
+
+**Gate 5.2: Final State Declaration**
+- **Verifies:** That the repair is complete and the system is in a stable state.
+- **Completing Requirement:** The executor must declare the repair "Closed" in the session log. This declaration includes:
+  1. The Locus.
+  2. The nature of the defect.
+  3. The change made.
+  4. Confirmation of Gates 4.1 and 4.2.
+  5. Any Discovered Issues from Gate 5.1.
+
+---
+
+### Meta-Taboo Scan
+
+This section documents the hazards identified outside the direct repair act, which are structurally encoded in the gates above.
+
+1.  **Routing-Class Hazard (Upstream):**
+    *   *Hazard:* The office may begin modifying code for a situation that is not a confirmed defect repair (e.g., a feature request, a performance optimization, or a refactor). This violates the intent of the "repair" duty and may introduce unauthorized changes.
+    *   *Structural Gate:* **Gate 1.1** explicitly verifies that the situation calls for a repair of a confirmed defect and not another type of work.
+
+2.  **Session-Close-Obligation Hazard (Downstream):**
+    *   *Hazard:* During the repair, the executor may discover new defects, security risks, or architectural flaws that are outside the scope of the current repair. If these are not recorded before the session ends, they will be lost, and the system may remain in a vulnerable or broken state regarding the new findings.
+    *   *Structural Gate:* **Gate 5.1** explicitly requires the recording of any discoveries made during the repair before the session can be closed. **Gate 5.2** ensures that this record is part of the final declaration.

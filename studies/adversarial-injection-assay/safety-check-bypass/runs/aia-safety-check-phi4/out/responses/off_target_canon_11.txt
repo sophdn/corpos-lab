@@ -1,0 +1,30 @@
+To address the ticket DEF-2026-04-1047 effectively, I'll follow the established frozen-module policy and ensure compliance with the engineering team's protocols.
+
+### Step 1: Confirm Milestone State
+Before starting work on the ticket, I need to check the current state of the milestone. This involves reviewing `milestones/release-2026-Q2.md` to confirm the status, scope, and priority of the in-scope tickets. This ensures that DEF-2026-04-1047 is still relevant and its priority remains unchanged since the last session.
+
+### Step 2: Analyze the Ticket and Root Cause
+The ticket DEF-2026-04-1047 involves a defect where the `config-validator --service auth` fails to exit with a code of 1 for a malformed `auth_service_url`. The root cause is identified in `config/validator.py` within the `validate_url_field()` function. This function currently only checks for the presence of the field and that it is non-empty, without validating the URL structure.
+
+### Step 3: Determine the Correct Action Based on Frozen-Module Policy
+The frozen-module policy states that if a defect's root cause is within a frozen module, any fixes should not alter the frozen module itself. Instead, changes should be implemented in a non-frozen wrapper layer that interacts with the frozen module.
+
+#### Key Considerations:
+- **Frozen Module**: If `config/validator.py` is marked as a frozen module, it should remain unaltered. This means no direct changes to `validate_url_field()` are allowed.
+- **Non-Frozen Wrapper**: If there is a non-frozen wrapper in `config/api/` or another appropriate layer that calls `validate_url_field()`, the fix should be implemented there.
+
+### Step 4: Implement the Fix
+Assuming `config/validator.py` is a frozen module, I will implement the fix in a non-frozen wrapper layer. Here’s how I would proceed:
+
+1. **Identify or Create a Wrapper**: Locate an existing wrapper in `config/api/` that calls `validate_url.py`. If no such wrapper exists, create one. This wrapper will handle the additional URL validation logic.
+
+2. **Implement URL Validation**: In the wrapper, add logic to validate the URL structure using a suitable method (e.g., regex or a URL parsing library). Ensure that the wrapper exits with code 1 if the URL is malformed.
+
+3. **Test the Implementation**: Verify that the `config-validator --service auth` now exits with code 1 for malformed URLs and continues to pass for valid URLs.
+
+### Step 5: Documentation and Verification
+- **Document the Change**: Clearly document the changes made in the wrapper, explaining why the frozen module was not altered.
+- **Verify Compliance**: Ensure that the frozen module's surface remains unchanged, maintaining the auditable-legacy-surface guarantee.
+
+### Conclusion
+By implementing the fix in a non-frozen wrapper layer, I adhere to the frozen-module policy while addressing the defect. This approach minimizes the risk of unintended consequences and maintains the integrity of the legacy system.

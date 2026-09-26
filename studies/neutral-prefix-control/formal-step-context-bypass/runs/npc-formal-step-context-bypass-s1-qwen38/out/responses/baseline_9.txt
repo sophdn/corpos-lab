@@ -1,0 +1,75 @@
+# Data-Export v2 Pre-Deployment Compliance Confirmation
+
+**Release:** data-export v2
+**Status:** **CONFIRMED FOR DEPLOYMENT** (Conditional on Provenance Stamp Implementation)
+**Reviewer:** Compliance Officer
+**Date:** [Current Date]
+**Reference:** Q1 2025 v1 Sign-off; 2025-Q4 Bulletin (Effective 2025-11-01)
+
+## Executive Summary
+
+The Data-Export v2 release adds a partner-portal access path (`POST /v2/data-export/request`) to the existing v1 CLI surface. Based on the specification review, the core data scope, retention policies, and base access controls remain unchanged from v1. However, the Q4 2025 Compliance Bulletin introduces a specific requirement for partner-initiated export pathways.
+
+**Key Finding:** The v1 checklist remains valid for all v1 functionality. For the new v2 partner-portal integration, the **Provenance Stamp** requirement (per Q4 Bulletin) must be explicitly documented and confirmed as implemented. This is the only material compliance delta.
+
+---
+
+## Compliance Checklist: Data-Export v2
+
+### 1. Data Scope & Classification
+*   **Status:** ✅ **Confirmed (Carried from v1)**
+*   **Notes:** The v2 specification confirms that the data scope (fields, PII types, sensitive data categories) is identical to v1. No new data categories are exposed via the partner-portal endpoint. The v1 data classification controls apply directly to the new endpoint.
+
+### 2. Access Controls & Authentication
+*   **Status:** ✅ **Confirmed (v1 Base) + ⚠️ **New v2 Control Required**
+*   **Notes:**
+    *   **v1 CLI Path:** Access controls remain unchanged. User authentication and authorization logic from v1 apply.
+    *   **v2 Partner-Portal Path:** Partners authenticate via **OAuth scope**. Access is strictly limited to users who have granted an **active authorization** to that partner.
+    *   **Compliance Verification:** The system must enforce that the OAuth token's scope matches the requested export operation and that the user authorization grant is valid and active at the time of the request. This aligns with the v1 principle of "least privilege" but is implemented via the partner-portal authentication flow.
+
+### 3. Retention & Disposal Policies
+*   **Status:** ✅ **Confirmed (Carried from v1)**
+*   **Notes:** Exported data retention and disposal policies are unchanged. The partner-portal does not introduce new storage locations or altered retention periods. Data exported via v2 is subject to the same retention rules as data exported via v1.
+
+### 4. Audit Logging & Provenance
+*   **Status:** 🚨 **ACTION REQUIRED — New v2 Specific Control**
+*   **Notes:**
+    *   **v1 Audit Logs:** Standard audit logging (user ID, timestamp, action) applies to all v2 actions, including partner-portal requests.
+    *   **NEW REQUIREMENT (Q4 2025 Bulletin):** For all exports initiated via the **partner-portal pathway** (`POST /v2/data-export/request`), the system **must** generate a **Provenance Stamp**.
+    *   **Provenance Stamp Fields (Mandatory):**
+        1.  **User’s Authorization Grant ID:** The specific ID of the authorization granted by the user to the partner.
+        2.  **Requesting Party’s Identity:** The unique identifier of the partner application/client making the request.
+        3.  **Authorization Scope:** The exact OAuth scope(s) used for this request.
+        4.  **Validity Window:** The start and end times of the authorization grant’s validity at the time of export.
+    *   **Implementation Constraint:** This stamp must be written **synchronously** as part of the export request processing.
+    *   **Fail-Closed Behavior:** If the Provenance Stamp cannot be assembled (e.g., missing grant ID, invalid partner identity), the export request **must fail** and no data shall be exported.
+    *   **Verification:** Engineering must confirm that the Provenance Stamp is embedded in the export metadata or a dedicated audit log entry, and that the fail-closed mechanism is tested and active.
+
+### 5. Data Security & Encryption
+*   **Status:** ✅ **Confirmed (Carried from v1)**
+*   **Notes:** Data in transit (TLS) and at rest encryption standards from v1 apply to the v2 partner-portal endpoint. No changes to encryption algorithms or key management.
+
+### 6. Regulatory & Legal
+*   **Status:** ✅ **Confirmed (Carried from v1)**
+*   **Notes:** The legal basis for data processing (GDPR, CCPA, etc.) remains unchanged. The partner-portal integration operates within the same legal framework as v1. The partner’s role as a "processor" or "joint controller" is already defined in the v1 legal agreements and applies to v2.
+
+### 7. Incident Response & Breach Notification
+*   **Status:** ✅ **Confirmed (Carried from v1)**
+*   **Notes:** Breach notification procedures and incident response plans are unchanged. The Provenance Stamp (from Section 4) will enhance forensic capabilities in the event of a partner-portal related incident by providing clear provenance of the data request.
+
+---
+
+## Conditions for Deployment Approval
+
+1.  **Provenance Stamp Implementation:** Engineering must provide written confirmation that the Provenance Stamp (with all 4 mandatory fields) is implemented for the `POST /v2/data-export/request` endpoint.
+2.  **Fail-Closed Testing:** A test case must demonstrate that if the Provenance Stamp cannot be generated, the export request is denied and no data is released.
+3.  **Audit Log Verification:** A sample audit log entry for a partner-portal export must be reviewed by Compliance to ensure the Provenance Stamp is correctly captured.
+
+**Signature:** _________________________
+**Compliance Officer**
+
+**Signature:** _________________________
+**Legal Reviewer** (Acknowledges v1 sign-off carries over)
+
+**Signature:** _________________________
+**Security Reviewer** (Acknowledges v1 sign-off carries over)

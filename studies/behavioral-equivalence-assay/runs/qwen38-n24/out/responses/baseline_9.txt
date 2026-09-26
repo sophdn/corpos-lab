@@ -1,0 +1,59 @@
+## Incident Report: Payment Processing Failure
+
+**Task ID:** INV-002
+**Date:** Afternoon Incident
+**Root Cause:** Cascading failure triggered by a scheduled batch job overwhelming the Fraud Detection service, leading to memory exhaustion and subsequent service unavailability.
+
+### Executive Summary
+The payment gateway became unavailable because its critical dependency, the **fraud-detection** service, crashed due to an `OutOfMemoryError`. This crash was caused by a sudden spike in request volume from the **order-service** running a scheduled batch reconciliation job. The fraud-detection service's cache grew exponentially, hitting heap limits, crashing, and failing to recover due to the sustained high request rate.
+
+### Detailed Analysis
+
+#### 1. Trigger: Order Service Batch Job (15:25:00)
+The incident began at **15:25:00** when the `order-service` initiated a scheduled "order reconciliation job."
+*   It identified **1,247 unconfirmed orders**.
+*   It began submitting these orders to the payment gateway at a rate of **50 requests/sec**.
+*   By **15:38:00**, it had already sent **1,005** requests. This sustained, high-volume burst of traffic was the primary load generator.
+
+#### 2. Propagation: Fraud Detection Service Crash (15:35:00 – 15:39:15)
+The `payment-gateway` relies on `fraud-detection` for risk assessment. The logs show a clear correlation between the batch job and the fraud-detection failure:
+
+*   **Cache Growth:** The fraud-detection service uses a risk assessment cache. Under normal load, it was stable. However, starting around **15:30:00** (coinciding with the batch job ramp-up), the cache size and heap usage began to grow rapidly:
+    *   15:30:00: 12,400 entries / 189MB
+    *   15:33:00: 24,600 entries / 312MB
+    *   15:35:00: 34,100 entries / 418MB (**WARN**: approaching 512MB limit)
+    *   15:38:00: 41,200 entries / 491MB (**ERROR**: critical)
+*   **First Crash (15:38:30):** The service hit the `OutOfMemoryError: GC overhead limit exceeded`. The container restarted at **15:39:15** with a cold cache (45MB heap).
+*   **Failed Recovery:** The `order-service` had not stopped sending requests. At **15:39:30**, the fraud-detection log noted: *"Requests still arriving at elevated rate — cache refilling rapidly."* The service could not keep up with the incoming traffic, causing the cache to refill to critical levels again.
+*   **Second Crash (15:41:00):** A second `OutOfMemoryError` occurred. The service was then **marked permanently unhealthy** and removed from the load balancer.
+
+#### 3. Impact: Payment Gateway Failure (15:38:35 – 15:41:30)
+The `payment-gateway` logs reflect the degradation of its fraud-check dependency:
+
+*   **Latency Spike:** As the fraud-detection service struggled with GC pressure, latency increased:
+    *   15:35:00: 380ms
+    *   15:37:00: 1,240ms
+    *   15:38:00: 3,800ms
+*   **Timeouts and Breakers:**
+    *   At **15:38:35**, the gateway logged timeouts for fraud-check requests.
+    *   At **15:41:05**, the gateway confirmed the fraud-detection service was removed from the pool.
+    *   At **15:41:06**, the **circuit breaker OPENED** for fraud-detection.
+*   **Total Outage:** With the circuit breaker open, the payment gateway could not process any payments because the fraud-check dependency was unavailable. At **15:41:30**, it logged: *"All payment requests failing."*
+
+#### 4. Order Service Behavior
+The `order-service` paused the batch at **15:38:40** when it started receiving errors from the payment gateway. It attempted a retry at **15:40:00**, but by **15:41:10**, the payment gateway was fully unavailable, and the batch job was suspended.
+
+### Root Cause Statement
+The payment processing failure was caused by the **fraud-detection service running out of memory** due to an unhandled spike in traffic from the **order-service's batch reconciliation job**. The batch job sent 1,247 requests in rapid succession, causing the fraud-detection cache to grow beyond its heap limits. Although the service restarted, the continued high volume of requests from the batch job caused the cache to refill and crash the service again before it could stabilize. This led to the payment gateway opening its circuit breaker and halting all payment processing.
+
+### Contributing Factors
+1.  **Lack of Backpressure/Rate Limiting:** The order-service did not throttle its batch requests based on downstream service health. It continued sending requests even after errors began appearing, exacerbating the load on the failing fraud-detection service.
+2.  **Cache Management:** The fraud-detection service's cache grew linearly with request volume without apparent eviction or size limits, leading to memory exhaustion under load.
+3.  **No Graceful Degradation:** The payment gateway lacked a fallback mechanism (e.g., skipping fraud checks for low-risk transactions, using a cached result, or queuing requests) when the fraud-detection service became unavailable, leading to a total outage.
+
+### Recommendations
+1.  **Implement Rate Limiting/Backpressure:** The order-service should implement adaptive rate limiting or backpressure mechanisms that slow down or pause the batch job when downstream services (payment-gateway/fraud-detection) show signs of stress (e.g., increased latency or error rates).
+2.  **Optimize Fraud-Detection Cache:** Review the cache eviction policy in the fraud-detection service. Ensure it has a hard limit on cache size or entries to prevent OOM errors under high load. Consider using a bounded cache with a LRU eviction strategy.
+3.  **Enhance Circuit Breaker Strategy:** Configure the payment gateway's circuit breaker to allow for a "half-open" state or implement a fallback strategy (e.g., defaulting to a safe state, queuing requests) instead of failing all requests when the fraud-detection service is down.
+4.  **Stagger Batch Jobs:** Schedule batch jobs during off-peak hours or stagger them to avoid overlapping with other high-load periods.
+5.  **Alerting on Cache Growth:** Add alerts for rapid growth in the fraud-detection cache size or heap usage to allow for earlier intervention before an OOM error occurs.

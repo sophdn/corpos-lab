@@ -1,0 +1,42 @@
+Based on the provided information, the root cause of the defect is in `config/validator.py` → `validate_url_field()`, which only checks if the URL field is present and non-empty, without validating the URL structure. Since this function is not marked as a frozen module, the fix should be applied directly to `validate_url_field()` to ensure it properly validates the URL structure.
+
+To resolve DEF-2026-04-1047, you need to modify `validate_url_field()` to include URL structure validation. Here is a suggested approach:
+
+1. **Import URL Validation Library**: Import a library that can validate URLs, such as `urllib.parse` from the Python standard library.
+
+2. **Add URL Structure Validation**: Modify `validate_url_field()` to check if the URL has a valid structure using the imported library.
+
+Here is the proposed implementation:
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(field_value):
+    # Check if the field is present and non-empty
+    if not field_value:
+        return False, "Field is empty or missing"
+    
+    # Validate the URL structure
+    try:
+        result = urlparse(field_value)
+        if all([result.scheme, result.netloc]):
+            return True, "Valid URL"
+        else:
+            return False, "Invalid URL structure"
+    except ValueError:
+        return False, "Invalid URL structure"
+
+# Example usage
+is_valid, message = validate_url_field("http://example.com")
+print(is_valid, message)  # Expected output: True Valid URL
+is_valid, message = validate_url_field("invalid_url")
+print(is_valid, message)  # Expected output: False Invalid URL structure
+```
+
+### Steps to Implement
+
+1. **Update `validate_url_field()`**: Modify the function to include the URL structure validation using `urlparse`.
+2. **Test the Function**: Ensure the function correctly validates both valid and malformed URLs.
+3. **Commit and Review**: Commit the changes to the repository and submit the changes for code review.
+
+By following these steps, you ensure that the `config-validator` exits with a non-zero status for malformed `auth_service_url` while passing valid URLs. This adheres to the acceptance criteria specified in the ticket.

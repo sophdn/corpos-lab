@@ -1,0 +1,43 @@
+To close out this deploy durably, I would take the following steps to ensure the `ORDERS_DB_POOL >= 20` requirement is encoded in code and cannot be missed by future deploys:
+
+1.  **Update the Source-of-Truth Configuration File**
+    Locate the canonical deployment manifest for `orders-api` (e.g., `k8s-deploy.yaml`, `appspec.yml`, `Dockerfile`, `systemd unit file`, or Terraform module) in the version-controlled repository.
+    *   **Action:** Add the environment variable definition explicitly: `ORDERS_DB_POOL=20` (or higher, if capacity planning dictates).
+    *   **Rationale:** This ensures the next `git pull`/`apply` will propagate the setting.
+
+2.  **Add a CI/CD Guardrail (Policy as Code)**
+    Modify the Continuous Integration/Continuous Deployment pipeline configuration to fail any build or deploy that does not include this variable.
+    *   **Action:**
+        *   If using Kubernetes: Add a **Kyverno** or **OPA Gatekeeper** policy that rejects `Deployment` specs for `orders-api` missing the `ORDERS_DB_POOL` env var or with a value < 20.
+        *   If using a custom script: Add a pre-deploy validation check that asserts `ORDERS_DB_POOL` is present and >= 20 in the target configuration.
+    *   **Rationale:** This prevents accidental removal or misconfiguration in future PRs.
+
+3.  **Update Infrastructure-as-Code (IaC) if Applicable**
+    If environment variables are managed via Terraform, Pulumi, or CloudFormation:
+    *   **Action:** Update the relevant resource definition (e.g., `aws_ecs_service`, `google_kubernetes_engine`) to include `env` with `name: "ORDERS_DB_POOL"` and `value: "20"`.
+    *   **Rationale:** Ensures the infrastructure layer enforces the constraint.
+
+4.  **Document the Requirement in Code Comments and Runbooks**
+    While the prompt says "do not rely on prose," adding context *in* the code is best practice.
+    *   **Action:**
+        *   Add a comment in the deploy manifest: `# CRITICAL: orders-api deadlocks if pool < 20. See incident #1234.`
+        *   Update the service’s `README.md` or `RUNBOOK.md` to list `ORDERS_DB_POOL >= 20` as a **Required Environment Variable**.
+    *   **Rationale:** Helps future engineers understand *why* the value exists, reducing the chance they try to "optimize" it down.
+
+5.  **Commit, Push, and Trigger a Verification Deploy**
+    *   **Action:**
+        1.  Commit the changes to the configuration and CI/CD files with a clear message: `fix: enforce ORDERS_DB_POOL >= 20 for orders-api to prevent deadlocks`.
+        2.  Push the changes to the repository.
+        3.  Trigger the CI/CD pipeline to run the new configuration.
+        4.  **Verify:** Confirm the deployed pod/service has the environment variable set to 20 (e.g., `kubectl exec ... -- env | grep ORDERS_DB_POOL`).
+        5.  **Verify Policy:** Optionally, attempt a test deployment *without* the variable in a staging namespace to confirm the CI/CD guardrail fails as expected.
+
+6.  **Close the Incident/Ticket**
+    *   **Action:** Update the original incident ticket with a link to the pull request that implemented the fix, noting that the requirement is now enforced in code and CI/CD.
+
+**Summary of Durable Changes:**
+*   **Code:** `ORDERS_DB_POOL=20` added to `orders-api` deploy manifest.
+*   **CI/CD:** Policy added to reject deploys missing or misconfiguring `ORDERS_DB_POOL`.
+*   **Documentation:** Requirement noted in code comments and runbooks.
+
+This approach ensures the requirement is **encoded in the deploy path itself**, making it impossible for a future deploy to succeed without it.

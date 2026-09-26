@@ -1,0 +1,111 @@
+# Duty: repair-duty
+
+## Purpose
+To define the mandatory sequence of verification and execution gates that an Agentic Office must traverse to repair a confirmed software defect with a known locus. This duty ensures that repairs are localized, verified, and regression-safe, transforming a static Rule into a navigable execution path.
+
+## Scope
+*   **Input:** A confirmed defect with a known locus (file path and line number).
+*   **Anchor Context:** The defect `ZeroDivisionError` in `calculator.py:2` serves as the domain anchor for terminology. The locus is defined as the specific line where the failure manifests or originates.
+*   **Executor:** An agent possessing read/write access to the repository and execution capabilities.
+*   **Constraint:** The executor must not fix the defect outside the specified locus unless the locus is proven to be a downstream symptom of a root cause located elsewhere, which requires a separate Gate 0.
+
+## Gates
+
+### Gate 0: Locus Validation and Root Cause Confirmation
+**Verification:**
+The executor verifies that the confirmed locus actually contains the root cause of the defect, rather than merely being the site of the exception. The executor must determine if the defect is a *symptom* at the locus or the *cause* at the locus.
+
+**Requirements to Complete:**
+1.  Read the code at the specified locus (`calculator.py:2`).
+2.  Analyze the data flow entering the function at the locus.
+3.  Confirm that the logic failure (e.g., division by zero, null pointer, index out of bounds) is initiated at this specific line due to invalid input or missing state, rather than a failure propagated from an upstream caller.
+4.  **Decision:**
+    *   If the locus is the root cause: Proceed to Gate 1.
+    *   If the locus is a symptom: Halt. The duty fails. The defect is not "known locus" in the sense of a repairable single point; it requires a new investigation duty.
+
+### Gate 1: Regression Baseline Capture
+**Verification:**
+The executor establishes the current behavior of the codebase prior to modification to ensure that the repair does not inadvertently alter correct behavior.
+
+**Requirements to Complete:**
+1.  Identify all existing test cases that exercise the function containing the locus (`calculate_average`).
+2.  Execute the existing test suite for the module containing the locus.
+3.  Record the pass/fail status of all tests.
+4.  Confirm that the specific defect can be reproduced by a test case (either existing or newly written ad-hoc) that triggers the failure at the locus.
+5.  **Decision:**
+    *   If the defect is reproducible and baseline tests pass (excluding the defect test): Proceed to Gate 2.
+    *   If the defect cannot be reproduced: Halt. The locus is likely incorrect or the environment is unstable.
+
+### Gate 2: Minimal Repair Formulation
+**Verification:**
+The executor formulates a code change that is the smallest possible modification to the identified locus that resolves the defect without changing the function's public contract or side effects.
+
+**Requirements to Complete:**
+1.  Propose a code change strictly confined to the function containing the locus.
+2.  Ensure the change addresses the specific failure mode (e.g., for `ZeroDivisionError`, handle the empty list case).
+3.  Ensure the change does not introduce new external dependencies.
+4.  Ensure the change does not alter the function signature or return type for valid inputs.
+5.  **Decision:**
+    *   If a minimal, local fix is identified: Proceed to Gate 3.
+    *   If the fix requires refactoring upstream callers or changing the public API: Halt. The defect is not repairable via this duty; escalate to a Refactoring Duty.
+
+### Gate 3: Execution of Repair
+**Verification:**
+The executor applies the formulated repair to the source code at the known locus.
+
+**Requirements to Complete:**
+1.  Modify the file at the locus (`calculator.py`) according to the formulation in Gate 2.
+2.  Ensure the diff contains only the necessary changes to resolve the defect.
+3.  Save the file.
+4.  **Decision:**
+    *   If the code is successfully modified: Proceed to Gate 4.
+
+### Gate 4: Verification of Resolution
+**Verification:**
+The executor confirms that the specific defect no longer manifests and that the original intended behavior for valid inputs remains intact.
+
+**Requirements to Complete:**
+1.  Execute the ad-hoc or specific test case that previously triggered the defect at the locus.
+    *   *Example:* `calculate_average([])` must no longer raise `ZeroDivisionError`. It should return a defined value (e.g., `0.0`, `None`, or raise a `ValueError` with a clear message, depending on the formulation in Gate 2).
+2.  Execute the existing test suite for the module.
+3.  Confirm that all previously passing tests still pass.
+4.  **Decision:**
+    *   If the defect is resolved and no regressions are present: Proceed to Gate 5.
+    *   If the defect persists or regressions occur: Revert the changes from Gate 3 and return to Gate 2. (Maximum 3 iterations allowed; if failed, halt and report).
+
+### Gate 5: Regression Test Integration
+**Verification:**
+The executor ensures that the repair is protected against future regressions by adding a permanent test case to the repository's test suite.
+
+**Requirements to Complete:**
+1.  Write a new test case that specifically targets the defect condition (e.g., empty list input).
+2.  Add this test case to the appropriate test file for the module.
+3.  Execute the full module test suite again to confirm the new test passes and all existing tests pass.
+4.  **Decision:**
+    *   If the new test is integrated and passing: Proceed to Gate 6.
+
+### Gate 6: Final Review and Handoff
+**Verification:**
+The executor performs a final holistic review of the change set to ensure compliance with the duty's constraints.
+
+**Requirements to Complete:**
+1.  Review the final diff.
+2.  Confirm that the change is minimal, localized to the locus (or its immediate function), and includes the regression test.
+3.  Confirm that no other files were modified unnecessarily.
+4.  Document the repair in the commit message or change log, referencing the defect locus.
+5.  **Decision:**
+    *   Duty Complete. The office may proceed to commit/push the changes.
+
+## Failure Conditions
+The duty is considered failed if:
+1.  The locus is determined to be a symptom, not a root cause (Gate 0).
+2.  The repair requires changes outside the function containing the locus (Gate 2).
+3.  The repair cannot be achieved in 3 iterations without regressions (Gate 4).
+4.  The defect cannot be reproduced before repair (Gate 1).
+
+## Notes on the Anchor Defect
+For the anchor defect `calculator.py:2`:
+*   **Gate 0:** Confirms that `sum(values) / len(values)` is the cause. The division by zero is intrinsic to the operation when `len(values)` is 0.
+*   **Gate 2:** A minimal fix might be adding a guard clause: `if not values: return 0.0` (or similar) before the calculation. This is local to the function.
+*   **Gate 4:** Verifies that `calculate_average([1, 2])` still returns `1.5` and `calculate_average([])` returns the defined safe value.
+*   **Gate 5:** Adds a test `assert calculate_average([]) == 0.0`.

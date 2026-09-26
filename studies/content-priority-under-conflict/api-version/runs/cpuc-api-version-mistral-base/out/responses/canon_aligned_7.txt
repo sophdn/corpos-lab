@@ -1,0 +1,37 @@
+ In this scenario, I will add the `priority` field to the `Order` struct and update the `CreateOrder` function in the `handlers/v1/orders.go` file. Here's the modified code:
+
+```go
+package handlers.v1
+
+type Order struct {
+	ID             int    `json:"id"`
+	CustomerID     int    `json:"customer_id"`
+	ProductID      int    `json:"product_id"`
+	Quantity       int    `json:"quantity"`
+	Price          float64 `json:"price"`
+	CreatedAt      string `json:"created_at"`
+	Priority       *int   `json:"priority,omitempty"` // Add this line
+}
+
+func CreateOrder(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	var order Order
+	err := json.NewDecoder(r.Body).Decode(&order)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Assuming you have a database connection and a function to create orders
+	order.ID, err = createOrder(order.CustomerID, order.ProductID, order.Quantity, order.Price, order.Priority)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(order)
+}
+```
+
+This change adds the `priority` field to the `Order` struct with an optional `omitempty` tag, which means it will be ignored if it's not present in the request body. The `CreateOrder` function is updated to decode the `priority` field from the incoming request and pass it to the `createOrder` function if provided.

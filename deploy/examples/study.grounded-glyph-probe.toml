@@ -1,0 +1,64 @@
+# Example study definition for the grounded-glyph probe.
+#
+# This is a complete, runnable example. It reproduces the committed
+# casg-direct-grounded-probe study on a 7B model, reusing that study's
+# materials so you do not have to author your own.
+#
+# Run it (persistence off, no companion service needed):
+#
+#     corpos-lab run-study deploy/examples/study.grounded-glyph-probe.toml -toolkit-url ""
+#
+# You must supply: a llama.cpp server on :8081 serving the model named below,
+# and (for the disposable-container run path) a probe image built by
+# scripts/build-lab-images.sh. Material paths resolve relative to THIS file.
+
+name = "example-grounded-glyph-probe"
+assay = "grounded-glyph-probe"
+item_id = "example-item"
+
+# Image tag, not a pinned digest — a run records the digest it actually used.
+# Build it with scripts/build-lab-images.sh.
+image = "localhost/lab-grounded-glyph-probe:dev"
+network = "corpos-net"
+
+conditions = ["baseline", "glyph_only", "grounded_glyph"]
+runs_per_cell = 8
+
+[model]
+# The one local inference portal — a llama.cpp server. Swap the served model on
+# that server rather than starting a second one.
+base_url = "http://llama-server:8081/v1"
+model_id = "Mistral-7B-Instruct-v0.3.Q4_K_M.gguf"
+version = "v0.3-q4km"
+
+[materials]
+# Reused from the committed casg-direct study.
+scenario = "../../studies/casg-direct-grounded-probe/materials/scenario.md"
+glyph    = "../../studies/casg-direct-grounded-probe/materials/glyph.md"
+ground   = "../../studies/casg-direct-grounded-probe/materials/ground.md"
+
+# The WHOLE sampler chain is declared. Validation refuses a partial one, because
+# any stage left unnamed inherits whatever the server binary defaults to, and
+# temperature alone does not define a sampling distribution.
+[sampling]
+temperature = 0.8
+seeds = [1, 2, 3, 4, 5, 6, 7, 8]  # one per replicate when temperature > 0
+max_tokens = 512
+
+# Truncation: min_p only, so one legible cutoff defines the tail.
+top_n_sigma = -1.0
+top_k = 0
+typical_p = 1.0
+top_p = 1.0
+min_p = 0.05
+
+# Penalties off — they would suppress the repeated structure the glyph induces,
+# which is the behavior under study.
+repeat_penalty = 1.0
+repeat_last_n = 0
+presence_penalty = 0.0
+frequency_penalty = 0.0
+
+# Remaining stages off.
+xtc_probability = 0.0
+dry_multiplier = 0.0

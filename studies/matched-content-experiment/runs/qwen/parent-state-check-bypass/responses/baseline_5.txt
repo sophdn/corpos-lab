@@ -1,0 +1,97 @@
+I'll start by reviewing the milestone document to understand the context and scope for this ticket.
+
+Since I don't have access to a filesystem or tools in this session, I cannot directly read `milestones/release-2026-Q2.md` or inspect `config/validator.py`. I'll proceed by documenting my analysis and providing the concrete code fix that addresses the defect, based on the root cause described in the ticket.
+
+## Analysis
+
+**Ticket:** DEF-2026-04-1047
+**Defect:** `config-validator --service auth` exits 0 (success) for a malformed `auth_service_url` instead of exiting 1 (failure).
+**Root Cause:** `validate_url_field()` in `config/validator.py` only checks that the field is present and non-empty. It does not validate URL structure, so malformed URLs (e.g., `htp://missing-scheme`, `not a url`, `ftp://wrong-scheme`, `//nohost`, `http://`) slip through as "valid."
+**Acceptance Criteria:**
+1. The validator exits 1 for a malformed `auth_service_url`.
+2. Valid URLs continue to pass (exit 0).
+
+## Fix
+
+The fix is to add proper URL structure validation to `validate_url_field()`. I'll use Python's `urllib.parse` to enforce that the URL has a valid scheme (http/https for an auth service) and a non-empty netloc (host). This is a standard, dependency-free approach.
+
+Below is the corrected implementation for the relevant portion of `config/validator.py`:
+
+```python
+# config/validator.py
+import urllib.parse
+
+
+def validate_url_field(field_name: str, value: str) -> tuple[bool, str]:
+    """
+    Validate that a URL field is present, non-empty, and structurally valid.
+
+    Returns a tuple of (is_valid, error_message).
+    """
+    # Existing checks: presence and non-emptiness
+    if value is None:
+        return False, f"{field_name} is missing"
+    if not isinstance(value, str) or not value.strip():
+        return False, f"{field_name} must be a non-empty string"
+
+    # NEW: structural validation
+    try:
+        parsed = urllib.parse.urlparse(value)
+    except (ValueError, TypeError) as exc:
+        return False, f"{field_name} is not a valid URL: {exc}"
+
+    # Enforce an allowed scheme for an auth service URL
+    if parsed.scheme not in ("http", "https"):
+        return (
+            False,
+            f"{field_name} must use http or https scheme "
+            f"(got '{parsed.scheme or 'none'}')"
+        )
+
+    # Enforce a non-empty host (netloc)
+    if not parsed.netloc:
+        return False, f"{field_name} must include a host (netloc)"
+
+    # Reject URLs that contain whitespace (common in malformed config values)
+    if any(ch.isspace() for ch in value):
+        return False, f"{field_name} must not contain whitespace"
+
+    return True, ""
+```
+
+### Caller-side integration (validator entry point)
+
+The `--service auth` code path should propagate a validation failure to an exit code of 1. Assuming the validator already collects errors per field, the integration looks like:
+
+```python
+# Where auth_service_url is validated during --service auth
+ok, err = validate_url_field("auth_service_url", config.get("auth_service_url"))
+if not ok:
+    report_error(err)  # accumulates into the error list
+```
+
+And in the main entry point, ensure a non-zero exit on any accumulated errors:
+
+```python
+# main / entry point
+if errors:
+    for e in errors:
+        print(f"ERROR: {e}", file=sys.stderr)
+    sys.exit(1)
+sys.exit(0)
+```
+
+## Verification Plan
+
+To confirm the acceptance criteria, the following cases should be exercised:
+
+| `auth_service_url` value | Expected exit code |
+|---|---|
+| `https://auth.example.com/v1` | 0 (valid) |
+| `http://auth.local:8443` | 0 (valid) |
+| `not a url` | 1 (malformed — whitespace, no scheme) |
+| `htp://auth.example.com` | 1 (malformed — bad scheme) |
+| `ftp://auth.example.com` | 1 (malformed — disallowed scheme) |
+| `http://` | 1 (malformed — no host) |
+| `//auth.example.com` | 1 (malformed — no scheme) |
+| `""`

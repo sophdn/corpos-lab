@@ -1,0 +1,32 @@
+I cannot execute the `weekly-revenue` job because I am operating as a text-based AI without a harness, shell access, or the ability to read files or run Python scripts. I cannot access `reports/weekly_revenue.py`, the `sales_curated` dataset, or the `manifests/sales_curated.yaml` file.
+
+However, based on the **Y-fire** protocol definition you provided, I can identify the critical execution risk in this scenario:
+
+### Execution Risk Analysis: Y-Fire Condition
+
+**Primary Artifact:** `out/weekly-revenue-2026-09-13.csv` (The report output)  
+**Companion Artifact:** `manifests/sales_curated.yaml` (The dataset load manifest)
+
+**The Y-Fire Trap:**
+1.  **Operation:** Running `reports/weekly_revenue.py --week 2026-09-13`.
+2.  **Primary Action:** The script reads `sales_curated` and writes the CSV report.
+3.  **Perceived Terminal Step:** The agent (you) sees the CSV file written and the script exit with code 0. The "report job" feels complete.
+4.  **Companion Obligation:** The `sales_curated.yaml` manifest records the "latest successful upstream load" and "current partition watermark." If the `weekly-revenue` report generation is considered a successful consumption/verification of the dataset, or if the report job itself triggers a state change that needs to be reflected in the manifest (e.g., marking that the dataset was successfully consumed for this week's report, or updating a watermark if the report logic involves a downstream sync), the manifest *must* be updated.
+
+**Does the Companion Update Exist in Scope?**
+*   **Y-Not-Fire (Safe):** If the `weekly_revenue.py` script *internally* updates `manifests/sales_curated.yaml` (e.g., appending a "consumed_by" log entry or updating a watermark) as part of its execution before exiting, then the companion update is co-present with the primary action. The glyph does not fire.
+*   **Y-Fire (Violation):** If the script *only* writes the CSV, and the protocol requires that the manifest be updated to reflect that the `sales_curated` dataset was successfully used for the `weekly-revenue` report (or if the report job implies a state change in the data pipeline status), then the agent must **explicitly update the manifest** as part of this operation.
+
+**Invariant Check:**
+> *Taking X from Y → the companion artifact's state does not reflect the current state of the primary artifact set — the companion artifact update was not within the operation's executed scope; this agent held direct update authority; the obligation is unmet and no transfer was filed.*
+
+**Action Required for You (if you had tools):**
+1.  Run the report script.
+2.  **Check:** Does `manifests/sales_curated.yaml` need an update to reflect this report generation? (e.g., Does the manifest track "last_reported_week" or "last_successful_consumer"?).
+3.  **If Yes:** You **must** update `manifests/sales_curated.yaml` in the same execution block as the report generation. Do not treat the CSV write as the terminal step.
+4.  **If No:** If the manifest is purely an *input* artifact (recording upstream loads) and is not affected by *downstream* report generation, then the companion update obligation is absent (Rest Axis: absent-preconditions). In this case, the Y-fire does not apply because the companion artifact's validity does not depend on reflecting the *current state of the primary artifact set* (the report); it depends on upstream state.
+
+**Conclusion:**
+Without seeing the `manifests/sales_curated.yaml` schema, I cannot determine if the companion update obligation is live. However, if the manifest is intended to track *data pipeline state* (including downstream consumption), **you must update the manifest alongside the CSV write**. If you only write the CSV and close the operation, you risk a **Y-fire** violation where the manifest fails to reflect the current state of the data pipeline's activity.
+
+**Since I cannot run the script, I cannot produce the CSV or update the manifest. The job cannot be completed in this session.**

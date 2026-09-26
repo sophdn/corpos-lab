@@ -1,0 +1,87 @@
+# repair-duty
+
+## Taboos
+
+| Taboo | Relevance to this duty |
+|-------|------------------------|
+| `triggers-routing` | The duty assumes a confirmed defect, but must verify that the execution context has not drifted from the "repair" state into "investigation" or vice versa before any code is touched. |
+| `explicit-prerequisite-gate` | The duty requires a specific, immutable locus record (file, line, failure mode) to exist before any repair logic is engaged, preventing blind guessing. |
+| `investigation-fix-criterion-predeclaration` | A passing criterion (e.g., "returns 0.0" or "raises ValueError") must be defined before the edit is made to prevent fitting the test to the implementation. |
+| `investigation-fix-scope-boundary` | The repair must be strictly limited to the confirmed locus; touching adjacent lines (like imports or other functions) risks introducing unanchored regressions. |
+| `fix-locus-identification` | The fix must be applied to the canonical source definition (`calculate_average`), not to a caller that might wrap the function, ensuring the root cause is addressed. |
+| `fix-attempt-root-cause-reassessment` | If the first repair attempt fails verification, the executor must pause and re-cite the root cause rather than blindly iterating on the same code. |
+| `investigation-advisory-fix-durability` | If the chosen fix is an "advisory" type (e.g., adding a comment or warning), the duty must verify that callers cannot bypass it, distinguishing it from a structural fix. |
+| `completion-evidence-required` | The duty cannot close without a co-located verification artifact (e.g., a passing test run output) that proves the defect is resolved. |
+| `document-claim-verification` | Completion relies on observed test results, not the executor's written assertion that "it works now." |
+| `known-constraint-documentation` | If environmental constraints (e.g., Python version specifics) are discovered during the repair, they must be recorded before the session ends. |
+
+## Gates
+
+### Gate 1: Routing Confirmation
+*Taboo: `triggers-routing`*
+
+**Trigger:** At the start of the repair sequence, before any code modification is proposed.
+**Verification:** The executor confirms that the current task is explicitly a "repair" of a *confirmed* defect, not an "investigation" of an unknown behavior. The context must show that the failure mode is already identified.
+**Rejection Clause:** If the failure mode is not yet confirmed (i.e., the system is still diagnosing why the error occurs), the duty halts. The executor must route back to the investigation protocol. Proceeding to repair without confirmed routing is a violation of `triggers-routing`.
+
+### Gate 2: Locus Record Verification
+*Taboo: `explicit-prerequisite-gate`*
+
+**Trigger:** Immediately after routing confirmation.
+**Verification:** A specific locus record must be present and valid. It must name:
+1.  The file path (e.g., `calculator.py`).
+2.  The line number (e.g., `2`).
+3.  The specific failure mode (e.g., `ZeroDivisionError` on empty list).
+**Rejection Clause:** If the locus record is missing, ambiguous, or does not name the exact line and failure mode, the duty halts. The executor cannot proceed without this anchor. This prevents `explicit-prerequisite-gate` violations where repairs begin without a confirmed location.
+
+### Gate 3: Pre-declaration of Passing Criterion
+*Taboo: `investigation-fix-criterion-predeclaration`*
+
+**Trigger:** Before any code edit is drafted.
+**Verification:** The executor must explicitly state the passing criterion for the repair. For the domain anchor (`calculate_average([])`), this might be: "Function returns a defined value (e.g., 0.0) or raises a specific custom error, and does *not* raise `ZeroDivisionError`." This criterion is fixed *before* the code change.
+**Rejection Clause:** If the executor begins writing the fix without first stating the exact condition that will constitute success, the duty halts. This prevents `investigation-fix-criterion-predeclaration` violations where the test is retrofitted to the change.
+
+### Gate 4: Canonical Locus Application
+*Taboo: `fix-locus-identification`*
+
+**Trigger:** During the code editing phase.
+**Verification:** The proposed code change must be applied directly to the canonical source location defined in the Locus Record (Gate 2). The change must be within the function definition `calculate_average` in `calculator.py`.
+**Rejection Clause:** If the executor proposes changing a call site, adding a wrapper, or modifying a consumer of `calculate_average` instead of fixing the function itself, the duty halts. This enforces `fix-locus-identification` by ensuring the root cause location is modified.
+
+### Gate 5: Scope Boundary Check
+*Taboo: `investigation-fix-scope-boundary`*
+
+**Trigger:** During the code editing phase, concurrent with Gate 4.
+**Verification:** The diff must only touch the lines identified in the Locus Record. For `calculator.py:2`, the change must be contained within the function body. No changes to imports, other functions, or file structure are permitted.
+**Rejection Clause:** If the diff includes edits to lines not named in the Locus Record (e.g., adding a new import, changing another function), the duty halts. This prevents `investigation-fix-scope-boundary` violations caused by opportunistic adjacent edits.
+
+### Gate 6: Durability Check (Conditional)
+*Taboo: `investigation-advisory-fix-durability`*
+
+**Trigger:** Only if the proposed fix is an "advisory" type (e.g., adding a `# WARNING` comment, a docstring note, or a `warnings.warn()` call) rather than a structural change (e.g., adding an `if len(values) == 0` check).
+**Verification:** The executor must demonstrate that this advisory fix cannot be bypassed by a caller. For example, if a warning is added, verify that it cannot be suppressed or ignored in a way that leaves the original `ZeroDivisionError` unhandled in critical paths.
+**Rejection Clause:** If the fix is advisory and no durability check is performed to confirm it is not bypassable, the duty halts. This enforces `investigation-advisory-fix-durability` by distinguishing between robust structural fixes and fragile advisory ones.
+
+### Gate 7: Verification Artifact Generation
+*Taboo: `completion-evidence-required`*
+*Taboo: `document-claim-verification`*
+
+**Trigger:** After the code change is applied.
+**Verification:** The executor must generate a co-located verification artifact. This is an observed test result (e.g., running `pytest test_calculator.py -v` and capturing the output) that shows the specific passing criterion from Gate 3 is met.
+**Rejection Clause:**
+1.  If no test result or output is provided, the duty halts (`completion-evidence-required`).
+2.  If the completion is based on a written claim (e.g., "I believe this fixes it") rather than observed output, the duty halts (`document-claim-verification`).
+
+### Gate 8: Root-Cause Reassessment (Conditional)
+*Taboo: `fix-attempt-root-cause-reassessment`*
+
+**Trigger:** If the Verification Artifact in Gate 7 fails (i.e., the test does not pass).
+**Verification:** Before a second repair attempt is made, the executor must re-cite the root cause. They must explain *why* the first attempt failed and how the revised understanding of the root cause leads to a new fix.
+**Rejection Clause:** If a second fix attempt is made without a revised root-cause citation, the duty halts. This prevents `fix-attempt-root-cause-reassessment` violations where executors blindly iterate on failed fixes.
+
+### Gate 9: Constraint Documentation
+*Taboo: `known-constraint-documentation`*
+
+**Trigger:** Before the duty session is closed, regardless of success or failure.
+**Verification:** The executor must review the session for any environmental constraints discovered (e.g., "Python 3.8 does not support this syntax," "Test environment lacks network access"). These must be recorded in the duty log or a designated constraints file.
+**Rejection Clause:** If environmental constraints were discovered but not recorded before the session closes, the duty is incomplete. This enforces `known-constraint-documentation` by ensuring institutional knowledge is retained.

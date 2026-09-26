@@ -1,0 +1,85 @@
+# repair-duty
+
+**Definition:** A navigable sequence of gates for any office of the Agentic Order to repair a confirmed software defect with a known locus.
+
+**Premise:** The executor receives only this text. The defect is confirmed. The locus is known. The executor does not read any external registry, canon, or history. The executor follows the gates below in order.
+
+---
+
+## Phase 1: Locus Verification
+
+**Gate 1.1 — Confirm the Locus is Precise**
+*   **Verifies:** That the "known locus" is a specific file path and line number (or symbol name) where the defect manifests, not a vague description of behavior.
+*   **Requires:** The executor must be able to point to the exact code statement responsible for the failure. If the locus is ambiguous (e.g., "somewhere in the function"), the duty halts. The executor must refine the locus to a single executable unit before proceeding.
+
+**Gate 1.2 — Confirm the Defect is Reproducible at the Locus**
+*   **Verifies:** That the specific input causing the failure triggers the error at the confirmed locus.
+*   **Requires:** The executor must identify the minimal input that causes the failure (e.g., `[]` for the domain anchor). The executor must verify that this input, when processed by the code at the locus, produces the expected error or incorrect output. If the error does not occur at the locus with the minimal input, the locus is incorrect; halt and re-derive the locus.
+
+---
+
+## Phase 2: Routing Validation (Upstream Hazard Scan)
+
+**Gate 2.1 — Confirm the Action is a Repair**
+*   **Verifies:** That the situation calls for a *repair* of a defect, not a feature addition, refactoring, or security patch.
+*   **Requires:** The executor must confirm that the goal is to restore the function to its intended behavior without changing its external contract. If the proposed change alters the API, adds new functionality, or changes the architectural structure beyond the scope of fixing the specific failure, this is not a repair under this duty. Halt and re-route to the appropriate duty (e.g., `feature-duty` or `refactor-duty`).
+
+**Gate 2.2 — Confirm No Side-Effects on Unrelated Behavior**
+*   **Verifies:** That the defect is isolated and does not indicate a systemic failure requiring a broader intervention.
+*   **Requires:** The executor must verify that the failure is local to the identified locus. If the error suggests a missing dependency, a broken environment, or a design flaw affecting multiple modules, this is not a simple repair. Halt and escalate.
+
+---
+
+## Phase 3: Pre-Change Establishment
+
+**Gate 3.1 — Establish the Baseline State**
+*   **Verifies:** That the current state of the code at the locus is captured before modification.
+*   **Requires:** The executor must record the exact code at the locus prior to editing. This baseline is necessary for diffing and rollback. If the code cannot be retrieved or is in an inconsistent state, halt.
+
+**Gate 3.2 — Define the Success Criteria**
+*   **Verifies:** That there is a clear, testable definition of what "fixed" means.
+*   **Requires:** The executor must specify the expected output for the minimal failing input (e.g., `calculate_average([])` should return `0.0` or raise a specific, handled exception, depending on the intended contract). The success criteria must be derived from the function's documented or inferred intent, not from arbitrary preference.
+
+---
+
+## Phase 4: The Change
+
+**Gate 4.1 — Implement the Minimal Fix**
+*   **Verifies:** That the change addresses the root cause at the locus with the smallest possible diff.
+*   **Requires:** The executor modifies only the code necessary to prevent the failure and satisfy the success criteria. No refactoring of surrounding code, no style changes, no addition of comments unrelated to the fix. If the fix requires changing a function signature or return type, halt and re-evaluate Gate 2.1 (Routing Validation), as this may exceed repair scope.
+
+**Gate 4.2 — Verify the Fix Locally**
+*   **Verifies:** That the modified code no longer produces the error with the minimal failing input.
+*   **Requires:** The executor runs the minimal failing input against the modified code. The output must match the success criteria defined in Gate 3.2. If it does not, the fix is incorrect; revert to Gate 4.1 and iterate.
+
+**Gate 4.3 — Verify Non-Regression**
+*   **Verifies:** That the fix does not break previously working cases.
+*   **Requires:** The executor tests the function with valid, non-failing inputs (e.g., `calculate_average([1, 2, 3])` should still return `2.0`). If any valid input now fails or produces incorrect output, the fix is flawed; revert to Gate 4.1.
+
+---
+
+## Phase 5: Session Close (Downstream Hazard Scan)
+
+**Gate 5.1 — Record the Discovery**
+*   **Verifies:** That any insights, edge cases, or systemic risks discovered during the repair are recorded.
+*   **Requires:** During the repair, if the executor discovers that the defect was caused by a missing validation upstream, a lack of documentation, or a pattern that may recur elsewhere, this must be noted. The executor must append a brief note to the session log or the repair record describing the root cause and any recommended follow-ups (e.g., "Add input validation for empty lists in all arithmetic functions"). If no such discovery was made, the executor records "No systemic risks identified."
+
+**Gate 5.2 — Confirm the Locus is Resolved**
+*   **Verifies:** That the specific locus is no longer a point of failure.
+*   **Requires:** The executor confirms that the code at the locus is stable and the defect is closed. The executor marks the defect as "Repaired" in the local session state.
+
+**Gate 5.3 — Close the Session**
+*   **Verifies:** That all obligations of the repair duty are complete.
+*   **Requires:** The executor ensures that:
+    1.  The code is modified and verified.
+    2.  The baseline and success criteria are documented.
+    3.  The discovery note (Gate 5.1) is recorded.
+    4.  No other actions are pending.
+    The executor exits the duty.
+
+---
+
+## Meta-Taboo Scan Notes
+
+*   **Routing-Class Hazard:** Addressed in **Phase 2**. The duty explicitly checks that the work is a *repair* and not a feature or refactor. This prevents the executor from applying a repair-duty to a situation that requires a different canonical action.
+*   **Session-Close-Obligation Hazard:** Addressed in **Phase 5**, specifically **Gate 5.1**. The duty requires the executor to record any systemic insights or follow-ups discovered during the repair before closing the session. This ensures that the repair does not end silently while leaving known risks unrecorded.

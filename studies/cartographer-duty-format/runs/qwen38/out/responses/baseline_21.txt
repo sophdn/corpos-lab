@@ -1,0 +1,99 @@
+# Duty: repair-duty
+
+**Jurisdiction:** Agentic Order
+**Scope:** Execution of a confirmed software defect repair with a known locus.
+**Prerequisite:** A defect report exists containing a confirmed locus (file path and line number) and a description of the failure mode.
+
+## Preamble
+
+This duty governs the transformation of a broken state into a repaired state. The executor must not improvise the logic of the fix; they must navigate the gates below in strict sequence. Failure to verify a gate before proceeding to the next constitutes a breach of duty.
+
+## Gate 1: Context Verification
+
+**Objective:** Ensure the executor operates on the current, unmodified source of truth.
+
+**Verification:**
+1. The file specified in the locus exists in the repository.
+2. The line number specified in the locus corresponds to the code identified in the defect report.
+3. The defect is reproducible or clearly demonstrable via the provided description.
+
+**Completion Requirement:**
+The executor must read the specific file and line. If the line number does not match the expected code structure (e.g., due to prior edits), the duty is **Halted** and returned to the reporting office for locus re-confirmation. If it matches, proceed.
+
+## Gate 2: Root Cause Isolation
+
+**Objective:** Confirm the mechanism of failure at the specific locus.
+
+**Verification:**
+1. The code at the locus is the direct cause of the exception or error described.
+2. The failure is not a symptom of an upstream data issue or downstream consumer issue.
+
+**Completion Requirement:**
+The executor must articulate the precise logical flaw. For example, in the case of a `ZeroDivisionError` in a division operation, the executor must verify that the divisor is evaluated to zero under the conditions described in the defect report. Proceed only if the locus is confirmed as the point of failure.
+
+## Gate 3: Repair Strategy Formulation
+
+**Objective:** Define the minimal, safe change required to resolve the defect.
+
+**Verification:**
+1. The proposed fix addresses the root cause identified in Gate 2.
+2. The fix does not introduce new side effects or alter the intended behavior of valid inputs.
+3. The fix is minimal (least invasive change).
+
+**Completion Requirement:**
+The executor must draft the specific code modification. 
+*   *Note on Strategy:* If the defect involves an undefined behavior (e.g., division by zero, empty collection access), the fix must handle the edge case explicitly. Common strategies include:
+    *   Returning a neutral value (e.g., `0`, `None`, or `0.0`) if logically appropriate.
+    *   Raising a more descriptive custom exception if the error is unrecoverable.
+    *   Guarding the operation with a conditional check.
+    *   *Constraint:* Do not silently swallow exceptions. The behavior must be deterministic.
+
+## Gate 4: Implementation
+
+**Objective:** Apply the repair to the source code.
+
+**Verification:**
+1. The code at the locus is modified according to the strategy in Gate 3.
+2. No other parts of the file or codebase are modified.
+3. Syntax remains valid.
+
+**Completion Requirement:**
+The executor writes the new code. The change must be isolated to the locus. If the fix requires adding imports or helper functions, this must be done in the same pass, but the primary logic change must remain focused on the locus.
+
+## Gate 5: Verification of Repair
+
+**Objective:** Prove that the defect is resolved and no regressions have occurred.
+
+**Verification:**
+1. **Defect Resolution:** The specific input that caused the defect (e.g., an empty list) now produces the expected, non-exceptional result defined in Gate 3.
+2. **Regression Check:** Existing valid inputs (e.g., non-empty lists with numeric values) still produce the correct output.
+3. **Edge Case Check:** Other potential edge cases adjacent to the fix (e.g., `None`, single element) are considered. If the fix only addresses the reported defect, ensure it does not break these if they were previously working.
+
+**Completion Requirement:**
+The executor must mentally simulate or logically trace the execution of the fixed code against:
+1. The failing input from the defect report.
+2. A standard, valid input.
+3. Any other edge case impacted by the change.
+
+If the trace confirms the defect is resolved and valid cases remain intact, proceed. If not, return to Gate 3.
+
+## Gate 6: Documentation & Handoff
+
+**Objective:** Record the repair for the Agentic Order’s archive.
+
+**Verification:**
+1. The change is clearly identifiable.
+2. The rationale for the specific fix chosen is documented.
+
+**Completion Requirement:**
+The executor produces a final report stating:
+1. **Locus:** File and line.
+2. **Change:** The exact code diff.
+3. **Rationale:** Why this specific fix was chosen (e.g., "Returned `0.0` to prevent crash and maintain float return type").
+4. **Status:** Repaired.
+
+## Termination Conditions
+
+*   **Success:** Gate 6 is complete. The duty is discharged.
+*   **Failure:** If Gate 1 or Gate 2 reveals the locus is incorrect or the root cause is elsewhere, the duty is returned to the Reporting Office with a note: "Locus Invalid" or "Root Cause Mismatch."
+*   **Complexity Exceedance:** If the repair requires architectural changes beyond the locus (e.g., refactoring the entire module), the duty is **Escalated** to a Senior Office for new task assignment. This duty does not govern large-scale refactors.

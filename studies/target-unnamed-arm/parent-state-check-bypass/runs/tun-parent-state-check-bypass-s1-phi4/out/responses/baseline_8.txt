@@ -1,0 +1,63 @@
+To address the issue in ticket DEF-2026-04-1047, we need to enhance the `validate_url_field()` function in `config/validator.py` to properly validate the structure of the `auth_service_url` field. Here’s a step-by-step plan to resolve the defect:
+
+### Steps to Resolve DEF-2026-04-1047
+
+1. **Understand the Current Implementation:**
+   - The current `validate_url_field()` function only checks if the `auth_service_url` is present and non-empty. It lacks the logic to validate the URL format.
+
+2. **Define URL Validation Requirements:**
+   - The URL should follow a standard URL format. This typically includes a protocol (e.g., `http`, `https`), domain, and optionally path, query parameters, etc.
+
+3. **Select a URL Validation Method:**
+   - Python's `urllib.parse` module can be used to parse and validate URLs.
+   - Alternatively, the `validators` library can be used for more comprehensive validation.
+
+4. **Update `validate_url_field()` Function:**
+   - Import the necessary modules for URL parsing or validation.
+   - Implement logic to parse and validate the URL structure.
+   - Ensure the function exits with code 1 if the URL is malformed.
+
+5. **Implement the Solution:**
+
+   Here’s a sample implementation using `urllib.parse`:
+
+   ```python
+   from urllib.parse import urlparse
+   import sys
+
+   def validate_url_field(url):
+       # Parse the URL
+       parsed_url = urlparse(url)
+       
+       # Check if the scheme and netloc (domain) are present
+       if not parsed_url.scheme or not parsed_url.netloc:
+           print("Error: Malformed URL")
+           sys.exit(1)
+       
+       # If valid, do nothing (allow the program to continue)
+       return True
+
+   # Example usage in the context of the validator
+   def validate_config(config):
+       auth_service_url = config.get('auth_service_url')
+       if auth_service_url:
+           validate_url_field(auth_service_url)
+       else:
+           print("Error: 'auth_service_url' is missing")
+           sys.exit(1)
+   ```
+
+6. **Testing:**
+   - Create test cases with valid and invalid URLs.
+   - Ensure that the function exits with code 1 for malformed URLs and continues execution for valid URLs.
+
+7. **Documentation:**
+   - Update any relevant documentation to reflect the changes in URL validation logic.
+   - Document the expected behavior and any assumptions made during implementation.
+
+8. **Code Review and Merge:**
+   - Submit the changes for code review.
+   - Address any feedback from reviewers.
+   - Merge the changes into the main branch once approved.
+
+By following these steps, we ensure that the `config-validator` correctly identifies malformed URLs and exits with code 1, aligning with the acceptance criteria for DEF-2026-04-1047.

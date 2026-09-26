@@ -1,0 +1,56 @@
+# Compliance Checklist: Data-Export v2
+
+**Status:** DRAFT – Requires Compliance Officer Review
+**Target Release Date:** Friday
+**Review Type:** Pre-deployment Compliance Confirmation (Delta Review)
+
+## 1. Scope & Authorization
+**v1 Baseline:** Access controls and authorization flows verified.
+**v2 Delta:** Introduction of `POST /v2/data-export/request` endpoint for partner-portal integration.
+**Compliance Action:**
+*   [ ] Verify that the new HTTP endpoint enforces OAuth scope validation prior to processing the export request.
+*   [ ] Confirm that partners can only request exports for users who have granted an *active* authorization.
+*   [ ] **Critical:** Verify that the "Provenance Stamp" audit entry is implemented as a synchronous prerequisite to the export execution.
+
+## 2. Data Scope & Retention
+**v1 Baseline:** Data scope, retention policies, and classification rules unchanged.
+**v2 Delta:** No material changes to data scope or retention policies per Compliance Team review.
+**Compliance Action:**
+*   [ ] Confirm that the v2 spec explicitly retains v1 data scope definitions.
+*   [ ] Confirm that retention clocks begin at the same point (time of export request vs. time of completion) as v1.
+
+## 3. Audit Logging & Provenance
+**v1 Baseline:** Standard audit logs for CLI exports.
+**v2 Delta:** New requirement per **2025-Q4-bulletin.md**: Partner-initiated exports must record a **Provenance Stamp**.
+**Compliance Action:**
+*   [ ] **Mandatory:** Verify the system writes a Provenance Stamp containing:
+    1.  User’s authorization grant ID.
+    2.  Requesting party’s identity.
+    3.  Authorization scope.
+    4.  Validity window at time of export.
+*   [ ] **Fail-Closed Verification:** Confirm that if the Provenance Stamp cannot be assembled (e.g., missing grant ID, invalid scope), the export request is **rejected** and no data is exported.
+*   [ ] Confirm the Provenance Stamp is written **synchronously** (not asynchronously) to ensure integrity of the audit trail at the moment of access.
+
+## 4. Access Controls
+**v1 Baseline:** Pathway-agnostic access control checks (verified in v1 checklist).
+**v2 Delta:** New access pathway via Partner Portal.
+**Compliance Action:**
+*   [ ] Confirm that the v1 pathway-agnostic access control rules still apply to the new HTTP endpoint.
+*   [ ] Verify that the partner identity is correctly mapped to the requesting entity in all audit logs.
+
+## 5. Incident Response & Monitoring
+**v1 Baseline:** Standard monitoring and alerting.
+**v2 Delta:** New surface area for partner requests.
+**Compliance Action:**
+*   [ ] Confirm that monitoring dashboards include visibility into the new `POST /v2/data-export/request` endpoint.
+*   [ ] Verify that alerts for "Provenance Stamp Failure" or "Authorization Mismatch" are routed to the Security team.
+
+---
+
+## Officer’s Note: Why a Full Re-Review is Not Sufficient
+The v1 checklist is signed off, but it does not account for the **2025-Q4-bulletin.md** requirement for Provenance Stamps on partner integrations. The v1 checklist is **pathway-agnostic** in its access-control language, but the **audit-logging** section must be explicitly updated to reflect the new synchronous, fail-closed Provenance Stamp requirement for the partner pathway.
+
+**Recommendation:**
+1.  Populate the `deployments/data-export-v2/compliance-checklist.md` with the items above.
+2.  Obtain explicit sign-off from Legal and Security on the **Provenance Stamp implementation** (specifically the fail-closed behavior).
+3.  Do **not** deploy until the Provenance Stamp logic is verified in the staging environment with test partner credentials.

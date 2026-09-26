@@ -1,0 +1,113 @@
+I'll start by reviewing the milestone file to understand the current scope and any recent changes.
+
+Since I cannot access files or tools in this environment, I'll reason through the task based on the ticket details provided and lay out the complete plan and implementation.
+
+## DEF-2026-04-1047 — Plan
+
+### Root Cause (as described)
+`config/validator.py` → `validate_url_field()` only checks presence/non-emptiness:
+
+```python
+def validate_url_field(value: str) -> bool:
+    return value is not None and value.strip() != ""
+```
+
+A malformed `auth_service_url` (e.g. `"not a url"`, `"ftp://missing"`, `""` after strip, `"http://"`) passes because it's non-empty.
+
+### Acceptance
+- Validator exits **1** for a malformed `auth_service_url`.
+- Valid URLs (e.g. `https://auth.internal:8443/v1`) still pass → exit 0.
+
+### Fix Strategy
+Replace the presence-only check with a structural URL validation using the standard library (`urllib.parse`). This avoids adding a dependency.
+
+Rules for "valid" in this service:
+- Must parse with a scheme and a netloc (host).
+- Scheme must be `http` or `https` (auth service is internal; reject other schemes like `file://`, `ftp://`).
+- Host must be non-empty and not contain whitespace.
+- Reject URLs where `urlparse` cannot produce a scheme+netloc.
+
+### Implementation (drop-in replacement for `validate_url_field`)
+
+```python
+from urllib.parse import urlparse
+
+_ALLOWED_SCHEMES = {"http", "https"}
+
+def validate_url_field(value: str) -> bool:
+    """Validate that a URL field is structurally well-formed.
+
+    Returns True only if the value is a non-empty string that parses
+    into a URL with an http/https scheme and a non-empty host.
+    """
+    if value is None:
+        return False
+    if not isinstance(value, str):
+        return False
+    stripped = value.strip()
+    if not stripped:
+        return False
+    # Reject embedded whitespace (e.g. "http://a b")
+    if any(ch.isspace() for ch in stripped):
+        return False
+    try:
+        parsed = urlparse(stripped)
+    except Exception:
+        return False
+    if parsed.scheme not in _ALLOWED_SCHEMES:
+        return False
+    if not parsed.netloc:
+        return False
+    # netloc is "host[:port]"; ensure host portion is non-empty
+    host = parsed.hostname
+    if not host:
+        return False
+    return True
+```
+
+### Caller behavior (exit code)
+The CLI in `config/validator.py` (or wherever `--service auth` is handled) must translate the boolean into an exit code. If the existing pattern is already `return 0 if ok else 1`, no change is needed there. If it currently ignores the validator result, ensure:
+
+```python
+if not validate_url_field(auth_service_url):
+    print(f"error: malformed auth_service_url: {auth_service_url!r}", file=sys.stderr)
+    return 1
+```
+
+### Test coverage to add (e.g. `tests/test_config_validator.py`)
+
+```python
+import pytest
+from config.validator import validate_url_field
+
+@pytest.mark.parametrize("good", [
+    "https://auth.internal:8443/v1",
+    "http://localhost:3000",
+    "https://auth.example.com",
+])
+def test_valid_urls_pass(good):
+    assert validate_url_field(good) is True
+
+@pytest.mark.parametrize("bad", [
+    "",
+    "   ",
+    "not a url",
+    "http://",
+    "ftp://auth.internal",
+    "file:///etc/passwd",
+    "http://a b",
+    "://no-scheme",
+    None,
+])
+def test_malformed_urls_fail(bad):
+    assert validate_url_field(bad) is False
+```
+
+And an end-to-end check that `config-validator --service auth` returns exit code 1 when the config file contains a malformed `auth_service_url`, and 0 when it does not.
+
+### Edge cases considered
+- `"http://"` → `netloc` empty → rejected. ✔
+- `"https://user:pass@host"` → `hostname` present → accepted (auth service may use basic auth in URL). ✔
+- Unicode/IDN host → `urlparse` handles; `hostname` lowercased and valid. ✔
+- Trailing whitespace → stripped before parse. ✔
+- Non-string input (e.g

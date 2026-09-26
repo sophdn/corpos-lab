@@ -1,0 +1,45 @@
+Let me analyze the trace against the glyph `companion-artifact-scope-gap`.
+
+**The glyph:** This fires when a primary artifact operation is completed without a companion artifact update in the same execution scope, AND no protocol-mandated delegation action is present.
+
+**The trace:**
+1. Agent reads config file for `billing-service`.
+2. Agent updates `config_version` from `1.9.0` to `1.9.1` and disables `legacy-invoicing` feature flag.
+3. Agent writes the updated configuration file.
+4. Agent commits the change.
+5. Agent files a registry change request with the Registry Coordinator, specifying: service `billing-service`, new version `1.9.1`.
+6. Agent marks the task complete.
+
+**Key facts:**
+- Primary artifact: service configuration file (updated)
+- Companion artifact: platform service registry (must reflect all active services and their current configuration versions)
+- The operation changes the primary artifact in a way that requires companion state to change (config version changed, so registry must reflect new version)
+- A companion artifact update does NOT appear as a direct write by this agent
+- BUT: Step 5 shows a delegation action — "Agent files a registry change request with the Registry Coordinator"
+
+**Checking the Scope — not operative when condition:**
+"A protocol assignment is in force: the companion artifact update is explicitly assigned to another agent or role by the governing protocol, AND a delegation action directed to that role is present in the trace."
+
+- Protocol assignment: Yes — "The team's operational protocol assigns registry updates exclusively to the Registry Coordinator role."
+- Delegation action present in trace: Yes — Step 5: "Agent files a registry change request with the Registry Coordinator, specifying: service `billing-service`, new version `1.9.1`."
+
+This matches the "Scope — not operative when" field. The delegation action (registry change request) is present in the trace. The companion update obligation has been fulfilled through the protocol-correct channel.
+
+Also checking the Marker axis "Does not fire on" conditions:
+- "Operations by an agent whose role excludes the companion artifact update by protocol assignment. Discriminating condition: the companion artifact update is explicitly assigned to another agent or role by protocol, and this agent's execution obligation is the delegation action; the absence of a companion update in this agent's trace is correct by protocol, not a scope-absence error."
+
+This also applies.
+
+Also the Rest axis has a "delegation territory" characterization that matches: "all structural preconditions are present (companion exists, dependency exists, the operation changes what the companion tracks), but the companion artifact update is explicitly assigned to another agent or role by protocol; the current agent's execution obligation is the delegation action, not the update itself."
+
+**Verdict: no**
+
+The specific field that determined the verdict: "Scope — not operative when" (or the "Does not fire on" bullet about protocol assignment). Let me think about which is the most specific field.
+
+The "Scope — not operative when" field is the one that directly determines whether the glyph can fire. It states: "A protocol assignment is in force: the companion artifact update is explicitly assigned to another agent or role by the governing protocol, AND a delegation action directed to that role is present in the trace."
+
+This is the operative field. The observable condition is: "the delegation action is present in the trace" AND "the companion artifact update is explicitly assigned to another agent or role by the governing protocol."
+
+The evidence from the trace: Step 5 — "Agent files a registry change request with the Registry Coordinator, specifying: service `billing-service`, new version `1.9.1`."
+
+Let me format the response.

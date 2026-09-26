@@ -1,0 +1,107 @@
+# repair-duty
+
+**Status**: Active
+**Scope**: Any office of the Agentic Order tasked with remediating a confirmed software defect.
+**Prerequisite**: A defect report exists containing a confirmed locus (file path and line number) and a reproducible failure signature.
+
+## Preamble
+
+This duty defines the mandatory sequence of gates an executing office must traverse to repair a software defect. An office must not skip, reorder, or modify the gates. If a gate cannot be passed, the duty is halted, and the defect is returned to the triage queue with the specific gate failure as the reason.
+
+The domain anchor for this duty is the `ZeroDivisionError` raised by `calculate_average([])` at `calculator.py:2`. This specific instance serves as the canonical example for verifying the logic of each gate, but the duty applies universally to any defect with a known locus.
+
+## Gate 1: Contextual Isolation
+
+**Verification**:
+The office verifies that the executing environment is isolated from production data and that the specific locus identified in the defect report is accessible. The office must confirm that the file containing the defect is the only source of truth for this repair step and that no other concurrent repairs are modifying the same lines.
+
+**Completion Requirement**:
+1. The office has checked out or loaded the specific version of the codebase associated with the defect report.
+2. The office has verified that the locus (`calculator.py:2` in the domain anchor) is present and matches the line number specified in the defect report.
+3. The office has created a local, disposable workspace or branch to perform the repair, ensuring the original state is preserved until Gate 4.
+
+## Gate 2: Failure Reproduction
+
+**Verification**:
+The office verifies that the defect is reproducible in the isolated environment using the exact input described in the defect report. The office must not proceed to analysis until the failure is observed consistently.
+
+**Completion Requirement**:
+1. The office constructs a minimal test case or execution command that triggers the defect.
+   *   *Domain Anchor Example*: Execute `calculate_average([])`.
+2. The office captures the full error output, including the exception type, message, and stack trace.
+   *   *Domain Anchor Example*: Capture `ZeroDivisionError: division by zero`.
+3. The office confirms that the stack trace points to the confirmed locus (`calculator.py:2`). If the stack trace does not match the locus, the duty halts at this gate, and the defect is returned with the status "Locus Mismatch."
+
+## Gate 3: Root Cause Analysis and Patch Design
+
+**Verification**:
+The office verifies that it understands the logical or arithmetic reason for the failure at the locus. The office must design a patch that addresses the root cause, not merely the symptom. The office must consider edge cases that might be introduced by the fix.
+
+**Completion Requirement**:
+1. The office documents the root cause in the repair log.
+   *   *Domain Anchor Example*: The function divides by `len(values)`. When `values` is an empty list, `len(values)` is `0`, causing a division by zero.
+2. The office designs a patch that handles the edge case.
+   *   *Domain Anchor Example*: Insert a guard clause to check if `len(values) == 0` before performing the division.
+3. The office determines the correct behavior for the edge case.
+   *   *Domain Anchor Example*: Decide whether to return `0.0`, `None`, or raise a custom `ValueError` with a clear message. The choice must align with the API contract of `calculate_average`.
+
+## Gate 4: Patch Implementation
+
+**Verification**:
+The office verifies that the patch is implemented correctly according to the design in Gate 3. The office must ensure that the change is minimal and focused solely on the defect.
+
+**Completion Requirement**:
+1. The office applies the patch to the isolated workspace.
+   *   *Domain Anchor Example*:
+     ```python
+     def calculate_average(values: list) -> float:
+         if not values:
+             return 0.0  # Or raise ValueError("Empty list")
+         return sum(values) / len(values)
+     ```
+2. The office ensures that the code style, naming conventions, and type hints are consistent with the surrounding code.
+3. The office commits the change to the local workspace with a commit message that references the defect ID.
+
+## Gate 5: Regression and Verification
+
+**Verification**:
+The office verifies that the repair fixes the original defect and does not introduce new defects. The office must run the original reproduction case and a set of existing tests or new tests that cover the affected logic.
+
+**Completion Requirement**:
+1. The office re-runs the original reproduction case.
+   *   *Domain Anchor Example*: Execute `calculate_average([])`. The result must match the decided behavior from Gate 3 (e.g., returns `0.0` without raising an exception).
+2. The office runs a set of positive test cases to ensure normal functionality is preserved.
+   *   *Domain Anchor Example*: Execute `calculate_average([1, 2, 3])`. The result must be `2.0`.
+3. The office runs the existing test suite for the module. All tests must pass.
+4. The office documents the test results in the repair log.
+
+## Gate 6: Review and Handoff
+
+**Verification**:
+The office verifies that the repair is complete, documented, and ready for integration. The office must ensure that all artifacts are available for review by a secondary office or human overseer.
+
+**Completion Requirement**:
+1. The office generates a diff of the changes made.
+2. The office compiles a repair summary including:
+   *   Defect ID
+   *   Root Cause
+   *   Patch Description
+   *   Test Results
+   *   Risk Assessment (e.g., "Low risk, edge case only")
+3. The office submits the repair for review or merges the patch into the main branch, depending on the Order's protocols for change management.
+4. The office updates the defect report status to "Resolved" or "Pending Review."
+
+## Termination Conditions
+
+*   **Success**: All gates passed. The defect is resolved.
+*   **Failure at Gate 1**: Locus not found or environment not isolated.
+*   **Failure at Gate 2**: Defect not reproducible or locus mismatch.
+*   **Failure at Gate 3**: Root cause cannot be determined or patch design is invalid.
+*   **Failure at Gate 5**: Regression detected or original defect persists.
+
+## Notes for the Executor
+
+*   **Do not guess**: If a gate fails, stop. Do not attempt to bypass the gate.
+*   **Document everything**: The repair log is the primary artifact for future audits.
+*   **Minimalism**: Prefer the smallest possible change that resolves the defect. Avoid refactoring unrelated code.
+*   **Domain Anchor Reminder**: The `calculate_average` example is illustrative. Always apply the logic of the gates to the specific defect at hand, using the domain anchor only to clarify the type of verification required.

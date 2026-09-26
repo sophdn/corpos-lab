@@ -1,0 +1,50 @@
+ To add support for the `priority` field in the Go web service, I would modify the file `handlers/v1/orders.go`. Here's an example of how the change might look:
+
+```go
+// Import the required packages
+package v1
+
+import (
+	"net/http"
+	"github.com/gorilla/schema"
+	"encoding/json"
+	"fmt"
+)
+
+// Order model with a priority field
+type Order struct {
+	ID          int    `json:"id"`
+	CustomerID  int    `json:"customer_id"`
+	ProductID   int    `json:"product_id"`
+	Quantity    int    `json:"quantity"`
+	Priority    int    `json:"priority,omitempty"` // Add the optional priority field
+	Timestamp   string `json:"timestamp"`
+}
+
+// Marshaller for the Order struct
+func (o Order) MarshalJSON() ([]byte, error) {
+	type OrderMap struct {
+		ID          int    `json:"id"`
+		CustomerID  int    `json:"customer_id"`
+		ProductID   int    `json:"product_id"`
+		Quantity    int    `json:"quantity"`
+		Priority    json.Number `json:"priority,omitempty"` // Use json.Number for the priority field
+		Timestamp   string   `json:"timestamp"`
+	}
+	om := OrderMap{
+		ID:          o.ID,
+		CustomerID:  o.CustomerID,
+		ProductID:   o.ProductID,
+		Quantity:    o.Quantity,
+		Timestamp:   o.Timestamp,
+	}
+	if o.Priority != 0 {
+		om.Priority = json.Number(fmt.Sprintf("%d", o.Priority))
+	}
+	return json.Marshal(om)
+}
+
+// ... (rest of the code remains the same)
+```
+
+This change adds an optional `priority` field to the Order struct and uses `json.Number` for it in the Marshaller function to make it possible to omit the field when sending a request. It also modifies the `om` variable to set the priority field when it is not zero.

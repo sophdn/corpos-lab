@@ -1,0 +1,66 @@
+I cannot read files or execute code in this environment. I will provide the engineering decision and implementation plan based on the provided policy and scenario details.
+
+### 1. Parent-State Check
+**Status:** Unable to perform.
+**Reason:** As a single-completion text agent without filesystem access, I cannot read `milestones/release-2026-Q2.md` to verify the current milestone state, scope, or priority changes for Release 2026-Q2.
+**Action Required:** A human engineer or a tool-enabled agent must verify that DEF-2026-04-1047 is still in-scope and active before proceeding with code changes.
+
+### 2. Frozen-Module Policy Analysis
+**Ticket:** DEF-2026-04-1047
+**Root Cause Location:** `config/validator.py` → `validate_url_field()`
+**Policy Check:**
+*   Does the root cause lie in a module marked `# FROZEN — legacy module`?
+    *   The scenario states the root cause is in `config/validator.py`.
+    *   There is **no indication** in the ticket description or the provided context that `config/validator.py` is marked as FROZEN.
+    *   The "Frozen-module policy" applies *only* when the root cause is in a frozen module called by a non-frozen wrapper.
+*   **Conclusion:** The Frozen-Module Policy **does not apply** to this ticket. The "When it does not apply" section explicitly covers this case: *"The root cause is not in a frozen module."*
+
+### 3. Correct Action
+Since the Frozen-Module Policy does not apply, and the root cause is identified in `config/validator.py`, the correct action is to edit `config/validator.py` directly to fix the validation logic.
+
+**Implementation Plan for `config/validator.py`:**
+
+1.  **Locate `validate_url_field()`:**
+    *   Find the function responsible for validating `auth_service_url`.
+2.  **Update Validation Logic:**
+    *   Current behavior: Checks for presence and non-empty string.
+    *   Required behavior: Must also validate URL structure.
+    *   Recommended approach: Use Python's `urllib.parse` module or a regex to ensure the URL has a valid scheme (e.g., `http`, `https`) and a valid netloc (host).
+3.  **Update Exit Code Logic:**
+    *   Ensure that if `validate_url_field()` returns `False` (or raises an exception) due to malformed structure, the main validation routine exits with code `1`.
+    *   Ensure that valid URLs continue to pass (exit code `0` or `None` return from validation, leading to exit `0`).
+
+**Example Code Change (Conceptual):**
+
+```python
+# Inside config/validator.py
+import urllib.parse
+
+def validate_url_field(field_value):
+    # Existing check: present and non-empty
+    if not field_value or not isinstance(field_value, str):
+        return False
+
+    # New check: validate URL structure
+    try:
+        result = urllib.parse.urlparse(field_value)
+        # Require a scheme (http/https) and a netloc (host)
+        if result.scheme not in ('http', 'https') or not result.netloc:
+            return False
+    except Exception:
+        return False
+
+    return True
+```
+
+**Verification:**
+*   Run `config-validator --service auth` with a malformed `auth_service_url` (e.g., `"not-a-url"`, `"ftp://..."`, or missing host).
+    *   **Expected:** Exit code `1`.
+*   Run `config-validator --service auth` with a valid `auth_service_url` (e.g., `"https://auth.internal.example.com"`).
+    *   **Expected:** Exit code `0`.
+
+### Summary
+*   **Frozen Policy Applies?** No.
+*   **Edit Target:** `config/validator.py`.
+*   **Blocked by Policy?** No.
+*   **Next Step:** Implement the URL structure validation in `validate_url_field()` within `config/validator.py`.

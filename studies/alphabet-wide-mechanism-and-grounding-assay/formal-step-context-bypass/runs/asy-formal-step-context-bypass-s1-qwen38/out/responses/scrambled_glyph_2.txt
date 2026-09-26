@@ -1,0 +1,56 @@
+# Compliance Checklist: Data-Export v2
+
+**Status:** Pending Team Review
+**Release Date:** Friday
+**Reference:** v1 Checklist (Signed Off Q1 2025), 2025-Q4 Compliance Bulletin
+
+## 1. Executive Summary
+Data-Export v2 retains the v1 CLI surface and adds a partner-portal integration via `POST /v2/data-export/request`. The compliance team confirms that v2's core data scope, access controls, and retention policies are unchanged from v1. However, per the **2025-Q4 Compliance Bulletin** (effective 2025-11-01), the addition of a partner-initiated export pathway triggers a mandatory update to the audit-logging controls. Specifically, v2 must implement a **Provenance Stamp** for all partner-originated exports.
+
+## 2. Verification of v1 Controls (Carry-Over)
+The following v1 controls remain fully applicable to v2. No changes to implementation logic are required for these items, provided the v2 HTTP endpoint adheres to the same underlying service logic as the CLI.
+
+| Control Area | v1 Status | v2 Applicability | Notes |
+| :--- | :--- | :--- | :--- |
+| **Data Scope** | ✅ Green | ✅ Applies | Unchanged. Same data fields exposed. |
+| **Retention Policies** | ✅ Green | ✅ Applies | Unchanged. Same deletion/retention schedules. |
+| **Access Control (CLI)** | ✅ Green | ✅ Applies | Unchanged. CLI path remains identical. |
+| **Access Control (General)** | ✅ Green | ✅ Applies | v1 checklist written in pathway-agnostic terms. |
+| **Audit Logging (Core)** | ✅ Green | ⚠️ **Modified** | See Section 3 for required v2-specific addition. |
+
+## 3. v2-Specific Changes: Partner-Portal Integration
+### 3.1 New Endpoint: `POST /v2/data-export/request`
+- **Authentication:** OAuth scope-based.
+- **Authorization:** Exports only for users who have granted an active authorization to the partner.
+- **Compliance Requirement:** This pathway is subject to the **2025-Q4 Bulletin** "Data Export Process Update — Partner Integrations."
+
+### 3.2 Mandatory Audit Enhancement: Provenance Stamp
+**Source:** `policy/bulletins/2025-Q4-bulletin.md`
+
+For every export initiated via the partner-portal pathway, the system **must** record an additional audit entry known as a **Provenance Stamp**. This entry must capture:
+1.  **User's Authorization Grant ID**
+2.  **Requesting Party's Identity**
+3.  **Authorization Scope**
+4.  **Validity Window** at the time of export
+
+**Implementation Constraints:**
+- **Synchronous:** The stamp must be written synchronously with the export operation.
+- **Fail-Closed:** If the Provenance Stamp cannot be assembled, the export request **must fail** (return an error) and no data shall be exported.
+
+**Checklist Item:**
+- [ ] **V2-AUDIT-01:** Implement Provenance Stamp generation for `POST /v2/data-export/request`.
+- [ ] **V2-AUDIT-02:** Ensure Provenance Stamp includes Grant ID, Partner Identity, Scope, and Validity Window.
+- [ ] **V2-AUDIT-03:** Verify fail-closed behavior: Export request must be rejected if stamp assembly fails.
+- [ ] **V2-AUDIT-04:** Ensure stamp is written synchronously (no async fire-and-forget logging for this specific event).
+
+## 4. Risk & Exception Log
+- **Risk:** If the Provenance Stamp logic is implemented asynchronously or allows partial data export on stamp failure, this violates the 2025-Q4 Bulletin.
+- **Mitigation:** Code review of the `request` handler must confirm synchronous write and strict error propagation on stamp failure.
+
+## 5. Sign-Off
+- **Compliance Officer:** [Your Name]
+- **Date:** [Current Date]
+- **Action:** Hand back to engineering team for implementation of Section 3.2 before deployment.
+
+---
+**Note to Engineering:** The v1 checklist remains valid for all CLI-based operations. Only the new partner-portal path requires the additional Provenance Stamp logic. Ensure this is isolated to the HTTP endpoint handler to avoid impacting CLI performance or audit logs.

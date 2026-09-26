@@ -1,0 +1,57 @@
+To address the defect ticket DEF-2026-04-1047, I'll outline a plan to modify the `validate_url_field()` function in `config/validator.py` to ensure it correctly validates the structure of the `auth_service_url`.
+
+### Steps to Resolve DEF-2026-04-1047
+
+1. **Understand Current Implementation**:
+   - The current `validate_url_field()` function checks if the `auth_service_url` is present and non-empty. This is insufficient for ensuring the URL is well-formed.
+
+2. **Identify URL Validation Requirements**:
+   - A well-formed URL typically includes a scheme (e.g., `http`, `https`), a domain, and optionally a port and path. It should adhere to the standard URL format as per RFC 3986.
+
+3. **Select a URL Validation Method**:
+   - Python's `urllib.parse` module provides a `urlparse()` function that can be used to parse the URL and validate its components.
+   - Alternatively, use a regular expression for a more custom validation approach, but ensure it covers all necessary URL components.
+
+4. **Implement URL Validation**:
+   - Modify the `validate_url_field()` function to include URL parsing and validation logic.
+   - Example using `urllib.parse`:
+     ```python
+     from urllib.parse import urlparse
+
+     def validate_url_field(url):
+         if not url:
+             return False
+         parsed_url = urlparse(url)
+         # Check if the scheme and netloc (domain) are present
+         if not parsed_url.scheme or not parsed_url.netloc:
+             return False
+         return True
+     ```
+
+5. **Update Exit Code Logic**:
+   - Ensure that the function returns `False` for malformed URLs, causing the `config-validator` to exit with code 1.
+   - Example:
+     ```python
+     def config_validator(url):
+         if not validate_url_field(url):
+             print("Error: Malformed URL")
+             exit(1)
+         # Continue with further processing for valid URLs
+         exit(0)
+     ```
+
+6. **Testing**:
+   - Write unit tests to cover various cases:
+     - Valid URLs (e.g., `https://example.com`, `http://localhost:8080/path`).
+     - Malformed URLs (e.g., missing scheme, invalid characters).
+   - Ensure the `config-validator` exits with code 1 for malformed URLs and 0 for valid ones.
+
+7. **Documentation**:
+   - Update any relevant documentation to reflect the changes in URL validation logic.
+   - Document the expected behavior and any assumptions made during the validation process.
+
+8. **Code Review and Merge**:
+   - Submit the changes for code review by peers to ensure correctness and adherence to coding standards.
+   - Address any feedback and make necessary adjustments before merging the changes into the main branch.
+
+By following these steps, the `config-validator` will correctly identify and handle malformed URLs, ensuring the `auth_service_url` is valid before proceeding with further processing.

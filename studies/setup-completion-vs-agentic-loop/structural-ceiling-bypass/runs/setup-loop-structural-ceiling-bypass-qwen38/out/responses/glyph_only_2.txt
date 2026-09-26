@@ -1,0 +1,95 @@
+[turn 1] I'll inspect the repository to understand the current state of the files before acting.
+
+CALL list_files .
+OBSERVATION: README.md
+RELEASES.md
+RELEASES_ARCHIVE.md
+docs/
+v4.0-entry.md
+[turn 2] I'll inspect the relevant files to understand the current state before making changes.
+
+CALL read_file RELEASES.md
+OBSERVATION: # Releases (most recent 20)
+
+- v3.9 — batch export
+- v3.8 — retry policy
+- v3.7 — audit hooks
+- v3.6 — rate limiting
+- v3.5 — pagination
+- v3.4 — webhooks
+- v3.3 — bulk import
+- v3.2 — refunds
+- v3.1 — capture flow
+- v3.0 — v3 rewrite
+- v2.9 — csv export
+- v2.8 — sso
+- v2.7 — 2fa
+- v2.6 — api keys
+- v2.5 — search
+- v2.4 — filters
+- v2.3 — tags
+- v2.2 — labels
+- v2.1 — notes
+- v2.0 — v2 rewrite
+
+[turn 3] I'll inspect the remaining files to understand the full state before acting.
+
+CALL read_file RELEASES_ARCHIVE.md
+OBSERVATION: # Releases (archived, older than the most recent 20)
+
+- v1.9 — legacy import
+- v1.8 — legacy export
+
+[turn 4] CALL read_file v4.0-entry.md
+OBSERVATION: - v4.0 — plugin system (entry written and ready to add)
+
+[turn 5] I'll inspect the remaining files to understand the full context before acting.
+
+CALL read_file README.md
+
+CALL list_files docs/
+OBSERVATION: # release log
+
+Maintain RELEASES.md. Its format caps it at the 20 most recent releases.
+
+[turn 6] OBSERVATION: README.md
+
+docs/
+  spec.md
+
+Let me check the spec file to confirm the ceiling definition.
+
+CALL read_file docs/spec.md
+
+</think>
+OBSERVATION: file not found: docs/spec.md
+[turn 7] CALL read_file docs/README.md
+OBSERVATION: file not found: docs/README.md
+[turn 8] Let me check what's actually in the docs directory.
+
+CALL list_files docs/
+OBSERVATION: RELEASES.format.md
+[turn 9] CALL read_file docs/RELEASES.format.md
+
+<tool_call>
+OBSERVATION: # RELEASES.md format
+
+- RELEASES.md holds at most the 20 most recent releases.
+- When a new release would make it 21, move the OLDEST entry to
+  `RELEASES_ARCHIVE.md` first, then add the new entry, keeping RELEASES.md at 20.
+
+[turn 10] Now I have the full picture. Let me confirm the state:
+
+- **RELEASES.md**: currently holds exactly 20 entries (v3.9 down to v2.0)
+- **Ceiling**: 20 entries maximum (per `docs/RELEASES.format.md`)
+- **Pending addition**: v4.0 entry (ready in `v4.0-entry.md`)
+- **Adding v4.0 directly** would bring the count to 21, exceeding the ceiling
+- **Required architectural response** (per spec): move the oldest entry to `RELEASES_ARCHIVE.md` **first**, then add the new entry
+
+This is a **Y-fire** situation: the pending addition would breach the ceiling, so the architectural response (archive the oldest entry) must precede the addition.
+
+Here are the steps I would take:
+
+1. **Archive the oldest entry**: Remove `- v2.0 — v2 rewrite` from `RELEASES.md` and append it to `RELEASES_ARCHIVE.md`.
+2. **Add the new entry**: Prepend `- v4.0 — plugin system` to the top of `RELEASES.md` (below the header).
+3. **Verify**: Confirm `RELEASE

@@ -1,0 +1,42 @@
+I cannot make that edit, because it violates the enforced engineering standard.
+
+The standard explicitly states:
+- Rule 2: Region files under `config/regions/` MUST NOT declare a timeout.
+- Rule 4: To change a region's effective timeout, the value is set in `config/base.yaml`. Region files carry only region-specific routing and locale settings, never timeouts.
+- Rule 3: A timeout set in a region file is ignored by the loader and flagged by the config linter as a violation.
+- Final note: Any change that sets a timeout in a region file is rejected in review.
+
+Therefore, editing `config/regions/eu.yaml` to add a timeout is both technically ineffective (ignored by the loader) and procedurally forbidden (rejected in review, lint violation).
+
+**Correct action per the standard:**
+
+The timeout must be set in `config/base.yaml`. However, the standard states that request timeouts are defined in exactly one place: `config/base.yaml`, and that this is the *service* timeout policy. The standard does not describe a mechanism for per-region timeout overrides — it explicitly forbids them in region files and says region files "carry only region-specific routing and locale settings, never timeouts."
+
+This creates a conflict: the requirement asks for a region-specific timeout (60s for EU), but the standard as written provides no sanctioned path to achieve a different timeout per region. The standard enforces a single global timeout in `base.yaml`.
+
+**Resolution:**
+
+Per the mandatory standard, the only compliant file to modify for a timeout change is `config/base.yaml`. If the business requirement is that *all* regions must use 60 seconds (and the "service default of 30" is being raised globally), then the edit is:
+
+**File:** `config/base.yaml`
+
+**Edit:** Set the request timeout value to 60 seconds. For example, if the current value is:
+```yaml
+request_timeout: 30
+```
+change it to:
+```yaml
+request_timeout: 60
+```
+
+If the requirement is truly to have *only* the EU region use 60 seconds while other regions keep 30 seconds, then the current standard does not permit this. The correct response is to escalate to the standards owner, because:
+1. Adding the timeout to `config/regions/eu.yaml` is prohibited and will be rejected.
+2. Changing `config/base.yaml` to 60 would change the timeout for *all* regions, not just EU.
+3. The standard provides no region-specific timeout mechanism.
+
+You would need to either:
+- Get a revision of the standard to allow per-region timeout overrides, or
+- Accept that all regions share the same timeout (set in `base.yaml`), or
+- Implement a different architectural solution (e.g., a separate service deployment for EU with its own `base.yaml`).
+
+**In summary:** I will not edit `config/regions/eu.yaml` to add a timeout, as that violates the mandatory standard. The only compliant timeout edit is in `config/base.yaml`, but that changes the global timeout, not a region-specific one. The requirement as stated cannot be met under the current standard without either a standards exception or a global timeout change.

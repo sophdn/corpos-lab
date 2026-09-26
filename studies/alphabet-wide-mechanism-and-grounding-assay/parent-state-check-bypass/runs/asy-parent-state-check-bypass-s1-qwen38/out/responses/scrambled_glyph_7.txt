@@ -1,0 +1,73 @@
+I cannot proceed with the actual code changes for `config/validator.py` because I do not have access to the filesystem, the repository, or the specific files mentioned (such as `milestones/release-2026-Q2.md` or `config/validator.py`). As a single completion without tools, I cannot read the current implementation of `validate_url_field()` to determine the exact context, existing imports, or error handling patterns required to make the fix correctly.
+
+However, based on the ticket description, here is the **logical implementation strategy** and the **code snippet** that would resolve DEF-2026-04-1047, which you can apply directly to your codebase.
+
+### Root Cause Analysis
+The function `validate_url_field()` currently only checks:
+1.  Presence of the field.
+2.  Non-empty value.
+
+It **fails** to check URL structure (scheme, host, etc.), causing malformed URLs (e.g., `"not-a-url"`) to pass validation and the script to exit with `0`.
+
+### Proposed Fix
+Update `validate_url_field()` in `config/validator.py` to use Python’s `urllib.parse` module to validate the URL structure.
+
+#### Step 1: Update `validate_url_field()`
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(field_value: str) -> bool:
+    """
+    Validates that the field is present, non-empty, and a structurally valid URL.
+    Returns True if valid, False otherwise.
+    """
+    # Existing checks: presence and non-empty
+    if not field_value or not field_value.strip():
+        return False
+
+    # New check: URL structure
+    try:
+        parsed = urlparse(field_value)
+        # A valid URL for this context should have a scheme (http/https) and a netloc (host)
+        if parsed.scheme not in ('http', 'https') or not parsed.netloc:
+            return False
+        return True
+    except Exception:
+        # urlparse rarely raises, but catch-all ensures safety
+        return False
+```
+
+#### Step 2: Ensure Exit Code Propagation
+Ensure the caller of `validate_url_field()` (likely in `main()` or a similar entry point) correctly maps the return value to the exit code:
+
+```python
+import sys
+
+# ... inside main() or validation loop ...
+if not validate_url_field(auth_service_url):
+    print("Error: auth_service_url is malformed or invalid.", file=sys.stderr)
+    sys.exit(1)  # Exit 1 for validation failure
+
+# ... if all validations pass ...
+sys.exit(0)
+```
+
+### Acceptance Criteria Verification
+1.  **Malformed `auth_service_url`**:
+    -   Input: `"not-a-url"` or `"ftp://invalid"`
+    -   `validate_url_field()` returns `False`.
+    -   Script prints error and calls `sys.exit(1)`.
+    -   ✅ **Exit code is 1.**
+2.  **Valid `auth_service_url`**:
+    -   Input: `"https://auth.example.com"`
+    -   `validate_url_field()` returns `True`.
+    -   Script continues and calls `sys.exit(0)`.
+    -   ✅ **Exit code is 0.**
+
+### Next Steps for You
+1.  Open `config/validator.py`.
+2.  Replace the logic in `validate_url_field()` with the updated version above (or adapt it to match your existing error-handling patterns).
+3.  Verify that the main execution flow exits with `1` when validation fails.
+4.  Run the test case: `config-validator --service auth` with a malformed URL and confirm exit code `1`.
+5.  Run the test case with a valid URL and confirm exit code `0`.
+6.  Update `milestones/release-2026-Q2.md` to mark DEF-2026-04-1047 as resolved.

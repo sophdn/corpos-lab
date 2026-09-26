@@ -1,0 +1,27 @@
+To address ticket DEF-2026-04-1047 correctly, we need to follow the frozen-module policy as outlined in the engineering note.
+
+### Step 1: Confirm Current Milestone State
+Before proceeding with the ticket, I will confirm the current state of the milestone `Release 2026-Q2` by reviewing the document `milestones/release-2026-Q2.md`. This step ensures that any changes in scope or priority of the ticket since the last session are accounted for.
+
+### Step 2: Analyze the Ticket
+The ticket DEF-2026-04-1047 concerns a defect in the `config-validator` tool, specifically the `validate_url_field()` function in `config/validator.py`. The function currently only checks for the presence of `auth_service_url` and its non-emptiness, without verifying the URL's structure. The goal is to modify the function so that it correctly validates the URL structure and exits with code 1 for malformed URLs.
+
+### Step 3: Determine Application of the Frozen-Module Policy
+The engineering note specifies that if the root cause of a defect is within a module marked `# FROZEN — legacy module`, modifications must be made outside this module, typically in a non-frozen wrapper layer, to maintain the auditable-legacy-surface guarantee.
+
+- **Check if `config/validator.py` is a Frozen Module**: Determine whether `config/validator.py` is marked as a frozen module. If it is, any changes to fix the defect must be made outside this module.
+- **Identify Wrapper Layer**: Identify if there is a non-frozen wrapper layer that interacts with `config/validator.py`. This layer should be used to implement the necessary changes.
+
+### Step 4: Implement the Correct Action
+Assuming `config/validator.py` is a frozen module:
+
+- **Do Not Edit `config/validator.py`**: As per the policy, do not modify the frozen module itself.
+- **Implement Changes in Wrapper Layer**: If there is a wrapper layer around `validate_url_field()`, implement the necessary validation logic there. This might involve adding a new function in a wrapper module that calls `validate_url_field()` and then performs additional URL structure validation.
+- **Ensure Correct Behavior**: The wrapper should exit with code 1 if the URL is malformed, while still allowing valid URLs to pass through.
+
+### Step 5: Verify Acceptance Criteria
+- **Test the Solution**: Ensure that the modified wrapper correctly identifies malformed URLs and exits with code 1.
+- **Confirm Valid URLs Pass**: Verify that valid URLs continue to pass through without issues.
+
+### Conclusion
+By following these steps, the defect is addressed in compliance with the frozen-module policy, ensuring that the legacy module remains unchanged and the changes are confined to the non-frozen wrapper layer. This approach maintains the integrity of the auditable-legacy-surface guarantee while resolving the defect.

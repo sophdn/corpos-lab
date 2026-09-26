@@ -1,0 +1,228 @@
+# Duty: `repair-duty`
+
+**Purpose**: This duty governs how any office of the Agentic Order repairs a confirmed software defect with a known locus. It is a Rule made navigable: a sequence of gates the executing office must pass through sequentially. Each gate states what it verifies and the conditions under which the office may proceed.
+
+**Scope**: This duty applies to any repair action where a defect has been identified and a locus (file, line, failure mode) has been confirmed. It does not apply to initial investigation or routing, which are governed by prior duties.
+
+## Taboos
+
+The following taboos from the canon apply to this duty. Each is mapped to a gate below.
+
+| Taboo Slug | Why It Applies |
+|------------|----------------|
+| `triggers-routing` | A repair must not begin until routing confirms this is a repair task, not an investigation. A misrouted prompt could run a repair where an investigation was needed, or vice versa. |
+| `explicit-prerequisite-gate` | The repair must not begin without a confirmed locus record. Without file, line, and failure mode explicitly named, the repair has no anchor to the actual defect. |
+| `investigation-fix-criterion-predeclaration` | A fix attempt must not begin before a passing criterion is declared. Without a pre-declared criterion, the criterion can be fitted to whatever change was made, making verification meaningless. |
+| `investigation-fix-scope-boundary` | The change must not touch lines the confirmed locus did not name. Opportunistic adjacent edits break the anchor to the root cause and introduce unverified side effects. |
+| `fix-locus-identification` | The fix must be applied to the canonical source location, not a call site or consumer. Fixing the consumer leaves the canonical defect in place. |
+| `fix-attempt-root-cause-reassessment` | If a first fix attempt fails, a second attempt must not proceed without a revised root-cause citation. Repeating the same faulty assumption without reassessment is a common failure mode. |
+| `investigation-advisory-fix-durability` | If the fix is advisory (comment, docstring, warning), a durability check must confirm a caller cannot bypass it. Advisory fixes are often insufficient without verification that they cannot be circumvented. |
+| `completion-evidence-required` | The repair must not be declared complete without a co-located verification artifact. Without evidence, completion is unprovable. |
+| `document-claim-verification` | Verification must be by observed test result or output, not by written claim. A claim that "this works" is not evidence. |
+| `known-constraint-documentation` | Any environmental constraint discovered during repair must be recorded before the session closes. Unrecorded constraints are lost context for future repairs. |
+
+## Gates
+
+### Gate 1: Routing Confirmation
+
+*Taboo: `triggers-routing`*
+
+**When it fires**: At the start of the repair duty, before any repair action is taken.
+
+**When it does not fire**: This gate is not applicable if the duty is invoked as part of a larger investigation duty where routing has already been confirmed by an upstream gate.
+
+**Verification**: The office must verify that routing has been confirmed as a repair task. This requires a routing record that explicitly names the task as a "repair" rather than an "investigation." The routing record must cite the defect ID or defect description that triggered the repair.
+
+**Completion requirement**: The office produces a routing confirmation statement that cites the routing record and explicitly states: "Routing confirmed as repair task for [defect ID/description]."
+
+**Rejection clause**: If no routing confirmation record exists, or if the routing record names the task as anything other than a repair, the office must halt and escalate to the routing office. Proceeding without confirmed routing is a violation of `triggers-routing`.
+
+---
+
+### Gate 2: Locus Record Confirmation
+
+*Taboo: `explicit-prerequisite-gate`*
+
+**When it fires**: After Gate 1, before any code change is proposed or applied.
+
+**When it does not fire**: This gate is not applicable if the locus record is embedded in the routing confirmation and explicitly names file, line, and failure mode.
+
+**Verification**: The office must verify that a confirmed locus record exists that names:
+- The file path (e.g., `calculator.py`)
+- The line number (e.g., line 2)
+- The failure mode (e.g., `ZeroDivisionError` when called with an empty list)
+
+The locus record must be explicit and unambiguous. A vague reference like "the average function" or "somewhere in the calculator" does not satisfy this gate.
+
+**Completion requirement**: The office produces a locus confirmation statement that cites the locus record and explicitly states: "Locus confirmed at [file]:[line], failure mode: [failure mode]."
+
+**Rejection clause**: If no locus record exists, or if the locus record does not explicitly name file, line, and failure mode, the office must halt and escalate to the investigation office to confirm the locus. Proceeding without a confirmed locus is a violation of `explicit-prerequisite-gate`.
+
+---
+
+### Gate 3: Passing Criterion Declaration
+
+*Taboo: `investigation-fix-criterion-predeclaration`*
+
+**When it fires**: After Gate 2, before any fix attempt is made.
+
+**When it does not fire**: This gate is not applicable if the passing criterion is embedded in the locus record and explicitly stated.
+
+**Verification**: The office must declare a passing criterion before proposing a fix. The criterion must be specific, testable, and independent of the fix itself. For example, for the domain anchor defect, a valid criterion would be: "`calculate_average([])` returns a defined value (e.g., `0.0`, `None`, or raises a custom exception) without raising `ZeroDivisionError`." The criterion must not be phrased in a way that can be fitted to any change (e.g., "the code runs without error" is insufficient; "the code runs without error and returns a value consistent with the documented behavior for empty inputs" is acceptable).
+
+**Completion requirement**: The office produces a criterion declaration statement that explicitly states the passing criterion and cites the locus record that motivates it. The criterion must be verifiable by a test or observed output.
+
+**Rejection clause**: If no passing criterion is declared, or if the criterion is vague, unfalsifiable, or appears to have been fitted to a proposed fix, the office must halt and revise the criterion. Proceeding without a pre-declared criterion is a violation of `investigation-fix-criterion-predeclaration`.
+
+---
+
+### Gate 4: Scope Boundary Verification
+
+*Taboo: `investigation-fix-scope-boundary`*
+
+**When it fires**: After Gate 3, before any code change is applied. This gate is re-verified after each fix attempt.
+
+**When it does not fire**: This gate is not applicable if the fix is a single-line change that is explicitly named in the locus record.
+
+**Verification**: The office must verify that the proposed change touches only the lines named in the locus record. If the fix requires changes to additional lines, the office must:
+1. Identify the additional lines.
+2. Justify why those lines are part of the root cause, not adjacent code.
+3. Update the locus record to include the additional lines, or halt and escalate.
+
+The office must not make opportunistic edits to adjacent code (e.g., refactoring a function name, adding a comment to a nearby line, or "cleaning up" unused variables) unless those changes are explicitly justified as part of the root cause.
+
+**Completion requirement**: The office produces a scope verification statement that lists all lines the proposed change touches and confirms that each line is named in the locus record or explicitly justified as part of the root cause.
+
+**Rejection clause**: If the proposed change touches lines not named in the locus record and not explicitly justified as part of the root cause, the office must halt and revise the change to stay within scope, or update the locus record and re-verify. Proceeding with out-of-scope edits is a violation of `investigation-fix-scope-boundary`.
+
+---
+
+### Gate 5: Locus Identification Verification
+
+*Taboo: `fix-locus-identification`*
+
+**When it fires**: After Gate 4, before the fix is applied.
+
+**When it does not fire**: This gate is not applicable if the locus record explicitly names the canonical source location and the proposed change is applied to that exact location.
+
+**Verification**: The office must verify that the fix is applied to the canonical source location, not a call site or consumer. For example, for the domain anchor defect, the canonical source location is `calculator.py:2` (the `calculate_average` function definition). A fix that modifies the call site (e.g., adding a check before calling `calculate_average`) does not satisfy this gate. The fix must address the root cause at the canonical source.
+
+**Completion requirement**: The office produces a locus identification statement that explicitly states: "Fix applied to canonical source location at [file]:[line]" and confirms that the change addresses the root cause, not a symptom at a call site.
+
+**Rejection clause**: If the fix is applied to a call site, consumer, or wrapper rather than the canonical source location, the office must halt and revise the fix to address the root cause at the canonical source. Applying a fix to a consumer is a violation of `fix-locus-identification`.
+
+---
+
+### Gate 6: Fix Attempt Execution and Verification
+
+*Taboo: `fix-attempt-root-cause-reassessment`*
+
+**When it fires**: After Gate 5, when the fix is applied and tested.
+
+**When it does not fire**: This gate is not applicable if the fix is the first attempt and succeeds on the first try.
+
+**Verification**: The office must apply the fix and verify it against the passing criterion declared in Gate 3. The verification must be by observed test result or output, not by written claim. For example, for the domain anchor defect, the office must run `calculate_average([])` and observe the output. If the output matches the passing criterion, the fix is successful. If the output does not match the passing criterion, the fix has failed.
+
+If the fix fails:
+1. The office must halt and reassess the root cause.
+2. The office must produce a revised root-cause citation that explains why the first fix failed and what the actual root cause is.
+3. The office must update the locus record if the root cause analysis reveals a different or additional locus.
+4. The office must re-declare the passing criterion if the root cause analysis changes the expected behavior.
+5. The office may then propose a new fix attempt, which must pass through Gates 4, 5, and 6 again.
+
+**Completion requirement**: 
+- If the fix succeeds: The office produces a verification statement that cites the observed test result or output and explicitly states: "Fix verified: [observed result] matches passing criterion [criterion]."
+- If the fix fails: The office produces a failure statement that cites the observed test result or output, the revised root-cause citation, and the updated locus record (if applicable).
+
+**Rejection clause**: 
+- If the office declares the fix successful without observed test result or output, the office must halt and re-verify. Declaring success by claim is a violation of `document-claim-verification`.
+- If the fix fails and the office proceeds to a second attempt without a revised root-cause citation, the office must halt and reassess. Proceeding without reassessment is a violation of `fix-attempt-root-cause-reassessment`.
+
+---
+
+### Gate 7: Advisory Fix Durability Check
+
+*Taboo: `investigation-advisory-fix-durability`*
+
+**When it fires**: After Gate 6, if the fix is advisory (comment, docstring, warning, or other non-structural change).
+
+**When it does not fire**: This gate is not applicable if the fix is structural (changes to code logic, control flow, or data handling).
+
+**Verification**: The office must verify that the advisory fix cannot be bypassed by a caller. For example, if the fix is a comment warning that `calculate_average` does not handle empty lists, the office must verify that there is no code path where a caller can invoke `calculate_average` without seeing the warning. If the warning is in a docstring, the office must verify that the docstring is not stripped by a linter or formatter. If the warning is a log message, the office must verify that logging is enabled and that the log level is not suppressed.
+
+The durability check must be by observed test result or output, not by written claim. For example, the office must run a test that invokes the function and observes that the warning is emitted.
+
+**Completion requirement**: The office produces a durability statement that cites the observed test result or output and explicitly states: "Advisory fix durability verified: [observed result] confirms the fix cannot be bypassed."
+
+**Rejection clause**: If the advisory fix can be bypassed (e.g., the warning is not emitted under certain conditions, or the docstring is stripped), the office must halt and revise the fix to be structural, or halt and escalate. Accepting an advisory fix without a durability check is a violation of `investigation-advisory-fix-durability`.
+
+---
+
+### Gate 8: Completion Evidence
+
+*Taboo: `completion-evidence-required`*
+
+**When it fires**: After Gate 6 (and Gate 7, if applicable), before the repair is declared complete.
+
+**When it does not fire**: This gate is not applicable if the verification artifact is embedded in the fix attempt verification statement from Gate 6.
+
+**Verification**: The office must produce a co-located verification artifact that proves the fix works. The artifact must be specific to the defect and the fix. For example, for the domain anchor defect, the artifact could be a test case that invokes `calculate_average([])` and asserts the expected behavior. The artifact must be co-located with the fix (e.g., in the same file or a related test file) and must be executable.
+
+The artifact must not be a written claim. It must be an observed test result or output. For example, the office must run the test and capture the output.
+
+**Completion requirement**: The office produces a completion evidence statement that cites the verification artifact and explicitly states: "Completion evidence: [artifact description] at [location] verified by [observed result]."
+
+**Rejection clause**: If no co-located verification artifact exists, or if the artifact is not executable or does not produce observed results, the office must halt and produce a valid artifact. Declaring completion without evidence is a violation of `completion-evidence-required`.
+
+---
+
+### Gate 9: Verification by Observed Result
+
+*Taboo: `document-claim-verification`*
+
+**When it fires**: After Gate 8, as part of the final review before the repair is declared complete.
+
+**When it does not fire**: This gate is not applicable if the completion evidence from Gate 8 is already an observed test result or output.
+
+**Verification**: The office must verify that all claims made in the repair process are supported by observed test results or output, not by written claims. For example, if the office claims that "the fix handles all edge cases," the office must provide observed test results for those edge cases. If the office claims that "the fix is backward compatible," the office must provide observed test results that demonstrate backward compatibility.
+
+**Completion requirement**: The office produces a verification statement that lists all claims made in the repair process and cites the observed test result or output that supports each claim.
+
+**Rejection clause**: If any claim is not supported by observed test result or output, the office must halt and either provide the missing evidence or revise the claim. Verifying by written claim is a violation of `document-claim-verification`.
+
+---
+
+### Gate 10: Known Constraint Documentation
+
+*Taboo: `known-constraint-documentation`*
+
+**When it fires**: After Gate 9, before the session closes.
+
+**When it does not fire**: This gate is not applicable if no environmental constraints were discovered during the repair.
+
+**Verification**: The office must identify any environmental constraints discovered during the repair. Environmental constraints include:
+- Dependencies that were not present in the initial environment (e.g., a missing library, a required environment variable).
+- Configuration settings that affect the behavior of the fix (e.g., a feature flag that must be enabled).
+- Version requirements (e.g., the fix requires Python 3.8 or later).
+- Platform-specific behavior (e.g., the fix works on Linux but not on Windows).
+
+The office must record each constraint in a constraint log that is co-located with the repair. The log must name the constraint, describe its impact on the fix, and specify how it was discovered.
+
+**Completion requirement**: The office produces a constraint documentation statement that lists all discovered environmental constraints and cites the constraint log. If no constraints were discovered, the office must explicitly state: "No environmental constraints discovered during this repair."
+
+**Rejection clause**: If an environmental constraint was discovered but not recorded, the office must halt and record the constraint. Failing to document known constraints is a violation of `known-constraint-documentation`.
+
+---
+
+## Final Completion Statement
+
+After all gates have been passed, the office produces a final completion statement that includes:
+- The defect ID or description.
+- The locus record.
+- The passing criterion.
+- The fix description.
+- The verification artifact and observed result.
+- Any advisory fix durability verification (if applicable).
+- Any discovered environmental constraints (or a statement that none were discovered).
+
+The office then declares the repair complete. The repair is not complete until all gates have been passed and the final completion statement has been produced.

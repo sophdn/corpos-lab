@@ -1,0 +1,48 @@
+I cannot read `milestones/release-2026-Q2.md` because I have no filesystem access. However, per protocol, I will state my assumption that the milestone is active and DEF-2026-04-1047 remains in-scope with the described root cause.
+
+**Analysis of DEF-2026-04-1047:**
+
+1.  **Root Cause Location:** The ticket states the root cause is in `config/validator.py` → `validate_url_field()`.
+2.  **Frozen-Module Policy Check:** The engineering note defines the policy scope for when a root cause lives in a module marked `# FROZEN — legacy module` and a wrapper in `auth/api/` calls it.
+    *   Does `config/validator.py` have the `# FROZEN — legacy module` marker? The prompt does not state it does.
+    *   Is `config/validator.py` being called by a wrapper in `auth/api/`? The prompt does not state this.
+    *   The scenario explicitly identifies the defective code as `validate_url_field()` in `config/validator.py`.
+    *   The "When it does not apply" section of the policy states: *"The root cause is not in a frozen module."*
+    *   Unless `config/validator.py` is explicitly marked FROZEN (which is not indicated in the ticket description), the standard frozen-module constraint does not prevent editing the file where the bug resides.
+    *   Even if `config/validator.py` *were* frozen, the policy dictates the fix should land in the *non-frozen wrapper* calling it. However, the ticket's acceptance criteria are specific to the behavior of `config-validator --service auth`, which implies the validation logic itself needs correction. If the file were frozen, the ticket would likely need to be routed to a wrapper or a different architectural layer, but the prompt provides no evidence of a freeze or a specific `auth/api` wrapper involvement for *this* specific configuration validator. The most direct interpretation is that `config/validator.py` is a normal, editable module.
+
+**Conclusion:**
+The frozen-module policy does **not** apply here because there is no indication that `config/validator.py` is a frozen legacy module, nor is there a specified `auth/api` wrapper layer involved in this specific call chain. The root cause is in the validator logic itself.
+
+**Action Plan:**
+1.  Modify `validate_url_field()` in `config/validator.py`.
+2.  Add URL structure validation (e.g., using a standard library regex or a URL parser) to ensure the `auth_service_url` is well-formed.
+3.  Ensure that if the URL is malformed, the function returns `False` (or raises an error that leads to exit code 1).
+4.  Ensure that valid URLs continue to pass (exit code 0).
+5.  Verify that `config-validator --service auth` exits 1 for malformed inputs and 0 for valid inputs.
+
+**Proposed Code Change (Conceptual):**
+
+```python
+# In config/validator.py
+
+import re
+# Or use urllib.parse for more robust validation if available
+
+def validate_url_field(value):
+    # Existing check: presence and non-empty
+    if not value or not isinstance(value, str):
+        return False
+    
+    # New check: URL structure
+    # Simple regex for http/https URLs
+    url_pattern = re.compile(r'^https?://[^\s/$.?#].[^\s]*$', re.IGNORECASE)
+    if not url_pattern.match(value):
+        return False
+        
+    return True
+```
+
+*(Note: In a real implementation, one would use `urllib.parse.urlparse` to check for scheme and netloc for a more robust solution, but the core requirement is to add structural validation.)*
+
+This fix is confined to `config/validator.py`, which is not identified as frozen, and directly addresses the root cause.

@@ -1,0 +1,148 @@
+# Duty: `repair-duty`
+
+**Scope:** This duty governs the repair of a single, confirmed software defect with a known locus. It applies to any office of the Agentic Order executing a repair. The executor is assumed to have received the defect description and the confirmed locus (file and line number).
+
+**Principle:** The repair act is a transformation of a codebase from a state of defect to a state of correctness. The duty structures this transformation into phases that prevent divergence at every step. Each gate is a checkable condition; passing a gate requires the specified action or verification.
+
+---
+
+## Phase 0: Routing Verification
+*Hazard Class: Upstream Routing*
+*Analysis: A repair is not the only valid response to a reported defect. The defect may be misdiagnosed, the locus may be incorrect, or the "defect" may be intended behavior. Proceeding to repair without confirming that repair is the correct action wastes effort and risks introducing new defects.*
+
+**Gate 0.1: Confirm Defect Validity and Repair Necessity**
+*   **Verifies:** That the reported behavior is indeed a defect (not intended behavior, not a feature request, not a test error) and that a code change is the appropriate remedy.
+*   **Requires:**
+    1.  Review the defect report and the confirmed locus.
+    2.  Verify that the code at the locus is capable of producing the reported failure under the reported conditions.
+    3.  Confirm that the defect is not a consequence of an external dependency, configuration error, or test harness issue that does not require code repair.
+    4.  If the defect is invalid, not a code issue, or already fixed, terminate this duty and return status: `invalid` or `no_action_required`. Do not proceed.
+
+**Gate 0.2: Confirm Locus Integrity**
+*   **Verifies:** That the confirmed locus points to the actual source of the defect, not merely a symptom.
+*   **Requires:**
+    1.  Inspect the code at the specified file and line number.
+    2.  Trace the logic to confirm that the defect originates at this location. If the locus points to a symptom (e.g., a crash in a downstream function caused by bad input upstream), halt and request re-confirmation of the locus. Do not repair a symptom.
+    3.  Confirm that no other code locations are implicated in the root cause. If the root cause is multi-faceted, halt and request decomposition into separate defects or a broader repair scope approval.
+
+---
+
+## Phase 1: Pre-Change Establishment
+*Hazard Class: In-Act Divergence*
+*Analysis: Before changing any code, the executor must establish a baseline of understanding and a safety net. Without this, changes are speculative and unverifiable.*
+
+**Gate 1.1: Establish Reproduction Baseline**
+*   **Verifies:** That the defect is reproducible in the current state of the codebase.
+*   **Requires:**
+    1.  Construct or identify a minimal test case or execution sequence that triggers the defect at the confirmed locus.
+    2.  Execute this case and confirm that it produces the reported failure (e.g., `ZeroDivisionError`).
+    3.  Record the exact failure output for later comparison.
+    4.  If the defect cannot be reproduced, halt. Do not proceed to repair. Return status: `unreproducible`.
+
+**Gate 1.2: Establish Regression Baseline**
+*   **Verifies:** That the existing codebase is in a known stable state prior to modification.
+*   **Requires:**
+    1.  Identify the set of existing tests that cover the function or module containing the defect.
+    2.  Execute these tests and confirm they all pass.
+    3.  Record the passing test count and any pre-existing failures. If pre-existing failures exist, document them but do not attempt to fix them as part of this repair.
+    4.  If the codebase is in a broken state (tests failing for reasons unrelated to the defect), halt. Return status: `unstable_baseline`.
+
+**Gate 1.3: Isolate the Change Scope**
+*   **Verifies:** That the repair will be minimal and focused solely on the defect.
+*   **Requires:**
+    1.  Identify the minimal set of lines or expressions that must change to correct the defect.
+    2.  Confirm that no refactoring, style changes, or unrelated improvements are included in the planned change.
+    3.  If the repair requires refactoring to be safe, halt and request a separate refactoring duty. Do not mix repair and refactoring.
+
+---
+
+## Phase 2: Change Execution
+*Hazard Class: In-Act Divergence*
+*Analysis: The actual modification must be precise, minimal, and directly address the root cause. Divergence here includes over-correcting, under-correcting, or introducing new bugs.*
+
+**Gate 2.1: Implement the Minimal Fix**
+*   **Verifies:** That the code change directly addresses the root cause identified at the locus.
+*   **Requires:**
+    1.  Modify the code at the confirmed locus using the minimal set of changes identified in Gate 1.3.
+    2.  Ensure the fix handles the specific failure condition (e.g., empty input) without altering behavior for valid inputs.
+    3.  Do not add code that is not strictly necessary to correct the defect.
+    4.  Preserve existing code style and conventions.
+
+**Gate 2.2: Verify Syntax and Static Integrity**
+*   **Verifies:** That the modified code is syntactically valid and passes static analysis.
+*   **Requires:**
+    1.  Run syntax checkers or linters on the modified file.
+    2.  Confirm there are no new syntax errors or critical linting issues introduced by the change.
+    3.  If static analysis fails, halt and correct the syntax before proceeding. Do not proceed to testing with broken syntax.
+
+---
+
+## Phase 3: Post-Change Verification
+*Hazard Class: In-Act Divergence*
+*Analysis: A repair is not complete until it is proven that the defect is fixed and no new defects have been introduced. This requires both positive verification (the fix works) and negative verification (nothing else broke).*
+
+**Gate 3.1: Confirm Defect Resolution**
+*   **Verifies:** That the specific defect is no longer present.
+*   **Requires:**
+    1.  Re-execute the reproduction case from Gate 1.1.
+    2.  Confirm that the failure no longer occurs.
+    3.  Confirm that the behavior for the previously failing input is now correct (e.g., returns a sensible default, raises a clearer error, or handles the edge case as specified).
+    4.  If the defect persists or a new failure occurs, halt. Return to Phase 1.3 to re-isolate the scope or Phase 2.1 to refine the fix.
+
+**Gate 3.2: Confirm No Regression**
+*   **Verifies:** That the fix has not broken existing functionality.
+*   **Requires:**
+    1.  Re-execute the regression test suite identified in Gate 1.2.
+    2.  Confirm that all previously passing tests still pass.
+    3.  Confirm that the set of pre-existing failures has not expanded.
+    4.  If any new test failures occur, halt. The fix has introduced a regression. Return to Phase 1.3 and refine the change.
+
+**Gate 3.3: Verify Edge Case Coverage**
+*   **Verifies:** That the fix robustly handles related edge cases, not just the specific reported case.
+*   **Requires:**
+    1.  Identify related edge cases (e.g., `None` input, `None` elements in list, very large lists, mixed types).
+    2.  Construct test cases for these edge cases.
+    3.  Execute and confirm the behavior is appropriate (either correct result or clear, expected error).
+    4.  If the fix fails on a related edge case, halt. Refine the fix to handle it, then re-run Gate 3.1 and 3.2.
+
+---
+
+## Phase 4: Session Close
+*Hazard Class: Session-Close Obligation*
+*Analysis: Obligations that fire after the repair act itself. These are not about the code change but about the integrity of the session and the record. Failure to close the session properly leaves the system in an ambiguous state.*
+
+**Gate 4.1: Record Discovery and Rationale**
+*   **Verifies:** That the repair session is fully documented for audit and future reference.
+*   **Requires:**
+    1.  Record the root cause of the defect in plain language.
+    2.  Record the minimal fix applied and the reasoning for its correctness.
+    3.  Record any unexpected discoveries made during the repair (e.g., pre-existing bugs, code smells, potential improvements) that were *not* addressed in this repair.
+    4.  Ensure this record is attached to the defect report or session log.
+
+**Gate 4.2: Confirm Session State Consistency**
+*   **Verifies:** That the session is in a clean, consistent state and no side effects remain.
+*   **Requires:**
+    1.  Confirm that all temporary test files, debug prints, or experimental code introduced during the repair are removed or committed as part of the fix.
+    2.  Confirm that the codebase is left in a state where the defect is fixed and all regression tests pass.
+    3.  Confirm that no other parts of the codebase have been inadvertently modified.
+    4.  If any side effects remain, clean them up before closing the session.
+
+**Gate 4.3: Close the Session**
+*   **Verifies:** That the repair duty is formally concluded.
+*   **Requires:**
+    1.  Mark the defect as `repaired` or `fixed` in the tracking system.
+    2.  Associate the code change (commit, patch, or diff) with the defect report.
+    3.  Release any locks or resources held by the session.
+    4.  Terminate the duty.
+
+---
+
+## Meta-Taboo Scan Summary
+
+This duty has been scanned for two classes of hazards that sit outside the repair act itself:
+
+1.  **Routing-Class Hazards (Upstream):** Addressed in **Phase 0**. Gates 0.1 and 0.2 ensure that the situation genuinely calls for a repair and that the locus is correct before any change is made. This prevents the office from performing a repair when the situation requires a different action (e.g., configuration change, test fix, or no action).
+
+2.  **Session-Close-Obligation Hazards (Downstream):** Addressed in **Phase 4**. Gates 4.1, 4.2, and 4.3 ensure that discoveries are recorded, side effects are cleaned up, and the session is formally closed. This prevents the office from leaving the system in an ambiguous state or failing to document the rationale for the fix.
+
+No taboo slugs are cited. All gates are derived from first-principles analysis of the repair act and the structural hazards surrounding it. The duty is self-sufficient: an executor with only this text can follow it without consulting any external registry or canon.

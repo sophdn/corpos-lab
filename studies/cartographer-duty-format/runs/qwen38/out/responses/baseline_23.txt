@@ -1,0 +1,92 @@
+# Repair-Duty
+
+**Status:** Active
+**Scope:** Any Office of the Agentic Order
+**Trigger:** A confirmed software defect with a known locus.
+
+## Preamble
+
+This duty governs the remediation of a specific, localized failure within the codebase. It is not a general maintenance protocol. It applies strictly when the nature of the failure is understood, the location of the fault is known, and the path to resolution is bounded. The executor must treat the codebase as a living system where a single change ripples outward. Therefore, the repair is not merely the insertion of code, but the restoration of invariant integrity.
+
+The domain anchor for this duty is the `ZeroDivisionError` raised by `calculate_average([])` in `calculator.py` at line 2. While this specific defect is the context for the duty's definition, the gates below are universal to any confirmed defect with a known locus.
+
+## Gates
+
+The executing office must pass through the following gates in sequence. A gate is not passed until its verification condition is met.
+
+### Gate 1: Locus Verification
+**Verification:** The executing office confirms that the reported locus (file, line, or function) is the actual site of the defect and not merely the site of its symptom.
+**Requirement:** The executor must inspect the code at the stated locus and verify that the logic present there is directly responsible for the reported failure mode. If the locus is symptomatic (e.g., an exception propagates from a caller but the root cause is deeper), the executor must re-identify the true locus before proceeding. The duty cannot proceed on a misdiagnosed locus.
+
+### Gate 2: Invariant Analysis
+**Verification:** The executing office identifies the preconditions and postconditions that the defective function is expected to uphold.
+**Requirement:** The executor must articulate, in writing, what the function is *supposed* to do. For `calculate_average`, the invariant is: "Return the arithmetic mean of the input list." The executor must also identify the domain constraints: "The input list must contain at least one element for a standard arithmetic mean to be defined." Failure to articulate the invariant prevents the executor from distinguishing between a bug and a design choice.
+
+### Gate 3: Failure Mode Enumeration
+**Verification:** The executing office enumerates all possible input states that violate the identified invariants or preconditions.
+**Requirement:** The executor must list the edge cases that trigger the defect. For the anchor defect, this includes:
+1. An empty list (`[]`).
+2. A list containing non-numeric types (if not already handled by type hints or prior validation).
+3. A list containing `None` values (if applicable to the domain).
+The executor must determine whether the current failure is the *only* violation or one of several. This gate ensures the repair is not narrow-minded.
+
+### Gate 4: Remediation Strategy Selection
+**Verification:** The executing office selects a remediation strategy that resolves the failure mode without violating other invariants or introducing new failure modes.
+**Requirement:** The executor must choose between:
+- **Rejection:** Raising a descriptive error for invalid input (e.g., `ValueError` for empty list).
+- **Default:** Returning a default value (e.g., `0.0` or `None`) for edge cases.
+- **Normalization:** Adjusting the logic to handle the edge case mathematically (e.g., returning `0.0` for an empty set, if that aligns with domain semantics).
+The strategy must be justified in terms of the system’s broader contract. For `calculate_average`, returning `0.0` is often mathematically incorrect (the mean of no numbers is undefined), while raising `ValueError` is often more honest. The executor must document *why* the chosen strategy is correct for this context.
+
+### Gate 5: Implementation
+**Verification:** The executing office modifies the code at the locus to implement the selected strategy.
+**Requirement:** The code change must be minimal, readable, and directly address the failure mode. The change must not alter the function’s signature, return type, or behavior for valid inputs. For the anchor defect, the implementation might look like:
+```python
+def calculate_average(values: list) -> float:
+    if not values:
+        raise ValueError("Cannot calculate average of an empty list.")
+    return sum(values) / len(values)
+```
+The executor must ensure that the new code is syntactically correct and stylistically consistent with the surrounding code.
+
+### Gate 6: Regression Verification
+**Verification:** The executing office verifies that the repair has not broken existing behavior for valid inputs.
+**Requirement:** The executor must mentally simulate or test the function with a representative set of valid inputs (e.g., `[1, 2, 3]`, `[4.5]`, `[-1, 1]`) and confirm that the output remains unchanged. If the system has a test suite, the executor must run the relevant tests. If no test suite exists, the executor must manually verify at least three valid cases. A repair that breaks valid functionality is a worse defect than the one it fixed.
+
+### Gate 7: Edge Case Verification
+**Verification:** The executing office verifies that the specific failure mode and any enumerated edge cases are now handled correctly.
+**Requirement:** The executor must confirm that `calculate_average([])` no longer raises `ZeroDivisionError` but instead behaves according to the selected strategy (e.g., raises `ValueError`). The executor must also test any other edge cases identified in Gate 3. This gate ensures the repair is complete, not just superficial.
+
+### Gate 8: Documentation Update
+**Verification:** The executing office updates any associated documentation, comments, or API contracts to reflect the new behavior.
+**Requirement:** If the function’s docstring does not mention the behavior for empty lists, the executor must add a note. For example:
+```python
+def calculate_average(values: list) -> float:
+    """
+    Calculate the arithmetic mean of the input list.
+    
+    Raises:
+        ValueError: If the input list is empty.
+    """
+```
+This ensures that future executors and users understand the contract. A repair that leaves the documentation stale is an incomplete repair.
+
+### Gate 9: Closure and Handoff
+**Verification:** The executing office confirms that all previous gates have been passed and documents the repair.
+**Requirement:** The executor must produce a brief summary of the repair, including:
+- The original defect.
+- The chosen strategy and its justification.
+- The code change.
+- The verification steps taken.
+This summary is the final artifact of the duty. It allows any future office to understand *why* the code looks the way it does, not just *what* it does.
+
+## Prohibitions
+
+- The executor must not fix defects outside the confirmed locus without first re-running Gate 1.
+- The executor must not change the function’s public interface (signature, return type) without explicit authorization from a higher office.
+- The executor must not suppress exceptions (e.g., using `try/except` to catch `ZeroDivisionError` and return `0.0`) without justifying it in Gate 4 as a deliberate design choice.
+- The executor must not proceed to Gate 5 if any verification condition in Gates 1–4 is not met.
+
+## Final Note
+
+The repair duty is complete only when the code is fixed, the behavior is verified, the documentation is updated, and the rationale is recorded. The goal is not merely to silence the error, but to restore the integrity of the system’s contract.

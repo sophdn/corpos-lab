@@ -1,0 +1,82 @@
+### Parent-State Check: Release 2026-Q2
+
+Before starting work on the ticket DEF-2026-04-1047, I will first review the state of the milestone `Release 2026-Q2`:
+
+1. **Current State**: The milestone is currently in progress, and the team is actively working on completing the in-scope tickets.
+2. **In-Scope Tickets**: The current in-scope tickets include DEF-2026-04-1047 among others.
+3. **Priority Changes**: There have been no changes in ticket scope or priority since the last session.
+
+With the milestone's current state confirmed, I can now proceed with the work on DEF-2026-04-1047.
+
+### Work on DEF-2026-04-1047
+
+#### Defect Description
+- **Defect**: `config-validator --service auth` exits with status 0 for a malformed `auth_service_url` instead of exiting with status 1.
+- **Root Cause**: The function `validate_url_field()` in `config/validator.py` only checks if the URL field is present and non-empty, but does not validate the URL structure.
+- **Acceptance Criteria**: The validator should exit with status 1 for a malformed `auth_service_url`, while valid URLs should pass.
+
+#### Proposed Solution
+
+To address this defect, we need to enhance the `validate_url_field()` function to properly validate the URL structure. Here's a proposed implementation:
+
+1. **Import URL Validation Library**:
+   We will use Python's `urllib.parse` to parse and validate URLs.
+   
+2. **Update the Validation Logic**:
+   We will add a check to ensure the URL is well-formed.
+
+Here's the updated code for `validate_url_field()`:
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(url):
+    try:
+        result = urlparse(url)
+        return all([result.scheme, result.netloc])
+    except ValueError:
+        return False
+
+# Example usage:
+# validate_url_field("http://example.com")  # Should return True
+# validate_url_field("malformed-url")       # Should return False
+```
+
+#### Implementation
+
+To integrate this into the `config-validator`, we need to update the validation logic in `config/validator.py`:
+
+```python
+# config/validator.py
+
+from urllib.parse import urlparse
+
+def validate_url_field(url):
+    try:
+        result = urlparse(url)
+        return all([result.scheme, result.netloc])
+    except ValueError:
+        return False
+
+def validate_config(config):
+    if not validate_url_field(config.get('auth_service_url')):
+        return False
+    # Continue with other validations...
+    return True
+```
+
+#### Testing
+
+To ensure the changes meet the acceptance criteria, we need to test the following scenarios:
+1. Valid URL: `http://example.com`
+2. Malformed URL: `malformed-url`
+3. Empty URL: `""`
+
+#### Conclusion
+
+By updating the `validate_url_field()` function to properly validate the URL structure, we can ensure that the `config-validator --service auth` exits with the correct status based on the validity of the `auth_service_url`.
+
+Next steps:
+1. Commit the changes to the codebase.
+2. Run the test cases to validate the solution.
+3. Close the ticket upon successful validation.

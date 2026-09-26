@@ -1,0 +1,67 @@
+### Investigation Report for Payment Processing Failure (INV-002)
+
+#### Overview
+The payment processing failure occurred this afternoon, specifically between 15:38:00 and 15:41:00. This incident led to the service being marked as permanently unhealthy and removed from the load balancer. The logs from the three components involved — `fraud-detection`, `order-service`, and `payment-gateway` — provide detailed insights into the failure.
+
+#### Log Analysis
+
+1. **Fraud-Detection Service**
+   - **15:18:00**: The fraud-detection service was updated to version `v3.8.1`, which included a new risk scoring configuration.
+   - **15:35:00**: The log indicates a warning about the risk assessment cache approaching its memory limit (418MB heap out of 512MB).
+   - **15:38:00**: The service experienced elevated garbage collection (GC) pressure, leading to a long pause (890ms).
+   - **15:38:30**: The fraud-detection service encountered an `OutOfMemoryError` and became unresponsive.
+   - **15:39:15**: The service was restarted, but it failed again due to high request rates and insufficient heap space.
+   - **15:41:01**: The service was marked as permanently unhealthy and removed from the load balancer.
+
+2. **Order-Service**
+   - **15:25:00**: The order-service initiated a batch job to reconcile unconfirmed orders from the past 48 hours.
+   - **15:38:00**: The batch progress shows 1,005 out of 1,247 orders processed.
+   - **15:38:40**: The service received errors from the payment-gateway and paused.
+   - **15:41:11**: The batch job was suspended due to the unavailability of the payment-gateway.
+
+3. **Payment-Gateway**
+   - **15:30:00**: The payment-gateway initially reported nominal processing times.
+   - **15:37:00**: The fraud-check latency increased to 1,240ms, exceeding the threshold.
+   - **15:38:00**: The latency became critical at 3,800ms.
+   - **15:38:35**: The fraud-detection service timed out, causing 12 requests to be pending.
+   - **15:39:00**: The fraud-detection service returned, but processing resumed with elevated latencies.
+   - **15:41:05**: The payment-gateway marked the fraud-detection service as unavailable and opened a circuit breaker.
+   - **15:41:06**: All payment requests failed due to the dependency on the unresponsive fraud-detection service.
+
+#### Hypothesis and Sprint Design
+
+1. **Hypothesis 1: Heap Memory Issue in Fraud-Detection Service**
+   - **Sprint 1**: Analyze the heap usage logs and GC pauses to confirm if the `OutOfMemoryError` is due to insufficient heap space.
+   - **Sprint 2**: Examine the configuration update (risk scoring weights) to see if it increased memory consumption.
+   - **Sprint 3**: Investigate if there were any known issues with the updated version `v3.8.1`.
+
+2. **Hypothesis 2: High Request Load on Fraud-Detection Service**
+   - **Sprint 1**: Evaluate the request rate during the incident to see if it exceeded the service’s capacity.
+   - **Sprint 2**: Assess if there were any scheduled jobs (like order reconciliation) that could have triggered a high request load.
+   - **Sprint 3**: Check if the service was able to handle the load before the update and if the update impacted its performance.
+
+#### Investigation Rounds
+
+**Round 1: Heap Memory Issue**
+- **Commitment**: The `OutOfMemoryError` and elevated GC pauses indicate a heap memory issue.
+- **Sprint 1**: Logs show that the heap usage reached 491MB at critical levels.
+- **Sprint 2**: The configuration update (new risk scoring weights) may have increased memory consumption.
+- **Sprint 3**: No known issues with `v3.8.1`, but the update coincides with the failure.
+
+**Round 2: High Request Load**
+- **Commitment**: The high request load from the order reconciliation job caused the fraud-detection service to become overwhelmed.
+- **Sprint 1**: The order-service was sending 50 requests per second during the reconciliation job.
+- **Sprint 2**: The service was not able to handle the load, leading to increased latency and timeouts.
+- **Sprint 3**: The reconciliation job coincided with the service update, which may have exacerbated the issue.
+
+#### Conclusion
+The investigation reveals that the primary cause of the payment processing failure is the heap memory issue in the fraud-detection service, exacerbated by the high request load from the order reconciliation job. The updated configuration (risk scoring weights) increased memory consumption, leading to insufficient heap space and subsequent `OutOfMemoryError`. Additionally, the high request rate from the order reconciliation job further overwhelmed the service.
+
+#### Recommendations
+1. **Increase Heap Memory**: Allocate more heap memory to the fraud-detection service to accommodate the increased memory consumption due to the configuration update.
+2. **Optimize Risk Scoring Weights**: Review and optimize the risk scoring weights to reduce memory usage.
+3. **Load Management**: Implement better load management for the order reconciliation job to ensure it does not overwhelm the fraud-detection service.
+4. **Monitoring and Alerts**: Enhance monitoring and alerts to detect memory issues and high latency early and take proactive measures to mitigate them.
+
+### Root Cause
+The root cause of the payment processing failure is the heap memory issue in the fraud-detection service, exacerbated by the high request load from the order reconciliation job.
