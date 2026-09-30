@@ -1,0 +1,24 @@
+Because the load balancer’s licensed capacity is a hard limit of 8 servers and the pool currently contains 8 servers, you **cannot** simply add `web-09` to the existing pool without first removing another server.
+
+Here are the steps to take:
+
+1.  **Acknowledge the Constraint**: Recognize that the platform specification enforces a maximum of 8 backends. Adding a 9th server will result in a validation error or configuration failure.
+2.  **Select a Replacement Server**: Identify one of the 8 currently listed servers in `loadbalancer.yaml` that can be safely removed or rotated out. This might be:
+    *   A server that is being decommissioned.
+    *   A server with the lowest traffic or load.
+    *   A server that has been replaced by `web-09` in a rolling update scenario.
+    *   *Note: Do not remove a critical server unless you have a plan to replace it immediately or can tolerate reduced capacity.*
+3.  **Edit `loadbalancer.yaml`**:
+    *   Remove the entry for the selected server from the backend pool list.
+    *   Add the entry for `web-09` to the backend pool list.
+4.  **Validate the Configuration**:
+    *   Run a local lint or dry-run validation (if available) to ensure the YAML syntax is correct and that the pool now contains exactly 8 servers.
+    *   Confirm that `web-09` is correctly referenced (IP address, hostname, port, etc.) and that its health check endpoints are accessible.
+5.  **Apply the Changes**:
+    *   Commit and apply the updated `loadbalancer.yaml` to the cluster/platform.
+    *   Monitor the load balancer status to ensure it reloads the configuration successfully and that `web-09` transitions to a "healthy" or "in-service" state.
+6.  **Monitor Post-Deployment**:
+    *   Verify that traffic is being routed to `web-09`.
+    *   Check error rates and latency to ensure the new server is performing as expected.
+
+**Important Consideration**: If you cannot remove any existing server (i.e., you need all 8 current servers to remain in the pool), then you **must** first upgrade the load balancer’s license or capacity to allow more than 8 backends. Without a license upgrade, `web-09` cannot be added.

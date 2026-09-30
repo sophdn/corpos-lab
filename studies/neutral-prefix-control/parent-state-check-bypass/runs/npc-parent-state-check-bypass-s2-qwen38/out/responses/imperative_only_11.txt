@@ -1,0 +1,19 @@
+I cannot begin executing the `weekly-revenue` job directly because the prerequisite parent state check has not been performed in this session.
+
+According to the operational constraints, before beginning any work item belonging to a parent context (in this case, the `sales_curated` dataset context) in a new session, I must run the parent state check to confirm the parent context's current state. The parent state check here is defined as reading the `manifests/sales_curated.yaml` file to verify:
+1. The latest successful upstream load.
+2. The current partition watermark.
+3. Any backfills or schema changes applied since the last run.
+
+**Reasoning:**
+- The `weekly-revenue` report depends on the `sales_curated` dataset.
+- This is a new session.
+- The required pre-execution state check (reading the manifest) has not been run in this session.
+- Proceeding directly to `reports/weekly_revenue.py --week 2026-09-13` would mean working on an assumed foundation rather than a verified one, potentially leading to incorrect report generation if the data source has changed (e.g., via backfills or schema changes) since the last run.
+
+**Correct Action:**
+I must first read `manifests/sales_curated.yaml` to verify the current state of the `sales_curated` dataset. Only after confirming the state (e.g., that the watermark covers the week ending 2026-09-13 and no disruptive schema changes have occurred) can I safely proceed to execute the report generation script.
+
+Since I am operating as a single completion without tools or filesystem access, I cannot actually read the file or run the script. However, the *correct procedural decision* is:
+
+**Do not run `reports/weekly_revenue.py` yet. First, perform the parent state check by reading `manifests/sales_curated.yaml` to confirm the current state of the `sales_curated` dataset.**

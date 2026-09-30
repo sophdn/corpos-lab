@@ -1,0 +1,52 @@
+To support the `priority` field while adhering to the versioning convention, you should add support for the `priority` field in the version-2 handler. The version-1 handler and endpoint should not be modified. Therefore, the file you need to modify is `handlers/v2/orders.go`.
+
+Here is the exact change you should make to `handlers/v2/orders.go`:
+
+1. Locate the function responsible for processing the order creation request, typically a handler function that reads and unmarshals the request body into an order struct.
+
+2. Modify the order struct to include an optional `priority` field.
+
+3. Update the handler logic to correctly handle the `priority` field if it is present.
+
+Here's a hypothetical example of what the changes might look like:
+
+```go
+// handlers/v2/orders.go
+
+// Import necessary packages
+import (
+    "encoding/json"
+    "net/http"
+)
+
+// OrderV2 represents the order structure for version 2.
+type OrderV2 struct {
+    ID       string `json:"id"`
+    Item     string `json:"item"`
+    Quantity int    `json:"quantity"`
+    Priority *string `json:"priority,omitempty"` // Add priority field here
+}
+
+// OrderHandlerV2 handles the creation and processing of orders for version 2.
+func OrderHandlerV2(w http.ResponseWriter, r *http.Request) {
+    if r.Method == http.MethodPost {
+        var order OrderV2
+        err := json.NewDecoder(r.Body).Decode(&order)
+        if err != nil {
+            http.Error(w, err.Error(), http.StatusBadRequest)
+            return
+        }
+
+        // Process the order, including handling the optional priority field
+        if order.Priority != nil {
+            // Logic to handle priority if present
+        }
+
+        // Respond to the request
+        w.WriteHeader(http.StatusCreated)
+        json.NewEncoder(w).Encode(order)
+    }
+}
+```
+
+In this example, the `OrderV2` struct now includes a `Priority` field, which is a pointer to a string. This allows the field to be optional. The handler function `OrderHandlerV2` is updated to decode the `priority` field and handle it appropriately if it is present in the request.

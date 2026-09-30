@@ -1,0 +1,103 @@
+# Duty: `repair-duty`
+
+**Scope:** This duty governs the execution of a repair for a confirmed software defect where a locus has already been identified. It maps the canonical taboo registry onto specific procedural gates. An executor must pass through each gate in sequence. Failure to satisfy a gate constitutes a violation of the duty and halts execution.
+
+## Taboos
+
+| Taboo Slug | Applicability |
+| :--- | :--- |
+| `triggers-routing` | The defect is confirmed, but the system must verify that the "repair" path is correctly triggered for this class of defect, preventing misrouting to investigation or other workflows. |
+| `explicit-prerequisite-gate` | The repair action must not begin until the specific file, line, and failure mode are explicitly confirmed as the anchor for the change. |
+| `investigation-fix-criterion-predeclaration` | A fix attempt must not begin until the specific condition that will prove the fix is working is declared, preventing post-hoc rationalization of the change. |
+| `investigation-fix-scope-boundary` | The repair must not touch lines outside the confirmed locus, preventing opportunistic edits that obscure the root cause anchor. |
+| `fix-locus-identification` | The change must be applied to the canonical source location (the function definition), not a caller or consumer, ensuring the root cause is addressed. |
+| `fix-attempt-root-cause-reassessment` | If the initial fix attempt fails, a new attempt must not proceed without re-citing the root cause, preventing blind trial-and-error. |
+| `investigation-advisory-fix-durability` | If the fix is advisory (e.g., a comment or warning), it must be verified that callers cannot bypass it; structural fixes are preferred for this defect type. |
+| `completion-evidence-required` | The repair cannot be declared complete without a verification artifact co-located with the change or test suite. |
+| `document-claim-verification` | Completion cannot be based on a written statement that the fix works; it must be based on observed test results or output. |
+| `known-constraint-documentation` | Any environmental constraints discovered during the repair (e.g., Python version specifics) must be recorded before the session closes. |
+
+## Gates
+
+### Gate 1: Routing Confirmation
+*Taboo: `triggers-routing`*
+
+**When it fires:** Upon receipt of the defect ticket or trigger signal.
+**When it does not fire:** If the system is already in a confirmed repair state for this specific locus.
+**Verification:** The system must confirm that the workflow is routed to "Repair" rather than "Investigation" or "Documentation."
+**Rejection Clause:** If the routing is ambiguous or defaults to investigation despite a confirmed locus, the duty halts. This blocks the divergence where a misrouted prompt runs a repair where an investigation was needed, or the reverse.
+
+### Gate 2: Locus Lock
+*Taboo: `explicit-prerequisite-gate`*
+
+**When it fires:** Before any code modification tool is invoked.
+**When it does not fire:** N/A. This is a hard prerequisite.
+**Verification:** The executor must output a structured record containing:
+1.  **File:** `calculator.py`
+2.  **Line:** `2`
+3.  **Failure Mode:** `ZeroDivisionError` when `len(values)` is 0.
+**Rejection Clause:** If this record is not explicitly generated and confirmed by the executor, no code edit may be made. This blocks the divergence where repair begins without a confirmed locus record naming file, line, and failure mode.
+
+### Gate 3: Criterion Pre-Declaration
+*Taboo: `investigation-fix-criterion-predeclaration`*
+
+**When it fires:** After Locus Lock, before the code edit is drafted.
+**When it does not fire:** N/A.
+**Verification:** The executor must declare the passing criterion. For this defect, the criterion is: "A call to `calculate_average([])` does not raise `ZeroDivisionError` and returns a defined value (e.g., 0.0, None, or raises a specific `ValueError` depending on design intent, which must be stated here)."
+**Rejection Clause:** If the criterion is not stated, the fix attempt is blocked. This blocks the divergence where a fix attempt begins before a passing criterion is declared, allowing the criterion to be fitted to whatever change was made.
+
+### Gate 4: Scope Boundary Check
+*Taboo: `investigation-fix-scope-boundary`*
+
+**When it fires:** During the drafting of the code change.
+**When it does not fire:** If the change is purely additive to the specified line range without modifying adjacent logic.
+**Verification:** The proposed diff must only modify `calculator.py` within the function `calculate_average`. No other lines in the file or other files may be touched.
+**Rejection Clause:** If the diff includes changes to lines not named in the Locus Lock (e.g., changing imports, adding new functions elsewhere), the change is rejected. This blocks the divergence where a change touches lines the confirmed locus did not name, breaking the anchor to root cause.
+
+### Gate 5: Canonical Source Application
+*Taboo: `fix-locus-identification`*
+
+**When it fires:** Before the code edit is committed.
+**When it does not fire:** N/A.
+**Verification:** The edit must modify the body of the `calculate_average` function definition in `calculator.py`. It must not modify the caller of `calculate_average`.
+**Rejection Clause:** If the edit attempts to wrap the call site with a try/except or modify the input list before passing it, the repair is rejected. This blocks the divergence where the fix is applied to a call site or consumer, leaving the canonical source location unchanged.
+
+### Gate 6: Root Cause Reassessment (Conditional)
+*Taboo: `fix-attempt-root-cause-reassessment`*
+
+**When it fires:** Only if the first fix attempt fails the verification in Gate 8.
+**When it does not fire:** If the first fix attempt passes verification.
+**Verification:** If the first fix fails, the executor must stop and output a revised root-cause citation. This citation must explain why the initial hypothesis was incorrect or incomplete.
+**Rejection Clause:** A second fix attempt is blocked without this revised citation. This blocks the divergence where a second fix attempt follows a failed one without a revised root-cause citation.
+
+### Gate 7: Durability Check (Conditional)
+*Taboo: `investigation-advisory-fix-durability`*
+
+**When it fires:** If the proposed fix is non-structural (e.g., adding a comment, a warning log, or a docstring) rather than changing control flow.
+**When it does not fire:** If the fix is structural (e.g., adding a guard clause `if not values: return 0.0`).
+**Verification:** If the fix is advisory, the executor must demonstrate that a caller cannot bypass the advisory. For this defect, an advisory fix (e.g., a comment) is inherently bypassable and insufficient. Therefore, for `ZeroDivisionError`, a structural fix is required.
+**Rejection Clause:** If the fix is advisory and no durability proof is provided, the repair is rejected. This blocks the divergence where an advisory fix is accepted without a durability check confirming a caller cannot bypass it.
+
+### Gate 8: Verification Execution
+*Taboo: `document-claim-verification`*
+
+**When it fires:** After the code edit is committed.
+**When it does not fire:** N/A.
+**Verification:** The executor must run a test case that calls `calculate_average([])` and capture the actual output/exception. The output must match the criterion declared in Gate 3.
+**Rejection Clause:** If the verification is based on a statement like "This should work" rather than observed test output, the repair is incomplete. This blocks the divergence where verification is by written claim rather than an observed test result or output.
+
+### Gate 9: Evidence Artifact
+*Taboo: `completion-evidence-required`*
+
+**When it fires:** After successful verification in Gate 8.
+**When it does not fire:** N/A.
+**Verification:** The executor must generate a co-located verification artifact. This could be a new test file `test_calculator.py` containing the test case, or a log entry attached to the commit that includes the passing test output.
+**Rejection Clause:** If no artifact is created or attached, the repair is not complete. This blocks the divergence where the repair is declared complete without a co-located verification artifact.
+
+### Gate 10: Constraint Documentation
+*Taboo: `known-constraint-documentation`*
+
+**When it fires:** Before the session closes.
+**When it does not fire:** If no new environmental constraints were discovered.
+**Verification:** The executor must check if any environmental constraints were discovered (e.g., "Python 3.10+ required for match statements" if used, or type hinting specifics). If so, they must be recorded in the session log or a `CONSTRAINTS.md` file.
+**Rejection Clause:** If constraints were discovered but not recorded, the session is not properly closed. This blocks the divergence where an environmental constraint discovered during repair is not recorded before the session closes.

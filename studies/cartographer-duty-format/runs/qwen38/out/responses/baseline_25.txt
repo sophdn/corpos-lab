@@ -1,0 +1,90 @@
+# Repair-Duty
+
+**Applicability:** This duty governs any Office of the Agentic Order that has received a confirmed software defect with a known locus.
+**Objective:** To transform the specific defect into a resolved state that prevents recurrence, while maintaining the integrity of the surrounding system.
+
+The executor must pass through the following gates in strict sequence. Failure at any gate halts the process and requires escalation or re-entry at the failed gate.
+
+---
+
+## Gate 1: Locus Verification & Isolation
+
+**What this gate verifies:**
+That the declared locus is accurate, reproducible, and isolated from unrelated system noise.
+
+**Completion requirements:**
+1.  **Reproduction:** The executor must write a minimal test case that triggers the defect at the exact declared locus. For the domain anchor, this test must call `calculate_average([])` and assert that a `ZeroDivisionError` is raised.
+2.  **Locus Confirmation:** The executor must confirm that the error originates precisely at the declared line (`calculator.py:2`). If the error is raised elsewhere, the duty halts and returns to the diagnostic phase.
+3.  **Baseline Snapshot:** The executor must record the current behavior (the crash) and ensure that all other existing tests pass. If unrelated tests are failing, the executor must isolate the defect fix from those issues.
+
+*Exit Condition:* A failing test exists that specifically targets the defect, and the locus is confirmed as the source of the failure.
+
+---
+
+## Gate 2: Root Cause Analysis & Intent Preservation
+
+**What this gate verifies:**
+That the executor understands *why* the defect exists and has determined the correct semantic behavior for the fix, preserving the original intent of the code.
+
+**Completion requirements:**
+1.  **Intent Statement:** The executor must explicitly state the intended behavior of the function. For `calculate_average`, the intent is to return the arithmetic mean of a non-empty list.
+2.  **Edge Case Definition:** The executor must define the expected behavior for the edge case (empty list). The executor must choose a standard, defensible behavior (e.g., raise a custom exception, return `None`, or return `0.0`) and document the rationale. *Note: Silently returning `0.0` for an empty average is generally considered a logical error unless specified otherwise; raising a clear exception is preferred for data integrity.*
+3.  **Impact Assessment:** The executor must identify all callers of the affected function to ensure the chosen fix does not introduce new defects downstream.
+
+*Exit Condition:* A documented decision on the expected behavior for the edge case, aligned with the function's intent and system requirements.
+
+---
+
+## Gate 3: Minimal Invasive Remediation
+
+**What this gate verifies:**
+That the code change is minimal, targeted, and strictly addresses the confirmed defect without introducing scope creep or stylistic refactoring.
+
+**Completion requirements:**
+1.  **Code Modification:** The executor must modify `calculator.py` to handle the empty list case. For example:
+    ```python
+    def calculate_average(values: list) -> float:
+        if not values:
+            raise ValueError("Cannot calculate average of an empty list")
+        return sum(values) / len(values)
+    ```
+2.  **No Collateral Changes:** The executor must not rename variables, refactor unrelated logic, or add documentation comments beyond what is necessary to clarify the new guard clause, unless explicitly required by Gate 2.
+3.  **Type Consistency:** The fix must maintain the function signature (`-> float`) or explicitly change it if the decision in Gate 2 requires returning a non-float type (e.g., `Optional[float]`), with corresponding type hint updates.
+
+*Exit Condition:* The code at the locus is modified to prevent the specific defect, with no changes to unrelated lines.
+
+---
+
+## Gate 4: Verification & Regression Check
+
+**What this gate verifies:**
+That the fix resolves the defect and does not break any existing functionality.
+
+**Completion requirements:**
+1.  **Defect Test Pass:** The minimal test case from Gate 1 must now pass. If the decision was to raise an exception, the test must assert the specific exception type and message.
+2.  **Positive Case Test:** The executor must write or verify a test for a valid non-empty input (e.g., `calculate_average([1, 2, 3]) == 2.0`) to ensure the core functionality remains intact.
+3.  **Full Suite Execution:** The executor must run the entire test suite for the module. All tests must pass. If new failures appear, the executor must return to Gate 3 to adjust the fix.
+
+*Exit Condition:* The specific defect test passes, the positive case test passes, and the full test suite is green.
+
+---
+
+## Gate 5: Documentation & Closure
+
+**What this gate verifies:**
+That the repair is fully documented and the defect is formally closed.
+
+**Completion requirements:**
+1.  **Commit Message:** The executor must prepare a commit message that includes:
+    *   A clear subject line (e.g., "Fix ZeroDivisionError in calculate_average for empty list").
+    *   A reference to the defect ID (if applicable).
+    *   A brief explanation of the root cause and the chosen fix strategy.
+2.  **Code Documentation:** If the fix introduces a new exception type or changes the return type, the docstring for `calculate_average` must be updated to reflect this.
+3.  **Final Review:** The executor must review the final diff to ensure it contains only the changes required by Gates 1–4.
+
+*Exit Condition:* The code is committed with a compliant message, documentation is updated, and the defect is marked as resolved.
+
+---
+
+**Failure Protocol:**
+If any gate fails, the executor must not proceed to the next gate. The executor must return to the earliest failed gate, adjust the work, and re-enter the sequence from that point. If the defect cannot be resolved within the scope of this duty, the executor must escalate to a senior office with the full log of attempts.

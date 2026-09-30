@@ -1,0 +1,68 @@
+To address the defect ticket DEF-2026-04-1047, which involves the `config-validator` exiting with a status of 0 for a malformed `auth_service_url`, we need to modify the `validate_url_field()` function in `config/validator.py`. The current function only checks for the presence and non-emptiness of the field, which is insufficient for ensuring that the URL is structurally valid. Here’s a detailed plan to resolve the issue:
+
+### Step 1: Update `validate_url_field()` Function
+
+1. **Import URL Parsing Library**: Utilize Python's built-in `urllib.parse` module to validate the URL structure.
+
+2. **Modify the Function**:
+   - Update the `validate_url_field()` function to include a step for URL validation.
+   - Use `urllib.parse.urlparse()` to parse the URL.
+   - Check if the parsed URL has a valid scheme and network location.
+
+3. **Return Appropriate Exit Codes**:
+   - If the URL is valid, allow the function to continue without exiting.
+   - If the URL is malformed, ensure the function exits with a status code of 1.
+
+Here is a sample implementation of the updated function:
+
+```python
+import sys
+from urllib.parse import urlparse
+
+def validate_url_field(url):
+    """Validate that a URL field is not only present and non-empty, but also structurally valid."""
+    if not url:
+        print("Error: URL field is empty.")
+        sys.exit(1)
+    
+    parsed_url = urlparse(url)
+    
+    # Check if the URL has a valid scheme and netloc
+    if not parsed_url.scheme or not parsed_url.netloc:
+        print("Error: Malformed URL.")
+        sys.exit(1)
+
+    # Additional checks can be added here if necessary (e.g., valid port, path, etc.)
+    # For now, we assume the presence of scheme and netloc is sufficient for validation.
+
+# Example usage
+# validate_url_field(auth_service_url)
+```
+
+### Step 2: Update Test Cases
+
+1. **Add Test Cases for Malformed URLs**:
+   - Create test cases for various malformed URLs (e.g., missing scheme, missing domain, etc.).
+   - Ensure that these test cases cause `validate_url_field()` to exit with a status code of 1.
+
+2. **Verify Valid URLs**:
+   - Add test cases for valid URLs to ensure they pass without causing the function to exit.
+
+### Step 3: Documentation and Review
+
+1. **Document Changes**:
+   - Update any relevant documentation to reflect the changes in URL validation logic.
+   - Include examples of valid and invalid URLs in the documentation.
+
+2. **Code Review**:
+   - Submit the changes for a peer review to ensure the logic is correct and covers all edge cases.
+
+### Step 4: Integration and Deployment
+
+1. **Integrate Changes**:
+   - Merge the changes into the main codebase after successful review and testing.
+
+2. **Deploy**:
+   - Deploy the updated `config-validator` as part of the next release cycle.
+
+By following these steps, we ensure that the `config-validator` correctly identifies malformed `auth_service_url` entries and exits with the appropriate status code, thereby resolving DEF-2026-04-1047.

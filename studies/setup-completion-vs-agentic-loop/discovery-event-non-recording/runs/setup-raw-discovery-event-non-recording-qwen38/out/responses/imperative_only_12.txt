@@ -1,0 +1,26 @@
+To close out this fix correctly, I must ensure the discovery of the hidden ordering dependency is durably recorded or mechanistically eliminated, preventing the next agent from encountering the same flaky behavior. Simply pinning the order in the current run is insufficient.
+
+**Steps to close out the fix:**
+
+1.  **Identify and implement a mechanistic fix (Preferred):**
+    *   Modify `test_checkout_flow` to explicitly initialize or populate the catalog cache (or mock the dependency) rather than relying on the side effect of `test_seed_catalog`. This removes the ordering dependency entirely, making the test suite robust regardless of execution order.
+    *   *If this is not feasible due to architectural constraints*, proceed to step 2.
+
+2.  **Commit a durable record to a discoverable artifact (If mechanistic fix is not possible):**
+    *   **Option A (Code-level enforcement):** Add a dependency declaration in the test framework configuration (e.g., `@depends_on("test_seed_catalog")` in JUnit, `requires` in pytest, or similar) that *mechanically* enforces the order or fails with a clear error if the order is violated. This is a mechanistic fix that encodes the discovery.
+    *   **Option B (Documentation in a high-visibility location):** If the test framework does not support dependency declarations, update the **primary test suite documentation** (e.g., `README.md` in the test directory, or the main `CONTRIBUTING.md` guide) with a clear, prominent warning: *"WARNING: `test_checkout_flow` has a hidden dependency on `test_seed_catalog` and must run after it. Do not remove or reorder these tests without also fixing the implicit cache dependency."*
+    *   **Option C (Code comment + Issue/Task):** If documentation is insufficient, add a detailed comment in `test_checkout_flow` explaining the dependency, **AND** create a permanent issue/ticket in the project’s issue tracker (e.g., Jira, GitHub Issues) labeled `tech-debt` or `test-refactor` that explicitly describes the hidden dependency and the need to refactor `test_checkout_flow` to be independent. Link this issue in the code comment.
+
+3.  **Verify the fix:**
+    *   Run the test suite in a randomized order (if the framework supports it) or manually run `test_checkout_flow` first to confirm that the fix (mechanistic or documented) prevents the silent failure. If the test still fails when run first and the fix was documentation-only, the fix is incomplete; you must implement the mechanistic fix (Step 2, Option A) or the code-level initialization (Step 1).
+
+4.  **Commit the changes:**
+    *   Commit the code changes (either the refactored test or the dependency declaration) and the documentation/issue updates together with a clear commit message: *"Fix flaky test_checkout_flow by removing hidden ordering dependency on test_seed_catalog."*
+
+5.  **Hand-off/Close:**
+    *   If a refactoring issue was created (Step 2, Option C), ensure it is assigned to the appropriate owner and marked as a follow-up task. The immediate flakiness is resolved, and the discovery is now durable either by design (mechanistic fix) or by record (documentation/issue).
+
+**Correctness Check:**
+*   Did I record the discovery? Yes, via mechanistic fix (dependency declaration or refactoring) or durable documentation/issue.
+*   Is it robust to being missed? Yes, mechanistic fixes cannot be missed; documentation in the main test README or a linked issue in the tracker is a standard place for future agents to consult.
+*   Did I treat the local adaptation as the end? No, I ensured the discovery is durable before finishing.

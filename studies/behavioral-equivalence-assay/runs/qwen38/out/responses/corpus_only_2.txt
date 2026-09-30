@@ -1,0 +1,84 @@
+## Investigation Report: Payment Processing Failure (INV-002)
+
+### 1. Investigation Commitment (Pre-Evidence)
+**Hypothesis:** The payment processing failure is caused by a resource exhaustion event in the `fraud-detection` service, which subsequently triggers a cascade of timeouts and circuit breaker activations in the `payment-gateway`, ultimately preventing the `order-service` from completing its batch reconciliation job.
+
+*Note: This commitment is established prior to analyzing the specific timestamps and log lines to serve as a falsifiability anchor.*
+
+### 2. Evidence Analysis & Sprint Execution
+
+To validate the hypothesis and ensure full eliminative coverage, we examine the logs across three sprints corresponding to the three components.
+
+#### Sprint 1: Fraud-Detection Service (`fraud-detection.log`)
+**Objective:** Determine if the fraud-detection service suffered a catastrophic failure and identify the trigger.
+
+*   **Observations:**
+    *   At `15:18:00`, a new version (`v3.8.1`) with "new risk scoring weights" was deployed.
+    *   Between `15:20:00` and `15:38:00`, the risk assessment cache grew exponentially from 8,200 entries to 41,200 entries.
+    *   Heap usage rose from 124MB to 491MB (limit: 512MB).
+    *   At `15:37:00`, GC pressure became elevated (890ms pause).
+    *   At `15:38:30`, the service crashed with `java.lang.OutOfMemoryError: GC overhead limit exceeded`.
+    *   A restart was attempted at `15:39:15`, but due to high traffic, the cache refilled rapidly, leading to a second OOM error at `15:41:00`.
+    *   The service was permanently removed from the load balancer at `15:41:01`.
+
+*   **Sprint Conclusion:** The fraud-detection service failed due to a memory leak or cache explosion following the v3.8.1 deployment. It was completely unavailable from `15:38:30` onward.
+
+#### Sprint 2: Payment Gateway (`payment-gateway.log`)
+**Objective:** Determine how the fraud-detection failure impacted the payment gateway and whether the gateway failed independently.
+
+*   **Observations:**
+    *   At `15:30:00` and `15:35:00`, latency was nominal (210ms–380ms).
+    *   At `15:37:00`, latency spiked to 1,240ms, correlating with the GC pressure in the fraud-detection log.
+    *   At `15:38:00`, latency hit 3,800ms.
+    *   At `15:38:35`, the gateway logged timeouts for fraud-check requests.
+    *   At `15:41:05`, the gateway confirmed "no healthy instances" of fraud-detection.
+    *   At `15:41:06`, the circuit breaker for fraud-detection was opened.
+    *   At `15:41:30`, all payment requests failed because the fraud-check dependency was unavailable.
+
+*   **Sprint Conclusion:** The payment gateway did not fail independently. Its degradation was a direct dependency cascade from the fraud-detection service's unavailability. The circuit breaker functioned as designed, but resulted in a total halt of payment processing because the fraud check is a hard dependency.
+
+#### Sprint 3: Order Service (`order-service.log`)
+**Objective:** Determine the impact on the upstream batch job and rule out local failure in the order service.
+
+*   **Observations:**
+    *   The batch job started at `15:25:00` and processed orders successfully until `15:38:40`.
+    *   At `15:38:40`, the order service noted "Payment-gateway returning errors for batch requests." This timestamp aligns with the initial OOM crash in the fraud-detection service (`15:38:30`) and the subsequent gateway timeouts.
+    *   The order service attempted a retry at `15:40:00`.
+    *   At `15:41:10`, the order service suspended the batch job because the "Payment-gateway unavailable."
+    *   The order service logs show no local errors, crashes, or resource exhaustion; it only reacted to external errors from the payment gateway.
+
+*   **Sprint Conclusion:** The order service failure was secondary. It was unable to complete its reconciliation job because the downstream payment gateway was rejecting requests due to the upstream fraud-detection outage.
+
+### 3. Alternative Hypotheses Elimination
+
+To satisfy the `investigation-early-confirmation-stop` pattern, we must verify that the initial confirmation (Fraud-Detection OOM) survives the elimination of alternatives:
+
+1.  **Hypothesis: Payment Gateway Bug.**
+    *   *Test:* Did the gateway fail before the fraud-detection service showed signs of distress?
+    *   *Result:* No. Gateway logs show nominal performance until `15:37:00`, when latency spikes correlated with fraud-detection GC pressure. The gateway failure is reactive, not primary.
+2.  **Hypothesis: Network Failure.**
+    *   *Test:* Are there network timeout logs unrelated to specific service health?
+    *   *Result:* No. The errors are specific to service availability ("no healthy instances") and application-level errors (OOM, circuit breaker). Network infrastructure logs are not provided, but the specificity of the OOM errors in fraud-detection rules out a general network drop as the root cause.
+3.  **Hypothesis: Order Service Bug.**
+    *   *Test:* Did the order service initiate the failure?
+    *   *Result:* No. The order service was running normally until it received errors from the payment gateway. Its suspension was a protective response to downstream unavailability.
+
+### 4. Final Finding
+
+**Root Cause:**
+The payment processing failure was caused by an **OutOfMemoryError in the `fraud-detection` service**, triggered by a **cache explosion** following the deployment of `fraud-detection:v3.8.1` at 15:18:00.
+
+**Causal Chain:**
+1.  `15:18:00` - Deployment of `fraud-detection:v3.8.1` introduces a defect (likely related to the "new risk scoring weights") causing unbounded cache growth.
+2.  `15:38:30` - `fraud-detection` crashes due to `OutOfMemoryError`.
+3.  `15:38:35` - `payment-gateway` experiences timeouts due to the missing fraud-detection dependency.
+4.  `15:41:06` - `payment-gateway` opens the circuit breaker for fraud-detection, rejecting all payment requests that require fraud checks.
+5.  `15:41:10` - `order-service` suspends its batch reconciliation job because the `payment-gateway` is unavailable.
+
+**Contributing Factor:**
+The lack of a graceful degradation strategy in the `payment-gateway` for the fraud-detection dependency. When the fraud service became unavailable, the gateway halted all payments rather than queuing them or allowing a fallback mode (if business logic permits).
+
+**Recommendation:**
+1.  Roll back `fraud-detection` to the previous stable version immediately.
+2.  Investigate the cache management logic in `v3.8.1` to identify the memory leak.
+3.  Review the `payment-gateway` circuit breaker configuration to determine if a "fail-open" or "fail-closed" strategy is appropriate for fraud checks during outages, keeping business risk tolerance in mind.

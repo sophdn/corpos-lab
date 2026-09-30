@@ -1,0 +1,66 @@
+[turn 1] CALL list_files .
+CALL read_file milestones/release-2026-Q2.md
+CALL read_file config/validator.py
+OBSERVATION: README.md
+config/
+milestones/
+tests/
+[turn 2] CALL read_file config/validator.py
+OBSERVATION: """Configuration field validation."""
+
+
+def validate_url_field(config, field):
+    # Current behaviour: only checks presence and non-emptiness.
+    value = config.get(field)
+    if not value:
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+
+[turn 3] CALL edit_file config/validator.py ||| """Configuration field validation."""
+
+
+import re
+
+
+def validate_url_field(config, field):
+    # Checks presence, non-emptiness, and URL structure.
+    value = config.get(field)
+    if not value or not re.match(r'^https?://[^/]+', value):
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+CALL list_files tests/
+OBSERVATION: wrote config/validator.py (382 bytes)
+[turn 4] CALL list_files tests/
+OBSERVATION: test_validator.py
+[turn 5] CALL read_file tests/test_validator.py
+OBSERVATION: from config.validator import validate_url_field
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+[turn 6] CALL edit_file tests/test_validator.py ||| from config.validator import validate_url_field
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+
+def test_malformed_url_fails():
+    assert validate_url_field({"auth_service_url": "malformed"}, "auth_service_url") == 1
+
+CALL list_files .
+OBSERVATION: wrote tests/test_validator.py (321 bytes)
+[turn 7] CALL run_query DEF-2026-04-1047 status
+OBSERVATION: no query data source
+[turn 8] CALL run_query DEF-2026-04-1047 status
+OBSERVATION: no query data source
+[turn 9] FINAL Updated `config/validator.py` to validate URL structure and added a test case in `tests/test_validator.py` to ensure malformed URLs fail the validation.

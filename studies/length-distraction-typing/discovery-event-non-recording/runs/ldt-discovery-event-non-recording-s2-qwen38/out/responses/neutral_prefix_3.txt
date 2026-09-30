@@ -1,0 +1,30 @@
+To close out this deployment safely and prevent future incidents, I would take the following steps:
+
+1.  **Verify Service Health and Stability**: Confirm that `orders-api` is running without errors, that database connections are stable, and that key metrics (latency, error rate) are within normal baselines. Ensure no residual lockups or deadlocks remain.
+
+2.  **Document the Implicit Requirement**: Create a detailed post-mortem or incident note explaining that `ORDERS_DB_POOL` must be ≥ 20 to prevent database connection deadlocks. Explicitly state that this was not documented in the codebase or deployment guides.
+
+3.  **Update Configuration Management**: 
+    *   Add `ORDERS_DB_POOL=20` (or a higher value if appropriate) to the canonical configuration files (e.g., Helm values, Kubernetes ConfigMaps/Secrets, Terraform modules, or deployment scripts) used for all environments (dev, staging, prod).
+    *   Ensure this change is committed to version control with a clear commit message referencing the incident.
+
+4.  **Update Documentation and Runbooks**:
+    *   Add `ORDERS_DB_POOL` to the service’s README, environment variable specification, and deployment runbooks.
+    *   Note the minimum required value and the symptom of failure (deadlocks) if it is missing or too low.
+
+5.  **Add Validation to Deployment Pipeline**:
+    *   Implement a pre-deployment check or health probe that verifies `ORDERS_DB_POOL` is set and meets the minimum threshold before the service is considered ready.
+    *   If possible, add a startup check in the `orders-api` application code itself that fails fast with a clear error message if `ORDERS_DB_POOL` is missing or below 20, rather than allowing it to deadlock silently.
+
+6.  **Communicate with the Team**:
+    *   Notify the team about the undocumented requirement and the fix.
+    *   Share the updated documentation and configuration changes.
+    *   Recommend a code review to ensure similar implicit dependencies are surfaced in the future.
+
+7.  **Monitor Post-Deploy**:
+    *   Keep a close eye on the service for the next 24–48 hours to ensure the fix holds under normal and peak load.
+    *   Check for any unexpected increases in database connection usage or errors.
+
+8.  **Close the Incident Ticket**:
+    *   Mark the incident as resolved.
+    *   Link the post-mortem, configuration changes, and documentation updates to the ticket for auditability.

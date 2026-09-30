@@ -1,0 +1,50 @@
+## Hypothesis Formulation
+
+### Round 1
+**Hypothesis 1:** The payment processing failure is due to the fraud-detection service running out of memory and becoming unresponsive.
+
+**Hypothesis 2:** The batch job from the order service is overwhelming the fraud-detection service, leading to its unresponsiveness.
+
+### Sprint Structure
+
+- **Sprint 1:** Investigate the logs of the fraud-detection service for memory issues.
+- **Sprint 2:** Investigate the logs of the order service for any unusual batch activity.
+- **Sprint 3:** Investigate the logs of the payment gateway for dependency issues with the fraud-detection service.
+
+## Sprint Execution
+
+### Sprint 1: Fraud-Detection Service Logs
+
+From the `fraud-detection.log`:
+- The fraud-detection service deployed a new version at 15:18:00.
+- The service's heap usage increased rapidly, reaching critical levels by 15:38:00.
+- The service experienced an `OutOfMemoryError` and became unresponsive.
+- The container was restarted but experienced another `OutOfMemoryError` shortly after.
+
+**Observation:** The fraud-detection service ran out of memory, causing it to become unresponsive and eventually fail. This aligns with Hypothesis 1.
+
+### Sprint 2: Order Service Logs
+
+From the `order-service.log`:
+- The order service initiated a batch job at 15:25:00 to revalidate 1,247 unconfirmed orders.
+- The batch job was progressing normally until around 15:38:00, when the payment gateway started returning errors.
+- The batch job was suspended at 15:41:10 due to the payment gateway being unavailable.
+
+**Observation:** The batch job was ongoing, but there is no evidence of it overwhelming the fraud-detection service. The payment gateway started returning errors around the same time the fraud-detection service became unresponsive. This does not strongly support Hypothesis 2.
+
+### Sprint 3: Payment Gateway Logs
+
+From the `payment-gateway.log`:
+- The fraud-check latency increased significantly after 15:35:00.
+- The fraud-detection service experienced timeouts and became unavailable by 15:41:05.
+- The payment gateway could not process requests due to the unavailability of the fraud-detection service.
+
+**Observation:** The payment gateway faced dependency issues with the fraud-detection service, which became unresponsive due to memory issues. This aligns with Hypothesis 1.
+
+## Hypothesis Verification
+
+### Conclusion
+- **Hypothesis 1 (Confirmed):** The payment processing failure is due to the fraud-detection service running out of memory and becoming unresponsive.
+- **Hypothesis 2 (Refuted):** The batch job from the order service did not appear to overwhelm the fraud-detection service directly; the failure was due to the memory issues in the fraud-detection service.
+
+The investigation covered all planned sprints and the findings indicate that the root cause of the payment processing failure was the memory issues in the fraud-detection service. The fraud-detection service experienced a critical memory leak that led to its unresponsiveness, affecting the entire payment processing system.

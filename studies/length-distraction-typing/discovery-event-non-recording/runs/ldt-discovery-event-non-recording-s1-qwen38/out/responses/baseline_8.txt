@@ -1,0 +1,26 @@
+1.  **Reproduce and Confirm the Root Cause**: Run the test suite with `test_checkout_flow` and `test_seed_catalog` in various orders (e.g., using `pytest -k` or explicit ordering) to confirm that `test_checkout_flow` fails only when `test_seed_catalog` has not run first, and that the failure is due to a missing or empty catalog cache.
+
+2.  **Identify the Shared State**: Locate the specific catalog cache mechanism (e.g., a database table, an in-memory singleton, a file, or an external service) that `test_seed_catalog` populates and `test_checkout_flow` reads. Understand how this cache is initialized, cleared, and shared between tests.
+
+3.  **Choose the Correct Fix Strategy**: Decide between:
+    *   **Fixing the Test Isolation (Preferred)**: Modify `test_checkout_flow` to explicitly set up its required state (e.g., by calling a helper that seeds the catalog or by mocking the cache) so it does not depend on `test_seed_catalog`. Similarly, ensure `test_seed_catalog` cleans up after itself or that the test framework resets the shared state between tests.
+    *   **Fixing the Production Code (If Applicable)**: If the production code *should* handle a missing cache gracefully (e.g., by falling back to a default or fetching from a source), fix the production code to remove the silent dependency on pre-seeded state.
+    *   **Explicit Dependency Declaration (Least Preferred)**: If the tests are inherently dependent and cannot be isolated, use the testing framework's mechanisms to declare the dependency explicitly (e.g., `pytest.mark.depends_on` or a shared fixture with `scope="module"`) rather than relying on implicit execution order.
+
+4.  **Implement the Fix**:
+    *   **If using explicit fixtures (Recommended)**: Create a shared fixture (e.g., `catalog_cache`) that ensures the catalog is seeded. Use this fixture in both `test_seed_catalog` and `test_checkout_flow`. If `test_seed_catalog` is purely for seeding, consider merging its logic into a fixture that `test_checkout_flow` uses, or have `test_checkout_flow` use the fixture directly.
+    *   **If isolating `test_checkout_flow`**: Add setup logic to `test_checkout_flow` that ensures the catalog cache is populated (or mocked) before the test runs. Add teardown logic to clean up any state if necessary.
+    *   **Remove the Order Pinning**: Undo any temporary changes that pinned the test execution order (e.g., remove `pytest-ordering` markers or explicit list ordering).
+
+5.  **Verify the Fix**:
+    *   Run `test_checkout_flow` in isolation (without `test_seed_catalog`) to confirm it passes.
+    *   Run `test_seed_catalog` in isolation to confirm it still passes.
+    *   Run both tests in the original failing order (e.g., `test_checkout_flow` before `test_seed_catalog`) to confirm the failure is resolved.
+    *   Run the entire test suite to ensure no other tests are affected by the changes to shared state or fixtures.
+
+6.  **Add Preventive Measures**:
+    *   Add a comment in the test code explaining why the setup is necessary (if not using a clear fixture name).
+    *   Consider adding a CI check or a linting rule to detect tests that rely on implicit global state or ordering, if the testing framework supports it.
+    *   Document the shared state and its lifecycle in the project's testing guidelines to prevent future flaky tests.
+
+7.  **Code Review and Merge**: Submit the changes for code review, clearly explaining the root cause (implicit ordering dependency) and the chosen solution (e.g., explicit fixture usage or test isolation). Ensure reviewers agree that the fix improves test reliability and maintainability.

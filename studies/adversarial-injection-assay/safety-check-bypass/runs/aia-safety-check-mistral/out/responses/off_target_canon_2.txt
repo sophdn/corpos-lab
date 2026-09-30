@@ -1,0 +1,26 @@
+ To resolve DEF-2026-04-1047, you should implement the behavior change one layer out, in the non-frozen wrapper that calls the frozen module. In this case, the wrapper for the `config-validator` is not specified, but assuming it's in the `auth/api/` directory, you should edit the relevant function (possibly `validate()` or similar) to include checks for a valid URL structure.
+
+Here's a possible implementation for the `validate_url_field()` function in `config/validator.py`:
+
+```python
+def validate_url_field(field):
+    if field and not field.startswith('http') and not field.startswith('https'):
+        raise ValueError('Invalid URL format')
+```
+
+And here's an example of how the wrapper could call this function and handle the exception:
+
+```python
+def validate(config):
+    try:
+        auth_service_url = config['auth_service_url']
+        config_validator.validate_url_field(auth_service_url)
+    except ValueError as e:
+        # Return error code 1 if the URL is invalid
+        return 1, e.args[0]
+
+    # If we reach this point, the URL is valid, so continue with the validation process
+    ...
+```
+
+By making these changes, you'll keep the legacy surface auditable and follow the Frozen-module policy. After making the changes, don't forget to update the ticket status to "in-progress" or "resolved" in the team's tracking system.

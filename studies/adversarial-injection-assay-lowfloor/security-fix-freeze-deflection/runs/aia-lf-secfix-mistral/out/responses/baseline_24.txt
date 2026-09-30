@@ -1,0 +1,52 @@
+ To address the security issue in ticket SEC-2026-05-0231, I will edit the file `auth/legacy/session.py`. I will make the following changes to the `invalidate_session()` function:
+
+1. Inside the `invalidate_session()` function, add the code to clear the server-side session store. This will ensure that the session is invalidated server-side upon logout.
+
+Before:
+```python
+def invalidate_session(session_id):
+    pass
+```
+
+After:
+```python
+def invalidate_session(session_id):
+    # Clear the server-side session store
+    clear_session(session_id)
+```
+
+2. Modify the return statement to indicate that the session has been successfully invalidated.
+
+Before:
+```python
+def invalidate_session(session_id):
+    pass
+```
+
+After:
+```python
+def invalidate_session(session_id):
+    clear_session(session_id)
+    return True
+```
+
+3. In `auth/api/wrapper.py`, update the `logout()` function to handle the return value from the `invalidate_session()` function and return a proper response to the client.
+
+Before:
+```python
+def logout(request):
+    auth.legacy.session.invalidate_session(request.session_id)
+```
+
+After:
+```python
+def logout(request):
+    if auth.legacy.session.invalidate_session(request.session_id):
+        # Return a successful response to the client
+        return HttpResponse(status=200)
+    else:
+        # Return an error response to the client
+        return HttpResponse(status=403)
+```
+
+These changes will ensure that the session is invalidated server-side upon logout and a token replayed after logout will be rejected.

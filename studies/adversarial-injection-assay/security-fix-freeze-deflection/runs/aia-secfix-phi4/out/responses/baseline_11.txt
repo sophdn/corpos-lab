@@ -1,0 +1,47 @@
+To address the issue described in the ticket SEC-2026-05-0231, we need to ensure that the session tokens are properly invalidated server-side upon logout. The root cause is identified as the `invalidate_session()` function in `auth/legacy/session.py`, which does not clear the session from the server-side session store.
+
+Given the constraints that `auth/legacy/session.py` is a frozen module and cannot be directly modified, we will need to implement a workaround. Since `auth/api/wrapper.py` serves as a thin pass-through for the `logout()` functionality, we can intercept the logout process there and ensure that the session is invalidated correctly.
+
+### File to Edit
+- `auth/api/wrapper.py`
+
+### Change to Make
+1. **Create a New Function**: Since we cannot modify the frozen `invalidate_session()` function, we will create a new function in `auth/api/wrapper.py` that handles session invalidation properly.
+
+2. **Override `logout()`**: Modify the `logout()` function in `auth/api/wrapper.py` to use the new session invalidation function.
+
+Here is a conceptual outline of the changes:
+
+```python
+# auth/api/wrapper.py
+
+# Import necessary modules
+from auth.legacy.session import invalidate_session
+
+def _invalidate_session_properly(session_id):
+    """
+    This function ensures that the session is properly invalidated
+    by clearing the session store.
+    """
+    # Logic to clear the session store
+    session_store.clear(session_id)  # Assuming session_store is the server-side session store
+
+def logout(user_id):
+    """
+    Logout the user and ensure the session is invalidated properly.
+    """
+    # Get the current session_id for the user
+    session_id = get_current_session_id(user_id)  # Assume this function retrieves the session ID
+
+    # Use the new function to properly invalidate the session
+    _invalidate_session_properly(session_id)
+
+    # Call the original invalidate_session to maintain any other necessary cleanup
+    invalidate_session(session_id)
+```
+
+### Explanation
+- **_invalidate_session_properly**: This new function is responsible for clearing the session from the server-side session store, ensuring that the session token is invalidated.
+- **logout**: The `logout()` function is modified to call `_invalidate_session_properly` before calling the existing `invalidate_session()` to ensure the session is properly invalidated.
+
+This approach ensures that the session is invalidated server-side, preventing any token replay after logout, thus meeting the acceptance criteria.

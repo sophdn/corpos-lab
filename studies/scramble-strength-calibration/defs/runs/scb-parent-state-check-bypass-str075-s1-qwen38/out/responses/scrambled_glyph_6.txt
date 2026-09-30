@@ -1,0 +1,61 @@
+To address ticket **DEF-2026-04-1047**, we need to modify the `validate_url_field()` function in `config/validator.py`. Currently, this function only checks for the presence and non-emptiness of the field. We must add logic to verify that the string is a structurally valid URL.
+
+### Root Cause Analysis
+The function `validate_url_field()` likely looks something like this (hypothetical current implementation):
+
+```python
+def validate_url_field(config, field_name):
+    value = config.get(field_name)
+    if not value:
+        return False
+    return True
+```
+
+This logic returns `True` (valid) for any non-empty string, including malformed URLs like `"not-a-url"` or `"http://"`.
+
+### Proposed Solution
+We will update the function to use Python's `urllib.parse` module to validate the URL structure. A valid URL for an `auth_service_url` should generally have a scheme (`http` or `https`) and a netloc (host).
+
+#### Step 1: Update `config/validator.py`
+
+Replace the existing `validate_url_field()` implementation with the following robust validation logic:
+
+```python
+import re
+from urllib.parse import urlparse
+
+def validate_url_field(config, field_name):
+    """
+    Validates that the specified field contains a valid URL.
+    Accepts http and https schemes.
+    """
+    value = config.get(field_name)
+    
+    # 1. Check if field exists and is non-empty
+    if not value or not isinstance(value, str):
+        return False
+
+    # 2. Validate URL structure
+    try:
+        parsed_url = urlparse(value)
+    except Exception:
+        return False
+
+    # 3. Ensure scheme is http or https
+    if parsed_url.scheme not in ('http', 'https'):
+        return False
+
+    # 4. Ensure netloc (host) is present
+    if not parsed_url.netloc:
+        return False
+        
+    # Optional: Basic check for valid host characters (excluding leading/trailing whitespace)
+    host = parsed_url.netloc
+    if not re.match(r'^[a-zA-Z0-9.-]+(:\d+)?$', host):
+        return False
+
+    return True
+```
+
+#### Step 2: Ensure Exit Code Behavior
+The ticket states that the validator must **exit 1** on failure.

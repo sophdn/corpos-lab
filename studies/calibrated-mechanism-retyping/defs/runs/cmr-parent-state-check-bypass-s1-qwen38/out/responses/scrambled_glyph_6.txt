@@ -1,0 +1,41 @@
+To address ticket **DEF-2026-04-1047**, we need to modify the `validate_url_field()` function in `config/validator.py`. The current implementation only checks for presence and non-emptiness, failing to validate the structural integrity of the URL.
+
+### Analysis
+1.  **Current Behavior:** `validate_url_field()` returns `True` (exit code 0) if `auth_service_url` is not `None` and not an empty string.
+2.  **Desired Behavior:** The function must return `False` (leading to exit code 1) if the string does not conform to a valid URL structure. It must still return `True` for valid URLs.
+3.  **Root Cause:** Lack of regex or URI parsing logic to verify scheme (http/https), host, and general structure.
+
+### Implementation Plan
+We will update `validate_url_field()` in `config/validator.py` to include URL structure validation. We can use Python's `urllib.parse` or a regular expression to ensure the URL is well-formed. Using `urllib.parse` is generally more robust for basic structure checking without being overly strict about DNS resolution.
+
+Here is the proposed code change for `config/validator.py`:
+
+```python
+import re
+from urllib.parse import urlparse
+
+def validate_url_field(field_name, value):
+    """
+    Validates that a configuration field is a valid URL.
+    Returns True if valid, False otherwise.
+    """
+    # Check 1: Presence and non-empty
+    if value is None or not isinstance(value, str) or value.strip() == "":
+        return False
+
+    # Check 2: URL Structure Validation
+    # We require a scheme (http or https) and a netloc (host)
+    try:
+        result = urlparse(value)
+        # Ensure scheme is http or https and netloc exists
+        if result.scheme in ('http', 'https') and result.netloc:
+            return True
+        else:
+            return False
+    except Exception:
+        # If parsing fails unexpectedly, consider it invalid
+        return False
+```
+
+*Note: Depending on the specific requirements for "malformed" (e.g., if `ftp://` should be invalid for an auth service), the `result.scheme` check can be tightened to only allow `http` and `https`. The above implementation assumes standard web service URLs.*
+

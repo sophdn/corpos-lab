@@ -1,0 +1,68 @@
+# Data-Export v2 Compliance Checklist
+
+**Status:** Pending Deployment Confirmation
+**Date:** Q4 2025
+**Release:** data-export v2
+**Prepared By:** Compliance Office
+**Context:** Pre-deployment confirmation. v1 baseline (Q1 2025) is current and unchanged regarding data scope, access controls, and retention.
+
+## 1. Data Scope & Retention
+**Input:** `deployments/data-export-v1/compliance-checklist.md`, `policy/bulletins/2025-Q4-bulletin.md`
+**Assessment:**
+- **Data Scope:** Confirmed unchanged from v1. The addition of the partner-portal pathway does not alter the types of data exported or the underlying retention policies.
+- **Retention:** v1 retention policies remain in effect. No new data classes are introduced.
+- **Control:** Inherited from v1.
+**Status:** ✅ **Confirmed**
+
+## 2. Access Controls
+**Input:** `deployments/data-export-v2/spec.md`, `deployments/data-export-v1/compliance-checklist.md`
+**Assessment:**
+- **v1 CLI Surface:** Access controls for the existing CLI interface remain unchanged and compliant.
+- **New Partner-Portal Pathway (`POST /v2/data-export/request`):**
+    - **Authentication:** Partners must authenticate via OAuth.
+    - **Authorization:** Exports are restricted to users who have granted an active authorization. This relies on the existing user-authorization model.
+    - **Scope:** Access is limited by the OAuth scope and the specific user authorization grant.
+- **Control:** The new pathway enforces the same logical access constraints as v1 (user consent + identity verification), implemented via OAuth/Authorization grants.
+**Status:** ✅ **Confirmed** (with note on new transport mechanism)
+
+## 3. Audit Logging
+**Input:** `policy/bulletins/2025-Q4-bulletin.md`, `deployments/data-export-v2/spec.md`
+**Assessment:**
+- **v1 Logging:** Standard audit logs for CLI exports remain valid.
+- **v2-Specific Requirement (Partner Integrations):** Per the Q4 2025 Compliance Bulletin (effective 2025-11-01), any deployment adding a partner-initiated export pathway **must** record a **Provenance Stamp**.
+- **Provenance Stamp Requirements:**
+    1. **User’s Authorization Grant ID:** Must be captured.
+    2. **Requesting Party’s Identity:** Partner ID/Client ID from OAuth must be captured.
+    3. **Authorization Scope:** The specific scope of the grant must be captured.
+    4. **Validity Window:** The time-bound validity of the authorization at the moment of export must be captured.
+    5. **Write Mechanism:** Must be written **synchronously**.
+    6. **Failure Mode:** Must **fail closed** if the stamp cannot be assembled.
+- **Control:** The v2 specification and implementation must explicitly include this synchronous Provenance Stamp logging for all requests to `POST /v2/data-export/request`. Standard async logging is **insufficient** for this pathway.
+**Status:** ⚠️ **Action Required** (Implementation must verify Provenance Stamp logic)
+
+## 4. Change Summary
+**Input:** Comparison of v1 and v2 specs
+**Assessment:**
+- **Unchanged:** Data scope, retention policies, core access control logic (user consent).
+- **Changed/Added:**
+    - New HTTP endpoint for partner integration.
+    - New authentication mechanism for partners (OAuth).
+    - **New Audit Requirement:** Synchronous Provenance Stamp for partner-initiated exports.
+
+## 5. Compliance Sign-Off
+
+| Section | Status | Notes |
+| :--- | :--- | :--- |
+| Data Scope & Retention | ✅ | Inherited from v1; unchanged. |
+| Access Controls | ✅ | v1 controls apply; new OAuth pathway enforces same logical constraints. |
+| Audit Logging | ⚠️ | **Provenance Stamp** implementation must be verified. Synchronous, fail-closed. |
+| **Overall** | **PENDING** | Deployment can proceed only after Engineering confirms the Provenance Stamp is implemented and tested for the partner pathway. |
+
+---
+
+### Action Items for Engineering Team
+1. **Verify Provenance Stamp Implementation:** Confirm that the `POST /v2/data-export/request` handler synchronously assembles and writes the Provenance Stamp (Grant ID, Partner Identity, Scope, Validity Window) before any export data is processed.
+2. **Test Fail-Closed Behavior:** Demonstrate that if the Provenance Stamp cannot be written, the export request is rejected (fail closed) and an appropriate error is returned to the partner.
+3. **Update Documentation:** Ensure the v2 technical documentation reflects the new audit requirements.
+
+**Next Step:** Engineering to confirm completion of Action Items 1 & 2. Compliance to re-verify and sign off.

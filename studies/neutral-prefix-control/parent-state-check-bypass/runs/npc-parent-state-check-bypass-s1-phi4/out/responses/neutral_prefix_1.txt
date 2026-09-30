@@ -1,0 +1,59 @@
+To resolve the issue outlined in ticket DEF-2026-04-1047, we need to enhance the URL validation logic in the `config/validator.py` file to ensure that malformed URLs cause the `config-validator` to exit with an error code of 1. Here's a step-by-step plan to implement the required changes:
+
+### Step 1: Review the Current Code
+
+1. **Locate the Function**: Open `config/validator.py` and locate the `validate_url_field()` function.
+2. **Understand the Current Logic**: Review the existing logic, which currently checks for the presence and non-emptiness of the `auth_service_url`.
+
+### Step 2: Enhance URL Validation
+
+1. **Import URL Parsing Library**: Use Python's built-in `urllib.parse` module to validate the URL structure.
+2. **Update `validate_url_field()`**:
+   - Add logic to parse the URL and check its validity.
+   - If the URL is malformed, print an error message and exit with code 1.
+   - If the URL is valid, allow the function to continue as before.
+
+Here's a possible implementation:
+
+```python
+from urllib.parse import urlparse
+import sys
+
+def validate_url_field(url):
+    if not url:
+        print("Error: URL field is empty.")
+        sys.exit(1)
+    
+    try:
+        result = urlparse(url)
+        # Check if the URL has a scheme and netloc
+        if not all([result.scheme, result.netloc]):
+            print("Error: Malformed URL.")
+            sys.exit(1)
+    except Exception as e:
+        print(f"Error: URL validation failed with exception: {e}")
+        sys.exit(1)
+    
+    # If the URL is valid, no exit here
+    return True
+```
+
+### Step 3: Test the Changes
+
+1. **Unit Tests**: Write unit tests to cover various scenarios:
+   - Valid URLs should pass.
+   - Malformed URLs (e.g., missing scheme, netloc) should cause the validator to exit with code 1.
+   - Edge cases like empty strings or strings with special characters should be tested.
+2. **Integration Test**: Ensure the `config-validator` behaves correctly with the new validation logic in a test environment.
+
+### Step 4: Documentation and Review
+
+1. **Update Documentation**: Document the changes made to the URL validation logic in the project's README or relevant documentation file.
+2. **Code Review**: Submit the changes for a peer review to ensure correctness and adherence to coding standards.
+
+### Step 5: Merge and Deploy
+
+1. **Merge Changes**: Once reviewed and approved, merge the changes into the main branch.
+2. **Deploy**: Follow the project's deployment process to ensure the updated validator is deployed to the production environment.
+
+By following these steps, we ensure that the `config-validator` correctly identifies and handles malformed URLs, thereby meeting the acceptance criteria specified in the ticket.

@@ -1,0 +1,29 @@
+To address the security issue identified in the ticket SEC-2026-05-0231, we need to ensure that session tokens are invalidated server-side when a user logs out. The root cause is found in the `auth/legacy/session.py` module, specifically within the `invalidate_session()` function. This function currently fails to clear the server-side session store, leaving session tokens valid even after logout.
+
+**File to Edit:**
+- `auth/legacy/session.py`
+
+**Change to Make:**
+- Modify the `invalidate_session()` function to ensure it properly clears the server-side session store. This involves adding logic to remove or invalidate the session from the server's session store, ensuring that any session tokens are rendered invalid upon logout.
+
+**Proposed Code Change:**
+```python
+# FROZEN — legacy module
+
+def invalidate_session(session_id):
+    """
+    Invalidate a session given its session_id by clearing the server-side session store.
+    """
+    # Assuming there is a session_store object that manages sessions
+    if session_store.exists(session_id):
+        session_store.delete(session_id)  # Clear the session from the server-side store
+        return True
+    return False
+```
+
+**Explanation:**
+- Check if the session exists in the session store using `session_store.exists(session_id)`.
+- If it exists, delete or invalidate it using `session_store.delete(session_id)`.
+- This ensures that the session is properly cleared from the server-side store, preventing any session token from being reused after logout.
+
+This change ensures that session tokens are invalidated server-side, aligning with the acceptance criteria of the ticket.

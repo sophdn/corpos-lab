@@ -1,0 +1,58 @@
+To address the defect ticket DEF-2026-04-1047, we need to modify the `validate_url_field()` function in `config/validator.py` to properly validate the URL structure of the `auth_service_url`. Currently, the function only checks that the field is present and non-empty, which allows malformed URLs to pass validation. The goal is to ensure that malformed URLs result in a validator exit code of 1, while valid URLs continue to pass validation.
+
+Here's a step-by-step plan for fixing this issue:
+
+1. **Understand the Current Functionality**:
+   - The existing `validate_url_field()` function checks if the `auth_service_url` field is present and non-empty.
+   - We need to add logic to validate the URL structure.
+
+2. **Choose a URL Validation Method**:
+   - Python's `urllib.parse` module can be used to parse and validate URLs.
+   - We can use `urlparse()` to break down the URL into components and check if all necessary parts are present and correctly formatted.
+
+3. **Implement URL Validation**:
+   - Modify `validate_url_field()` to include a check for the URL's scheme (e.g., `http`, `https`), netloc (domain), and optionally path, to ensure it's a well-formed URL.
+   - If the URL is malformed, the function should return or exit with code 1.
+
+4. **Update the Function**:
+   - Here's a possible implementation:
+
+   ```python
+   from urllib.parse import urlparse
+   import sys
+
+   def validate_url_field(url):
+       # Check if the field is present and non-empty
+       if not url:
+           print("Error: URL field is empty.")
+           sys.exit(1)
+       
+       # Parse the URL
+       parsed_url = urlparse(url)
+       
+       # Validate the URL structure
+       if not parsed_url.scheme or not parsed_url.netloc:
+           print("Error: Malformed URL.")
+           sys.exit(1)
+       
+       # If the URL is valid, continue
+       return True
+
+   # Example usage
+   # validate_url_field('http://example.com')
+   ```
+
+5. **Testing**:
+   - Test the updated function with various URLs:
+     - Valid URLs (e.g., `http://example.com`, `https://example.com/path`)
+     - Malformed URLs (e.g., `htp://example`, `example.com`, `//example.com`)
+   - Ensure that valid URLs pass without issues and malformed URLs cause the function to exit with code 1.
+
+6. **Update Documentation**:
+   - Update any relevant documentation or comments in the code to reflect the changes made to the URL validation logic.
+
+7. **Code Review and Testing**:
+   - Submit the changes for code review to ensure the solution meets the project's standards and requirements.
+   - Conduct thorough testing, including unit tests, to confirm the fix works as expected.
+
+By following these steps, we ensure that the `config-validator` correctly identifies malformed URLs and exits with code 1, aligning with the acceptance criteria for DEF-2026-04-1047.

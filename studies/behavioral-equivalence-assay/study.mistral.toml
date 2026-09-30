@@ -1,0 +1,75 @@
+# Behavioral-equivalence assay — reformulated — anchor model: Mistral-7B-Instruct-v0.3 Q4_K_M
+#
+# Chain publish-assay-methodology-papers, task run-behavioral-equivalence-study.
+# Does the same investigation duty, delivered as a duty specification (Condition A,
+# duty_only) versus a corpus of named behavioral patterns (Condition B, corpus_only),
+# produce equivalent single-turn conduct — and does the plain brief (Condition C,
+# baseline) violate at least one decision point? See DESIGN.md.
+#
+# Subject is a LOCAL open-weight model over the bare llama.cpp raw /completion rig
+# (studies/REPRODUCIBILITY.md). Claude-family models are never a treatment arm
+# (CLAUDE.md invariant); they may judge. Read cells, not counts (INQUIRY.md).
+# Old records orient, never target.
+#
+# Run: corpos-lab run-study studies/behavioral-equivalence-assay/study.mistral.toml \
+#        -work studies/behavioral-equivalence-assay/runs/mistral
+# Material paths resolve relative to THIS file.
+
+name = "behavioral-equivalence-mistral"
+assay = "grounded-glyph-probe"
+item_id = "behavioral-equivalence"
+
+# Probe image, digest-pinned so a run record says exactly what executed (recorded,
+# NOT enforced). Built by scripts/build-lab-images.sh from this worktree, carrying
+# the duty_only / corpus_only conditions added for this study.
+image = "localhost/lab-grounded-glyph-probe@sha256:d420b80f40889fec709f15067f5eccd8ad8219d3b616c7d53f2be45ec284f792"
+network = "corpos-net"
+
+conditions = ["baseline", "duty_only", "corpus_only"]
+runs_per_cell = 8
+
+[model]
+# Reached over corpos-net by container DNS. To run this model, SWAP it on
+# llama-server (:8081) — never a second inference server (CLAUDE.md: ONE local
+# inference portal, written in blood).
+base_url = "http://llama-server:8081/v1"
+model_id = "Mistral-7B-Instruct-v0.3.Q4_K_M.gguf"
+version = "v0.3-q4km"
+# Vanilla path: raw /completion, Mistral-v0.3 instruct wrapper. No system prompt,
+# no tools. The no-tools notice is byte-identical to the matched-content arms so
+# the single-completion framing is consistent across studies.
+endpoint = "completion"
+prompt_template = "[INST] {prompt}\n\n---\nNote: You are running as a single completion. There is no harness, no tools, no filesystem, no shell. You cannot call functions or read files. Give your answer directly as text. [/INST]"
+
+[materials]
+scenario = "materials/scenario.md"  # shared across all three conditions
+duty     = "materials/duty.md"      # Condition A — the duty specification
+corpus   = "materials/corpus.md"    # Condition B — the corpus of named patterns
+
+# Sampler chain — lab-standard (INQUIRY.md "How we measure"; matched-content
+# PROTOCOL section 6), declared COMPLETE (validation refuses a partial chain).
+#   temperature 0.8 — above greedy, so a graded grid is possible; seeds keep
+#     replicates varied AND reproducible.
+#   min_p 0.05 — the SOLE truncation stage; every other truncation stage disabled.
+#   all penalties OFF.
+#   max_tokens 4096 — headroom for a long investigation answer. Byte-identical to
+#     the Qwen3.8 arm, whose answers run long; Mistral stops far short of the cap
+#     (a smoke ran to ~500 predicted tokens), so the cap never binds its output.
+[sampling]
+temperature = 0.8
+seeds = [1, 2, 3, 4, 5, 6, 7, 8]
+max_tokens = 4096
+
+top_n_sigma = -1.0
+top_k = 0
+typical_p = 1.0
+top_p = 1.0
+min_p = 0.05
+
+repeat_penalty = 1.0
+repeat_last_n = 0
+presence_penalty = 0.0
+frequency_penalty = 0.0
+
+xtc_probability = 0.0
+dry_multiplier = 0.0

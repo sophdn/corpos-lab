@@ -1,0 +1,75 @@
+ File path to modify: `handlers/v1/orders.go`
+
+Exact change:
+
+1. Import necessary package for JSON parsing.
+
+```go
+import (
+    // ... other imports ...
+    "encoding/json"
+)
+```
+
+2. Update the `func CreateOrder` signature to accept a `priority` field.
+
+```go
+type OrderRequest struct {
+    // ... other fields ...
+    Priority *int `json:"priority,omitempty"`
+}
+```
+
+3. Update the `CreateOrder` function to unmarshal the `priority` field.
+
+```go
+func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+    var orderReq OrderRequest
+    err := json.NewDecoder(r.Body).Decode(&orderReq)
+    if err != nil {
+        h.serverErrorResponse(w, err)
+        return
+    }
+    // ... rest of the function ...
+}
+```
+
+4. Update the database function call to include the `priority` field.
+
+```go
+    err = db.CreateOrder(order.ID, order.CustomerID, order.TotalPrice, order.Address, orderReq.Priority)
+```
+
+5. Update the response structure to include the `priority` field.
+
+```go
+type OrderResponse struct {
+    // ... other fields ...
+    Priority *int `json:"priority,omitempty"`
+}
+```
+
+6. Update the `func CreateOrder` to return the `OrderResponse` type and marshal the response before writing it to the response writer.
+
+```go
+func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+    // ... other code ...
+
+    orderResp := OrderResponse{
+        ID:           order.ID,
+        CustomerID:   order.CustomerID,
+        TotalPrice:   order.TotalPrice,
+        Address:      order.Address,
+        Priority:     order.Priority,
+    }
+
+    jsonResponse, err := json.Marshal(orderResp)
+    if err != nil {
+        h.serverErrorResponse(w, err)
+        return
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    w.Write(jsonResponse)
+}
+```

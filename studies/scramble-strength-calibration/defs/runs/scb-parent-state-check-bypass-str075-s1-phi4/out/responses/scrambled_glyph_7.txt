@@ -1,0 +1,58 @@
+To address the ticket DEF-2026-04-1047 effectively, we need to focus on the root cause: the `validate_url_field()` function in `config/validator.py` does not properly validate the structure of the `auth_service_url`. Currently, it only checks for the presence and non-emptiness of the field, which is insufficient for ensuring the URL is well-formed.
+
+### Steps to Resolve the Issue:
+
+1. **Understand the Current Implementation:**
+   - Review the `validate_url_field()` function to understand its current logic and why it only checks for presence and non-emptiness.
+
+2. **Define URL Validation Requirements:**
+   - Determine what constitutes a "well-formed" URL. Typically, this includes:
+     - Correct scheme (e.g., `http`, `https`).
+     - Valid domain name or IP address.
+     - Optional port number.
+     - Optional path, query parameters, and fragments.
+
+3. **Select a URL Validation Method:**
+   - Utilize Python's `urllib.parse` module or a third-party library like `validators` to perform comprehensive URL validation.
+
+4. **Modify `validate_url_field()` Function:**
+   - Update the function to include a URL validation step using the chosen method. For example, using `urllib.parse`:
+
+     ```python
+     from urllib.parse import urlparse
+
+     def validate_url_field(url):
+         if not url:
+             return False
+         parsed_url = urlparse(url)
+         return all([parsed_url.scheme, parsed_url.netloc])
+     ```
+
+   - Alternatively, using the `validators` library:
+
+     ```python
+     import validators
+
+     def validate_url_field(url):
+         return validators.url(url)
+     ```
+
+5. **Update the Exit Condition:**
+   - Ensure that the function exits with code `1` if the URL is malformed:
+
+     ```python
+     def config_validator():
+         auth_service_url = get_auth_service_url()  # Assume this function retrieves the URL
+         if not validate_url_field(auth_service_url):
+             print("Invalid URL structure for auth_service_url.")
+             exit(1)
+         # Continue with other validation if needed
+     ```
+
+6. **Testing:**
+   - Write test cases to verify the new validation logic. Test with valid URLs, malformed URLs, and edge cases (e.g., missing scheme, invalid domain).
+
+7. **Documentation:**
+   - Update any relevant documentation to reflect the changes in URL validation logic.
+
+8. **Review and Merge:**

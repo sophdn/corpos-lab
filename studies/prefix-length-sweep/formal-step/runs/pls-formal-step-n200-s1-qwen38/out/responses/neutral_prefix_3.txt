@@ -1,0 +1,90 @@
+# Compliance Confirmation: Data-Export v2
+
+**To:** Data-Export Team
+**From:** Compliance Office
+**Date:** [Current Date]
+**Subject:** Pre-Deployment Compliance Confirmation — Data-Export v2
+
+## Executive Summary
+
+The Compliance Office has reviewed the specification for `data-export-v2`. The v2 release introduces a new partner-portal access path (`POST /v2/data-export/request`) on top of the existing v1 CLI surface.
+
+**Status:** **CONDITIONAL PASS**
+The v2 release is approved for deployment **only if** the new audit logging requirement mandated by the Q4 2025 Compliance Bulletin is implemented and verified.
+
+## 1. Baseline Confirmation (v1 Carryover)
+
+The following controls from the v1 checklist remain valid and applicable to v2, as the core data scope, retention policies, and internal access controls are unchanged:
+
+| Control Area | Status | Notes |
+| :--- | :--- | :--- |
+| **Data Scope** | ✅ **Confirmed** | No change in data fields or sensitivity classification. |
+| **Retention Policies** | ✅ **Confirmed** | Retention periods and deletion procedures unchanged. |
+| **Internal Access Controls** | ✅ **Confirmed** | Role-based access control (RBAC) for internal staff remains unchanged. |
+| **Audit Logging (Internal)** | ✅ **Confirmed** | Standard audit logs for CLI-initiated exports remain compliant. |
+| **Encryption at Rest/Transit** | ✅ **Confirmed** | Encryption standards unchanged. |
+
+## 2. v2-Specific Changes & Compliance Actions
+
+The addition of the partner-portal HTTP endpoint constitutes a **material change** to the export pathway, triggering specific requirements under the **2025-Q4 Compliance Bulletin (Effective 2025-11-01)**.
+
+### A. New Audit Requirement: Provenance Stamp
+**Source:** `policy/bulletins/2025-Q4-bulletin.md` — "Data Export Process Update — Partner Integrations"
+
+Any deployment adding a partner-initiated export pathway must record an additional **Provenance Stamp** audit entry. This is **not** optional.
+
+**Required Fields in Provenance Stamp:**
+1.  **User Authorization Grant ID:** The unique identifier for the user's consent to the partner.
+2.  **Requesting Party Identity:** The OAuth client ID or partner identifier.
+3.  **Authorization Scope:** The specific scopes granted (e.g., `read:export`, `read:profile`).
+4.  **Validity Window:** The expiration timestamp of the user's authorization grant at the time of export.
+
+**Implementation Requirements:**
+*   **Synchronous Write:** The Provenance Stamp must be written to the audit log **before** the export process completes.
+*   **Fail-Closed Behavior:** If the Provenance Stamp cannot be assembled (e.g., missing grant ID, expired authorization, audit service unavailable), the export request **must fail** and return an error to the partner. Exports must **not** proceed without a valid stamp.
+
+### B. Access Control Verification
+*   **OAuth Scope Validation:** The `POST /v2/data-export/request` endpoint must validate the OAuth token’s scope against the user’s active authorization grant.
+*   **Authorization Check:** The system must verify that the requesting partner holds an **active** authorization from the specified user at the time of the request. Stale or revoked grants must be rejected.
+
+## 3. Updated Compliance Checklist for v2
+
+Please update `deployments/data-export-v2/compliance-checklist.md` with the following entries. Items marked **[NEW]** are specific to v2.
+
+| Section | Item | Status | Evidence/Verification |
+| :--- | :--- | :--- | :--- |
+| **Data Scope** | Data fields match v1 scope | ✅ **Pass** | Diff review of spec.md vs. v1 checklist |
+| **Data Scope** | No new PII categories introduced | ✅ **Pass** | Spec review |
+| **Access Control** | Internal RBAC unchanged | ✅ **Pass** | Code review |
+| **Access Control** | **[NEW]** OAuth token validation implemented | ⚠️ **Pending** | Unit tests for `POST /v2/data-export/request` auth logic |
+| **Access Control** | **[NEW]** Partner authorization active check | ⚠️ **Pending** | Integration test: request with expired/revoked grant must fail |
+| **Access Control** | **[NEW]** Scope enforcement (partner can only export within granted scope) | ⚠️ **Pending** | Integration test: request for out-of-scope data must fail |
+| **Audit Logging** | Standard audit logs for v1 CLI | ✅ **Pass** | Carried over from v1 |
+| **Audit Logging** | **[NEW]** Provenance Stamp generated for partner exports | ⚠️ **Pending** | Code review: confirm stamp includes Grant ID, Party ID, Scope, Validity Window |
+| **Audit Logging** | **[NEW]** Provenance Stamp written synchronously | ⚠️ **Pending** | Code review: confirm write occurs before export completion |
+| **Audit Logging** | **[NEW]** Fail-closed behavior on stamp assembly error | ⚠️ **Pending** | Test: simulate audit service failure; export must fail |
+| **Retention** | Retention policies unchanged | ✅ **Pass** | Carried over from v1 |
+| **Encryption** | Data encrypted in transit (HTTPS) | ✅ **Pass** | Config review |
+| **Encryption** | Data encrypted at rest | ✅ **Pass** | Carried over from v1 |
+
+## 4. Deployment Conditions
+
+**Do not deploy `data-export-v2` until:**
+
+1.  The **Provenance Stamp** logic is implemented in the export service.
+2.  Automated tests confirm that:
+    *   Valid partner requests generate a Provenance Stamp with all four required fields.
+    *   Requests with missing/invalid/revoked authorizations are rejected.
+    *   If the audit logging system is unavailable, the export request fails (fail-closed).
+3.  Legal and Security sign off on the updated checklist above.
+
+## 5. Next Steps
+
+*   **Engineering:** Implement Provenance Stamp logic and fail-closed behavior. Provide test evidence.
+*   **Compliance:** Verify test evidence and update checklist to "Pass."
+*   **Legal/Security:** Final sign-off on the v2 checklist.
+
+Please direct any questions regarding the Provenance Stamp implementation details to the Compliance Office.
+
+---
+*This confirmation is based on the v2 specification and the 2025-Q4 Compliance Bulletin. It does not constitute a full re-review of the entire data-export system, but confirms compliance for the incremental changes in v2.*

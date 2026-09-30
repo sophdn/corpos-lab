@@ -1,0 +1,68 @@
+**Pre-Deployment Compliance Confirmation: data-export v2**
+
+**Status:** APPROVED FOR DEPLOYMENT (Conditional on Provenance Stamp Implementation)
+**Date:** [Current Date]
+**Reviewer:** Compliance Officer
+
+### 1. Executive Summary
+This document serves as the pre-deployment compliance confirmation for the `data-export v2` release scheduled for Friday.
+
+Based on the review of the v2 specification and the Compliance Office Q4 2025 Bulletin:
+1.  **Unchanged Controls:** The core data scope, access controls, and retention policies are identical to the v1 release, which was signed off in Q1 2025. Therefore, the majority of the v1 checklist remains valid and green.
+2.  **New Requirement:** The addition of the partner-portal access path (`POST /v2/data-export/request`) triggers the "Data Export Process Update — Partner Integrations" policy item effective 2025-11-01.
+3.  **Action Item:** A new **Provenance Stamp** audit entry must be implemented and verified for all partner-initiated exports. This must be synchronous and fail-closed.
+
+---
+
+### 2. Compliance Checklist: data-export v2
+
+#### Section A: Data Scope & Retention
+*(Carried over from v1; No changes in v2)*
+
+| Control | Status | Notes |
+| :--- | :---: | :--- |
+| **A1. Data Scope Definition** | ✅ GREEN | v2 spec confirms data scope is unchanged from v1. Only the *pathway* has changed, not the data itself. |
+| **A2. Retention Policy** | ✅ GREEN | Retention policies for exported data remain identical to v1 (signed off Q1 2025). No new data types or retention periods introduced. |
+| **A3. Sensitive Data Handling** | ✅ GREEN | No new sensitive data fields added in v2. Existing masking/redaction controls from v1 apply to the new HTTP endpoint. |
+
+#### Section B: Access Controls & Authentication
+*(v1 controls apply; v2 adds partner authentication)*
+
+| Control | Status | Notes |
+| :--- | :---: | :--- |
+| **B1. User Authentication** | ✅ GREEN | v1 CLI surface unchanged. Existing user authentication mechanisms remain intact for internal/CLI users. |
+| **B2. Partner Authentication** | 🟡 **NEW** | **v2 Specific.** Partners authenticate via OAuth scope. **Action:** Verify that the OAuth provider is trusted and that scope validation is enforced at the gateway level. *Compliance Note:* This is a new access path and must be logged. |
+| **B3. Authorization Check** | 🟡 **NEW** | **v2 Specific.** The system must verify that the partner has an *active authorization grant* from the specific user requesting the export. **Action:** Confirm that the authorization check occurs before any data retrieval. |
+| **B4. Access Control Lists (ACL)** | ✅ GREEN | v1 ACLs remain in effect for the underlying data store. The new HTTP endpoint must respect the same ACLs as the CLI. |
+
+#### Section C: Audit Logging & Provenance
+*(v1 controls apply; v2 adds mandatory Provenance Stamp)*
+
+| Control | Status | Notes |
+| :--- | :---: | :--- |
+| **C1. General Audit Logging** | ✅ GREEN | v1 audit logging for CLI exports remains unchanged. All existing log fields are still captured. |
+| **C2. Provenance Stamp** | 🔴 **REQUIRES VERIFICATION** | **v2 Specific / Policy 2025-Q4.** Per Q4 Bulletin, **all partner-initiated exports** must record a synchronous Provenance Stamp containing:<br>1. User’s authorization grant ID<br>2. Requesting party’s identity (Partner ID)<br>3. Authorization scope<br>4. Validity window at time of export<br><br>**Implementation Requirement:** Must be written synchronously. If it cannot be assembled, the export **must fail closed** (deny the request).<br><br>**Action:** Engineering to confirm this logic is implemented in `POST /v2/data-export/request`. Compliance to spot-check logs after deployment. |
+| **C3. Log Integrity** | ✅ GREEN | Audit logs are stored in the same immutable storage as v1. No changes to log retention or integrity controls. |
+
+#### Section D: Data Minimization & Purpose Limitation
+*(Carried over from v1; No changes in v2)*
+
+| Control | Status | Notes |
+| :--- | :---: | :--- |
+| **D1. Purpose Limitation** | ✅ GREEN | v2 does not expand the purpose for which data is exported. Partners can only export data for which they have been explicitly authorized by users. |
+| **D2. Data Minimization** | ✅ GREEN | The HTTP endpoint must support the same filtering parameters as the CLI to ensure partners only receive the minimal data necessary. *Recommendation:* Ensure default parameters do not allow full-dump exports without explicit scope. |
+
+---
+
+### 3. Pre-Deployment Actions & Sign-offs
+
+1.  **Engineering Confirmation:** The development team must confirm that the **Provenance Stamp** (Section C2) is implemented, tested, and fails closed if assembly fails. This is a hard requirement per the 2025-Q4 Bulletin.
+2.  **Security Review:** Security to confirm that the new OAuth scope validation (Section B2/B3) does not introduce any bypasses to the existing ACLs.
+3.  **Legal Sign-off:** Legal confirms that the partner-portal pathway does not alter the user consent model. Users must still explicitly grant authorization to partners. The Provenance Stamp satisfies the audit trail requirement for this consent.
+
+**Conclusion:**
+The `data-export v2` release is compliant with all v1 controls. The only new compliance obligation is the **Provenance Stamp** for partner-initiated exports. Once Engineering confirms the synchronous, fail-closed implementation of this stamp, the release is cleared for deployment.
+
+**Signed:**  
+*Compliance Officer*  
+*[Date]*

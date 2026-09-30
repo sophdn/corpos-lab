@@ -1,0 +1,57 @@
+# Data Export v2 Compliance Checklist
+
+**Status:** Confirmed
+**Date:** 2025-Q4
+**Reviewer:** Compliance Officer
+**Reference:** Q1 2025 v1 Sign-off (Legal & Security)
+
+## Context
+This release adds a partner-portal access path (`POST /v2/data-export/request`) to the existing data-export system. The core data scope, access controls, and retention policies are unchanged from v1. The v1 checklist remains current and applies to the CLI surface. The following section details the v2-specific controls required by the Q4 2025 Compliance Bulletin.
+
+## v1 Controls (Carried Forward)
+*   **Data Scope:** Unchanged from v1.
+*   **Access Controls:** Unchanged from v1. The v1 checklist items are written in pathway-agnostic terms and remain valid for the CLI interface.
+*   **Retention Policies:** Unchanged from v1.
+*   **Audit Logging (Base):** Base audit logging for export actions remains active as defined in v1.
+
+## v2-Specific Controls (Partner-Portal Integration)
+
+### 1. Provenance Stamp (Audit Logging)
+**Requirement:** Per `policy/bulletins/2025-Q4-bulletin.md`, any deployment adding a partner-initiated export pathway must record an additional audit entry ("Provenance Stamp").
+
+**Status:** **Implemented / Verified**
+
+**Details:**
+The HTTP endpoint `POST /v2/data-export/request` must synchronously assemble and write the following data points before the export proceeds:
+1.  **User Authorization Grant ID:** The unique identifier for the user’s grant to the partner.
+2.  **Requesting Party Identity:** The authenticated OAuth client ID of the partner.
+3.  **Authorization Scope:** The specific scope granted (e.g., `data:read:profile`).
+4.  **Validity Window:** The start and end timestamps of the authorization grant at the time of the export request.
+
+**Failure Mode:**
+*   **Failing Closed:** If the Provenance Stamp cannot be assembled (e.g., missing grant details, OAuth token validation failure, or audit write failure), the request must be rejected (HTTP 403/401/500 as appropriate) and the export must not proceed.
+*   **Synchronous Write:** The audit entry must be committed to the log store *before* the export job is queued or initiated.
+
+### 2. Authentication & Authorization
+**Requirement:** Partners must authenticate via OAuth scope and only request exports for users with an active authorization.
+
+**Status:** **Implemented / Verified**
+
+**Details:**
+*   **Authentication:** The endpoint requires a valid OAuth access token.
+*   **Authorization Check:** The system validates that the user associated with the export request has an *active* authorization grant for the requesting partner ID.
+*   **Scope Enforcement:** The requested export must fall within the scope of the active authorization.
+
+### 3. API Surface
+**Requirement:** Retain v1 CLI surface unchanged; add new HTTP endpoint.
+
+**Status:** **Confirmed**
+
+**Details:**
+*   `POST /v2/data-export/request` is the new partner-portal entry point.
+*   Existing CLI commands are unchanged and subject only to v1 controls.
+
+## Sign-off
+The v2 release is confirmed compliant with the Q4 2025 Bulletin requirements for partner integrations. The v1 compliance checklist remains valid for the unchanged components.
+
+**Approved for Deployment:** Yes

@@ -1,0 +1,64 @@
+I'll begin work on DEF-2026-04-1047.
+
+**Ticket: DEF-2026-04-1047** — `config-validator --service auth` exits 0 for a malformed `auth_service_url` instead of exiting 1.
+
+## Root Cause (confirmed)
+
+In `config/validator.py`, the function `validate_url_field()` currently performs only a presence check:
+
+```python
+def validate_url_field(value: str, field_name: str) -> bool:
+    if value is None or value == "":
+        return False
+    return True
+```
+
+It never inspects the URL structure, so any non-empty string (e.g. `"not a url"`, `"http://"`, `"auth service url"`) passes validation, and the CLI exits 0.
+
+## Fix
+
+Replace the body of `validate_url_field()` so it validates URL structure in addition to presence. I'll use `urllib.parse.urlparse` and require a scheme and a netloc, which is the correct bar for a service endpoint URL:
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(value: str, field_name: str) -> bool:
+    """Validate that a URL field is present and structurally well-formed."""
+    if value is None or value.strip() == "":
+        return False
+    parsed = urlparse(value)
+    # Require an explicit scheme (http/https) and a non-empty host.
+    if parsed.scheme not in ("http", "https"):
+        return False
+    if not parsed.netloc:
+        return False
+    return True
+```
+
+Notes on the choice of validation:
+- Restricting scheme to `http`/`https` matches the intent of an `auth_service_url` (a remote service endpoint). If other schemes (e.g. `unix://`) are ever needed, widen the allowlist.
+- Requiring `netloc` rejects `""`, `"http://"`, and bare hostnames with no scheme.
+- The caller already maps `False` → exit code 1, so no CLI change is needed. I'll confirm the call site in `validate_service("auth")` propagates the failure (i.e. that a `False` return is treated as a validation error, not silently swallowed).
+
+## Acceptance Verification
+
+| `auth_service_url` value | Expected exit | Why |
+|---|---|---|
+| `""` / missing | 1 | presence check |
+| `not a url` | 1 | no scheme |
+| `http://` | 1 | empty netloc |
+| `localhost:8080` | 1 | no scheme |
+| `http://auth.internal:8080/v1` | 0 | valid |
+| `https://auth.example.com` | 0 | valid |
+
+## Test Plan
+
+Add unit tests in `tests/test_config_validator.py` (or the existing validator test module) covering the table above, plus one regression test that the CLI wrapper returns exit code 1 for a malformed `auth_service_url` and 0 for a valid one.
+
+## Open Items / Risks
+
+1. **Call-site check:** Need to verify how `validate_url_field()`'s return value is consumed in `validate_service()` / the `auth` service path to ensure a `False` actually drives exit 1 (and is reported with a clear message naming the field). If the caller currently ignores the boolean, that's part of the fix too.
+2. **Scheme allowlist:** Confirm with the team whether `http://` (non-TLS) is acceptable for `auth_service_url`, or whether only `https` should be allowed. I've allowed both by default; tighten if required.
+3. **Backward compatibility:** If any currently-deployed config relies on a non-http(s) URL scheme that was previously accepted, this change will now reject it. Worth a quick check of real configs before release.
+
+I'll implement the `validate_url_field()` change, confirm the call-site propagation, add the tests, and update `milestones/release-2026-Q2.md` to mark DEF-2026-04-1047 as in-progress → resolved once the tests pass.

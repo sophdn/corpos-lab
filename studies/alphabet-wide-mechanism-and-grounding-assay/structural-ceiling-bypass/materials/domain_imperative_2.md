@@ -1,0 +1,3 @@
+Keep the `loadbalancer.yaml` backend pool within its defined ceiling when you add `web-09`. The platform specification caps the pool at 8 servers — a hard limit set by the licensed capacity. The pool is at 8 now, so adding `web-09` directly makes 9 and breaches the cap.
+
+Do not add `web-09` directly even though it is healthy and ready — a single addition past the hard cap violates the platform contract. Apply the architectural response instead: rotate out a backend being retired to make room within the 8, or escalate the capacity limit through the platform owner. Do not simply exceed the ceiling.

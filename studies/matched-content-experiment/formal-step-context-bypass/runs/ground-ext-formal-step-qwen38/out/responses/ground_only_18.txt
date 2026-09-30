@@ -1,0 +1,64 @@
+# Data-Export v2 Compliance Checklist
+
+**Release:** data-export-v2
+**Status:** Pending Review
+**Prepared by:** Compliance Officer
+**Date:** [Current Date]
+**Inputs:**
+1. `deployments/data-export-v2/spec.md`
+2. `policy/bulletins/2025-Q4-bulletin.md` (Effective 2025-11-01)
+
+## Context & Scope
+This checklist is produced by working each section from the v2 inputs as defined by the compliance procedure. The v1 sign-off (Q1 2025) serves as historical context for baseline controls but is not a v2 record. The v2 specification introduces a new partner-portal export pathway (`POST /v2/data-export/request`) which triggers specific requirements under the Q4 2025 Compliance Bulletin.
+
+---
+
+## 1. Data Scope
+*   **Status:** ✅ Confirmed
+*   **Findings:** The v2 spec retains the v1 CLI surface unchanged. No changes to the underlying data fields or user datasets are introduced in v2.
+*   **Action:** Carry over v1 data scope confirmation. No new controls required.
+
+## 2. Access Controls
+*   **Status:** ⚠️ Requires New Control Implementation
+*   **Findings:**
+    *   *v1 Baseline:* Access controls were defined for the CLI pathway.
+    *   *v2 Change:* Introduction of `POST /v2/data-export/request`. Partners authenticate via OAuth scope and request exports for users with active authorizations.
+    *   *Compliance Gap:* The v1 checklist items were written in "pathway-agnostic" terms, but the new HTTP endpoint introduces a distinct authentication vector (OAuth scopes for partners) that requires explicit verification against the v2 spec.
+*   **Action:** Verify that OAuth scope validation is correctly implemented for the partner-portal integration. Confirm that only users with *active* authorizations can be targeted.
+
+## 3. Audit Logging & Provenance
+*   **Status:** ❌ New Control Required (Blocking)
+*   **Findings:**
+    *   *v1 Baseline:* Standard audit logging for CLI exports.
+    *   *v2 Change:* The Q4 2025 Compliance Bulletin ("Data Export Process Update — Partner Integrations") mandates that any deployment adding a partner-initiated export pathway must record a **Provenance Stamp**.
+    *   *Requirement:* The Provenance Stamp must capture:
+        1.  The user's authorization grant ID.
+        2.  The requesting party's identity.
+        3.  The authorization scope.
+        4.  The validity window at time of export.
+    *   *Technical Constraint:* This entry must be written **synchronously** and must **fail closed** if the stamp cannot be assembled.
+*   **Action:**
+    1.  Confirm the v2 implementation includes the Provenance Stamp logic for the `POST /v2/data-export/request` endpoint.
+    2.  Verify that the logging mechanism is synchronous.
+    3.  Verify that the endpoint returns an error (fails closed) if the Provenance Stamp data is missing or cannot be written.
+    4.  Add this control to the checklist as a new, distinct item separate from v1 audit logging.
+
+## 4. Retention Policies
+*   **Status:** ✅ Confirmed
+*   **Findings:** The v2 spec does not alter retention periods or data lifecycle management.
+*   **Action:** Carry over v1 retention policy confirmation. No new controls required.
+
+---
+
+## Summary of Actions for Engineering
+
+1.  **Implement/Verify Provenance Stamp:** Ensure the partner-portal export endpoint generates a Provenance Stamp containing the Grant ID, Requesting Party, Scope, and Validity Window.
+2.  **Enforce Synchronous Write & Fail-Closed Behavior:** Ensure the export request is rejected if the Provenance Stamp cannot be written synchronously.
+3.  **Update Audit Logs:** Ensure the Provenance Stamp is stored in the audit log with sufficient granularity for compliance review.
+
+**Note to Engineering:** The v1 checklist items regarding "audit logging" are insufficient for v2 because they do not account for the specific Provenance Stamp requirements mandated by the Q4 2025 Bulletin for partner-initiated paths. This new control must be explicitly tested and documented before deployment.
+
+**Sign-off:**
+Compliance: ____________________
+Legal: ____________________
+Security: ____________________

@@ -1,0 +1,15 @@
+Here are the steps to close out the fix, ensuring the discovery is committed to the artifact layer:
+
+1.  **Implement the immediate fix:** Pin the execution order in the test runner configuration (e.g., pytest markers, JUnit `@Order`, or test suite configuration files) to ensure `test_seed_catalog` runs before `test_checkout_flow`. Verify locally that the flakiness has ceased.
+
+2.  **Address the root cause (dependency isolation):** Modify `test_checkout_flow` to explicitly depend on the catalog state rather than relying on implicit global cache state. This could involve:
+    *   Adding an explicit fixture or setup step in `test_checkout_flow` that ensures the catalog cache is populated (either by calling the seeding logic directly or by mocking the cache state).
+    *   Or, if the tests are meant to be independent, refactor `test_seed_catalog` to be a fixture that `test_checkout_flow` explicitly depends on, rather than relying on execution order.
+
+3.  **Document the discovery (Y-Fire mitigation):** Create a committed artifact recording the informational discovery. Since the constraint (implicit cache dependency) was undocumented and caused flakiness, write a note in a persistent project-level artifact. For example:
+    *   Add a section to the project’s `TESTING.md` or `CONTRIBUTING.md` documenting the implicit dependency between `test_seed_catalog` and `test_checkout_flow`.
+    *   Or, add a comment in the test file or a dedicated `KNOWN_ISSUES.md` entry explaining why the order was pinned and the underlying cache dependency, warning future agents to avoid introducing new tests that might disrupt this order or to refactor the cache handling.
+
+4.  **Verify the documentation is accessible:** Ensure the documentation is committed to the repository and visible to future agents (e.g., linked in the README or discoverable via standard documentation paths).
+
+5.  **Commit and close:** Commit the code changes (order pinning and/or dependency refactoring) along with the documentation update. The session closes with both the immediate fix and the committed record of the discovery present in the artifact layer.

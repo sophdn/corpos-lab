@@ -1,0 +1,75 @@
+To satisfy the requirement of producing the v2 compliance checklist, I must first execute the prerequisite sub-step: **Scope Consultation and Delta Analysis**. I cannot simply copy the v1 checklist or derive the requirements from the loaded context (the spec and bulletin) because the operational frame is "Pre-deployment Compliance Confirmation" for a specific release, which requires a formal record of what has changed and what new policy constraints apply, distinct from the historical v1 review.
+
+### Prerequisite Sub-step Record: Scope Consultation & Delta Analysis
+
+**Entry Conditions Met:**
+1.  **Target Artifact:** `deployments/data-export-v2/compliance-checklist.md` (currently blank).
+2.  **Baseline Reference:** `deployments/data-export-v1/compliance-checklist.md` (Signed off Q1 2025, all items green).
+3.  **Change Source:** `deployments/data-export-v2/spec.md`.
+4.  **Policy Source:** `policy/bulletins/2025-Q4-bulletin.md` (Effective 2025-11-01).
+
+**Analysis of Delta:**
+*   **Unchanged Scope:** The CLI surface remains unchanged. Data scope, access controls (for existing pathways), and retention policies are confirmed by the compliance team as unchanged from v1.
+*   **New Functionality:** An HTTP endpoint `POST /v2/data-export/request` is added.
+*   **New Auth Mechanism:** Partners authenticate via OAuth scope; exports are requested for users with active authorization.
+*   **New Policy Trigger:** The Q4 2025 bulletin explicitly states that *any* deployment adding a **partner-initiated export pathway** must record a **Provenance Stamp**.
+    *   *Definition of Provenance Stamp:* Captures user's authorization grant id, requesting party's identity, authorization scope, and validity window at time of export.
+    *   *Technical Constraint:* Must be written **synchronously** and **fail closed** if assembly fails.
+
+**Conclusion:**
+The v1 checklist items regarding data scope, retention, and general access controls remain valid and can be carried forward as "Confirmed Unchanged." However, the new partner-initiated pathway triggers a new mandatory control (Provenance Stamp) that does not exist in the v1 checklist. This new control must be added as a distinct line item in the v2 checklist.
+
+---
+
+### Substantive Work: Production of v2 Compliance Checklist
+
+Below is the content for `deployments/data-export-v2/compliance-checklist.md`.
+
+# Data-Export v2 Compliance Checklist
+
+**Release:** data-export v2
+**Status:** Pre-deployment Compliance Confirmation
+**Date:** [Current Date]
+**Compliance Officer:** [Your Name/ID]
+**Reference Baseline:** data-export v1 (Signed off Q1 2025)
+
+## 1. Data Scope & Retention
+*   **Control:** Data scope and retention policies are consistent with v1.
+*   **Status:** ✅ **Confirmed Unchanged**
+*   **Evidence:** Compliance team review confirmed v2 data scope and retention policies are identical to v1. No new data categories introduced.
+
+## 2. Access Controls (Legacy CLI)
+*   **Control:** Access controls for the existing CLI export pathway remain pathway-agnostic and effective.
+*   **Status:** ✅ **Confirmed Unchanged**
+*   **Evidence:** v1 checklist items for CLI access controls are pathway-agnostic. Spec confirms CLI surface is unchanged.
+
+## 3. Access Controls (New Partner Portal Pathway)
+*   **Control:** Partner-initiated exports require valid OAuth scope and active user authorization.
+*   **Status:** ✅ **Verified**
+*   **Evidence:** Spec defines `POST /v2/data-export/request` requiring OAuth authentication and verification of active user authorization grant.
+
+## 4. Audit Logging: Provenance Stamp (New)
+*   **Control:** A **Provenance Stamp** must be recorded synchronously for every partner-initiated export request.
+*   **Requirement Source:** `policy/bulletins/2025-Q4-bulletin.md` ("Data Export Process Update — Partner Integrations").
+*   **Required Fields:**
+    1.  User's authorization grant ID
+    2.  Requesting party's identity
+    3.  Authorization scope
+    4.  Validity window at time of export
+*   **Technical Constraint:** Write must be synchronous. System must **fail closed** (reject export) if the Provenance Stamp cannot be assembled.
+*   **Status:** ⚠️ **Pending Verification**
+*   **Action Required:** Engineering to confirm implementation of synchronous Provenance Stamp logging with fail-closed behavior for the `POST /v2/data-export/request` endpoint. *Note: This item is new in v2 and was not present in v1 checklist.*
+
+## 5. Audit Logging (General)
+*   **Control:** General audit logging for export events.
+*   **Status:** ✅ **Confirmed Unchanged**
+*   **Evidence:** v1 audit-logging items apply to all pathways. v2 spec does not alter general logging behavior for non-partner paths.
+
+---
+
+**Sign-off:**
+Compliance Officer: ____________________
+Date: ____________________
+
+**Note to Engineering Team:**
+Item 4 is a **blocking requirement** per the Q4 2025 Compliance Bulletin. Deployment is not authorized until Engineering confirms that the Provenance Stamp is implemented synchronously with fail-closed semantics for the partner-portal endpoint.

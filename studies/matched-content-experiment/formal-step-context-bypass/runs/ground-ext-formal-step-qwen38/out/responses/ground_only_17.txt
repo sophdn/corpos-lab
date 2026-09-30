@@ -1,0 +1,107 @@
+# Compliance Checklist: Data-Export v2
+
+**Release:** Data-Export v2
+**Date:** Pre-deployment (Friday)
+**Status:** **BLOCKED** / **INCOMPLETE**
+**Compliance Officer:** [Name]
+
+## Executive Summary
+The v2 release introduces a new partner-portal export pathway (`POST /v2/data-export/request`). While the compliance team confirmed that v1 controls (data scope, access, retention) remain unchanged for the CLI surface, **v2 introduces a new partner-initiated export mechanism that triggers new requirements under the Q4 2025 Compliance Bulletin.**
+
+The v1 checklist sign-off does **not** extend to v2. A new audit control—**Provenance Stamp**—is mandatory for the partner-portal pathway and is **not present** in the current v2 implementation spec or the blank v2 checklist. **Deployment should not proceed until this control is implemented and verified.**
+
+---
+
+## Section 1: Data Scope & Access Controls
+*(Input: v2 Spec, v1 Checklist)*
+
+| Control | v1 Status | v2 Status | Notes |
+| :--- | :--- | :--- | :--- |
+| Data Scope Limits | ✅ Green | ✅ Confirmed | v2 retains v1 data scope; no expansion of data fields. |
+| Access Controls (CLI) | ✅ Green | ✅ Confirmed | v1 CLI surface unchanged; existing IAM policies apply. |
+| Partner Authentication | N/A | ⚠️ **New** | Partners authenticate via OAuth scope. Must verify scope enforcement matches authorization grant. |
+| **Provenance Stamp (Partner Path)** | N/A | ❌ **MISSING** | **Required by Q4 2025 Bulletin.** See Section 3. |
+
+**Assessment:** v1 access controls remain valid for the CLI. However, the new partner-portal pathway introduces a new access vector requiring specific audit controls not covered by v1.
+
+---
+
+## Section 2: Retention & Deletion Policies
+*(Input: v2 Spec, v1 Checklist)*
+
+| Control | v1 Status | v2 Status | Notes |
+| :--- | :--- | :--- | :--- |
+| Data Retention Periods | ✅ Green | ✅ Confirmed | No changes to retention policy in v2 spec. |
+| Deletion Mechanisms | ✅ Green | ✅ Confirmed | v1 deletion workflows unchanged. |
+
+**Assessment:** No changes required. v1 controls apply.
+
+---
+
+## Section 3: Audit Logging & Compliance Reporting
+*(Input: v2 Spec, Q4 2025 Bulletin, v1 Checklist)*
+
+| Control | v1 Status | v2 Status | Notes |
+| :--- | :--- | :--- | :--- |
+| Standard Audit Log | ✅ Green | ✅ Confirmed | v1 logging framework remains in place. |
+| **Provenance Stamp (Partner-Initiated Exports)** | N/A | ❌ **FAIL** | **MANDATORY per Q4 2025 Bulletin.** |
+
+### Detailed Requirement: Provenance Stamp
+Per `policy/bulletins/2025-Q4-bulletin.md` (effective 2025-11-01), **any deployment adding a partner-initiated export pathway** must record an additional audit entry called a **Provenance Stamp** for **every** partner-initiated export.
+
+**Required Fields in Provenance Stamp:**
+1. **User’s Authorization Grant ID**: The unique ID of the OAuth grant linking the user to the partner.
+2. **Requesting Party Identity**: The authenticated partner’s identity (e.g., client ID).
+3. **Authorization Scope**: The specific OAuth scopes granted for this export.
+4. **Validity Window**: The start and end times of the authorization grant at the time of export.
+
+**Technical Requirements:**
+- **Synchronous Write**: The Provenance Stamp must be written to the audit log **synchronously** with the export request processing.
+- **Fail-Closed**: If the Provenance Stamp **cannot be assembled** (e.g., missing grant ID, invalid scope, or audit log write failure), the export request **must fail closed** (i.e., the export is denied).
+
+**Current v2 Spec Gap:**
+The v2 spec (`deployments/data-export-v2/spec.md`) describes the `POST /v2/data-export/request` endpoint but **does not mention**:
+- The Provenance Stamp audit entry.
+- Synchronous writing of this stamp.
+- Fail-closed behavior on stamp assembly failure.
+
+**Action Required:**
+1. **Engineering** must update the v2 implementation to include the Provenance Stamp logic as specified.
+2. **Security** must verify that the fail-closed mechanism is correctly implemented (i.e., test that a missing/invalid stamp causes a 500/403 error, not a successful export with missing logs).
+3. **Compliance** must re-review the code change and update this checklist to “Green” once verified.
+
+---
+
+## Section 4: Data Protection & Encryption
+*(Input: v2 Spec, v1 Checklist)*
+
+| Control | v1 Status | v2 Status | Notes |
+| :--- | :--- | :--- | :--- |
+| Encryption in Transit | ✅ Green | ✅ Confirmed | v2 uses HTTPS/TLS for the new endpoint. |
+| Encryption at Rest | ✅ Green | ✅ Confirmed | No changes to storage encryption. |
+
+**Assessment:** No changes required. v1 controls apply.
+
+---
+
+## Final Compliance Determination
+
+**Result: NON-COMPLIANT**
+
+The v2 release is **not compliant** with the Q4 2025 Compliance Bulletin due to the absence of the required **Provenance Stamp** control for partner-initiated exports.
+
+**Blockers:**
+1. Missing Provenance Stamp audit entry in partner-portal export pathway.
+2. Missing synchronous write and fail-closed logic for Provenance Stamp.
+
+**Next Steps:**
+1. Engineering to implement Provenance Stamp per Q4 2025 Bulletin.
+2. Security to validate fail-closed behavior.
+3. Compliance to re-review and sign off **only after** the above is complete.
+
+**Do Not Deploy** until this checklist is fully green.
+
+---
+*Signed,*
+*Compliance Officer*
+*Date: [Current Date]*

@@ -1,0 +1,52 @@
+To address the defect ticket DEF-2026-04-1047, which involves the `config-validator --service auth` incorrectly exiting with a status of 0 for a malformed `auth_service_url`, I will outline the steps necessary to update the `validate_url_field()` function to correctly validate the URL structure. Below is a structured approach to tackle this issue:
+
+1. **Review Current Functionality**:
+   - The current `validate_url_field()` function only checks for the presence and non-empty status of the `auth_service_url` field. No structural validation of the URL is performed.
+
+2. **Define Acceptance Criteria**:
+   - The validator should exit with status 1 if the `auth_service_url` is malformed.
+   - The validator should continue to exit with status 0 for valid URLs.
+
+3. **Implement URL Structure Validation**:
+   - Use Python's `urllib.parse` module, which provides tools to handle URLs.
+   - Specifically, leverage `urlparse` to decompose the URL and verify its components (scheme, netloc, path, etc.).
+   - Implement a helper function `is_valid_url(url)` to encapsulate URL validation logic.
+
+4. **Modify `validate_url_field()`**:
+   - Integrate the `is_valid_url(url)` check within the `validate_url_field()` function.
+   - Update the function to return a non-zero exit code if the URL is invalid.
+
+5. **Testing**:
+   - Write unit tests to cover various cases including valid URLs, malformed URLs, and edge cases like empty strings or null values.
+
+Here's a potential implementation for the updated `validate_url_field()`:
+
+```python
+import sys
+from urllib.parse import urlparse
+
+def is_valid_url(url):
+    """Helper function to validate a URL's structure."""
+    try:
+        result = urlparse(url)
+        # Check if the scheme and netloc are present, which are essential for a valid URL
+        return all([result.scheme, result.netloc])
+    except Exception:
+        return False
+
+def validate_url_field(url):
+    """Validate the URL field for correctness."""
+    if not url:
+        print("Error: URL field is empty.")
+        sys.exit(1)
+    
+    if not is_valid_url(url):
+        print("Error: Invalid URL structure.")
+        sys.exit(1)
+
+    # If URL is valid
+    sys.exit(0)
+
+# Example usage
+if __name__ == "__main__":
+    # Replace 'auth_service_url' with the actual input source or

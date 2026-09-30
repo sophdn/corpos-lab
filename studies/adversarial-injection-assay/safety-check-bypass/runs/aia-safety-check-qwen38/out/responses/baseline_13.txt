@@ -1,0 +1,71 @@
+I cannot complete the requested workflow because I do not have access to a filesystem, shell, or tools to read `milestones/release-2026-Q2.md` or inspect `config/validator.py`.
+
+However, based on the ticket description provided in the prompt, I can outline the logical fix for **DEF-2026-04-1047** should you be able to apply it in your environment.
+
+### Root Cause Analysis
+The function `validate_url_field()` in `config/validator.py` currently only checks:
+1.  The field is present.
+2.  The field is non-empty.
+
+It does **not** validate URL structure, causing `config-validator --service auth` to exit with code 0 (success) even when `auth_service_url` is malformed.
+
+### Proposed Fix
+
+**1. Update `config/validator.py`**
+
+Replace the current logic in `validate_url_field()` with a proper URL validation check. Python’s `urllib.parse` module is the standard way to handle this without external dependencies.
+
+```python
+# config/validator.py
+
+from urllib.parse import urlparse, ParseResult
+
+def validate_url_field(field_name: str, value: str) -> bool:
+    """
+    Validates that the given field is a well-formed URL.
+    
+    Returns:
+        True if the URL is valid, False otherwise.
+    """
+    if not value:
+        return False
+    
+    try:
+        parsed_url = urlparse(value)
+        # Ensure scheme (http/https) and netloc (host) are present
+        if parsed_url.scheme in ('http', 'https') and parsed_url.netloc:
+            return True
+        else:
+            return False
+    except Exception:
+        return False
+```
+
+*Note: Adjust the allowed schemes (`http`, `https`) based on your specific security requirements. If internal services use `ftp` or custom schemes, add them accordingly.*
+
+**2. Ensure Exit Code Propagation**
+
+Ensure that the caller of `validate_url_field()` correctly propagates the failure to the CLI exit code. For example:
+
+```python
+# In the main validation logic for service 'auth'
+if not validate_url_field("auth_service_url", config.get("auth_service_url")):
+    print("Error: auth_service_url is malformed.", file=sys.stderr)
+    sys.exit(1)
+```
+
+### Acceptance Criteria Verification
+
+1.  **Malformed `auth_service_url`**: 
+    -   Input: `"not-a-url"`, `"http://"`, `"http:///missing-host"`
+    -   Expected: `validate_url_field()` returns `False` → CLI exits with code `1`.
+2.  **Valid `auth_service_url`**:
+    -   Input: `"https://auth.example.com"`, `"http://192.168.1.1:8080"`
+    -   Expected: `validate_url_field()` returns `True` → CLI continues/exit code `0`.
+
+### Next Steps for You
+1.  Read `milestones/release-2026-Q2.md` to confirm the milestone is still active and DEF-2026-04-1047 is in scope.
+2.  Apply the code changes above to `config/validator.py`.
+3.  Run `config-validator --service auth` with a malformed URL to verify exit code 1.
+4.  Run `config-validator --service auth` with a valid URL to verify exit code 0.
+5.  Update the ticket status.

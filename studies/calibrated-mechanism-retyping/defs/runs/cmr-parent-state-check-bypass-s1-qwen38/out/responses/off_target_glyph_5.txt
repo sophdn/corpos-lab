@@ -1,0 +1,46 @@
+I cannot execute code, access the filesystem, or modify files in this environment. I will provide the logical resolution for the ticket and the necessary documentation updates based on the provided context and the **Y-fire** protocol defined in the prompt.
+
+### 1. Technical Resolution for DEF-2026-04-1047
+
+**File:** `config/validator.py`
+**Function:** `validate_url_field()`
+
+**Current Behavior:**
+The function currently only checks for presence and non-emptiness:
+```python
+def validate_url_field(value: str) -> bool:
+    if not value or not value.strip():
+        return False
+    return True
+```
+
+**Required Change:**
+To satisfy the acceptance criteria ("exits 1 for a malformed `auth_service_url`, and valid URLs continue to pass"), the validation must check URL structure. Assuming the standard library `urllib.parse` or a similar regex approach is used, the logic must be updated to verify that the parsed URL has a valid scheme (http/https) and netloc.
+
+**Proposed Implementation:**
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(value: str) -> bool:
+    if not value or not value.strip():
+        return False
+    
+    try:
+        result = urlparse(value.strip())
+        # Check if scheme is http or https and netloc exists
+        if result.scheme not in ('http', 'https') or not result.netloc:
+            return False
+        return True
+    except Exception:
+        return False
+```
+
+**Verification:**
+- **Malformed Input** (e.g., `"not-a-url"`, `"ftp://invalid"`): `parse_url` will either fail or return a scheme not in `['http', 'https']`. Function returns `False`. Validator exits 1. ✅
+- **Valid Input** (e.g., `"https://auth.example.com"`): `parse_url` returns scheme `https` and netloc `auth.example.com`. Function returns `True`. Validator exits 0. ✅
+
+### 2. Companion Artifact Update (Y-Fire Protocol)
+
+According to the **Y-fire** protocol defined in the prompt:
+- **Primary Artifact:** The code change in `config/validator.py` (the fix for DEF-2026-04-1047).
+- **Companion Artifact:** `milestones/release-2026-Q2

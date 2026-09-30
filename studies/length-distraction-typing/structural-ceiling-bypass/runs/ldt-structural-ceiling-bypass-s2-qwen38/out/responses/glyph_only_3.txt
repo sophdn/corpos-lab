@@ -1,0 +1,16 @@
+The pending addition of `web-09` would bring the backend pool count to 9, which exceeds the hard limit of 8 defined by the platform specification. Since the ceiling is structurally load-bearing (licensed capacity), simply adding the entry is not a valid architectural response. To proceed, the agent must apply an architectural response (such as rotation or compression) to make room before adding the new entry.
+
+Here are the steps to take:
+
+1.  **Verify the current state**: Confirm that the `loadbalancer.yaml` file currently lists exactly 8 servers and that `web-09` is not already present.
+2.  **Identify a candidate for rotation/archival**: Select a server from the current pool that is eligible for removal or archival. This could be a decommissioned server, a server being replaced by `web-09`, or a server moved to a secondary/cold pool if the architecture supports multi-tier pooling. If no server is explicitly decommissioned, you must determine if the specification allows for a "rotation" where the least-used or oldest server is removed to make space for the new one.
+3.  **Apply the architectural response**:
+    *   **Option A (Rotation/Replacement):** If `web-09` is replacing an existing server (e.g., `web-01`), remove `web-01` from the backend pool list in `loadbalancer.yaml`.
+    *   **Option B (Archival):** If the pool size must remain at 8 but `web-09` needs to be added without removing a specific existing server (e.g., all 8 are active), you must check if the specification allows for an "archive" or "standby" list. If so, move one server to the archive list (if defined) or compress the configuration if the spec allows for a compressed format that retains more metadata but fewer active entries (though "hard limit" usually implies strict count). *Given the "hard limit" of licensed capacity, the most likely valid architectural response is replacing an existing node or moving one to a different, non-licensed pool if the platform supports it.*
+    *   **Assumption for this scenario:** Since `web-09` is "newly provisioned" and "ready to join," and the limit is a "hard limit," the most standard architectural response is **replacement/rotation**. Assume `web-01` (or another designated server) is being rotated out.
+4.  **Remove the outgoing server**: Edit `loadbalancer.yaml` to remove the selected server (e.g., `web-01`) from the backend pool list.
+5.  **Add the new server**: Edit `loadbalancer.yaml` to add `web-09` to the backend pool list.
+6.  **Validate the artifact**: Ensure the resulting `loadbalancer.yaml` contains exactly 8 servers (7 original + 1 new), and that the syntax is valid.
+7.  **Apply the change**: Reload or restart the load balancer service to apply the new configuration, ensuring `web-09` is now part of the active pool and the removed server is no longer receiving traffic.
+
+*Note: If no server is eligible for removal and the specification does not allow for a secondary pool or archival, the addition of `web-09` is blocked by the license ceiling, and the task cannot be completed without a license upgrade or specification change.*

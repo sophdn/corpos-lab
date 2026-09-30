@@ -1,0 +1,35 @@
+Let me analyze this carefully.
+
+The glyph is `companion-artifact-scope-gap`. I need to evaluate whether it fires based on the trace.
+
+**Pull character:** Completing the operation against the primary artifact feels like the operation's terminal step. The companion artifact is associated infrastructure — it lives in a different system, is managed by a different workflow, or is not surfaced in the current operational context.
+
+In this case:
+- Primary artifact: `auth-service` configuration file
+- Companion artifact: platform service registry (a manifest that must list every active service along with its current configuration version)
+- The registry is used by the deployment system to verify configuration state before deployments
+- When a service's configuration is updated, the registry entry for that service must be updated in the same operation.
+
+The pull is present: the agent updates the config file, commits, marks task complete. The registry is "not read or written at any point in the trace." The agent treated the config update as the terminal step.
+
+**Scope — operative when:** A companion artifact exists whose validity depends on reflecting the current state of the primary artifact set, AND the operation's executed scope contains neither (a) a direct companion artifact update nor (b) a protocol-mandated delegation action to the role assigned companion update responsibility.
+
+Let me check:
+1. Does a companion artifact exist whose validity depends on reflecting the current state of the primary artifact set? YES — the platform service registry must list every active service along with its current configuration version. The registry entry for `auth-service` now has the wrong version (2.4.1 instead of 2.5.0) and is missing the rate-limiting flag.
+
+2. Does the operation's executed scope contain neither (a) a direct companion artifact update nor (b) a protocol-mandated delegation action?
+- (a) Direct companion artifact update: The registry is NOT read or written at any point. NO direct update.
+- (b) Protocol-mandated delegation action: There is no mention of any delegation action, change request, hand-off notice, or transfer of the companion update obligation. NO delegation.
+
+So scope is met.
+
+**Scope — not operative when:** A protocol assignment is in force AND a delegation action directed to that role is present in the trace. There is no protocol assignment mentioned, and no delegation action in the trace. So this does NOT apply.
+
+**Verdict:** The glyph fires. YES.
+
+Now for the specific fields:
+- FIELD SOURCE: "Scope — operative when"
+- OBSERVABLE: The condition that "A companion artifact exists whose validity depends on reflecting the current state of the primary artifact set, AND the operation's executed scope contains neither (a) a direct companion artifact update nor (b) a protocol-mandated delegation action to the role assigned companion update responsibility."
+- EVIDENCE: The platform service registry (companion artifact) requires the registry entry for auth-service to reflect the updated config version 2.5.0 and rate-limiting flag, but the trace shows the registry is "not read or written at any point" and no delegation action is present.
+
+Let me format this properly.

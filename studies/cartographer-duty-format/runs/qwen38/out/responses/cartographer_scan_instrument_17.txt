@@ -1,0 +1,116 @@
+# repair-duty
+
+## Scope and Definition
+This duty governs the act of repairing a confirmed software defect with a known locus. It applies to any office of the Agentic Order executing a repair.
+
+**Inputs:**
+*   **The Locus:** The specific file and line number where the defect is confirmed to reside.
+*   **The Defect:** A description of the failure behavior (e.g., exception type, incorrect output).
+*   **The Context:** The surrounding code logic required to understand the intended behavior.
+
+**Principle:** The repair act must be derived from first principles of the specific failure mode, not from pattern-matching against external registries or canons. The executor relies solely on the text of this duty and the provided context.
+
+---
+
+## Phase 1: Locus Verification and Pre-Condition Establishment
+*Before any code is modified, the office must confirm that the identified locus is the true source of the failure and that the environment is safe for intervention.*
+
+### Gate 1: Locus Fidelity Check
+*   **Verifies:** That the reported locus corresponds to the actual mechanism of the defect, not merely a symptom or a downstream effect.
+*   **Requirement to Complete:**
+    1.  Read the code at the specified locus.
+    2.  Trace the execution path from the entry point of the function/module to the locus.
+    3.  Confirm that the data flow or control flow at the locus directly produces the described defect behavior.
+    4.  If the locus is a symptom (e.g., a crash in a caller) rather than the root cause (e.g., the function being called), **stop** and re-evaluate the locus. The repair must address the root cause.
+
+### Gate 2: Intent Preservation Baseline
+*   **Verifies:** That the executor understands the intended behavior of the function *excluding* the defect.
+*   **Requirement to Complete:**
+    1.  Document the expected input/output contract of the function based on the context.
+    2.  Identify the specific edge case or input condition that triggers the defect.
+    3.  Define what the *correct* behavior should be for that edge case (e.g., return a default value, raise a specific semantic error, or handle gracefully).
+    4.  If the intended behavior is ambiguous or not specified in the context, **stop** and request clarification. Do not guess the intent.
+
+### Gate 3: Dependency Isolation
+*   **Verifies:** That the repair will not inadvertently alter the behavior of other code paths or dependencies.
+*   **Requirement to Complete:**
+    1.  Identify all callers of the function containing the locus.
+    2.  Identify any shared state or global variables modified by the function.
+    3.  Confirm that the planned change is isolated to the defect mechanism. If the repair requires changing the function signature or shared state, **stop** and reassess the scope. This duty governs local repairs; architectural changes require a different duty.
+
+---
+
+## Phase 2: Repair Execution
+*The office applies the minimal change necessary to resolve the defect while preserving the baseline intent.*
+
+### Gate 4: Minimal Intervention
+*   **Verifies:** That the change is the smallest possible modification to resolve the defect.
+*   **Requirement to Complete:**
+    1.  Formulate the code change.
+    2.  Critique the change: Is it possible to resolve the defect with fewer lines or less structural alteration?
+    3.  Ensure the change does not introduce new complexity (e.g., do not refactor unrelated code, do not add unnecessary abstractions).
+    4.  If the change alters code beyond the immediate defect mechanism, **stop** and simplify the approach.
+
+### Gate 5: Semantic Consistency
+*   **Verifies:** That the repair aligns with the coding style and logical patterns of the surrounding code.
+*   **Requirement to Complete:**
+    1.  Check variable naming, indentation, and comment style against the surrounding block.
+    2.  Ensure the logic of the fix is consistent with how other edge cases are handled in the same module (if any exist).
+    3.  If the fix introduces a new pattern (e.g., a new exception type) not present elsewhere, **stop** and consider if a simpler, more consistent approach is available.
+
+---
+
+## Phase 3: Validation and Completion
+*The office confirms that the repair works and that no new defects have been introduced.*
+
+### Gate 6: Defect Resolution Proof
+*   **Verifies:** That the original defect no longer occurs.
+*   **Requirement to Complete:**
+    1.  Construct a test case (mental or actual, depending on execution environment) that reproduces the original defect using the specific input that triggered it (e.g., `calculate_average([])`).
+    2.  Apply the repair logic to this input.
+    3.  Confirm the output matches the intended behavior defined in Gate 2.
+    4.  If the defect persists, **stop** and return to Gate 1. The locus or the repair strategy is incorrect.
+
+### Gate 7: Regression Check
+*   **Verifies:** That the repair has not broken existing functionality.
+*   **Requirement to Complete:**
+    1.  Construct test cases for at least two normal, non-defective inputs (e.g., `calculate_average([1, 2, 3])` and `calculate_average([10])`).
+    2.  Apply the repair logic to these inputs.
+    3.  Confirm the outputs remain correct according to the baseline intent.
+    4.  If any normal input now produces an error or incorrect result, **stop** and return to Gate 4. The repair was too aggressive.
+
+### Gate 8: Side-Effect Audit
+*   **Verifies:** That the repair has not introduced unintended side effects in the broader system.
+*   **Requirement to Complete:**
+    1.  Review the change for any new resource allocations, file writes, network calls, or global state mutations.
+    2.  Confirm that no such side effects exist unless explicitly required by the intent.
+    3.  If side effects are present, **stop** and remove them.
+
+---
+
+## Phase 4: Meta-Taboo Scan (Upstream and Session-Close Hazards)
+*This phase addresses hazards outside the immediate repair act. These gates ensure the office has not failed to verify the appropriateness of the repair itself or to record necessary information before closing the session.*
+
+### Gate 9: Routing-Appropriateness Check (Upstream Hazard)
+*   **Verifies:** That the situation actually called for a *repair* and not a different type of work (e.g., feature addition, architectural refactoring, or data migration).
+*   **Requirement to Complete:**
+    1.  Re-examine the initial defect report. Does the description imply a *bug* (deviation from specified behavior) or a *missing feature* (absence of specified behavior)?
+    2.  If the "defect" is actually a request for new functionality, **stop**. This duty does not govern feature development. The office must re-route to the appropriate duty for feature implementation.
+    3.  If the "defect" is a result of a fundamental design flaw that cannot be fixed with a local repair, **stop**. This duty does not govern architectural refactoring. The office must re-route to the appropriate duty for refactoring.
+    4.  Confirm that the work is strictly a repair of a confirmed, localized defect.
+
+### Gate 10: Session-Close Recordation (Session-Close Hazard)
+*   **Verifies:** That all necessary information discovered during the repair is recorded before the session ends, ensuring future maintainability and auditability.
+*   **Requirement to Complete:**
+    1.  Identify any new insights gained about the system during the repair (e.g., "The function assumes non-empty lists," "A similar defect may exist in `calculate_median`").
+    2.  Identify any temporary workarounds or assumptions made during the repair.
+    3.  Record these insights in the appropriate location (e.g., a changelog, a comment in the code, or a session log) as specified by the office's standard operating procedures.
+    4.  If no insights were gained, record "No additional insights."
+    5.  **Do not** end the session without completing this recordation. The absence of a record is a failure of the session-close obligation.
+
+---
+
+## Final Confirmation
+Once Gates 1 through 10 are completed, the repair is considered valid. The office may proceed to commit the change, close the ticket, or hand off to the next phase of the workflow.
+
+**Note to Executor:** This duty is self-sufficient. You do not need to consult external canons, registries, or previous repair logs to execute it. Rely on the text of this duty, the provided context, and your analysis of the specific defect.

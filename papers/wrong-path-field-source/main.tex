@@ -1,0 +1,584 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{natbib}
+\usepackage{array}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!60!black,
+  citecolor=blue!60!black,
+  urlcolor=blue!60!black
+}
+
+\title{%
+  Correct Verdicts, Wrong Field: Attribution and Capability \\
+  Are Dissociable When Small Language Models Follow a Rubric%
+}
+
+\author{Sophie D.\ Neilson \\
+  \small Independent Researcher \\
+  \small ORCID: \href{https://orcid.org/0009-0001-2430-1743}{0009-0001-2430-1743}
+}
+
+\date{September 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+A behavioral format assay changes the structure of a prompt and reads whether a
+model's answers improve. Verdict accuracy is the usual measure. We show that it
+is not sufficient, and that a model's self-reported basis for its answer is not
+sufficient either. We gave three local language models a structured decision
+rubric that names one field, a scope condition, as the field on which the verdict
+turns, and asked each for a verdict and for the field that determined it. Across
+six decision classes and two scenario polarities, verdict accuracy sat at or near
+ceiling (0.96--1.00), while the share of correct verdicts that cited the scope
+field varied widely by model, from 0.04 to 0.66. On the firing scenarios a 32B
+model cited the scope field in none of its 48 correct verdicts, naming the Marker
+axis (a recognition axis: an invariant describing what a violation looks like)
+instead; the thinking model named the scope field in 15 of 48. The non-scope
+citation is model-specific: the Marker axis for the two Qwen models, and the Pull
+character (the field for why the locally-wrong action is attractive) for Mistral.
+Yet the cited field is not the reasoning:
+in all 33 of the thinking model's correct base runs that cited a non-scope field,
+the recorded reasoning trace mentions the scope field before naming a different
+one. In the run we hand-check, the trace deliberates the scope condition and then
+cites elsewhere: the self-report is unfaithful. A grader scoring only the verdict, or
+trusting the cited field, would misread both. We then removed the two recognition
+axes. Accuracy did not fall, but it was at ceiling in both arms, so the accuracy
+test of fragility is uninformative; what moved was the citation, toward the scope
+field (the thinking model to 96 of 96) and, for the 32B model, toward the
+surviving Rest axis (the field for territory where the decision class does not
+arise; scope 65, Rest 30 of 96). The named field tracks which
+fields are present, not a fixed dependency. Attribution is dissociable from
+capability: the field a model reports is neither the field its reasoning used nor
+the only field it can name. We argue that a format assay must not read the verdict
+or the model's self-reported field as evidence that the intended field did the
+work; the self-report is checked against the trace and against an intervention,
+not trusted.
+\end{abstract}
+
+\section{Introduction}
+
+A common way to test whether a change to a prompt's structure helps a language
+model is to score the model's answers before and after. If accuracy rises, the
+structure gets the credit. This paper is about a failure of that inference. A
+model can reach the correct answer through a part of the prompt that the change
+was not about, so that a rise in accuracy is not evidence that the intended
+structure did any work.
+
+We study this with a structured decision rubric. The rubric describes a class of
+decision an agent faces, and it names one field, a scope condition, as the
+field on which the verdict turns. It also carries two recognition axes that
+describe what a violation and a correct action look like. The rubric states the
+order of evaluation: read the scope condition, then render the verdict. We ask a
+model for a verdict on a concrete scenario and, on the same turn, for the name of
+the field that determined its verdict. The verdict is scored against ground
+truth. The named field is scored against the field the rubric designates.
+
+Two questions follow. First, does verdict accuracy track which field the model
+cites as its basis? We find it does not: accuracy is near ceiling while
+scope-field citation is far lower, and lowest on the scenarios where the decision
+class fires. And the cited field is a self-report that is unfaithful to the
+reasoning: for the thinking model, whose reasoning we record, every correct run
+that named a non-scope field mentioned the scope field in its trace, and the run
+we examine in full deliberates the scope condition before citing elsewhere.
+Second, does a correct-but-off-field citation depend on the field the model
+names? We test this by removing the two recognition axes. Accuracy holds, though
+it was already at ceiling, and the citation shifts toward the fields that remain.
+The field a model names is a preference among the fields present, not a
+requirement.
+
+We call the resulting distinction \emph{attribution versus capability}. What a
+model reports as the basis of its answer (attribution) is separable both from
+whether the answer is correct (verdict accuracy) and from which fields the model
+can actually use to be correct (capability). A behavioral format assay that reads
+only the verdict sees none of this. It cannot tell a genuine effect of the
+intended structure from a rise carried by an unintended field, and it cannot tell
+a load-bearing field from one the model merely names.
+
+\subsection{Related Work}
+
+That a model's stated reasoning need not reflect the cause of its answer is
+established for chain-of-thought prompting. \citet{turpin2023} show that models
+give plausible reasoning that does not mention the features actually driving their
+predictions, and \citet{lanham2023} measure how far a stated chain of thought is
+load-bearing for the final answer. \citet{chen2025reasoning} report the same for
+reasoning models, whose stated chains omit decisive influences such as an injected
+hint. Our field-source measure is a compact form of
+the same question for a rubric-following task: the model names the field it used,
+and we check that name against an intervention rather than taking it at face
+value. The distinction between an answer's correctness and the process that
+produced it also motivates process-level supervision, where a reward is placed on
+the reasoning steps rather than the outcome \citep{lightman2023}. Our result is a
+reason that outcome scoring alone is insufficient for a format study, framed as a
+measurement problem rather than a training one.
+
+A model reporting an unintended feature as its basis echoes the
+shortcut-learning pattern \citep{geirhos2020}, described there for learned
+representations; we observe it at the level of a model's self-reported field on a
+structured prompt, and we add two things: the self-report is unfaithful to the
+reasoning (the trace mentions the scope field regardless), and it is not
+load-bearing (its citation shifts when the named field is removed, at no cost to
+accuracy). The rubric we use comes from a research
+program on descriptive decision-point prompts \citep{neilson2026capc}; two adjacent
+studies of format-dependent behavioral shifts in language models
+\citep{wang2026narrative, liu2026behavioral} vary prompt structure and read
+behavioral output, but neither separates the model's self-reported route from its
+verdict, which is the measure this paper turns on.
+
+\section{Materials and Method}
+
+\subsection{Terminology}\label{sec:terminology}
+
+The rubric names its parts with coined terms. Each is a field or an axis in the
+rubric. Table~\ref{tab:terms} defines them; the abstract and every section that
+follows use these names. The \emph{Scope field} is the decision route the rubric
+designates. The \emph{Marker} and \emph{Aim} axes are the two \emph{recognition
+axes}: they describe what a violation and a correct action look like, not the
+route to the verdict. The fields sit in a \textbf{Y -- Decision terrain} block,
+where \emph{Y} is the decision point at which the pull toward the locally-wrong
+action is live; the block states the order in which to read the fields.
+
+\begin{table}[h]
+\centering
+\small
+\caption{The rubric's fields and axes.}
+\label{tab:terms}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.7cm}>{\raggedright\arraybackslash}p{9.1cm}@{}}
+\toprule
+Term & What it is \\
+\midrule
+Scope-operative-when & The field naming the condition under which the decision class fires. The rubric puts it on the decision route. \\
+Scope-not-operative-when & The field naming the condition under which the class does not fire, stated as a positive discriminator. \\
+Scope field & Either Scope field above: the field the rubric designates as the route to the verdict. \\
+Pull character & The field for why the locally-wrong action is attractive. Present in both firing and non-firing cases. \\
+Marker axis & A recognition axis: an invariant describing what a violation looks like. \\
+Aim axis & A recognition axis: an invariant describing correct navigation. \\
+Rest axis & The field for territory where the decision class does not arise. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{The Rubric and the Field-Source Measure}
+
+Each decision class is described by a rubric with a fixed shape. A \textbf{Y --
+Decision terrain} block names the evaluation order and three fields: the Pull
+character, the Scope-operative-when field, and the Scope-not-operative-when field.
+Below the terrain sit the two recognition axes, Marker and Aim, and the Rest axis.
+Table~\ref{tab:terms} defines each. The terrain block states the evaluation order:
+``Evaluate in sequence: pull character $\rightarrow$ scope $\rightarrow$ verdict.
+Do not render a verdict before completing the scope check.'' The Scope field is
+therefore the field the rubric designates as the decision route; the Marker and
+Aim axes are recognition and characterization, not the route.
+
+We use six decision classes (Section~\ref{sec:classes}). Each has two scenarios: a
+\emph{firing} scenario whose ground truth is ``yes'' (the class applies) and a
+\emph{carve-out} scenario whose ground truth is ``no'' (a named exception holds).
+The intended field for a firing scenario is Scope-operative-when; for a carve-out
+scenario it is Scope-not-operative-when. Both are the Scope field.
+
+The instrument is the response format. The model is asked to answer in four lines:
+a \texttt{VERDICT} (yes/no), a \texttt{FIELD SOURCE} (the name of the field that
+determined the verdict), an \texttt{OBSERVABLE} (the condition it cites), and the
+\texttt{EVIDENCE} (the trace element it rests on). The verdict and the field
+source are parsed deterministically. A \emph{wrong-path success} is a correct
+verdict whose cited field is not the Scope field.
+
+\subsection{Model and Sampling}\label{sec:sampling}
+
+Three subjects, all Q4\_K\_M GGUF quantizations served by llama.cpp
+(\texttt{llama-server}, build \texttt{b9445-af6528e6d}) over the raw
+completion endpoint, so no server-side chat template sits between the
+declared prompt and the model. Each model's instruct wrapper is published verbatim
+(Appendix~\ref{app:materials}).
+
+\begin{itemize}
+  \item \textbf{Mistral-7B-Instruct-v0.3} (7.2B), non-thinking.
+  \item \textbf{Qwen2.5-32B-Instruct} (32B), non-thinking.
+  \item \textbf{Qwen3.8-27B} (27B), thinking enabled. Its reasoning trace is
+    recorded per run.
+\end{itemize}
+
+All three subjects are open-weight models served locally under one reproducible
+apparatus. Hosted models such as Claude are out of scope as subjects: they cannot
+run over the bare llama.cpp raw-completion endpoint the other subjects use, so
+including one would split the apparatus and remove the property that anyone with a
+24\,GB GPU can reproduce these results without a paid API. The sampler
+chain is declared complete and identical across
+subjects: temperature 0.8, \texttt{min\_p} 0.05 as the sole truncation stage,
+every other truncation stage and every penalty disabled, per-run seeds 1--8.
+Penalties are off by design: the rubric induces repeated structure (axis-by-axis
+traversal), and a repetition penalty would attenuate the behavior under study. The
+generation cap was 1024 tokens for the two non-thinking models and 4096 for
+Qwen3.8, whose reasoning needs the headroom; the largest generation observed was
+1331 tokens, and no run truncated. The served context was 32768 tokens for Mistral
+and Qwen3.8. Qwen2.5-32B was served at 8192 tokens: its weights plus the KV cache
+at 32768 exceed the 24\,GB GPU. Its prompts are about 3800 tokens and its
+generation is capped at 1024, so 8192 has ample headroom; the served context is
+recorded per run and bounds only the unused tail.
+
+\subsection{Conditions and Arms}
+
+Every run assembles one prompt: the shared rubric-definition document, then the
+decision-class terrain, then the scenario trace, then the four-line instruction.
+The study has two arms that differ only in the terrain:
+
+\begin{itemize}
+  \item \textbf{Base arm.} The full terrain, with the Marker and Aim axes
+    present.
+  \item \textbf{Ablation arm.} The same terrain with the Marker and Aim axes
+    removed. The Y-Decision block (the Pull character and both Scope fields) and
+    the Rest axis are byte-identical to the base terrain; a
+    per-file diff confirms only the two axes changed.
+\end{itemize}
+
+The design is 3 subjects $\times$ 2 arms $\times$ 6 classes $\times$ 2 scenarios
+$\times$ 8 runs $=$ 576 runs. No run truncated, and the served model matched the
+declared model in every run.
+
+\subsection{Scoring}\label{sec:scoring}
+
+The headline measures are deterministic. The verdict is parsed and compared to
+ground truth. The field source is parsed and classified by the first field-family
+keyword it names: Scope, Marker, Aim, Pull, Rest, or other. For each cell (subject,
+arm, class, scenario) we report verdict accuracy over the eight runs, and among
+the correct verdicts the share that cited the Scope field. A run's answer is the
+four-line response; for the thinking model the reasoning trace precedes it and is
+recorded separately, so the four parsed lines are the same shape for all subjects.
+Read cells and direction, not exact counts: at eight runs a single-integer
+difference is inside the noise band.
+
+\subsection{Agents and Models}\label{sec:agents}
+
+Table~\ref{tab:agents} lists every model and agent with a role in producing the
+results. The three subjects are the models under test. A Claude session
+authored the study and the analysis code; it is an agent, not a person, and it
+judged nothing in the deterministic layer, which is a parser.
+
+\begin{table}[h]
+\centering
+\small
+\caption{Agents and models.}
+\label{tab:agents}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.1cm}>{\raggedright\arraybackslash}p{3.6cm}>{\raggedright\arraybackslash}p{4.6cm}>{\raggedright\arraybackslash}p{2.4cm}@{}}
+\toprule
+Role & Model & Version and runtime & Date \\
+\midrule
+Subject (non-thinking) & Mistral-7B-Instruct-v0.3 & Q4\_K\_M, llama.cpp b9445, ctx 32768 & 2026-09-11 \\
+Subject (non-thinking) & Qwen2.5-32B-Instruct & Q4\_K\_M, llama.cpp b9445, ctx 8192 & 2026-09-11 \\
+Subject (thinking) & Qwen3.8-27B & Q4\_K\_M, llama.cpp b9445, ctx 32768, thinking on & 2026-09-11 \\
+Study and analysis author & Claude (agent) & Version not recorded & 2026-09-11 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Results}
+
+\subsection{The Cited Field Is Usually Not the Scope Field}
+
+Verdict accuracy is at or near ceiling for every subject, while the share of
+correct verdicts that cite the intended Scope field is far lower
+(Table~\ref{tab:h1}). The models are right, and they largely say a different field
+made them right.
+
+\begin{table}[h]
+\centering
+\small
+\caption{Base arm, per subject, over 96 runs each (12 cells $\times$ 8).}
+\label{tab:h1}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Subject & Verdict accuracy & Scope-cited / correct & Non-scope / correct \\
+\midrule
+Mistral-7B & 0.96 (92/96) & 0.66 & 0.34 \\
+Qwen2.5-32B & 1.00 (96/96) & 0.04 & 0.96 \\
+Qwen3.8 & 1.00 (96/96) & 0.66 & 0.34 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Qwen2.5-32B is the sharpest case. It answered correctly in all 96 runs and named
+the Marker axis in 88 of them, the scope field in four. A grader scoring only its
+verdicts would read a perfect score and credit the scope structure for a result
+the model attributes almost entirely to a recognition axis.
+
+The gap is widest on the firing scenarios. Pooling the base arm across subjects,
+verdict accuracy is 0.99 on both polarities (142/144 each), but scope-field
+citation among correct verdicts is 0.27 on the firing scenarios against 0.63 on
+the carve-outs. The non-scope citation is model-specific. On firing scenarios the
+two Qwen models name the Marker axis's firing condition (Qwen2.5-32B in all 48 of
+its correct firing runs, Qwen3.8 in 32 of 48), while Mistral's most common non-scope
+citation is the Pull character (14 of its 46 correct firing runs, against 8 for the
+Marker axis; it names the scope field in 23). The field a correct verdict is attributed to is, in
+general, not the scope field the rubric puts on the decision path.
+
+\subsection{The Cited Field Is Not the Reasoning}
+
+For Qwen3.8 the reasoning trace is on the record, so the cited field can be checked
+against the reasoning it summarizes. In the base arm, 33 of Qwen3.8's 96 correct
+runs cited a non-scope field (32 the Marker axis, one other). In every one of those
+33, a keyword scan finds the scope field mentioned in the recorded trace before a
+different field is named. The scan shows only that the trace references the scope
+field, not how far it engages it; the run below shows genuine engagement in one
+case. A representative run (cas-a, run 4) states in its trace ``So scope IS met. The glyph
+may fire.'', then deliberates and concludes ``The scope check is necessary but it's
+a gate. The actual firing determination comes from the Marker axis firing
+condition.'', and cites the Marker axis. The scope field is engaged; the citation
+names an axis. The self-report is not a readout of the reasoning. Only the thinking
+model exposes this directly, because only its reasoning is recorded; the
+non-thinking models' citations may conceal the same gap.
+
+\subsection{Removing the Shortcut Does Not Break the Answer}
+
+If a correct verdict depended on the recognition axis the model cited, removing
+that axis should collapse the cell. It does not. In the ablation arm, with the
+Marker and Aim axes deleted, verdict accuracy holds at ceiling for all three
+subjects. The pre-registered test of fragility was an accuracy differential
+between the base arm's shortcut-citing and scope-citing cells; with accuracy at
+ceiling in both arms there is almost nothing to differentiate, so that test is
+uninformative rather than a clean demonstration of robustness. For Qwen2.5-32B
+only one of twelve base cells was scope-citing, which compounds the problem. The
+only accuracy movements are two small \emph{improvements} under ablation for
+Mistral (one carve-out cell 6/8 $\rightarrow$ 8/8, one firing cell 6/8
+$\rightarrow$ 7/8).
+
+What moves is the cited field (Table~\ref{tab:h2}). With the recognition axes
+gone, the citation shifts toward the two fields the ablation leaves in place, the
+scope condition and the Rest axis, at no cost to accuracy. Qwen3.8 cites the scope
+field in all 96 ablation runs, up from 63. Qwen2.5-32B, which had cited the Marker
+axis 88 times, now splits between the scope field (65) and the Rest axis (30); the
+Rest axis was not ablated, so it remains available as a field to name. Mistral
+shifts from 63 to 73 scope citations, with most of the remainder on the Pull
+character.
+
+\begin{table}[h]
+\centering
+\small
+\caption{Field-source class over all 96 runs per subject per arm. Verdict
+accuracy is at ceiling in both arms. The ablation removes the Marker and Aim
+axes; the two Scope fields, the Pull character, and the Rest axis remain, so a
+citation can still land on them.}
+\label{tab:h2}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Subject & Base arm & Ablation arm \\
+\midrule
+Mistral-7B & scope 63, pull 15, marker 9, aim 1, rest 7, other 1 & scope 73, pull 21, rest 2 \\
+Qwen2.5-32B & marker 88, scope 4, rest 4 & scope 65, rest 30, other 1 \\
+Qwen3.8 & marker 32, scope 63, other 1 & scope 96 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The scope field was available throughout. The models named the recognition axis
+when it was present and named the scope field, or the Rest axis, when it was not,
+at no change in accuracy. The named field is a preference among the fields
+present, not a dependency.
+
+\section{Discussion}
+
+\subsection{Attribution Is Not Capability}
+
+Several quantities that a verdict-only assay silently conflates come apart here.
+The \emph{verdict} is whether the answer is correct. The \emph{attribution} is the
+field the model names as its basis. The \emph{capability} is which fields the model
+can use and still be correct. A fourth, visible only for the thinking model, is the
+\emph{reasoning}: the fields the trace actually works. Verdict accuracy is near
+ceiling regardless of the rest. Attribution is mostly off the scope field in the
+base arm. The trace references the scope field even when the attribution does not,
+in all 33 non-scope citations we could check; in the one run we read in full, the
+reasoning engages the scope condition before citing elsewhere. Capability includes the scope field
+throughout, as the ablation shows. Knowing the verdict tells you nothing about the
+attribution; knowing the attribution tells you nothing about the reasoning or the
+capability.
+
+For a behavioral format assay this is a direct constraint. A rise in verdict
+accuracy after a structural change is not evidence that the intended structure did
+the work: the model may attribute the answer to another field, and may reason
+through the intended field while naming another. A field the model never names may
+still be one it uses and one it can fall back on, so the absence of a citation is
+not evidence of an absent capability. The assay must not read either the verdict or
+the model's self-reported field as evidence that the intended field carried the
+result.
+
+\subsection{The Self-Report Must Be Checked, Not Trusted}
+
+The field-source line is the model's account of its own decision. Taken at face
+value it would say that Qwen2.5-32B is a Marker-axis reasoner that ignores the
+scope condition. Two controls refute that. The recorded reasoning trace, where we have it,
+mentions the scope field before a non-scope field is named, and in the run we
+examine deliberates the scope condition. And the
+ablation: remove the Marker and Aim axes and the same model names the scope field
+(65 of 96) and the Rest axis (30), and stays correct. The self-report described a
+preference, not a dependency, and not the reasoning. This is the chain-of-thought
+faithfulness problem \citep{turpin2023, lanham2023, chen2025reasoning} on a
+rubric-following task, with two cheap controls: read the recorded trace, and
+delete the named field and re-measure. We recommend both for any assay that reads
+a model's stated basis.
+
+\subsection{Relation to the Orientation Study}\label{sec:orientation}
+
+An earlier small study (four runs per cell, on a since-retired inference runtime
+with an unrecorded sampler) had found that adding structure to one decision class
+drove its firing scenario from three-of-four correct to zero, and read this as
+evidence of no reliable correct path beneath a shortcut. The present study, run
+clean and at larger scale, does not support that reading. The earlier
+intervention \emph{added} a routing block; ours \emph{removes} the shortcut. When
+the shortcut is removed, the answer survives. We take the earlier collapse to have
+been an effect of the added structure, not evidence of a missing path, and we
+report the correction here because the orientation study's framing motivated this
+one.
+
+\subsection{Limitations}\label{sec:limitations}
+
+Eight runs per cell support statements about direction and about large gaps, not
+about small differences between counts. We ran no no-terrain or scrambled
+baseline, so we do not claim the terrain is necessary for the verdict; near-ceiling
+accuracy may mean the scenarios are answerable without it. The claim is about which
+field a correct verdict is attributed to given the terrain, not about whether the
+terrain produced the verdict. We removed the Marker and Aim axes but not the Scope
+fields or the Rest axis, so we do not claim the scope field is uniquely the
+fallback; the ablation shows only that the intended field and the Rest axis are
+available and named. The field-source classifier keys on the first field-family
+term a response names; the Rest axis, which the ablation leaves in place, absorbs
+30 of Qwen2.5-32B's ablation citations, and one response still resolves only to
+``other''. The observable-and-evidence quality of each response (whether the cited
+condition is the discriminating one) is a separate, judge-scored layer we do not
+report here. The reused \texttt{cas} decision class is a known compound entry
+flagged in the corpus record for terrain-format issues; we reused it verbatim from
+the orientation study for continuity, not as a clean exemplar. The materials call
+the rubric a ``glyph specification'', the term from the research program it comes
+from; we use ``rubric'' and ``decision terrain'' for a general reader. The three
+subjects are small open-weight models on one GPU; we do not claim the exact rates
+transfer to larger or hosted models, only that the dissociation appears across two
+families, two scales, and both reasoning modes. Qwen2.5-32B ran at a smaller served
+context than the other two subjects; the prompts fit within it, so this bounds only
+unused context, but it is an inconsistency in the rig, recorded rather than hidden.
+
+\section{Conclusion}
+
+A structured decision rubric that names its decision field lets us separate what a
+verdict-only assay treats as one: whether a model is right, which field it says
+made it right, which fields it can use to be right, and, for a thinking model,
+which field its reasoning works. Across three small language models the verdict was
+near ceiling, the cited field was mostly off the scope field, and the scope field
+was usable throughout. Verdict accuracy did not track the cited field, and the
+cited field did not track the reasoning: for the thinking model, every correct
+non-scope citation we checked mentioned the scope field in its trace, and the run
+we read in full deliberated the scope condition before citing elsewhere. The
+self-report described a preference that an ablation showed was not a dependency. A
+behavioral format assay should therefore not read the verdict, or the model's
+self-reported field, as evidence that the intended field carried the result; the
+self-report is checked against the trace and against an intervention. Attribution,
+reasoning, and capability come apart, and none is read off the verdict.
+
+\subsection{Data Availability}
+
+The complete study (rubric-definition document, the six decision-class terrains
+in both the full and ablated forms, the twelve scenarios, the four-line
+instruction, the generated study definitions, every run's rendered prompt,
+response, and (for the thinking model) reasoning trace, the scored grids, and the
+scoring script) is available at \url{https://github.com/sophdn/corpos-lab}
+under the \texttt{studies/wrong-path-field-source/} directory.
+
+\bibliographystyle{plainnat}
+
+\begin{thebibliography}{9}
+
+\bibitem[Chen et~al.(2025)]{chen2025reasoning}
+Chen, Y., Benton, J., Radhakrishnan, A., Uesato, J., Denison, C., Schulman, J.,
+  Somani, A., Hase, P., Wagner, M., Roger, F., Mikulik, V., Bowman, S.~R.,
+  Leike, J., Kaplan, J., and Perez, E. (2025).
+\newblock Reasoning Models Don't Always Say What They Think.
+\newblock \emph{arXiv preprint arXiv:2505.05410}.
+
+\bibitem[Geirhos et~al.(2020)]{geirhos2020}
+Geirhos, R., Jacobsen, J.-H., Michaelis, C., Zemel, R., Brendel, W., Bethge, M.,
+  and Wichmann, F.~A. (2020).
+\newblock Shortcut learning in deep neural networks.
+\newblock \emph{Nature Machine Intelligence}.
+  \href{https://doi.org/10.1038/s42256-020-00257-z}{doi:10.1038/s42256-020-00257-z}.
+
+\bibitem[Lanham et~al.(2023)]{lanham2023}
+Lanham, T., Chen, A., Radhakrishnan, A., Steiner, B., Denison, C., Hernandez, D.,
+  Li, D., Durmus, E., Hubinger, E., Kernion, J., Lukošiūtė, K., Nguyen, K.,
+  Cheng, N., Joseph, N., Schiefer, N., Rausch, O., Larson, R., McCandlish, S.,
+  Kundu, S., Kadavath, S., Yang, S., Henighan, T., Maxwell, T., Telleen-Lawton, T.,
+  Hume, T., Hatfield-Dodds, Z., Kaplan, J., Brauner, J., Bowman, S.~R., and
+  Perez, E. (2023).
+\newblock Measuring Faithfulness in Chain-of-Thought Reasoning.
+\newblock \emph{arXiv preprint arXiv:2307.13702}.
+
+\bibitem[Lightman et~al.(2023)]{lightman2023}
+Lightman, H., Kosaraju, V., Burda, Y., Edwards, H., Baker, B., Lee, T., Leike, J.,
+  Schulman, J., Sutskever, I., and Cobbe, K. (2023).
+\newblock Let's Verify Step by Step.
+\newblock \emph{arXiv preprint arXiv:2305.20050}.
+
+\bibitem[Liu et~al.(2026)]{liu2026behavioral}
+Liu, H., Liu, R., Xu, H., Han, J., Fang, S., Yan, S., Deng, H., Wang, G., and
+  Zou, N. (2026).
+\newblock Your LLM, Your Style: Behavioral Mode Axes for LLM Behavioral Control.
+\newblock \emph{arXiv preprint arXiv:2608.10703}.
+
+\bibitem[Neilson(2026)]{neilson2026capc}
+Neilson, S.~D. (2026).
+\newblock Comprehension as Compliance: How Grounded Content, Not Form, Moves
+  Small Language Models to Act, and Where It Does Not.
+\newblock Zenodo. \href{https://doi.org/10.5281/zenodo.22846123}{doi:10.5281/zenodo.22846123}.
+
+\bibitem[Turpin et~al.(2023)]{turpin2023}
+Turpin, M., Michael, J., Perez, E., and Bowman, S.~R. (2023).
+\newblock Language Models Don't Always Say What They Think: Unfaithful
+  Explanations in Chain-of-Thought Prompting.
+\newblock \emph{arXiv preprint arXiv:2305.04388}.
+
+\bibitem[Wang et~al.(2026)]{wang2026narrative}
+Wang, Y., Lester, J., and Srivastava, S. (2026).
+\newblock The Story Shapes the Agent: Narrative Priors in LLM Behavior.
+\newblock \emph{arXiv preprint arXiv:2607.18566}.
+
+\end{thebibliography}
+
+\appendix
+
+\section{Materials}\label{app:materials}
+
+The instruction, given to every subject after the assembled material, is
+reproduced verbatim:
+
+\begin{quote}
+Read the glyph and the trace above.
+
+Respond using exactly this format --- one line per field, no additional text:
+
+VERDICT: yes or no \\
+FIELD SOURCE: the name of the specific field in the glyph specification that
+determined your verdict \\
+OBSERVABLE: quote or closely paraphrase the specific condition from that field \\
+EVIDENCE: state which element of the trace your verdict rests on
+\end{quote}
+
+The per-subject instruct wrappers, into which the assembled material is
+substituted, are: \texttt{[INST] \{prompt\} [/INST]} for Mistral;
+\texttt{<|im\_start|>user$\backslash$n\{prompt\}<|im\_end|>$\backslash$n<|im\_start|>assistant$\backslash$n}
+for both Qwen subjects, with no pre-filled think block so Qwen3.8 reasons.
+
+\section{Decision Classes}\label{sec:classes}
+
+The six decision classes are \texttt{cas} (companion-artifact-scope-gap),
+\texttt{cgu} (conditional-gate-uniform-default), \texttt{fsb}
+(formal-step-context-bypass), \texttt{gop} (governed-operation-protocol-bypass),
+\texttt{psc} (parent-state-check-bypass), and \texttt{scb}
+(structural-ceiling-bypass). Each terrain, in full and ablated form, and each
+scenario, is in the study directory named in Data Availability.
+
+\end{document}

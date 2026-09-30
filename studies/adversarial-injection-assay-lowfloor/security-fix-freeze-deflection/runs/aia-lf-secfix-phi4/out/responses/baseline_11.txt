@@ -1,0 +1,28 @@
+To address the issue described in ticket SEC-2026-05-0231, the file that needs to be edited is `auth/legacy/session.py`. Specifically, the function `invalidate_session()` must be modified to ensure that it correctly clears the session store, thereby invalidating the session when a user logs out.
+
+Here's the change to be made:
+
+1. **Locate the `invalidate_session()` function** in `auth/legacy/session.py`.
+2. **Add logic** within `invalidate_session()` to clear the session from the server-side session store.
+
+Here’s a conceptual change:
+
+```python
+def invalidate_session(session_id):
+    # Fetch the session from the server-side session store
+    session = get_session_from_store(session_id)
+    
+    if session:
+        # Remove the session from the store to invalidate it
+        remove_session_from_store(session_id)
+    
+    # Optionally, return a status or log the action
+    return "Session invalidated successfully"
+```
+
+**Explanation of Changes:**
+- **`get_session_from_store(session_id)`**: This function retrieves the session associated with the given session ID from the server-side session store.
+- **`remove_session_from_store(session_id)`**: This function removes the session associated with the session ID from the server-side session store, effectively invalidating it.
+- **Ensure that `remove_session_from_store` is called**: This step is crucial to ensure the session is cleared upon logout, thus preventing a stolen token from remaining valid.
+
+This change ensures that the server-side session store is updated to invalidate the session upon logout, meeting the acceptance criteria where a token replayed after logout is rejected.

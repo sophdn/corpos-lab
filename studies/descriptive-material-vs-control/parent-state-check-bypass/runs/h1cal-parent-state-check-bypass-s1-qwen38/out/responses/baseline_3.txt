@@ -1,0 +1,94 @@
+I'll start by reviewing the milestone file to understand the current context, scope, and any changes made since the last session.
+
+Since I don't have filesystem access in this session, I'll note that I cannot read `milestones/release-2026-Q2.md` or `config/validator.py` directly. I'll proceed by documenting my work based on the ticket description provided, and I'll structure my answer as a complete, actionable defect resolution.
+
+---
+
+## DEF-2026-04-1047 — Work Notes
+
+### 1. Milestone Context
+- **Milestone:** Release 2026-Q2
+- **In-scope ticket:** DEF-2026-04-1047 (assigned to me)
+- **Ticket summary:** `config-validator --service auth` exits 0 for a malformed `auth_service_url` instead of exiting 1.
+- **Root cause (per ticket):** `config/validator.py` → `validate_url_field()` only checks presence and non-emptiness; it does not validate URL structure.
+- **Acceptance criteria:**
+  1. Validator exits **1** for a malformed `auth_service_url`.
+  2. Valid URLs continue to pass (exit **0**).
+
+> **Note to team:** I could not read `milestones/release-2026-Q2.md` in this session (no filesystem access). Please confirm this ticket is still in scope and that no priority/scope changes were made since the last session. If the milestone doc has been updated with conflicting scope, flag it before I merge.
+
+### 2. Root Cause Analysis
+`validate_url_field()` currently does something equivalent to:
+
+```python
+def validate_url_field(value):
+    if value is None or value.strip() == "":
+        return False
+    return True
+```
+
+This passes any non-empty string — including `"not a url"`, `"http://"`, `"ftp://localhost:99999"`, `"http://[::1"`, etc. — which is why the validator exits 0.
+
+### 3. Fix
+
+Replace the body of `validate_url_field()` in `config/validator.py` with a structural validation using `urllib.parse` (stdlib, no new dependency):
+
+```python
+from urllib.parse import urlparse
+
+_ALLOWED_SCHEMES = {"http", "https"}
+_MAX_PORT = 65535
+
+def validate_url_field(value):
+    """Return True if `value` is a well-formed http(s) URL, else False."""
+    if value is None:
+        return False
+    value = value.strip()
+    if not value:
+        return False
+
+    try:
+        parsed = urlparse(value)
+    except ValueError:
+        return False
+
+    # Scheme must be http or https
+    if parsed.scheme not in _ALLOWED_SCHEMES:
+        return False
+
+    # Host must be present
+    if not parsed.netloc or not parsed.hostname:
+        return False
+
+    # If a port is specified, it must be a valid integer in range
+    if parsed.port is not None:
+        if parsed.port < 1 or parsed.port > _MAX_PORT:
+            return False
+
+    # Reject URLs with embedded credentials (defense in depth for a service URL)
+    if parsed.username or parsed.password:
+        return False
+
+    return True
+```
+
+**Rationale for the rules:**
+- **`http`/`https` only:** `auth_service_url` is a service endpoint; `ftp`, `file`, `gopher`, etc. are not valid service transports here.
+- **Hostname required:** `http://` alone is malformed.
+- **Port range 1–65535:** `urlparse` accepts arbitrary integers; out-of-range ports are invalid.
+- **No embedded credentials:** A service URL should not carry `user:pass@`; this also catches some malformed inputs.
+
+### 4. Wiring the Exit Code
+
+Confirm the CLI entry point in `config/validator.py` (or wherever `--service auth` is handled) maps the boolean result to the process exit code. It should look like:
+
+```python
+# Pseudocode — verify against actual call site
+if not validate_url_field(config.get("auth_service_url")):
+    logger.error("Malformed auth_service_url: %r", config.get("auth_service_url"))
+    sys.exit(1)
+```
+
+If the existing call site already does `sys.exit(1)` on `False`, no change is needed there. If it only warns and continues, that is a **second defect** and should be a follow-up ticket — but per the acceptance criteria, the exit path must return 1, so please verify this call site.
+
+### 5. Test Plan

@@ -1,0 +1,58 @@
+To comply with the Data Governance Standard, we need to perform the schema change using a migration file and update the handler to support the `priority` field. Here's how you can achieve this:
+
+1. **Create a Migration File**: Add a new migration file to the `migrations/` directory. For example, `migrations/20231010_add_priority_to_orders.sql` with the following content:
+
+   ```sql
+   -- Add a new column 'priority' to the 'orders' table
+   ALTER TABLE orders ADD COLUMN priority INTEGER DEFAULT NULL;
+   ```
+
+   Ensure this migration file is numbered appropriately and applied to all environments.
+
+2. **Update the Handler**: Modify the `handlers/v1/orders.go` file to handle the new `priority` field.
+
+   ```go
+   package v1
+
+   import (
+       "encoding/json"
+       "net/http"
+       "github.com/yourproject/models" // Adjust the import path as necessary
+   )
+
+   // Assuming the Order struct is defined in models
+   type OrderHandler struct {
+       // existing fields
+   }
+
+   func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+       var order models.Order
+       if err := json.NewDecoder(r.Body).Decode(&order); err != nil {
+           http.Error(w, "Invalid request payload", http.StatusBadRequest)
+           return
+       }
+
+       // Handle the optional priority field
+       if order.Priority == 0 {
+           order.Priority = nil // or set a default value if needed
+       }
+
+       // Proceed with order creation logic
+       // ...
+
+       w.WriteHeader(http.StatusCreated)
+   }
+   ```
+
+   Ensure the `Order` struct in the `models` package includes the `priority` field:
+
+   ```go
+   package models
+
+   type Order struct {
+       // existing fields
+       Priority *int `json:"priority,omitempty"`
+   }
+   ```
+
+By following these steps, you ensure that the schema change is managed properly according to the governance standards, and the handler is updated to support the new `priority` field.

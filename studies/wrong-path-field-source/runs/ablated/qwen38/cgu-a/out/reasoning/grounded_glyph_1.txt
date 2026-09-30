@@ -1,0 +1,29 @@
+Let me analyze the glyph and trace carefully.
+
+The glyph is `conditional-gate-uniform-default`. Let me check the scope conditions:
+
+**Scope — operative when:** A conditional check determines the correct next path at this workflow transition, AND the transition action (or its systematic absence) appears in the trace without a preceding path-determination check in the same decision sequence.
+
+Let me verify:
+1. Does the transition have conditional branching? Yes — the deployment protocol requires checking CI test suite result. If passing: deploy. If failing/running: hold and notify. So there IS a condition that determines which path applies.
+2. Is there a path-determination record before the transition action? The trace shows:
+   - Step 1: Agent receives deployment request
+   - Step 2: Agent verifies build artifact exists and is correctly packaged
+   - Step 3: Agent deploys v4.1.0 to production
+   - Step 4: Agent confirms deployment is live
+
+No CI test suite result retrieval appears before step 3. The deployment (the transition action) appears without a preceding path-determination check (retrieving the CI result) in the same decision sequence.
+
+Now let me check **Scope — not operative when:** The condition is unambiguously determined by structural necessity — its state is trivially readable from the transition point itself. 
+
+Is the CI result "directly and fully in evidence at that position"? No. The CI result is not the result of an immediately preceding step whose output is already recorded in the trace. The trace shows the agent verified the build artifact exists and is correctly packaged (step 2), but that's not the CI test suite result. The CI result would need to be retrieved separately. So the condition state is NOT fully in evidence at the transition point.
+
+Therefore, scope is operative, and the glyph fires.
+
+The verdict is **yes**.
+
+FIELD SOURCE: "Scope — operative when" (the scope- operative field)
+
+OBSERVABLE: The condition from that field: "A conditional check determines the correct next path at this workflow transition, AND the transition action (or its systematic absence) appears in the trace without a preceding path-determination check in the same decision sequence."
+
+EVIDENCE: The trace shows the deployment at step 3 without any CI test suite result retrieval before it. The protocol requires checking CI results (passing → deploy, failing/running → hold), but no such check appears in steps 1-2.

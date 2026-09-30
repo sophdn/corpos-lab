@@ -1,0 +1,161 @@
+# repair-duty
+
+**Status:** Active
+**Applicability:** Any office of the Agentic Order executing a repair on a confirmed software defect with a known locus.
+**Input Contract:** The executor must possess:
+1. The defect description (e.g., `ZeroDivisionError` on empty list).
+2. The confirmed locus (e.g., `calculator.py:2`).
+3. The source code at the locus.
+
+## Preamble
+
+A repair is not merely the substitution of characters; it is the restoration of intended behavior under all valid inputs. This duty governs the transition from *known defect* to *verified resolution*. The executor must not assume the fix is complete until every gate below is passed. No gate may be skipped, reordered, or waived.
+
+---
+
+## Gate 1: Locus Verification
+
+**Purpose:** Ensure the defect is indeed at the stated location and that the locus is atomic and correct.
+
+**Verify:**
+- The line number in the locus corresponds to the exact expression or statement responsible for the failure.
+- The file path in the locus resolves to the correct module.
+- The defect is not a downstream symptom of an upstream bug (e.g., the empty list was passed erroneously by a caller, not by the function’s own logic).
+
+**Completion Requirements:**
+- If the locus is incorrect, halt and re-locate the defect. Do not proceed.
+- If the defect is upstream, return to the caller’s office and re-assign the duty with the corrected locus.
+- If the locus is correct, proceed to Gate 2.
+
+---
+
+## Gate 2: Intent Recovery
+
+**Purpose:** Reconstruct the original intended behavior of the function at the locus.
+
+**Verify:**
+- What is the function’s contract? (e.g., `calculate_average` should return the arithmetic mean of the input list.)
+- What should happen for edge cases? (e.g., empty list, single element, `None` values, non-numeric types.)
+- Is there existing documentation, comments, tests, or prior behavior that defines the expected output for the failing case?
+
+**Completion Requirements:**
+- State the intended behavior for the specific failing input (`[]`) in one sentence.
+- State the intended behavior for at least two other non-failing inputs to prevent over-correction.
+- If intent is ambiguous or undocumented, halt and escalate to the steward of the module. Do not guess.
+- If intent is clear, proceed to Gate 3.
+
+---
+
+## Gate 3: Minimal Fix Design
+
+**Purpose:** Design the smallest possible change that satisfies the intent without introducing new defects.
+
+**Verify:**
+- Does the fix address the root cause, not the symptom? (e.g., handling `len(values) == 0` is a root-cause fix; catching `ZeroDivisionError` and returning `0` is a symptom fix if `0` is not the intended average of an empty set.)
+- Does the fix preserve behavior for all previously working inputs?
+- Is the fix local to the locus, or does it require changes to callers, types, or interfaces?
+
+**Completion Requirements:**
+- Produce a draft diff or code snippet showing the proposed change.
+- Justify why the fix is minimal: list what is *not* changed and why.
+- If the fix requires interface changes (e.g., returning `Optional[float]` instead of `float`), halt and initiate a design review with the module steward. Do not proceed unilaterally.
+- If the fix is local and minimal, proceed to Gate 4.
+
+---
+
+## Gate 4: Regression Containment
+
+**Purpose:** Ensure the fix does not break existing correct behavior.
+
+**Verify:**
+- Identify at least three test cases that previously passed and must still pass:
+  1. A normal case (e.g., `[1, 2, 3]` → `2.0`).
+  2. A boundary case (e.g., `[5]` → `5.0`).
+  3. A previously failing case that is now fixed (e.g., `[]` → expected value per Gate 2).
+- Are there existing tests that cover these cases? If not, they must be added.
+- Does the fix introduce new dependencies, side effects, or state changes?
+
+**Completion Requirements:**
+- List the test cases that must pass.
+- If no test suite exists, create a minimal test harness for the function.
+- If the fix introduces side effects, halt and re-evaluate Gate 3.
+- If regression containment is satisfied, proceed to Gate 5.
+
+---
+
+## Gate 5: Execution and Verification
+
+**Purpose:** Apply the fix and empirically verify it.
+
+**Verify:**
+- Apply the draft diff from Gate 3.
+- Execute the test cases from Gate 4.
+- Confirm that the original failing input no longer raises the defect.
+- Confirm that the output matches the intent stated in Gate 2.
+
+**Completion Requirements:**
+- Record the output of each test case.
+- If any test fails, halt, return to Gate 3, and revise the fix.
+- If all tests pass, proceed to Gate 6.
+
+---
+
+## Gate 6: Documentation and Audit Trail
+
+**Purpose:** Ensure the repair is legible to future executors and auditors.
+
+**Verify:**
+- Is the fix self-explanatory? If not, add a comment explaining *why* the edge case is handled.
+- Are the tests documented with clear names and expected outcomes?
+- Is there a record of the defect, the locus, the intent, the fix, and the verification?
+
+**Completion Requirements:**
+- Update any relevant documentation (docstrings, README, CHANGELOG).
+- Write a repair log entry containing:
+  - Defect description
+  - Locus
+  - Intended behavior
+  - Fix applied
+  - Test results
+- If documentation is missing or stale, halt and update it before proceeding.
+- If the audit trail is complete, proceed to Gate 7.
+
+---
+
+## Gate 7: Handoff and Closure
+
+**Purpose:** Formally close the repair duty and transfer responsibility.
+
+**Verify:**
+- Has the fix been reviewed by a second office member (if available)?
+- Is the defect marked as resolved in the defect tracker?
+- Has the module steward been notified?
+
+**Completion Requirements:**
+- Mark the defect as **Resolved** in the tracker.
+- Notify the module steward of the repair.
+- Archive the repair log.
+- If a second review was not possible, note this in the log and flag for later review.
+- The duty is now complete. The office may proceed to other tasks.
+
+---
+
+## Failure Conditions
+
+If any gate fails and cannot be resolved within the scope of the executor’s authority, the executor must:
+1. Halt execution.
+2. Record the reason for failure.
+3. Escalate to the module steward or the Agentic Order council.
+4. Do not attempt to bypass or approximate the gate.
+
+## Scope Limitations
+
+This duty does **not** govern:
+- Design of new features.
+- Refactoring beyond the locus.
+- Performance optimization.
+- Security vulnerability remediation (use `security-duty`).
+
+## Final Note
+
+The repair is complete only when the defect is resolved, the intent is honored, the regression is contained, and the audit trail is legible. A fix that passes tests but violates intent is a failure. A fix that is verified but undocumented is incomplete. Proceed only when every gate is passed.

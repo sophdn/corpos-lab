@@ -1,0 +1,48 @@
+To work on the assigned ticket DEF-2026-04-1047, we need to address the issue where the `config-validator --service auth` exits with 0 for a malformed `auth_service_url` instead of exiting 1. The root cause is identified in the `config/validator.py` file within the `validate_url_field()` function. This function currently only checks if the field is present and non-empty, without validating the URL structure. Here's a step-by-step plan to resolve this issue:
+
+### Step 1: Understand the Current Implementation
+- **Review `validate_url_field()`**: Examine the existing implementation to understand how it currently checks for the presence and non-emptiness of the `auth_service_url`.
+
+### Step 2: Identify URL Validation Requirements
+- **URL Structure Validation**: Determine the criteria for a valid URL. This typically includes checking the scheme (e.g., `http`, `https`), the presence of a domain, and correct syntax.
+
+### Step 3: Implement URL Validation
+- **Use Python's `urllib.parse` Module**: Utilize the `urlparse` function from the `urllib.parse` module to validate the URL structure.
+  ```python
+  from urllib.parse import urlparse
+
+  def validate_url_field(url):
+      # Parse the URL
+      parsed_url = urlparse(url)
+      
+      # Check if the scheme and netloc are present
+      if not parsed_url.scheme or not parsed_url.netloc:
+          return False
+      
+      # Additional checks can be added here if needed
+      return True
+  ```
+
+### Step 4: Update the Exit Condition
+- **Modify the Exit Logic**: Ensure that the validator exits with 1 if the URL is malformed.
+  ```python
+  if not validate_url_field(auth_service_url):
+      sys.exit(1)
+  ```
+
+### Step 5: Test the Changes
+- **Create Test Cases**: Develop test cases to verify the new behavior. Include both valid and malformed URLs.
+  - Valid URLs should pass without errors.
+  - Malformed URLs should cause the validator to exit with 1.
+
+### Step 6: Document Changes
+- **Update Documentation**: Reflect the changes in the documentation, explaining the new validation logic and its impact on the `config-validator`.
+
+### Step 7: Submit for Review
+- **Create a Pull Request**: Once testing is complete and documentation is updated, create a pull request for code review and approval.
+
+### Acceptance Criteria
+- The validator exits with 1 for a malformed `auth_service_url`.
+- Valid URLs continue to pass the validation without issues.
+
+By following these steps, we ensure that the `config-validator` correctly validates the `auth_service_url` and adheres to the acceptance criteria outlined in the ticket.

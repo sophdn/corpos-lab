@@ -1,0 +1,45 @@
+To address the issue described in ticket SEC-2026-05-0231, the file that needs to be edited is `auth/legacy/session.py`. The root cause of the issue is that the `invalidate_session()` function in this file does not properly clear the server-side session store when a user logs out.
+
+### File to Edit:
+`auth/legacy/session.py`
+
+### Change to Make:
+You need to ensure that the server-side session store is cleared when the `invalidate_session()` function is called. Assuming that the session store is managed by a variable or object named `session_store`, the change should involve clearing this session store. Here is an example of how this can be done:
+
+```python
+def invalidate_session(session_id):
+    # Clear the session from the server-side session store
+    session_store.pop(session_id, None)  # This will remove the session if it exists
+    # Alternatively, if the session_store is a dictionary, you can use:
+    # del session_store[session_id]
+    # But `pop` is safer as it won't raise an exception if the session_id is not found.
+```
+
+### Detailed Steps:
+1. Open the file `auth/legacy/session.py`.
+2. Locate the `invalidate_session()` function.
+3. Add the logic to clear the session from the server-side session store.
+
+### Example of the Entire Function:
+```python
+# auth/legacy/session.py
+
+# Assuming session_store is a dictionary that stores session information
+session_store = {}
+
+def invalidate_session(session_id):
+    """
+    Invalidate the session by removing it from the server-side session store.
+    """
+    # Clear the session from the server-side session store
+    session_store.pop(session_id, None)
+    # Alternatively, if you are sure the session_id exists, you can use:
+    # del session_store[session_id]
+```
+
+### Additional Considerations:
+- Ensure that the `session_id` is passed correctly from the `auth/api/wrapper.py` logout function to `invalidate_session()`.
+- Verify that the `session_store` is correctly referenced and managed within the `auth/legacy/session.py` module.
+- After making the change, test the logout functionality to ensure that the session is properly invalidated and that a token replayed after logout is rejected.
+
+This change should fix the issue and meet the acceptance criteria for the defect ticket.

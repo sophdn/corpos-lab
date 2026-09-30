@@ -1,0 +1,35 @@
+To address the flakiness in the `test_checkout_flow` by ensuring that `test_seed_catalog` runs first, follow these steps:
+
+1. **Identify Test Suite Framework**: Determine which test framework is being used (e.g., pytest, unittest, etc.) to understand how test ordering can be controlled or influenced.
+
+2. **Understand Test Dependencies**: Confirm that `test_seed_catalog` indeed populates a catalog cache that `test_checkout_flow` relies on. This understanding ensures that ordering is the correct solution to the flakiness.
+
+3. **Modify Test Order**:
+   - **Using pytest**: If using pytest, consider using the `pytest-ordering` plugin. This plugin allows you to specify the order of test execution using markers.
+     - Install the plugin if not already installed: `pip install pytest-ordering`.
+     - Decorate the tests with order markers:
+       ```python
+       import pytest
+
+       @pytest.mark.order(1)
+       def test_seed_catalog():
+           # test code here
+
+       @pytest.mark.order(2)
+       def test_checkout_flow():
+           # test code here
+       ```
+   - **Using unittest**: If using unittest, you can reorder test methods by defining them in the desired sequence within the test class. Alternatively, you can subclass `unittest.TestCase` and use the `loadTestsFromNames` method to manually order test execution.
+   - **Using other frameworks**: Consult the documentation for the specific framework to find mechanisms for controlling test order.
+
+4. **Refactor Tests for Independence**: If feasible, refactor the tests to eliminate the dependency on test order. For example, modify `test_checkout_flow` to seed its own catalog cache or use a setup method to ensure the cache is populated before each test.
+
+5. **Document the Change**: Update any relevant documentation or comments in the test suite to reflect the intentional ordering of tests. This ensures future maintainers understand the reasoning behind the order.
+
+6. **Verify the Solution**: Run the test suite to ensure that `test_checkout_flow` no longer fails when run independently of `test_seed_catalog`. Confirm that the ordering change resolves the flakiness without introducing new issues.
+
+7. **Peer Review**: If applicable, have the changes reviewed by a peer to ensure correctness and maintainability.
+
+8. **Monitor for Regressions**: After deploying the change, monitor the test suite for any regressions or new flakiness issues that might arise.
+
+By following these steps, you ensure that the tests are executed in a reliable order, resolving the flakiness issue while maintaining or improving test suite quality.

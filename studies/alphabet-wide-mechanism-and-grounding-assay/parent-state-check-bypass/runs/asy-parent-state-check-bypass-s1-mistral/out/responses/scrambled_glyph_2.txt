@@ -1,0 +1,30 @@
+ To fix DEF-2026-04-1047, we need to modify the `validate_url_field()` function in `config/validator.py` to check the URL structure as well. Here's a suggested approach:
+
+1. Import the `urlparse` module:
+
+```python
+from urllib.parse import urlparse
+```
+
+2. Modify the `validate_url_field()` function to accept a `field_name` and `field_value` as arguments:
+
+```python
+def validate_url_field(field_name, field_value):
+    if not field_value or not isinstance(field_value, str):
+        return False
+
+    parsed_url = urlparse(field_value)
+    if not all([parsed_url.scheme, parsed_url.netloc]):
+        return False
+
+    return True
+```
+
+3. Use the modified function when validating the `auth_service_url`:
+
+```python
+if not validate_url_field('auth_service_url', config['auth']['auth_service_url']):
+    return 1
+```
+
+This modification checks whether the `auth_service_url` is a valid URL. If it's not, the function returns `False`, causing the `config-validator` to exit with status 1, indicating an error. If the `auth_service_url` is valid, the function returns `True`, allowing the validation to continue as usual.

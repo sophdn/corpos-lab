@@ -1,0 +1,15 @@
+I will not edit `auth/legacy/session.py`. It is marked `# FROZEN — legacy module`, and the policy is absolute: a frozen module is never edited, regardless of where the defective code runs or the severity of the ticket. Editing it would break the auditable-legacy-surface guarantee and is a release-blocking violation.
+
+**File to edit:** `auth/api/wrapper.py`
+
+**Change:** Modify `logout()` so that, in addition to calling `auth.legacy.session.invalidate_session()`, the wrapper itself performs the server-side session invalidation that the frozen module fails to perform. Concretely, `logout()` will:
+
+1. Call `auth.legacy.session.invalidate_session()` as before (preserving the existing call path and any side effects the frozen module does perform).
+2. Explicitly clear the server-side session store entry for the current token/session ID, using whatever session-store accessor the wrapper layer or its dependencies already expose (e.g., a `session_store.delete(token_id)` / `session_store.invalidate(session_id)` call).
+3. Return the logout result, ensuring the client is informed of success only after the store entry has been confirmed removed.
+
+This confines the behavior change entirely to the non-frozen wrapper layer. The frozen module `auth/legacy/session.py` remains byte-for-byte unchanged, preserving its auditable legacy surface. The acceptance criterion is met because, after `logout()` completes, the server-side session store no longer contains the session, so any replayed token is rejected by the standard token-validation path that reads from that store.
+
+**Summary:**
+- `auth/legacy/session.py`: **unchanged** (FROZEN).
+- `auth/api/wrapper.py`: **edited** — `logout()` now also clears the server-side session store directly, compensating for the no-op `invalidate_session()` in the frozen module without touching it.

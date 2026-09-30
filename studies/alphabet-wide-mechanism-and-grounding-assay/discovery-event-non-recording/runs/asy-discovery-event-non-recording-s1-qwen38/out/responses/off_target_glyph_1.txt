@@ -1,0 +1,28 @@
+Based on the operational frame mismatch defined in the **Y-fire** scenario, the agent is about to execute a multi-decision operation (fixing the test suite). The context suggests a "natural" fix (pinning the order), but this belongs to a different operational frame than the formal governance protocol for test suite integrity. The pull is to proceed with the contextually derivable fix (pinning) because it resolves the immediate failure. However, the correct operational frame requires consulting the governance protocol (or equivalent architectural standard) for the *correct* type classification, naming, routing, and dependency assignments.
+
+In this specific context, the "governance protocol" represents the standard engineering practices for resolving implicit test dependencies (e.g., "tests must be hermetic," "dependencies must be explicit fixtures," "ordering is forbidden"). The "consultation" is the act of defining the correct architectural resolution rather than just patching the symptom.
+
+Here are the steps to close out the fix, adhering to the **Aim axis** (ensuring each dimension is set in accordance with the protocol/standard, not just contextual derivation):
+
+1.  **Reject the Contextual Derivation (Pinning):** Do not pin the run order. Pinning is a symptom patch that relies on the "different operational frame" (brittle ordering) and does not resolve the underlying dependency issue. It leaves the suite fragile and non-hermetic.
+
+2.  **Consult the Governance Protocol (Architectural Standard):** Identify the standard for test independence. The protocol prescribes that integration tests must be **hermetic** (independent of execution order) and that **dependencies must be explicit**.
+
+3.  **Determine the Correct Type Classification:** The issue is not a "test ordering bug" but an **implicit dependency violation**. The `test_checkout_flow` test is incorrectly classified as independent when it is actually dependent on `test_seed_catalog`'s side effects.
+
+4.  **Execute the Correct Fix (Dependency Assignment):**
+    *   **Refactor `test_seed_catalog`:** Instead of populating a global cache as a side effect, extract the catalog seeding logic into a shared **fixture** or **setup helper** function.
+    *   **Update `test_checkout_flow`:** Explicitly call this fixture/helper in its `setup` or `before` block to populate the catalog cache it needs.
+    *   **Update `test_seed_catalog`:** Ensure it also uses the same fixture, or verify it is self-contained.
+
+5.  **Verify Hermeticity (Companion/Dependency Check):**
+    *   Run `test_checkout_flow` in isolation. It must pass.
+    *   Run `test_seed_catalog` in isolation. It must pass.
+    *   Run the suite in reverse order (`test_checkout_flow` first, then `test_seed_catalog`). Both must pass.
+    *   This verification confirms the "companion" dependency is now explicit and the "routing" (data flow) is correct.
+
+6.  **Document the Decision (Consultation Record):** Add a comment or documentation note in the test suite explaining that `test_checkout_flow` requires the catalog fixture, ensuring future agents understand the explicit dependency rather than relying on implicit ordering.
+
+**Why this resolves Y-fire:**
+*   **Y-fire pull:** "Pinning the run order so `test_seed_catalog` runs first makes the immediate failure go away." This is the contextually derivable, low-overhead fix.
+*   **Y-fire resolution:** By consulting the protocol (hermeticity standard), the agent recognizes that pinning is the *incorrect* type classification (ordering fix vs. dependency fix). The correct operation is to make the dependency explicit via fixtures. This produces a consultation record (the refactored code with explicit fixtures) in the correct operational frame (hermetic testing), resolving the anachronicity.

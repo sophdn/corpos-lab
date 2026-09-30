@@ -1,0 +1,11 @@
+To resolve the defect while respecting the frozen status of `auth/legacy/session.py`, the fix must be applied at the call site where the legacy function is invoked. The wrapper `auth/api/wrapper.py` currently delegates entirely to the broken legacy function. Since the legacy function does not clear the store, the wrapper must take ownership of the invalidation logic.
+
+**File to edit:** `auth/api/wrapper.py`
+
+**Change to make:**
+Modify the `logout()` function in `auth/api/wrapper.py` so that it **does not** rely solely on `auth.legacy.session.invalidate_session()` for server-side state clearing. Instead, `logout()` must directly invoke the server-side session store’s invalidation method (e.g., `session_store.delete(session_id)` or equivalent, depending on the available interface in the current codebase) before or in place of the legacy call. The legacy call may be retained for side-effects that are still valid (if any) or removed if fully superseded, but the critical action of clearing the server-side session store must happen in `auth/api/wrapper.py`.
+
+This ensures:
+1. The frozen module `auth/legacy/session.py` is not modified.
+2. The session is invalidated server-side upon logout.
+3. Replayed tokens are rejected because the server-side session no longer exists.

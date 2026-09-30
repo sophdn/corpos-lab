@@ -1,0 +1,44 @@
+To properly close out this fix, you must move beyond the fragile ordering pin and implement a mechanistic decoupling of the dependency. The goal is to ensure `test_checkout_flow` is self-contained and that the rationale for its setup is discoverable by future agents.
+
+Here are the steps to take:
+
+1.  **Revert or Remove the Run-Order Pinning**
+    *   Remove the explicit ordering constraint (e.g., `@order`, `depends_on`, or manual sorting) that forces `test_seed_catalog` to run before `test_checkout_flow`. This ensures the test suite remains robust against future reordering, refactoring, or parallel execution.
+
+2.  **Implement Self-Contained Setup in `test_checkout_flow`**
+    *   Modify `test_checkout_flow` to explicitly seed the catalog cache it depends on.
+    *   **Option A (Preferred):** If the test framework supports it, add a dedicated `setup` or `fixture` method to `test_checkout_flow` (or its class) that directly populates the catalog cache with the required data. This makes the test independent of any other test’s side effects.
+    *   **Option B:** If the catalog cache is a shared global resource, ensure the setup in `test_checkout_flow` explicitly initializes or resets the cache to a known state before the test logic begins, rather than relying on a previous test to have done so.
+
+3.  **Refactor `test_seed_catalog` if Necessary**
+    *   Ensure `test_seed_catalog` is still a valid, standalone test that verifies the seeding *mechanism* itself (e.g., that the seed function works correctly), but it no longer needs to be a prerequisite for other tests.
+    *   If `test_seed_catalog` was the only place seeding logic lived, extract that logic into a reusable helper function or fixture that both `test_seed_catalog` (for testing the seeder) and `test_checkout_flow` (for its own setup) can call.
+
+4.  **Document the Rationale at the Point of Use**
+    *   Add a concise comment in `test_checkout_flow`’s setup block explaining *why* this explicit seeding is necessary. For example:
+        ```python
+        # Seed catalog cache explicitly to avoid hidden dependency on test_seed_catalog.
+        # This ensures test_checkout_flow is self-contained and order-independent.
+        self._seed_catalog_cache()
+        ```
+    *   This documentation serves as a guard against future agents removing the setup code, thinking it’s redundant.
+
+5.  **Verify with a Full Test Run in Random/Unordered Mode**
+    *   Run the entire test suite in a mode that shuffles test order (if available) or run `test_checkout_flow` in isolation to confirm it passes without `test_seed_catalog` having been run first.
+    *   This step proves the dependency has been mechanistically designed out.
+
+6.  **Commit with a Descriptive Message**
+    *   Write a commit message that clearly states the problem and the solution:
+        ```
+        Fix flaky test_checkout_flow by removing hidden ordering dependency
+
+        test_checkout_flow was failing when run before test_seed_catalog because
+        it relied on the catalog cache populated by the latter. This dependency
+        was undocumented and fragile.
+
+        - Removed run-order pinning that masked the issue.
+        - Added explicit catalog cache seeding to test_checkout_flow setup.
+        - Ensured test is self-contained and order-independent.
+        ```
+
+By following these steps, you transform a fragile, hidden dependency into a robust, explicit, and well-documented test design. Future agents will see the explicit setup and understand its purpose, preventing regression.

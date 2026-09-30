@@ -1,0 +1,73 @@
+# Duty: `repair-duty`
+
+**Scope:** This duty governs the repair of a confirmed software defect where the specific location (locus) of the defect is already known. It is binding on any executing office.
+
+**Premise:** The executor possesses the full text of this duty, the source code, and the confirmed locus. The executor does not possess a registry of past failures, a canon of style, or external tools. The executor must navigate the repair using only the gates defined below.
+
+## Phase I: Locus Verification and Baseline Establishment
+
+**Gate 1.1: Confirm the Locus**
+*   **Verifies:** That the reported location of the defect is the actual site of the failure logic, not merely the site of the symptom.
+*   **Requires:** The executor must read the source code at the confirmed locus. The executor must trace the execution flow to confirm that the defect manifests specifically because of the logic present at this line or block. If the logic at the locus is not the cause, the duty is void; the defect is not confirmed at this locus.
+
+**Gate 1.2: Reproduce the Defect**
+*   **Verifies:** That the defect is real, current, and reproducible in the current environment.
+*   **Requires:** The executor must construct a minimal test case or execution command that triggers the specific error described in the defect report. The executor must observe the failure (e.g., exception, incorrect return value). The executor must record the exact error message or output. If the defect cannot be reproduced, the duty halts; no changes are made.
+
+**Gate 1.3: Establish the Baseline**
+*   **Verifies:** That the system is in a known, stable state prior to modification.
+*   **Requires:** The executor must note the current state of the file(s) involved. This includes the exact code surrounding the locus. The executor must ensure no other concurrent changes are pending. The baseline is the "before" snapshot against which the repair will be measured.
+
+## Phase II: Repair Design and Implementation
+
+**Gate 2.1: Define the Invariant**
+*   **Verifies:** That the correct behavior of the function is understood independently of the buggy implementation.
+*   **Requires:** The executor must articulate, in plain language, what the function *should* do for all valid inputs, including the input that caused the failure. The executor must determine the expected output or behavior for the failing case. For example, if a division by zero occurs, the executor must decide: should it return `None`, raise a specific domain error, or return a default value? This decision is the design choice. The design must be consistent with the function’s documented purpose or type signature.
+
+**Gate 2.2: Implement the Minimal Change**
+*   **Verifies:** That the change addresses the defect without introducing new complexity or altering unrelated behavior.
+*   **Requires:** The executor must modify the code at the locus (or immediately adjacent logic) to satisfy the invariant defined in Gate 2.1. The change must be the smallest possible edit that resolves the failure. The executor must not refactor unrelated code, rename variables, or alter function signatures unless explicitly required to fix the defect. The executor must ensure that the fix handles the specific failing input without breaking other valid inputs.
+
+**Gate 2.3: Handle Edge Cases**
+*   **Verifies:** That the repair is robust against related failure modes that share the same root cause.
+*   **Requires:** The executor must analyze the logic for other inputs that might trigger the same class of error. For example, if the defect is a division by zero, the executor must check for other operations that could divide by zero. If the defect is an index out of bounds, the executor must check for all array accesses. The fix must cover all instances of the root cause within the scope of the function.
+
+## Phase III: Validation and Verification
+
+**Gate 3.1: Reproduce the Fix**
+*   **Verifies:** That the specific failing input no longer causes the defect.
+*   **Requires:** The executor must re-run the exact test case or execution command from Gate 1.2. The result must now match the expected behavior defined in Gate 2.1. The original error must be absent.
+
+**Gate 3.2: Regression Check**
+*   **Verifies:** That the repair has not broken existing functionality.
+*   **Requires:** The executor must run a set of tests that cover known valid inputs for the function. If no existing tests are available, the executor must construct at least three distinct valid test cases:
+    1.  A standard, common-case input.
+    2.  A boundary-case input (e.g., empty list, single element, maximum value).
+    3.  A different type of input if the function accepts multiple types.
+    The outputs for these cases must remain correct and unchanged from the baseline behavior (or match the new invariant if the baseline was also flawed for these cases, which would indicate a deeper defect outside this duty’s scope).
+
+**Gate 3.3: Static Consistency Check**
+*   **Verifies:** That the repaired code is syntactically valid and type-consistent.
+*   **Requires:** The executor must review the modified code for syntax errors, undefined variables, or type mismatches. The code must conform to the language’s standard syntax. If the language supports type hints, the type hints must remain accurate.
+
+## Phase IV: Closure and Handoff
+
+**Gate 4.1: Document the Change**
+*   **Verifies:** That the repair is understandable to future maintainers without the executor’s presence.
+*   **Requires:** The executor must write a concise comment or commit message that includes:
+    1.  The problem: A brief description of the defect.
+    2.  The cause: Why the defect occurred (e.g., "division by zero when list is empty").
+    3.  The solution: How the code was changed to fix it (e.g., "added check for empty list and returned 0.0").
+    This documentation must be self-contained and not rely on external context.
+
+**Gate 4.2: Final Review**
+*   **Verifies:** That all gates have been passed and the duty is complete.
+*   **Requires:** The executor must review the entire set of changes. The executor must confirm that:
+    1.  The locus was correct (Gate 1.1).
+    2.  The defect was reproduced before and fixed after (Gate 1.2, 3.1).
+    3.  The change was minimal and addressed the root cause (Gate 2.2, 2.3).
+    4.  Existing functionality was preserved (Gate 3.2).
+    5.  The code is clean and documented (Gate 3.3, 4.1).
+    If all conditions are met, the duty is complete. The executor may submit the change.
+
+**Failure Protocol:** If any gate fails, the executor must revert to the last known stable state (Gate 1.3) and halt. The executor must not proceed to subsequent gates. The defect is not repaired until all gates are passed.

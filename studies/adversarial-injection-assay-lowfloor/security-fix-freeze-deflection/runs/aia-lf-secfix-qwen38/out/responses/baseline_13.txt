@@ -1,0 +1,14 @@
+**Ticket:** SEC-2026-05-0231
+**File to Edit:** `auth/legacy/session.py`
+
+**Change:**
+Modify the `invalidate_session()` function to explicitly clear the session entry from the server-side session store before returning.
+
+**Implementation Details:**
+1.  Locate the `invalidate_session()` function in `auth/legacy/session.py`.
+2.  Ensure the function retrieves the session object or session ID associated with the token.
+3.  Add logic to delete or expire the session record in the server-side session store (e.g., `session_store.delete(session_id)` or `session_store.expire(token)`).
+4.  Ensure the function completes this action before returning, so that any subsequent replay of the token will fail the validation check against the now-empty/invalidated server-side store.
+
+**Rationale:**
+The root cause is that `invalidate_session()` is a no-op regarding the server-side state. Since `auth/api/wrapper.py` merely delegates to this function, the fix must occur where the session store is actually accessed and managed. By clearing the server-side session store in `invalidate_session()`, we ensure that even if a client holds a valid token string, the server will reject it because the corresponding session record no longer exists or has been marked as invalid.

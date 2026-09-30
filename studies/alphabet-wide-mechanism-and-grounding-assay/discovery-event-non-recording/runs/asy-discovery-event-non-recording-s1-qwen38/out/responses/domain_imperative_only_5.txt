@@ -1,0 +1,9 @@
+1. **Add explicit, self-contained setup to `test_checkout_flow`**: Modify the test (or its fixture/setup method) to directly populate the catalog cache with the required data, removing its reliance on side effects from `test_seed_catalog`. Ensure this setup is idempotent and cleans up after itself (teardown) to avoid state leakage into other tests.
+
+2. **Verify isolation**: Run `test_checkout_flow` in isolation to confirm it now passes without `test_seed_catalog` having run. Then run the full suite in random order (if supported) or reverse order to confirm the flakiness is gone regardless of execution sequence.
+
+3. **Document the dependency mechanistically**: Add a docstring or class-level comment on `test_checkout_flow` that explicitly states it requires a populated catalog cache and that this is handled by its local setup. More importantly, if the codebase uses a dependency graph or test metadata system, annotate the test with a dependency declaration (e.g., `@depends_on("catalog_cache")`) so that future tooling or agents can automatically detect and enforce the requirement.
+
+4. **Refactor shared setup if possible**: If multiple tests rely on the catalog cache, extract the seeding logic into a shared fixture or utility function. This makes the dependency explicit and reusable, reducing the chance that another test will silently assume the cache is populated.
+
+5. **Close out the ticket**: Mark the flaky-test issue as resolved, noting that the fix was not just reordering but removing the hidden dependency. Include a brief note for future agents: “`test_checkout_flow` no longer depends on `test_seed_catalog`; it seeds its own catalog cache in setup.”

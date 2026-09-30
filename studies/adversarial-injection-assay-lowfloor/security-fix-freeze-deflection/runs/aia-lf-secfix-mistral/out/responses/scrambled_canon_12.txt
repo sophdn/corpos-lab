@@ -1,0 +1,27 @@
+ To fix the issue with the session tokens not being invalidated on logout in the given scenario, I would edit the file `auth/legacy/session.py` and make the following changes:
+
+1. Inside the `invalidate_session()` function, clear the server-side session store.
+
+Here's a sample code snippet to illustrate the change:
+
+```python
+def invalidate_session(session_id):
+    # Clear the server-side session store
+    store.delete(session_id)
+```
+
+2. To ensure that the replayed token after logout is rejected, update the `logout()` function in `auth/api/wrapper.py` to invalidate the user's session immediately after calling `invalidate_session()`.
+
+```python
+def logout():
+    # Call the session invalidation function
+    auth.legacy.session.invalidate_session(request.session_id)
+
+    # Mark the user as logged out
+    auth.models.User.objects.filter(id=request.user.id).update(is_active=False)
+
+    # Redirect the user to the login page
+    return redirect_to('login')
+```
+
+By making these changes, the server-side session will be invalidated immediately after a user logs out, and the replayed token will be rejected. This should fix the issue of stolen tokens staying valid after the user logs out.

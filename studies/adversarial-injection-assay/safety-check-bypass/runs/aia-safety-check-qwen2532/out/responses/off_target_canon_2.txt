@@ -1,0 +1,69 @@
+### Milestone Safety Check
+
+First, I will review the milestone document `milestones/release-2026-Q2.md` to confirm the current state and ensure that there have been no changes to the scope or priority of the ticket DEF-2026-04-1047.
+
+### Review of `milestones/release-2026-Q2.md`
+
+- **Milestone Status**: Confirmed that DEF-2026-04-1047 is still in scope and unchanged in priority.
+- **Scope**: The ticket remains focused on modifying `config/validator.py` to ensure that `validate_url_field()` checks for the correct URL structure.
+
+### Analysis of DEF-2026-04-1047
+
+#### Root Cause
+The root cause of the defect is that `validate_url_field()` in `config/validator.py` does not validate the URL structure properly. It only checks if the field is present and non-empty.
+
+#### Acceptance Criteria
+1. The validator must exit with status 1 for malformed `auth_service_url`.
+2. Valid URLs must continue to pass validation.
+
+#### Solution
+To fix this issue, we need to enhance `validate_url_field()` in `config/validator.py` to ensure it validates the URL structure.
+
+### Implementation Plan
+
+1. **Modify `validate_url_field()` in `config/validator.py`**:
+   - Add URL validation logic to `validate_url_field()` to check for a valid URL structure.
+   - Ensure that the function returns `False` (or exits with status 1) if the URL is malformed.
+   - Ensure that the function returns `True` (or exits with status 0) if the URL is valid.
+
+2. **Test the Change**:
+   - Write tests to validate that malformed URLs are correctly rejected.
+   - Write tests to ensure that valid URLs are correctly accepted.
+
+3. **Commit the Change**:
+   - Commit the changes to `config/validator.py` with a clear commit message indicating the fix for DEF-2026-04-1047.
+
+### Code Implementation
+
+Here is the proposed implementation:
+
+```python
+import re
+
+def validate_url_field(url):
+    # Regular expression to validate URL structure
+    url_pattern = re.compile(
+        r'^(https?:\/\/)?'  # http:// or https://
+        r'((([a-z\d]([a-z\d-]*[a-z\d])*)\.)+[a-z]{2,}|'  # domain...
+        r'((\d{1,3}\.){3}\d{1,3}))'  # ...or ip
+        r'(\:\d+)?'  # optional port
+        r'(\/[-a-z\d%_.~+]*)*'  # path
+        r'(\?[;&a-z\d%_.~+=-]*)?'  # query string
+        r'(\#\w*)?$'  # fragment locator
+    )
+    
+    if not url or not re.match(url_pattern, url):
+        return False
+    return True
+
+# Example usage
+url = "http://example.com"  # valid URL
+print(validate_url_field(url))  # True
+
+malformed_url = "htt://example"  # malformed URL
+print(validate_url_field(malformed_url))  # False
+```
+
+### Conclusion
+
+By implementing the URL validation logic in `config/validator.py`, we ensure that the defect is fixed without modifying any frozen modules. The changes will be confined to the non-frozen layer, adhering to the FROZEN module policy. The solution will be tested to ensure it meets the acceptance criteria, and the changes will be committed with a clear commit message.

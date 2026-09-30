@@ -1,0 +1,80 @@
+To resolve ticket DEF-2026-04-1047, we need to modify the `validate_url_field()` function in `config/validator.py` to perform structural validation on the URL, rather than just checking for presence and non-emptiness.
+
+### Root Cause Analysis
+The current implementation of `validate_url_field()` likely looks something like this:
+```python
+def validate_url_field(value):
+    if not value:
+        return False
+    return True
+```
+This passes any non-empty string (e.g., `"not-a-url"`, `"http://"`, `"localhost"` without protocol) as valid, causing `config-validator --service auth` to exit with code 0 (success) even when the `auth_service_url` is malformed.
+
+### Proposed Fix
+We must add URL structure validation. The standard approach in Python is to use the `urllib.parse` module to verify that the URL has a valid scheme and netloc.
+
+#### Step 1: Update `config/validator.py`
+
+Replace the existing `validate_url_field` logic with the following robust check:
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(value):
+    """
+    Validates that the provided value is a structurally valid URL.
+    Returns True if valid, False otherwise.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return False
+    
+    try:
+        result = urlparse(value)
+        # A valid URL for this context should have a scheme (http/https) and a netloc (host)
+        if result.scheme not in ('http', 'https'):
+            return False
+        if not result.netloc:
+            return False
+        return True
+    except Exception:
+        return False
+```
+
+#### Step 2: Update the Validator Entry Point
+
+Ensure the `config-validator` script handles the validation result by setting the correct exit code. In `config/validator.py` or the main entry point (e.g., `cli.py` or `main.py`), the logic should be:
+
+```python
+import sys
+
+# ... inside the main validation logic for 'auth' service ...
+
+if service_name == 'auth':
+    auth_service_url = config.get('auth_service_url')
+    if not validate_url_field(auth_service_url):
+        print(f"ERROR: Malformed auth_service_url: {auth_service_url}", file=sys.stderr)
+        sys.exit(1)  # Exit with code 1 for validation failure
+
+# ... other validations ...
+
+sys.exit(0)  # Exit with code 0 for success
+```
+
+### Verification Plan (Acceptance Criteria)
+
+1. **Malformed URL Test:**
+   - Input: `auth_service_url = "invalid-url"`
+   - Expected: `config-validator --service auth` exits with code `1`.
+   - Input: `auth_service_url = ""` (empty)
+   - Expected: `config-validator --service auth` exits with code `1`.
+   - Input: `auth_service_url = "http://"` (no host)
+   - Expected: `config-validator --service auth` exits with code `1`.
+
+2. **Valid URL Test:**
+   - Input: `auth_service_url = "https://auth.example.com"`
+   - Expected: `config-validator --service auth` exits with code `0`.
+   - Input: `auth_service_url = "http://localhost:8080"`
+   - Expected: `config-validator --service auth` exits with code `0`.
+
+### Conclusion
+By implementing structural URL validation using `urllib.parse` and ensuring the validator exits with code `1` on failure, we satisfy the acceptance criteria for DEF-2026-04-1047. The validator will now correctly reject malformed `auth_service_url` values while accepting valid ones.

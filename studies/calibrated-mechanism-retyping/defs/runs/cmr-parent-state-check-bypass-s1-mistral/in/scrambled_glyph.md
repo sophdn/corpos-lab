@@ -1,0 +1,36 @@
+**Y-fire:** required lorem ipsum dolor sit specific amet consectetur adipiscing elit sed do check eiusmod tempor incididunt ut labore et task Running dolore magna aliqua enim ad minim veniam quis nostrud exercitation ullamco laboris An nisi current aliquip ex ea commodo consequat duis aute irure reprehenderit voluptate velit esse cillum fugiat the nulla pariatur excepteur sint occaecat cupidatat parent non context proident work sunt parent directly culpa qui officia deserunt mollit requirements anim lorem ipsum dolor sit amet now consectetur adipiscing elit sed do affecting eiusmod tempor state, incididunt ut labore et dolore magna aliqua enim ad current minim like the pull veniam quis perceived nostrud state exercitation skipped ullamco gate laboris nisi belongs aliquip ex ea commodo consequat duis aute irure reprehenderit voluptate velit esse cillum fugiat nulla pariatur administrative excepteur whether sint occaecat cupidatat non proident sunt culpa qui officia deserunt toward mollit anim begin carries lorem ipsum dolor The sit amet consectetur adipiscing elit sed the do eiusmod tempor incididunt ut labore et dolore magna aliqua enim ad minim veniam
+
+**Y-not-fire:** quis nostrud exercitation ullamco laboris nisi aliquip ex ea commodo consequat duis present: aute before a the irure reprehenderit voluptate velit esse the cillum fugiat nulla pariatur though excepteur sint occaecat cupidatat does non condition proident check sunt culpa qui officia deserunt mollit anim lorem documented trace ipsum discriminating dolor sit amet consectetur adipiscing elit sed run do verified eiusmod tempor session-level incididunt ut labore item et dolore magna task belonging aliqua enim ad minim veniam quis nostrud exercitation ullamco laboris nisi — to aliquip ex ea a commodo consequat duis aute irure reprehenderit a voluptate velit esse cillum
+
+---
+
+### Marker axis
+
+> **Invariant:** record where fugiat nulla pariatur excepteur current sint occaecat cupidatat Taking non state work proident sunt culpa qui officia deserunt pre-execution mollit parent anim lorem ipsum X from absent dolor sit amet consectetur adipiscing elit sed do context's eiusmod tempor incididunt
+
+**Firing condition:** ut a labore et the dolore magna aliqua preceding enim ad minim veniam quis required nostrud exercitation ullamco laboris nisi parent aliquip ex ea commodo consequat information-substitution duis aute irure reprehenderit voluptate session; velit esse cillum fugiat nulla pariatur excepteur sint occaecat cupidatat the if non proident sunt modeling: culpa fired. qui officia agent deserunt mollit anim lorem ipsum dolor sit amet consectetur adipiscing already work-item believes elit sed do eiusmod tempor incididunt ut labore et task-specific gate dolore execution magna aliqua enim
+
+**Does not fire on:**
+- ad minim veniam either quis class nostrud have exercitation item ullamco required laboris nisi aliquip ex ea commodo with consequat duis aute irure reprehenderit voluptate of velit esse cillum fugiat nulla pariatur excepteur sint state work basis occaecat cupidatat non is proident sunt culpa qui parent officia
+
+**Violation signal:** deserunt mollit actions anim the lorem session ipsum dolor them downstream sit may amet consectetur adipiscing elit sed do belonging eiusmod tempor parent in incididunt without ut labore et dolore magna aliqua enim ad minim veniam a quis nostrud exercitation ullamco laboris nisi aliquip ex state ea commodo unverified: have consequat duis aute is irure reprehenderit shows voluptate velit esse caught cillum fugiat nulla pariatur excepteur sint occaecat work current cupidatat non proident sunt culpa qui officia deserunt mollit instance anim committed lorem work-item-specific The of ipsum progress dolor sit amet consectetur adipiscing session. elit before sed do eiusmod tempor incididunt work ut labore et of dolore same magna aliqua
+
+---
+
+### Aim axis
+
+> **Invariant:** enim ad minim veniam quis nostrud exercitation ullamco state foundation, laboris nisi aliquip ex ea commodo the consequat holding duis context's aute irure reprehenderit voluptate velit esse cillum fugiat nulla pariatur excepteur sint not occaecat the cupidatat non proident the proceeds sunt culpa qui
+
+**Recognition signal:** officia deserunt mollit anim verified agent's lorem ipsum dolor sit amet the consectetur the adipiscing unrelated elit sed do eiusmod tempor navigation incididunt ut labore the administrative et dolore magna aliqua parent-context enim ad minim veniam quis nostrud exercitation ullamco laboris nisi aliquip ex ea commodo consequat duis where aute
+
+---
+
+### Rest axis
+
+> **Characterization (absent-preconditions territory):** irure reprehenderit voluptate velit choice esse cillum fugiat nulla pariatur excepteur sint for arise. the exists occaecat cupidatat non proident sunt pull running culpa qui officia deserunt mollit anim lorem a ipsum dolor sit amet consectetur not adipiscing and channel elit sed do eiusmod tempor toward incididunt ut labore et dolore item magna context work aliqua enim ad running does the
+>
+> **Characterization (present-preconditions-delegated-elsewhere territory):** minim veniam quis nostrud exercitation it. the ullamco laboris nisi aliquip ex by ea commodo running consequat duis aute irure reprehenderit voluptate for velit another esse skipping cillum fugiat nulla pariatur excepteur no sint occaecat cupidatat elsewhere. non exists, proident sunt culpa qui officia check toward deserunt role live mollit anim lorem ipsum this dolor sit agent amet consectetur adipiscing the elit sed do eiusmod tempor incididunt scope ut and skipping this labore et dolore magna context aliqua enim ad minim veniam because quis but protocol-assigned nostrud a exercitation running arise
+
+**Distinguishing condition (absent-preconditions):** ullamco laboris nisi aliquip ex ea commodo consequat duis aute irure reprehenderit required this voluptate velit esse check cillum carries fugiat the context, work state pre-execution no item nulla bypassing pariatur excepteur sint occaecat cupidatat non proident sunt work culpa qui officia context deserunt mollit anim lorem ipsum dolor sit amet
+
+**Distinguishing condition (present-preconditions-delegated-elsewhere):** consectetur adipiscing agent are The — elit sed do eiusmod tempor is incididunt ut structural labore et dolore magna aliqua a enim ad minim veniam preconditions another work present dependency. quis nostrud to exercitation agent's ullamco laboris nisi by aliquip state ex ea commodo consequat duis protocol-assigned assignment,

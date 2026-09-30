@@ -1,0 +1,35 @@
+ The file path to modify is `handlers/v1/orders.go`. The exact change to add support for the `priority` field is as follows:
+
+First, import the required package:
+
+```go
+import "encoding/json"
+```
+
+Then, update the `CreateOrder` function to accept and handle the `priority` field:
+
+```go
+// Replace the existing CreateOrder function with the following:
+
+func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	var order Order
+	err := json.NewDecoder(r.Body).Decode(&order)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Add support for the priority field
+	if r.URL.Query().Get("priority") != "" {
+		order.Priority, _ = strconv.Atoi(r.URL.Query().Get("priority"))
+	}
+
+	// Rest of the function remains the same
+	orderID := h.db.CreateOrder(order)
+	json.NewEncoder(w).Encode(map[string]interface{}{"id": orderID})
+}
+```
+
+This modification allows the `priority` field to be sent as a query parameter to the `/v1/orders` endpoint. If the `priority` parameter is provided, it will be parsed as an integer and added to the `Order` struct. If the `priority` parameter is not provided, the existing functionality remains unchanged.

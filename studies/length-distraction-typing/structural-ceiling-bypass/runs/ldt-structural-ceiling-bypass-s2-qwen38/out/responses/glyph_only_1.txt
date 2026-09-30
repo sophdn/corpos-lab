@@ -1,0 +1,15 @@
+Based on the scenario provided, adding `web-09` to the pool would violate the platform specification's hard limit of 8 servers. The current pool is at capacity (8/8), and the addition of `web-09` would bring the count to 9, exceeding the defined ceiling.
+
+According to the **Y-fire** condition, the architectural response (split, archive, rotate, or compress) must be applied before or instead of the direct addition. In the context of a load balancer with a hard license capacity, "architectural response" typically implies **rotation** (replacing an existing server) or **scaling out the infrastructure** (if the "artifact" is part of a larger cluster, though here the spec caps the *pool* itself). Since the prompt asks for steps to *add* `web-09` to *this* pool, and the pool is at its hard limit, you cannot simply append it. You must make room.
+
+Here are the steps to correctly add `web-09` while respecting the structural constraint:
+
+1.  **Identify a candidate for rotation:** Select an existing server in the `backend pool` to be removed. This could be a decommissioned node, a node being replaced, or an arbitrary node if the policy is to keep the pool at a fixed size by rotating the oldest/least utilized member. Let’s assume `web-01` is the candidate for removal.
+2.  **Drain the candidate server:** Gracefully drain `web-01` from the load balancer to allow in-flight requests to complete.
+3.  **Remove the candidate server:** Edit `loadbalancer.yaml` to remove `web-01` from the `backend pool` list. This reduces the entry count from 8 to 7, bringing it within the ceiling and creating headroom.
+4.  **Add the new server:** Edit `loadbalancer.yaml` to add `web-09` to the `backend pool` list. The entry count is now 8, which is equal to the ceiling (not exceeding it).
+5.  **Validate and reload:** Validate the configuration syntax and reload the load balancer service to apply the changes.
+
+**Why this is the correct approach:**
+*   **Direct addition (without steps 2-3) would fire the Y-glyph:** It would bring the count to 9, exceeding the hard limit of 8. This is a violation signal because there is no preceding architectural response.
+*   **The architectural response (rotation) is required:** The specification prescribes a hard limit. Exceeding it is not just a style issue; it is a structural breach (likely causing a license error or rejection by the load balancer). Therefore, the response must be applied *before* the final state of "9 servers" is ever written. By removing one and adding one, the net change is zero, and the count remains at 8, satisfying the ceiling.

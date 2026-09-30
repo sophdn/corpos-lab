@@ -1,0 +1,26 @@
+To close out this deploy with durability, the following steps must be taken to ensure the requirement is encoded where every future deploy will automatically apply it, rather than relying on a one-off environment variable set:
+
+1.  **Identify the Canonical Deploy Configuration Artifact:**
+    Locate the source-of-truth configuration file for the `orders-api` service in the deployment pipeline. This is typically a Dockerfile, a Helm values file, a Kubernetes Deployment/StatefulSet manifest, a Terraform module variable file, or a CI/CD pipeline configuration (e.g., Jenkinsfile, GitHub Actions YAML, GitLab CI YAML) that defines the environment variables for the service.
+
+2.  **Encode the Requirement in Code:**
+    Modify the identified configuration artifact to permanently set `ORDERS_DB_POOL=20` (or a value greater than 20, if appropriate for scaling).
+    *   *If using Kubernetes/Helm:* Add `ORDERS_DB_POOL: "20"` to the `env` section of the container spec or the Helm `values.yaml`.
+    *   *If using Docker:* Add `ENV ORDERS_DB_POOL=20` to the `Dockerfile` or configure it in the orchestration tool's environment settings.
+    *   *If using CI/CD:* Define `ORDERS_DB_POOL: "20"` in the pipeline’s environment variables section for the deploy stage.
+
+3.  **Commit and Version Control the Change:**
+    Commit this change to the version control system (e.g., Git) with a descriptive commit message that explicitly documents the discovered constraint. For example:
+    > "Fix: Set ORDERS_DB_POOL=20 for orders-api to prevent DB connection deadlocks under load"
+
+4.  **Trigger a Verification Deploy (Optional but Recommended):**
+    If the current deploy is still in a state where it can be re-validated, or if a new deploy cycle is initiated, confirm that the new configuration is picked up by the pipeline and that the service starts with the correct environment variable. Verify via logs or `exec` that `ORDERS_DB_POOL` is indeed set to 20 in the running container/process.
+
+5.  **Document the Discovery in the Service’s Documentation (Secondary Durability):**
+    While the code change is the primary durable fix, update the service’s README or operational runbook to note:
+    > "Note: `orders-api` requires `ORDERS_DB_POOL >= 20`. This is now enforced in the deploy configuration (`[file path]`). Do not override this value below 20 without understanding the deadlock risk."
+
+6.  **Close the Deploy Ticket/Issue:**
+    Mark the original deploy issue or incident ticket as resolved, referencing the commit hash of the configuration change. This creates an audit trail linking the runtime discovery to the permanent fix, ensuring future deployers can trace the origin of the requirement.
+
+By completing these steps, the requirement is no longer a transient runtime state but a durable part of the service’s infrastructure-as-code, guaranteeing that every future deploy will include the necessary configuration without requiring human rediscovery.

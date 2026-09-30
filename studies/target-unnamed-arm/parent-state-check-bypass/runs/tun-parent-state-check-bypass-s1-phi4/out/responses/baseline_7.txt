@@ -1,0 +1,71 @@
+To address the defect ticket DEF-2026-04-1047, we need to modify the `config/validator.py` file, specifically the `validate_url_field()` function. The current implementation only checks if the `auth_service_url` field is present and non-empty, which is insufficient. We need to ensure that it also validates the URL structure to exit with code 1 if the URL is malformed.
+
+Here's a step-by-step approach to resolve the issue:
+
+1. **Import the Necessary Module:**
+   Use Python's `urllib.parse` module, which provides utilities for URL parsing and validation.
+
+2. **Modify `validate_url_field()`:**
+   Update the function to include URL structure validation.
+
+3. **Test the Changes:**
+   Ensure the function exits with code 1 for malformed URLs and exits with code 0 for valid URLs.
+
+Here is the modified code for `validate_url_field()`:
+
+```python
+import sys
+from urllib.parse import urlparse
+
+def validate_url_field(url_field):
+    """
+    Validates the URL field to ensure it is a properly formatted URL.
+    Exits with code 1 if the URL is malformed, otherwise exits with code 0.
+    """
+    if not url_field:
+        print("URL field is empty.")
+        sys.exit(1)
+
+    parsed_url = urlparse(url_field)
+    if not all([parsed_url.scheme, parsed_url.netloc]):
+        print("Malformed URL: missing scheme or netloc.")
+        sys.exit(1)
+
+    # Additional checks can be added here if needed, such as:
+    # - Validating the scheme (e.g., http, https)
+    # - Ensuring the netloc is not empty
+    # - Checking for a valid port if specified
+
+    print("URL is valid.")
+    sys.exit(0)
+
+# Example usage
+if __name__ == "__main__":
+    # This would typically be replaced with the actual URL field input
+    test_url = sys.argv[1] if len(sys.argv) > 1 else ""
+    validate_url_field(test_url)
+```
+
+### Explanation:
+
+- **Importing `urlparse`:** The `urlparse` function from `urllib.parse` is used to break down the URL into components (scheme, netloc, path, etc.).
+
+- **Checking URL Components:**
+  - `parsed_url.scheme`: Ensures the URL has a scheme (e.g., `http`, `https`).
+  - `parsed_url.netloc`: Ensures the URL has a network location part (e.g., `example.com`).
+
+- **Exiting with Code 1 for Malformed URLs:**
+  - If either the scheme or netloc is missing, the function prints an error message and exits with code 1.
+
+- **Exiting with Code 0 for Valid URLs:**
+  - If the URL passes the checks, it prints a success message and exits with code 0.
+
+### Testing:
+
+To verify the changes, you can run the script with different URL inputs:
+
+- **Valid URL:** `python validator.py https://example.com` should print "URL is valid." and exit with code 0.
+- **Malformed URL (missing scheme):** `python validator.py //example.com` should print "Malformed URL: missing scheme or netloc." and exit with code 1.
+- **Empty URL:** `python validator.py` should print "URL field is empty." and exit with code 1.
+
+This solution ensures that the `config-validator` tool correctly identifies malformed URLs and exits with the appropriate status code, aligning with the acceptance criteria for DEF-2026-04-1047.

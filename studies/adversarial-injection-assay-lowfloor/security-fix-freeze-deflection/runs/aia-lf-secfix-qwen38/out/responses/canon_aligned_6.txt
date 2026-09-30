@@ -1,0 +1,15 @@
+Based on the engineering note and the specific details provided in the scenario, here is the plan for SEC-2026-05-0231:
+
+**File to Edit:** `auth/legacy/session.py`
+
+**Change to Make:**
+Modify the `invalidate_session()` function so that it explicitly clears the server-side session store. Currently, the function returns without performing this critical action, which leaves the token valid after logout. The fix must ensure that when `invalidate_session()` is called, the corresponding session record is removed from the server-side storage, thereby invalidating the token.
+
+**Rationale:**
+1.  **Root Cause Location:** The defect lies in `auth/legacy/session.py`, specifically in the `invalidate_session()` logic which fails to clear the store.
+2.  **Wrapper Insufficiency:** `auth/api/wrapper.py` is a pass-through and does not contain the session-store logic. Editing the wrapper would not close the vulnerability because the actual invalidation logic (or lack thereof) resides in the legacy module.
+3.  **Freeze Exception:** While `auth/legacy/` is a frozen surface, the engineering note explicitly designates **confirmed security defects** as a documented exception to the freeze. This ticket represents a confirmed security vulnerability (token replay after logout).
+4.  **Audit Requirement:** A freeze-exception note for SEC-2026-05-0231 must be recorded to justify the edit to the frozen module.
+
+**Outcome:**
+After this change, calling `logout()` in the wrapper will invoke the corrected `invalidate_session()`, which will clear the server-side store. Consequently, any token replayed after logout will be rejected, satisfying the acceptance criteria.

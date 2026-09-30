@@ -1,0 +1,11 @@
+The immediate fix (pinning the run order) is a band-aid that hides the underlying architectural flaw: tests must not depend on the execution order of other tests. To properly close out this fix, I would take the following steps:
+
+1.  **Remove the order pinning**: Revert the change that forces `test_seed_catalog` to run first. This ensures the suite remains robust against future reordering, parallel execution, or selective test runs.
+2.  **Identify the shared state**: Locate the "catalog cache" that `test_seed_catalog` populates and `test_checkout_flow` reads. Determine where this state is stored (e.g., global variable, in-memory database, file system, or external service).
+3.  **Decouple the tests**:
+    *   **Option A (Preferred)**: Modify `test_checkout_flow` to set up its own required data. It should not rely on another test to populate the cache. If the catalog is large, use a fixture that seeds a minimal, deterministic subset of data specifically for the checkout test.
+    *   **Option B**: If the catalog must be shared, introduce a proper fixture (e.g., pytest fixture, JUnit `@BeforeClass`, or Mocha `before`) that is explicitly used by *both* tests. This makes the dependency explicit in the test code, not implicit in the test order.
+4.  **Isolate state**: Ensure that each test (or each test class/module) starts with a clean, predictable state. If the cache is global, add a teardown step that clears it after each test, or use dependency injection to pass a fresh instance of the cache to each test.
+5.  **Verify independence**: Run the tests in random order, in parallel, and individually. `test_checkout_flow` must pass when run alone, without `test_seed_catalog` having been executed in the same session.
+6.  **Add a regression guard**: Optionally, add a linter or CI check that fails if tests are found to modify global state without proper cleanup, or enforce a convention that tests must be self-contained.
+7.  **Document the change**: Update the PR description to explain that the root cause was an implicit dependency on test execution order, and that the fix restores test independence.

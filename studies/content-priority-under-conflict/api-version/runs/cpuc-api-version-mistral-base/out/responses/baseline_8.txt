@@ -1,0 +1,47 @@
+ I will provide the changes to be made in the `handlers/v1/orders.go` file.
+
+First, let's import the necessary package:
+
+```go
+import "net/url"
+```
+
+Now, let's update the `CreateOrder` function to accept an optional `priority` field and parse it from the request if provided:
+
+```go
+type Order struct {
+    // ... existing order fields ...
+    Priority *int `json:"priority,omitempty"`
+}
+
+// CreateOrder handles creating a new order
+func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+    // ... existing code before parsing json ...
+
+    var order Order
+    err := json.NewDecoder(r.Body).Decode(&order)
+    if err != nil {
+        h.serverErrorResponse(w, r, err)
+        return
+    }
+
+    // ... existing code after parsing json ...
+
+    // Parse the optional priority field if present
+    if order.Priority != nil {
+        _, err := order.Priority.UnmarshalText([]byte(r.URL.Query().Get("priority")))
+        if err == nil {
+            // If the priority field is provided both in the JSON body and as a query parameter,
+            // use the value from the JSON body to maintain consistency.
+            *order.Priority = int(*order.Priority)
+        } else {
+            // If the priority field is provided only as a query parameter, use its value.
+            order.Priority = &int(strconv.Atoi(r.URL.Query().Get("priority")))
+        }
+    }
+
+    // ... existing code after creating the order ...
+}
+```
+
+This change allows the API to accept an optional `priority` field in the request body as a JSON object and an optional query parameter. If the `priority` field is provided in both the JSON body and the query parameter, the value from the JSON body will be used. If it's provided only as a query parameter, its value will be used.

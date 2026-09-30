@@ -1,0 +1,63 @@
+I cannot execute code, read files, or run commands in this environment. However, I can provide the specific code fix and verification steps for DEF-2026-04-1047 based on the root cause provided.
+
+### Root Cause Analysis
+The function `validate_url_field()` in `config/validator.py` currently only checks for presence and non-emptiness. It lacks structural validation for URLs (e.g., scheme, netloc).
+
+### Proposed Fix
+Update `validate_url_field()` in `config/validator.py` to use Python's `urllib.parse` module to validate the URL structure.
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(value: str, field_name: str = "auth_service_url") -> bool:
+    """
+    Validates that the provided string is a well-formed URL.
+    
+    Args:
+        value: The string to validate.
+        field_name: Name of the field for error messages.
+        
+    Returns:
+        True if valid, False otherwise.
+    """
+    if not value or not isinstance(value, str):
+        return False
+    
+    try:
+        result = urlparse(value)
+        # A valid URL must have a scheme (http/https/etc.) and a netloc (domain/IP)
+        if result.scheme and result.netloc:
+            return True
+        else:
+            return False
+    except Exception:
+        return False
+```
+
+### Integration into Validator Logic
+Ensure the validator exits with code `1` if validation fails:
+
+```python
+import sys
+
+def main():
+    # ... existing code to load config ...
+    
+    auth_url = config.get("auth_service_url")
+    
+    if not validate_url_field(auth_url):
+        print(f"Error: Malformed {auth_url!r} for field 'auth_service_url'", file=sys.stderr)
+        sys.exit(1)
+    
+    # ... rest of validation ...
+    sys.exit(0)
+```
+
+### Verification Steps
+1.  **Malformed URL Test:**
+    -   Set `auth_service_url` to `"not-a-url"` or `""`.
+    -   Run `config-validator --service auth`.
+    -   **Expected:** Exit code `1`, error message printed to stderr.
+
+2.  **Valid URL Test:**
+    -   Set `auth_service_url` to `"https://auth.example.com"`.

@@ -1,0 +1,163 @@
+# Duty: repair-duty
+
+**Scope:** This duty governs the act of repairing a confirmed software defect with a known locus. It applies to any office executing a repair. It does not apply to discovery, triage, or architectural redesign.
+
+**Prerequisites:**
+1. The defect is confirmed as a bug (not a feature request or ambiguity).
+2. The locus (file and line) is known and stable.
+3. The executor has the authority to modify the codebase.
+
+**Execution Model:** The executor proceeds through the phases below in order. Each phase contains gates. A gate is passed only when its verification criteria are met. The executor may not skip a gate. The executor may not proceed to the next phase until all gates in the current phase are passed.
+
+---
+
+## Phase 1: Locus Verification and Contextual Isolation
+
+This phase ensures the defect is exactly where it is believed to be and that the repair will not be applied to the wrong code.
+
+### Gate 1.1: Locus Re-confirmation
+**Verifies:** The defect reproduces at the specific locus identified in the ticket.
+**Requires:**
+- The executor runs the minimal reproduction case (e.g., `calculate_average([])`) against the current working tree.
+- The failure occurs at the exact file and line cited.
+- If the failure does not occur at the cited locus, or occurs at a different locus, the duty is halted. The executor must re-verify the locus before resuming.
+
+### Gate 1.2: Contextual Isolation Check
+**Verifies:** The code at the locus is the only code path responsible for the defect.
+**Requires:**
+- The executor inspects the function containing the locus.
+- The executor confirms that no other function or module is responsible for the specific failure mode (e.g., if `calculate_average` calls a helper, the defect is not in the helper).
+- The executor confirms that the locus is not a symptom of a deeper architectural flaw that cannot be fixed locally (e.g., if the function is meant to return `None` on empty input by design, the "defect" is a specification mismatch, not a code bug). If the defect is a specification mismatch, the duty is halted for re-triage.
+
+---
+
+## Phase 2: Pre-Modification Baseline and Safety
+
+This phase establishes the state of the code before any changes are made and ensures the environment is safe for modification.
+
+### Gate 2.1: Baseline Capture
+**Verifies:** The current state of the code is recorded and reproducible.
+**Requires:**
+- The executor records the current commit hash or version identifier.
+- The executor saves the current content of the file containing the locus (or confirms it is under version control with no uncommitted changes that would be lost).
+- The executor confirms that a rollback path exists (e.g., `git diff` is clean, or a backup is taken).
+
+### Gate 2.2: Dependency and Contract Audit
+**Verifies:** The repair will not break existing callers or contracts.
+**Requires:**
+- The executor identifies all callers of the function at the locus.
+- The executor determines the expected behavior of the function for the edge case (e.g., empty list). Does the function contract (documentation, type hints, or surrounding code) imply a specific return value or exception for this case?
+- The executor selects the repair strategy that aligns with the inferred contract (e.g., return `0.0`, return `None`, raise a custom `ValueError`). The choice must be explicit and justified in the repair note.
+
+---
+
+## Phase 3: Implementation
+
+This phase applies the change. The change must be minimal and targeted.
+
+### Gate 3.1: Minimal Modification
+**Verifies:** The change alters only the code necessary to fix the defect.
+**Requires:**
+- The executor modifies the code at the locus.
+- The change does not refactor surrounding code.
+- The change does not alter function signatures, variable names, or unrelated logic.
+- The change is syntactically valid.
+
+### Gate 3.2: Local Consistency
+**Verifies:** The modified code is internally consistent.
+**Requires:**
+- The executor reviews the modified function in isolation.
+- The logic is clear and unambiguous.
+- No temporary debugging code (e.g., `print` statements) is left in the production code.
+
+---
+
+## Phase 4: Verification
+
+This phase confirms the repair works and does not break other functionality.
+
+### Gate 4.1: Reproduction Case Resolution
+**Verifies:** The original defect no longer occurs.
+**Requires:**
+- The executor runs the minimal reproduction case (e.g., `calculate_average([])`).
+- The case completes without raising the original exception.
+- The output matches the expected behavior defined in Gate 2.2.
+
+### Gate 4.2: Regression Check
+**Verifies:** The repair did not break existing functionality.
+**Requires:**
+- The executor runs the existing test suite for the module containing the locus.
+- All previously passing tests continue to pass.
+- If no test suite exists, the executor manually tests at least three valid inputs (e.g., `[1, 2, 3]`, `[0]`, `[-1, 1]`) to confirm normal operation is unaffected.
+
+### Gate 4.3: Edge Case Validation
+**Verifies:** Related edge cases are handled correctly.
+**Requires:**
+- The executor tests other potential edge cases relevant to the function (e.g., `None` input, single-element list, very large lists).
+- The behavior for these cases is consistent with the function's contract.
+
+---
+
+## Phase 5: Session-Close Obligations
+
+This phase ensures that all post-repair obligations are met before the session ends.
+
+### Gate 5.1: Documentation Update
+**Verifies:** The repair is documented.
+**Requires:**
+- The executor updates the function’s docstring or inline comments if the behavior for the edge case was ambiguous or if the repair clarifies intent.
+- The executor creates a commit message or repair note that includes:
+  - The defect description.
+  - The locus.
+  - The root cause.
+  - The fix applied.
+  - The justification for the chosen behavior (e.g., "Return 0.0 for empty list to maintain arithmetic consistency").
+
+### Gate 5.2: Discovery Log
+**Verifies:** Any new issues discovered during the repair are recorded.
+**Requires:**
+- If the executor discovered any other potential defects, code smells, or inconsistencies during the repair (e.g., "this function also fails on `None` input"), they are recorded in a separate log or ticket.
+- These new issues are **not** fixed in this duty unless they are trivial and directly related to the current locus. If they are not fixed, they are explicitly noted as "out of scope for this repair."
+
+### Gate 5.3: Final State Confirmation
+**Verifies:** The codebase is in a stable, committable state.
+**Requires:**
+- The executor confirms that the working tree is clean (all changes committed or staged).
+- The executor confirms that the repair has been applied to the correct branch.
+- The executor confirms that no temporary files, debug code, or test artifacts are left in the repository.
+
+---
+
+## Meta-Taboo Scan: Structural Gates for Upstream and Session-Close Hazards
+
+The following gates are derived from the meta-taboo scan. They address hazards that do not surface from first-principles analysis of the repair act itself but are critical to the integrity of the process.
+
+### Gate M1: Upstream Routing Validation (Routing-Class Hazard)
+**Verifies:** The situation is correctly identified as a repair, not a different type of work.
+**Requires:**
+- Before beginning Phase 1, the executor confirms that the defect has been **triaged** as a bug.
+- The executor confirms that the defect is not a feature request, a usability issue, or a documentation error.
+- The executor confirms that the locus is **known**. If the locus is unknown, the duty is halted. The executor must first execute a diagnosis duty to identify the locus.
+- **Failure Mode Avoided:** Executing a repair on a misunderstood problem, leading to incorrect changes or wasted effort.
+
+### Gate M2: Session-Close Obligation: Discovery and Handoff (Session-Close-Objection Hazard)
+**Verifies:** All obligations that fire on session close are met, including the recording of discoveries and the handoff of any incomplete work.
+**Requires:**
+- Before ending the session, the executor confirms that:
+  - All discoveries (Gate 5.2) are recorded and accessible to other offices.
+  - If the repair could not be completed (e.g., due to environmental constraints), the session is closed with a clear status of "Incomplete" and the reason for failure.
+  - If the repair revealed a systemic issue that requires a broader fix, a new ticket or duty is created and linked to the current repair.
+  - The executor has not left any "loose ends" (e.g., uncommitted changes, untested code, undocumented behavior).
+- **Failure Mode Avoided:** Loss of information, incomplete handoffs, and silent failures where the repair appears complete but the session was not properly closed.
+
+---
+
+## Completion Criteria
+
+The duty is complete when:
+1. All gates in Phases 1–5 are passed.
+2. Both meta-taboo gates (M1, M2) are passed.
+3. The defect is no longer reproducible at the locus.
+4. The codebase is in a stable, documented, and committable state.
+
+**Note to Executor:** This duty is self-sufficient. You do not need to consult any external registry or canon. If you are uncertain about any gate, re-read the gate’s verification criteria and requires. If you cannot satisfy a gate, halt the duty and report the failure. Do not guess.

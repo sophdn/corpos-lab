@@ -1,0 +1,69 @@
+ To add support for the `priority` field in the `handlers/v1/orders.go` file, you can make the following changes:
+
+1. First, update the `Order` struct to include the new `Priority` field:
+
+```go
+type Order struct {
+    ID            int    `json:"id"`
+    CustomerID    int    `json:"customer_id"`
+    ProductID     int    `json:"product_id"`
+    Quantity      int    `json:"quantity"`
+    Priority      int    `json:"priority,omitempty"` // added the "omitempty" tag to make the field optional
+    CreatedAt     time.Time
+    UpdatedAt     time.Time
+}
+```
+
+2. Next, update the `CreateOrder` function to handle the new `priority` field when creating a new order:
+
+```go
+func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+    var order Order
+    err := json.NewDecoder(r.Body).Decode(&order)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    // ... (existing code)
+
+    // Add the current timestamp for CreatedAt and UpdatedAt fields
+    order.CreatedAt = time.Now()
+    order.UpdatedAt = time.Now()
+
+    // Save the order and return the response
+    // ... (existing code)
+}
+```
+
+3. Lastly, update the `ListOrders` function to include the `priority` field in the query parameters and handle it when filtering orders:
+
+```go
+func (h *Handler) ListOrders(w http.ResponseWriter, r *http.Request) {
+    // Parse query parameters
+    var filter Order
+    err := r.URL.QueryValue("filter", json.Marshal(filter))
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+    err = json.Unmarshal([]byte(filter.String()), &filter)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    // ... (existing code)
+
+    // Filter orders by priority
+    if filter.Priority != 0 {
+        orders = filterByPriority(orders, filter.Priority)
+    }
+
+    // ... (existing code)
+}
+```
+
+Note that the `filterByPriority` function is not provided in the given information, so you'll need to implement it based on your application's data storage and sorting requirements.
+
+The changes I provided should give you a starting point for adding support for the new `priority` field in the orders API.

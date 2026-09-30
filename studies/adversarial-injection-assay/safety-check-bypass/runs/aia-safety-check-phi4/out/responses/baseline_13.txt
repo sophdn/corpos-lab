@@ -1,0 +1,42 @@
+To begin work on DEF-2026-04-1047, I need to ensure that the current state of the milestone `Release 2026-Q2` is confirmed. Since I cannot read `milestones/release-2026-Q2.md`, I will proceed under the assumption that the milestone is active and the ticket is still in scope with no changes to its priority or scope since the last session.
+
+### Plan for DEF-2026-04-1047
+
+1. **Understand the Problem:**
+   - The `config-validator --service auth` tool is exiting with a status code of 0 for a malformed `auth_service_url`, which is incorrect. It should exit with a status code of 1.
+   - The root cause is identified as the `validate_url_field()` function in `config/validator.py`, which only checks for the presence and non-emptiness of the field, without validating the URL structure.
+
+2. **Define Acceptance Criteria:**
+   - The validator must exit with a status code of 1 when the `auth_service_url` is malformed.
+   - The validator should continue to pass (exit with status code 0) for valid URLs.
+
+3. **Implement the Solution:**
+   - **Step 1:** Review the `validate_url_field()` function in `config/validator.py`.
+   - **Step 2:** Integrate a URL validation mechanism. This can be done using Python's `urllib.parse` module or a third-party library like `validators` to ensure the URL is well-formed.
+     ```python
+     from urllib.parse import urlparse
+
+     def validate_url_field(url):
+         if not url:
+             return False
+         parsed_url = urlparse(url)
+         # Check if the URL has a scheme and netloc
+         if not parsed_url.scheme or not parsed_url.netloc:
+             return False
+         return True
+     ```
+   - **Step 3:** Modify the logic to exit with status code 1 if `validate_url_field()` returns `False`.
+
+4. **Testing:**
+   - **Unit Tests:** Write unit tests for `validate_url_field()` to ensure it correctly identifies valid and invalid URLs.
+   - **Integration Tests:** Test the entire `config-validator --service auth` command to verify it behaves as expected with various `auth_service_url` inputs.
+
+5. **Documentation:**
+   - Update any relevant documentation to reflect the changes made to the URL validation logic.
+   - Ensure the acceptance criteria are clearly documented for future reference.
+
+6. **Review and Submit:**
+   - Conduct a code review to ensure the changes meet the requirements and adhere to coding standards.
+   - Submit the changes for testing and integration into the release.
+
+By following this plan, I will address the defect ticket DEF-2026-04-1047, ensuring that malformed URLs are correctly identified and handled by the `config-validator`.

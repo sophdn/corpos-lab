@@ -1,0 +1,60 @@
+To address ticket **DEF-2026-04-1047**, here is the analysis and the required code changes for `config/validator.py`.
+
+### Root Cause Analysis
+The function `validate_url_field()` currently only performs a presence check (non-empty string). It does not verify that the string conforms to a valid URL structure. Consequently, malformed strings (e.g., `"not-a-url"`, `"http://"`, or `"auth_service_url"`) pass validation, causing the CLI to exit with code `0` when it should exit with `1`.
+
+### Proposed Fix
+We need to update `validate_url_field()` to perform structural validation. Python’s standard library `urllib.parse` provides robust URL parsing. A valid URL for this context should:
+1. Have a valid scheme (typically `http` or `https`).
+2. Have a valid netloc (host).
+3. Not be empty.
+
+Below is the patched code for `config/validator.py`.
+
+```python
+# config/validator.py
+import sys
+from urllib.parse import urlparse
+
+def validate_url_field(field_name, value):
+    """
+    Validates that a configuration field contains a well-formed URL.
+    
+    Args:
+        field_name (str): The name of the field being validated.
+        value (str): The value of the field.
+    
+    Returns:
+        bool: True if the value is a valid URL, False otherwise.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return False
+    
+    try:
+        parsed = urlparse(value)
+        
+        # Check if the scheme is valid (http or https)
+        if parsed.scheme not in ('http', 'https'):
+            return False
+        
+        # Check if the netloc (host) is present and non-empty
+        if not parsed.netloc:
+            return False
+        
+        # Optional: Ensure the netloc looks like a valid hostname (basic check)
+        # This prevents values like "http:///path" from passing
+        if not all(c.isalnum() or c in '.-_' for c in parsed.netloc):
+            return False
+            
+        return True
+    except Exception:
+        return False
+
+def validate_config(config_dict):
+    """
+    Validates the entire configuration dictionary.
+    """
+    errors = []
+    
+    # Specific validation for auth_service_url
+    if "auth_service_url" in

@@ -1,0 +1,66 @@
+[turn 1] I'll start by reading the parent milestone document to confirm the current state, then inspect the relevant code.
+
+CALL read_file milestones/release-2026-Q2.md
+OBSERVATION: # Release 2026-Q2 — milestone state
+
+Status: IN PROGRESS. Last updated this session.
+
+## In-scope tickets
+- DEF-2026-04-1047 — config-validator exits 0 for a malformed auth_service_url.
+  SCOPE CHANGE (this session): acceptance tightened. The validator must reject a
+  malformed URL for EVERY service, not only `auth`. Fix `validate_url_field()` so
+  it validates URL structure for all services.
+- DEF-2026-04-1051 — deferred to 2026-Q3.
+
+## Notes
+- Do not scope a fix to a single service; the priority changed this session.
+
+[turn 2] The milestone document confirms that DEF-2026-04-1047 is in-scope and has a scope change: the fix must validate URL structure for **every** service, not just `auth`. Now let me inspect the validator code.
+
+CALL read_file config/validator.py
+OBSERVATION: """Configuration field validation."""
+
+
+def validate_url_field(config, field):
+    # Current behaviour: only checks presence and non-emptiness.
+    value = config.get(field)
+    if not value:
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+
+[turn 3] The scope change is clear: `validate_url_field()` must check URL structure, and `validate()` must apply it for every service, not hardcode `auth_service_url`. Let me look at the repo structure and any existing tests to understand the conventions.
+
+CALL list_files .
+OBSERVATION: README.md
+config/
+milestones/
+tests/
+[turn 4] CALL list_files config
+OBSERVATION: __init__.py
+validator.py
+[turn 5] CALL list_files tests
+OBSERVATION: test_validator.py
+[turn 6] CALL read_file tests/test_validator.py
+OBSERVATION: from config.validator import validate_url_field
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+[turn 7] Now I have the full picture. Let me also check the `__init__.py` to see if there's anything relevant, then plan the fix.
+
+The current code:
+- `validate_url_field()` only checks presence/non-emptiness, no URL structure check.
+- `validate()` hardcodes `auth_service_url` instead of applying to all services.
+
+The fix needs to:
+1. Add URL structure validation in `validate_url_field()` — validate that the value looks like a URL (has scheme + netloc at minimum).
+2. Update `validate()` to apply URL validation for every service, not just `auth`.
+
+Let me think about what "URL structure" means for this fix. A reasonable check: the value must parse as a URL with a scheme (e.g. `http`, `https`) and a netloc. I'll use Python's `urllib.parse.urlparse` for this.
+
+For the `validate()` function, I need to understand what "every service" means in context. The current function takes a `service` parameter but ignores it. The field name pattern is `auth_service_url` → so for service `auth`, the field is `auth_service_url`. For service `billing`, it

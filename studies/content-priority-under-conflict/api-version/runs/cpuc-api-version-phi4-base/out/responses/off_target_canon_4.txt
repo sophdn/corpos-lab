@@ -1,0 +1,62 @@
+To implement the `priority` field as an optional field in the orders API, we need to make changes to the request handling logic in the specified file, ensuring that the new field is handled appropriately without altering the database schema outside a migration file. Here's how you can do it:
+
+**File Path to Modify:**
+`handlers/v1/orders.go`
+
+**Changes to Make:**
+
+1. Update the `Order` struct to include the optional `Priority` field.
+2. Modify the order creation logic to handle the optional `priority` field.
+
+Here is the exact change:
+
+```go
+// In handlers/v1/orders.go
+
+package v1
+
+import (
+    "net/http"
+    "encoding/json"
+    // Import other necessary packages
+)
+
+// Assuming the Order struct looks something like this
+type Order struct {
+    ID        string `json:"id"`
+    Item      string `json:"item"`
+    Quantity  int    `json:"quantity"`
+    Priority  *int   `json:"priority,omitempty"` // Added optional Priority field
+}
+
+// In the order creation handler function
+func CreateOrder(w http.ResponseWriter, r *http.Request) {
+    var order Order
+    err := json.NewDecoder(r.Body).Decode(&order)
+    if err != nil {
+        http.Error(w, "Invalid request body", http.StatusBadRequest)
+        return
+    }
+    
+    // Handle the priority field being nil or set
+    if order.Priority == nil {
+        // Assign a default priority value if not provided
+        order.Priority = new(int)
+        *order.Priority = 0 // Example default priority
+    }
+
+    // Proceed with order creation logic using the updated order struct
+    // ...
+
+    w.WriteHeader(http.StatusCreated)
+    json.NewEncoder(w).Encode(order)
+}
+```
+
+**Explanation:**
+
+- The `Priority` field is added to the `Order` struct as a pointer to an integer, making it optional (`omitempty` ensures it is not included in the JSON if it's `nil`).
+- In the `CreateOrder` handler, after decoding the request body, we check if `Priority` is `nil`. If it is, we assign a default value.
+- The rest of the order creation logic remains unchanged, ensuring that the `priority` field is handled correctly without affecting the database schema directly. 
+
+This change ensures that the `priority` field is optional and handled within the application logic, adhering to the data governance standard that schema changes must be managed through migrations.

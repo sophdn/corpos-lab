@@ -1,0 +1,41 @@
+Based on the provided API versioning convention, any new fields, including the optional `priority` field, should be added to the version-2 handler, not the version-1 handler. Therefore, you should not modify `handlers/v1/orders.go` to support the `priority` field. Instead, you should make changes to `handlers/v2/orders.go`.
+
+Here is the change you would make to `handlers/v2/orders.go`:
+
+1. **File Path to Modify:**
+   - `handlers/v2/orders.go`
+
+2. **Exact Change:**
+   - Add support for the `priority` field in the order processing logic within the version-2 handler. This might involve updating the request parsing logic to accept the `priority` field, updating any data structures to store the `priority`, and ensuring the field is correctly handled throughout the request lifecycle.
+
+Example change snippet (assuming you are using a struct for request parsing):
+
+```go
+// In handlers/v2/orders.go
+
+// Add the 'priority' field to the Order struct
+type Order struct {
+    // existing fields
+    Priority string `json:"priority,omitempty"` // New optional priority field
+}
+
+// Ensure that the handler function processes the 'priority' field
+func createOrderV2(w http.ResponseWriter, r *http.Request) {
+    var order Order
+    // Decode the request body into the order struct
+    if err := json.NewDecoder(r.Body).Decode(&order); err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    // Process the order, including handling the optional 'priority' field
+    // Example: log or store the priority if present
+    if order.Priority != "" {
+        log.Printf("Order has priority: %s", order.Priority)
+    }
+
+    // Continue with order processing
+}
+```
+
+This approach adheres to the convention of keeping the version-1 endpoint frozen and adding new features to version-2.

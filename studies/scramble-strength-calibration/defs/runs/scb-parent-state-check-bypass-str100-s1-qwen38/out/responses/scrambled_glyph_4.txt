@@ -1,0 +1,48 @@
+To address DEF-2026-04-1047, we need to update the `validate_url_field()` function in `config/validator.py`. The current implementation only checks for presence and non-emptiness. We must add URL structure validation to ensure that `auth_service_url` is a valid URL, causing the validator to exit with code 1 if it is malformed.
+
+### Step 1: Analyze the Defect
+*   **Ticket:** DEF-2026-04-1047
+*   **Symptom:** `config-validator --service auth` exits 0 (success) when `auth_service_url` is malformed.
+*   **Root Cause:** `validate_url_field()` in `config/validator.py` does not perform structural validation.
+*   **Goal:** Exit 1 for malformed URLs, exit 0 for valid URLs.
+
+### Step 2: Proposed Code Change
+
+We will modify `validate_url_field` in `config/validator.py` to use Python's `urllib.parse` module to check if the string is a properly formed URL.
+
+**Current Logic (Hypothetical):**
+```python
+def validate_url_field(field_name, value):
+    if not value:
+        raise ValueError(f"Field '{field_name}' is missing or empty.")
+    # No further validation
+    return True
+```
+
+**Corrected Logic:**
+```python
+import urllib.parse
+
+def validate_url_field(field_name, value):
+    if not value:
+        raise ValueError(f"Field '{field_name}' is missing or empty.")
+    
+    # Validate URL structure
+    try:
+        result = urllib.parse.urlparse(value)
+        # A valid URL for this context should have a scheme (http/https) and a netloc (host)
+        if result.scheme not in ['http', 'https']:
+            raise ValueError(f"Invalid URL scheme in '{field_name}': {result.scheme}")
+        if not result.netloc:
+            raise ValueError(f"Missing host in URL for '{field_name}'")
+    except Exception as e:
+        raise ValueError(f"Malformed URL for '{field_name}': {value}") from e
+    
+    return True
+```
+
+### Step 3: Implementation Details
+
+1.  **Import:** Ensure `urllib.parse` is imported at the top of `config/validator.py`.
+2.  **Validation Logic:**
+   

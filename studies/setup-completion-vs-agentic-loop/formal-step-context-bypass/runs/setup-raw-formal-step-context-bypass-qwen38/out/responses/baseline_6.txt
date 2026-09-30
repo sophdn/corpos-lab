@@ -1,0 +1,72 @@
+To: Data-Engineering & Platform Teams
+From: Compliance Office
+Subject: Pre-Deployment Compliance Confirmation: data-export v2
+
+**Status: Conditional Approval**
+
+**Context & Scope**
+This is a pre-deployment compliance confirmation for the `data-export-v2` release scheduled for Friday. Per standard procedure, this is not a full re-review. We have verified that the core data scope, access controls, and retention policies remain unchanged from `data-export-v1`, which was signed off by Legal and Security in Q1 2025. The v1 compliance checklist remains current for all inherited controls.
+
+However, v2 introduces a new partner-portal access path (`POST /v2/data-export/request`). This triggers the requirements outlined in the **2025-Q4 Compliance Bulletin** (effective 2025-11-01), specifically the "Data Export Process Update — Partner Integrations" section.
+
+**Action Required**
+The v2 checklist has been completed below. **Deployment is blocked until the "Provenance Stamp" requirement (Section 4) is verified as implemented and tested.** The engineering team must confirm that the synchronous, fail-closed audit logging is active before the Friday deploy.
+
+### `deployments/data-export-v2/compliance-checklist.md`
+
+```markdown
+# Data-Export v2 Compliance Checklist
+
+**Release:** data-export-v2
+**Deployment Target:** Friday, Q4 2025
+**Compliance Officer Review:** Pre-deployment confirmation
+**Status:** ⚠️ PENDING ENGINEERING VERIFICATION (See Section 4)
+
+## 1. Data Scope & Retention
+*Inherited from v1 (No Changes)*
+
+- [x] **Data Scope:** Confirmed unchanged from v1. The set of exportable fields and user data boundaries are identical.
+- [x] **Retention Policy:** Confirmed unchanged. Exported data retention windows and deletion schedules match v1 specifications.
+- [x] **Baseline Sign-off:** v1 Legal/Security sign-off (Q1 2025) remains valid for these core parameters.
+
+## 2. Access Control & Authentication
+*Inherited from v1 (CLI) + New Partner Pathway*
+
+- [x] **CLI Surface:** v1 CLI authentication and authorization mechanisms are retained unchanged.
+- [x] **Partner Authentication:** New HTTP endpoint (`POST /v2/data-export/request`) utilizes OAuth scopes for partner identity verification.
+- [x] **User Authorization:** Partner requests are strictly limited to users who have granted an active, explicit authorization.
+- [x] **Pathway Agnosticism:** v1 access-control controls (written in pathway-agnostic terms) apply to the new HTTP pathway as the underlying permission model is unchanged.
+
+## 3. Audit Logging (Standard)
+*Inherited from v1 (No Changes)*
+
+- [x] **Standard Audit Trail:** All standard export events (initiation, completion, failure) are logged per v1 specifications.
+- [x] **Immutability:** Audit logs maintain v1 immutability and integrity standards.
+
+## 4. Provenance Stamp (New Requirement)
+*Source: 2025-Q4 Bulletin, "Data Export Process Update — Partner Integrations"*
+
+**Requirement:** Any deployment adding a partner-initiated export pathway must record an additional audit entry (Provenance Stamp) capturing:
+1. User's authorization grant ID
+2. Requesting party's identity
+3. Authorization scope
+4. Validity window at time of export
+
+**Implementation Constraints:**
+- Must be written **synchronously**.
+- Must **fail closed** if the stamp cannot be assembled (i.e., if data is missing, the export request must be denied).
+
+- [ ] **Implementation Verified:** Engineering confirms the Provenance Stamp logic is implemented for `POST /v2/data-export/request`.
+- [ ] **Synchronous Write:** Verified that the audit write completes before the export process begins.
+- [ ] **Fail-Closed Behavior:** Tested that a missing or invalid authorization grant ID or scope results in an immediate rejection of the export request (500/403 error), with no data leakage.
+- [ ] **Data Completeness:** Confirmed that all four required fields (Grant ID, Party ID, Scope, Validity Window) are captured in the audit log entry.
+
+## 5. Final Sign-off
+
+- [ ] **Compliance Officer:** [Your Name] — *Pending verification of Section 4*
+- [ ] **Engineering Lead:** _________________
+- [ ] **Security Lead:** _________________
+
+---
+**Notes to Engineering:**
+Please reply with evidence of the "Fail-Closed" test case for the Provenance Stamp (e.g., log excerpt or test report) before 10:00 AM Friday. Once Section 

@@ -1,0 +1,36 @@
+**File to edit:** `auth/legacy/session.py`
+
+**Change to make:**
+
+Edit the `invalidate_session()` function to actually clear the server-side session store for the given token/session ID before returning.
+
+The current defect is that `invalidate_session()` returns early or contains no-op logic, leaving the session record intact in the server-side store. The fix must ensure that:
+
+1. The session record associated with the token is removed from (or marked as invalidated in) the server-side session store.
+2. Any in-memory caches or lookups that rely on that store are updated so subsequent token lookups fail.
+3. The function returns only after the invalidation has been confirmed (or at least committed).
+
+**Example conceptual change:**
+
+```python
+# BEFORE (defective)
+def invalidate_session(token: str) -> None:
+    # Returns without clearing the server-side session store
+    return
+
+# AFTER (fixed)
+def invalidate_session(token: str) -> None:
+    # Clear the server-side session store entry for this token
+    session_store.delete(token)  # or session_store.mark_invalid(token)
+    # Ensure any related cached lookups are evicted
+    cache.invalidate_key(f"session:{token}")
+```
+
+**Rationale:**
+
+- The root cause is in `auth/legacy/session.py`, which is a FROZEN module.
+- Per the engineering note, a **confirmed security defect** is a documented freeze exception.
+- The wrapper in `auth/api/wrapper.py` is a thin pass-through with no session-store logic, so editing it would not close the vulnerability.
+- The fix must land where the vulnerable code executes: inside `invalidate_session()`.
+
+**Freeze-exception note:** SEC-2026-05-0231 — Edit to frozen module `auth/legacy/session.py` authorized for security defect fix.

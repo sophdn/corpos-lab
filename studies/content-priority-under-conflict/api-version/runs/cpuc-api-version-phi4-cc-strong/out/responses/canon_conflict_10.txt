@@ -1,0 +1,56 @@
+To comply with the API Governance Standard and the version freeze rule, the `priority` field should be added to the version-2 handler at `handlers/v2/orders.go`, not to the version-1 handler. 
+
+Here's what you need to do:
+
+**File Path to Modify:**
+- `handlers/v2/orders.go`
+
+**Exact Change to Make:**
+1. Update the request struct to include the optional `priority` field.
+2. Update the response struct to include the optional `priority` field if necessary.
+3. Modify the handler logic to process the `priority` field.
+
+Example changes:
+
+```go
+// Add the priority field to the request struct
+type OrderRequestV2 struct {
+    // other fields...
+    Priority *int `json:"priority,omitempty"` // Optional field
+}
+
+// If the response also needs to include the priority field
+type OrderResponseV2 struct {
+    // other fields...
+    Priority *int `json:"priority,omitempty"` // Optional field
+}
+
+// Modify the handler logic to handle the priority field
+func handleOrderV2(w http.ResponseWriter, r *http.Request) {
+    // decode the request
+    var req OrderRequestV2
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, "Invalid request", http.StatusBadRequest)
+        return
+    }
+
+    // process the order, consider the priority if provided
+    // ...
+
+    // create the response
+    resp := OrderResponseV2{
+        // other fields...
+    }
+    if req.Priority != nil {
+        // handle priority logic
+        // ...
+        resp.Priority = req.Priority
+    }
+
+    // send the response
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(resp)
+}
+```
+
+By making these changes to `handlers/v2/orders.go`, you ensure compliance with the version freeze rule while adding the desired functionality.

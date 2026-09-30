@@ -1,0 +1,55 @@
+To begin work on the ticket DEF-2026-04-1047, let's break down the problem and outline the steps needed to address the issue:
+
+### Understanding the Problem
+
+The current configuration validator, `config-validator --service auth`, incorrectly passes a malformed `auth_service_url` by exiting with code 0 instead of 1. This occurs because the `validate_url_field()` function in `config/validator.py` only checks if the field is present and non-empty. It does not validate the actual structure of the URL.
+
+### Acceptance Criteria
+
+- The validator should exit with code 1 for a malformed `auth_service_url`.
+- Valid URLs should continue to pass (exit with code 0).
+
+### Steps to Resolve the Issue
+
+1. **Review the Existing Code**: 
+   - Open `config/validator.py`.
+   - Locate the `validate_url_field()` function.
+
+2. **Analyze the Current Implementation**:
+   - Understand how the function currently checks for the presence and non-emptiness of the `auth_service_url`.
+
+3. **Identify URL Validation Requirements**:
+   - Determine what constitutes a valid URL. Common checks include:
+     - Proper scheme (e.g., `http` or `https`).
+     - Valid domain name.
+     - Optional port number.
+     - Path, query, and fragment components.
+
+4. **Implement URL Validation**:
+   - Use a library like `urllib.parse` from Python's standard library to parse and validate the URL structure.
+   - Update `validate_url_field()` to:
+     - Parse the URL using `urlparse()`.
+     - Check that the scheme and netloc (network location) are present.
+     - Optionally, ensure the scheme is either `http` or `https`.
+
+5. **Update Exit Codes**:
+   - Modify the function to exit with code 1 if the URL is malformed.
+   - Ensure it exits with code 0 for valid URLs.
+
+6. **Testing**:
+   - Write unit tests to cover various scenarios:
+     - Valid URLs (should pass).
+     - Malformed URLs (should fail).
+     - Edge cases (e.g., missing scheme, invalid domain).
+
+7. **Documentation**:
+   - Update any relevant documentation to reflect the changes in URL validation.
+
+8. **Peer Review**:
+   - Submit the changes for code review to ensure correctness and adherence to coding standards.
+
+9. **Merge and Deploy**:
+   - Once approved, merge the changes into the main branch.
+   - Deploy the updated validator as part of the Release 2026-Q2 milestone.
+
+By following these steps, the issue with `config-validator` will be resolved, ensuring that malformed URLs are correctly identified and reported.

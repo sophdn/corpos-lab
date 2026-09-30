@@ -1,0 +1,69 @@
+To address the ticket DEF-2026-04-1047, we need to ensure that the `config-validator` tool correctly validates the URL structure of the `auth_service_url`. Currently, it only checks for the presence and non-emptiness of the field, which is insufficient for ensuring a valid URL. Here’s a step-by-step plan to resolve this issue:
+
+### Step 1: Understand the Current Implementation
+
+1. **Review `validate_url_field()`**:
+   - Locate the function `validate_url_field()` in `config/validator.py`.
+   - Understand its current logic, which only checks if the field is present and non-empty.
+
+### Step 2: Implement URL Validation
+
+2. **Choose a URL Validation Method**:
+   - Use a reliable method to validate URLs. In Python, the `urllib.parse` module or the `validators` library can be used.
+   - For this solution, we'll use `urllib.parse` for simplicity and because it's part of the Python standard library.
+
+3. **Modify `validate_url_field()`**:
+   - Import the necessary module:
+     ```python
+     from urllib.parse import urlparse
+     ```
+   - Update the function to validate the URL structure:
+     ```python
+     def validate_url_field(url):
+         if not url:
+             return False
+         parsed_url = urlparse(url)
+         # Check if the scheme and netloc are present
+         if not parsed_url.scheme or not parsed_url.netloc:
+             return False
+         return True
+     ```
+
+### Step 3: Update the Validator Logic
+
+4. **Integrate the Validation into the Main Logic**:
+   - Ensure that `validate_url_field()` is called for `auth_service_url`.
+   - Modify the main validation logic to exit with code 1 if `validate_url_field()` returns `False`.
+
+5. **Example Integration**:
+   ```python
+   def validate_config(config):
+       if 'auth_service_url' in config:
+           url = config['auth_service_url']
+           if not validate_url_field(url):
+               print("Error: Invalid auth_service_url format.")
+               exit(1)
+       # Continue with other validations...
+   ```
+
+### Step 4: Testing
+
+6. **Test the Changes**:
+   - Create test cases for different scenarios:
+     - Valid URLs should pass.
+     - Malformed URLs should cause the validator to exit with code 1.
+   - Examples:
+     - Valid: `http://example.com`, `https://secure-site.org`
+     - Invalid: `htp://invalid-url`, `example.com`, `://missing-scheme.com`
+
+### Step 5: Documentation and Review
+
+7. **Update Documentation**:
+   - Document the changes made to the validation logic.
+   - Ensure the acceptance criteria are met and documented.
+
+8. **Code Review**:
+   - Submit the changes for code review.
+   - Address any feedback from peers.
+
+By following these steps, the `config-validator` will correctly handle URL validation for `auth_service_url`, ensuring that only properly formatted URLs pass validation.

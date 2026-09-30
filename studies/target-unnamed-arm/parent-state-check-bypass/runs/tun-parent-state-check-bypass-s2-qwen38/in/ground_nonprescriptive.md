@@ -1,0 +1,3 @@
+The current state of the `sales_curated` dataset — its latest successful upstream load, its partition watermark, and any backfills or schema changes applied since the last run — is recorded in the dataset's load manifest. Whether the `weekly-revenue` report for the week ending 2026-09-13 reads complete and current data rests on that dataset state.
+
+That state is known for this run only once the load manifest has been read this run. Running the report job without reading the manifest this run proceeds on an assumed dataset state, not the verified current one — a lagging watermark or an in-flight backfill would not be caught, and the report would be built on incomplete data.

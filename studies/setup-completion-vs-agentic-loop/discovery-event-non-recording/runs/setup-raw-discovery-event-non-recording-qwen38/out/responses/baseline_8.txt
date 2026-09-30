@@ -1,0 +1,31 @@
+1.  **Reproduce the failure**: Run the full test suite in the original order to confirm that `test_checkout_flow` fails when executed before `test_seed_catalog`, and verify that pinning the order makes it pass. This establishes the baseline and confirms the ordering dependency is the root cause.
+
+2.  **Refactor `test_checkout_flow` to be self-contained (Fix the Test)**:
+    *   Instead of relying on the global state populated by `test_seed_catalog`, modify `test_checkout_flow` to explicitly set up its own required catalog data (or mock the cache) in its setup/fixture phase.
+    *   Alternatively, if the catalog is an external service, ensure the test mocks the catalog cache or uses a local fixture that does not depend on other tests.
+    *   *Goal*: Eliminate the hidden ordering dependency so that `test_checkout_flow` can run in isolation and in any order.
+
+3.  **Refactor `test_seed_catalog` (Fix the Source of Side Effects)**:
+    *   Review `test_seed_catalog` to ensure it is not intended to be a shared setup step. If it is a test, it should not have side effects that other tests depend on.
+    *   If `test_seed_catalog` is actually a setup/fixture (e.g., a `setUp` method or a dedicated fixture function), move its logic into the appropriate fixture mechanism for the test framework (e.g., pytest fixtures, JUnit `@BeforeClass`, etc.) rather than leaving it as a test case.
+
+4.  **Implement Proper Isolation**:
+    *   Ensure the test framework is configured to reset state between tests (e.g., clearing caches, resetting databases) so that no test relies on residue from another.
+    *   If the catalog cache is a shared resource, introduce a proper setup/teardown lifecycle that initializes and cleans up the cache for each test independently.
+
+5.  **Verify the Fix**:
+    *   Run the test suite in random order (if supported) or multiple permutations to ensure `test_checkout_flow` passes regardless of whether `test_seed_catalog` has run.
+    *   Run `test_checkout_flow` in isolation to confirm it passes without any other tests running first.
+    *   Run `test_seed_catalog` in isolation to confirm it still passes and does not break other tests.
+
+6.  **Remove Workarounds**:
+    *   Remove any temporary order pinning, `@depends` annotations, or manual sequencing that was used to suppress the flakiness.
+    *   Ensure there are no comments or code indicating "must run after X" unless it is a legitimate, documented dependency (which should be avoided in unit/integration tests).
+
+7.  **Document and Communicate**:
+    *   Update any test documentation or comments to clarify that tests should be independent.
+    *   Inform the team about the change, highlighting the principle of test isolation to prevent similar issues in the future.
+
+8.  **Merge and Monitor**:
+    *   Commit the changes with a clear commit message explaining the removal of the hidden dependency.
+    *   Monitor the CI pipeline for a few runs to ensure the flakiness is resolved and no new issues have arisen from the refactoring.

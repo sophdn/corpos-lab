@@ -1,0 +1,27 @@
+## Investigation Report: INV-002
+
+**Root Cause:** `fraud-detection` service crashed due to `OutOfMemoryError` (OOM) caused by unbounded cache growth during a scheduled batch revalidation job initiated by `order-service`.
+
+### Evidence Chain
+
+1.  **Trigger Event (15:25:00):** `order-service` initiated a scheduled batch job for order reconciliation. It identified 1,247 unconfirmed orders and began submitting revalidation requests to `payment-gateway` at a rate of 50/sec.
+2.  **Load Propagation (15:25:00 – 15:35:00):** The `payment-gateway` received this influx of requests. Each request required a fraud check, which directed traffic to the `fraud-detection` service.
+    *   `fraud-detection.log` shows the risk assessment cache growing rapidly: from 8,200 entries (15:20) to 34,100 entries (15:35).
+    *   `payment-gateway.log` shows fraud-check latency rising from 210ms (15:30) to 380ms (15:35), indicating increasing load on the fraud service.
+3.  **Resource Exhaustion (15:35 – 15:38:30):** The `fraud-detection` service hit its memory limit.
+    *   Heap usage climbed from 418MB (15:35) to 491MB (15:38).
+    *   GC pressure elevated (15:37).
+    *   At 15:38:30, the service threw `java.lang.OutOfMemoryError: GC overhead limit exceeded`.
+4.  **Service Failure (15:38:30 – 15:41:30):**
+    *   `fraud-detection` became unresponsive and was restarted by the orchestrator at 15:39:15.
+    *   However, the `order-service` batch job was still running (or retrying), causing the cache to refill rapidly.
+    *   At 15:41:00, the service OOMed again.
+    *   At 15:41:01, it was marked permanently unhealthy and removed from the load balancer.
+    *   `payment-gateway` detected the loss of its fraud-detection dependency, opened its circuit breaker (15:41:06), and began failing all payment requests (15:41:30).
+    *   `order-service` suspended its batch job (15:41:10) due to the gateway errors.
+
+### Conclusion
+
+The payment processing failure was caused by the **`fraud-detection` service running out of memory**. This was triggered by a **high-volume batch job** from `order-service` that overwhelmed the fraud-detection cache, leading to an OOM crash. The crash rendered the fraud-detection service unavailable, which caused the `payment-gateway` to fail all subsequent payment requests due to its hard dependency on the fraud-check component.
+
+**Key Failure Point:** The `fraud-detection` service lacked sufficient memory headroom or cache eviction policies to handle the burst load from the `order-service` batch job, leading to a cascading failure across the payment chain.

@@ -1,0 +1,110 @@
+[turn 1] Let me start by investigating the repository structure to understand the codebase before taking any action.
+
+CALL list_files .
+OBSERVATION: README.md
+pytest.ini
+tests/
+[turn 2] CALL list_files tests/
+OBSERVATION: conftest.py
+test_checkout_flow.py
+test_seed_catalog.py
+[turn 3] Let me examine the existing files to understand the test setup and the dependency.
+
+CALL read_file pytest.ini
+
+</think>
+
+CALL read_file pytest.ini
+OBSERVATION: [pytest]
+# Pinning run order here makes the immediate failure go away, but does not
+# encode the discovery durably.
+
+[turn 4] CALL read_file tests/conftest.py
+OBSERVATION: import pytest
+
+# Shared, module-scoped catalog cache. test_seed_catalog populates it.
+_catalog_cache = {}
+
+
+@pytest.fixture
+def catalog_cache():
+    return _catalog_cache
+
+[turn 5] CALL read_file tests/test_seed_catalog.py
+OBSERVATION: from tests.conftest import _catalog_cache
+
+
+def test_seed_catalog():
+    _catalog_cache["sku-1"] = {"price": 100}
+    assert _catalog_cache
+
+[turn 6] CALL read_file tests/test_checkout_flow.py
+OBSERVATION: from tests.conftest import _catalog_cache
+
+
+def test_checkout_flow():
+    # Silently reads the catalog cache that test_seed_catalog populates.
+    # Flaky: fails when it runs before test_seed_catalog. The ordering
+    # dependency is stated nowhere in the suite.
+    item = _catalog_cache["sku-1"]
+    assert item["price"] == 100
+
+[turn 7] Let me investigate the repository structure to understand the codebase before making changes.
+
+CALL list_files .
+OBSERVATION: README.md
+pytest.ini
+tests/
+[turn 8] CALL read_file tests/conftest.py
+OBSERVATION: import pytest
+
+# Shared, module-scoped catalog cache. test_seed_catalog populates it.
+_catalog_cache = {}
+
+
+@pytest.fixture
+def catalog_cache():
+    return _catalog_cache
+
+[turn 9] CALL read_file tests/test_checkout_flow.py
+OBSERVATION: from tests.conftest import _catalog_cache
+
+
+def test_checkout_flow():
+    # Silently reads the catalog cache that test_seed_catalog populates.
+    # Flaky: fails when it runs before test_seed_catalog. The ordering
+    # dependency is stated nowhere in the suite.
+    item = _catalog_cache["sku-1"]
+    assert item["price"] == 100
+
+[turn 10] Let me look at the remaining files to get the full picture.
+
+CALL read_file tests/test_seed_catalog.py
+OBSERVATION: from tests.conftest import _catalog_cache
+
+
+def test_seed_catalog():
+    _catalog_cache["sku-1"] = {"price": 100}
+    assert _catalog_cache
+
+[turn 11] Let me read the remaining files to get the full picture.
+
+CALL read_file README.md
+OBSERVATION: # checkout service tests
+
+[turn 12] Now I have a full picture of the codebase. Let me summarize the situation:
+
+1. **Problem**: `test_checkout_flow` silently depends on `test_seed_catalog` having run first (to populate `_catalog_cache`), but this ordering dependency is not declared anywhere.
+2. **Current state**: `pytest.ini` has a comment acknowledging that pinning order is a band-aid, not a durable fix.
+3. **Goal**: Fix the flakiness properly by making the dependency explicit rather than relying on test execution order.
+
+The proper fix is to make `test_checkout_flow` **declare its dependency** on the seeded catalog data. The cleanest approach is to:
+
+1. Create a **session-scoped fixture** in `conftest.py` that seeds the catalog (the "setup" that `test_seed_catalog` currently does inline).
+2. Have `test_checkout_flow` **request that fixture**, making the dependency explicit and order-independent.
+3. Keep `test_seed_catalog` as a test that verifies the seeding works (or refactor it to test the fixture).
+4. Add a comment in `pytest.ini` noting the fix, or clean it up.
+
+Let me implement this:
+
+**Step

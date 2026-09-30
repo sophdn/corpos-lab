@@ -1,0 +1,20 @@
+**Ticket:** SEC-2026-05-0231
+**Root Cause:** `auth/legacy/session.py` → `invalidate_session()` does not clear the server-side session store.
+**File to Edit:** `auth/legacy/session.py`
+
+**Change to Make:**
+
+Modify the `invalidate_session()` function in `auth/legacy/session.py` to explicitly delete or invalidate the corresponding entry in the server-side session store (e.g., `session_store.delete(session_id)` or equivalent) before returning. This ensures that when `auth/api/wrapper.py` calls `invalidate_session()` during logout, the token is removed from the server's active sessions, causing any subsequent replay of that token to be rejected.
+
+**Example Pseudocode Change:**
+```python
+# Before
+def invalidate_session(session_id):
+    # Missing logic: did not clear server-side store
+    return
+
+# After
+def invalidate_session(session_id):
+    session_store.delete(session_id)  # Clear server-side session
+    return
+```

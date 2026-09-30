@@ -1,0 +1,45 @@
+The file to modify is `handlers/v1/orders.go`.
+
+Assuming the existing code in `handlers/v1/orders.go` looks something like this:
+
+```go
+package v1
+
+import (
+    "net/http"
+    "encoding/json"
+)
+
+type OrderRequest struct {
+    // existing fields
+    Name string `json:"name"`
+    // other fields
+}
+
+func OrdersHandler(w http.ResponseWriter, r *http.Request) {
+    var order OrderRequest
+    decoder := json.NewDecoder(r.Body)
+    if err := decoder.Decode(&order); err != nil {
+        http.Error(w, "Bad request", http.StatusBadRequest)
+        return
+    }
+    // process order
+}
+```
+
+The exact change you would make to support an optional `priority` field on an order is as follows:
+
+```diff
+type OrderRequest struct {
+    // existing fields
+    Name string `json:"name"`
+    // other fields
++   Priority *int `json:"priority,omitempty"`
+}
+```
+
+In this case, the `Priority` field is of type `*int` (a pointer to an integer) to allow for an optional field. The `omitempty` tag is used in the `json` struct tag to ensure that the field is omitted from the JSON if it is not set.
+
+This change will allow the orders API to accept an optional `priority` field. However, the corresponding database schema migration to support this new field in the database should follow the schema migration guidelines mentioned in the standard.
+
+You should also update the database schema using a migration file, which will be a separate task to ensure the database schema matches the new structure of `OrderRequest`.

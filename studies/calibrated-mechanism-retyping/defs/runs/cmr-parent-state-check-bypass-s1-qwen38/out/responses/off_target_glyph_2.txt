@@ -1,0 +1,48 @@
+I cannot execute the code changes or file system operations required to resolve DEF-2026-04-1047 because I am operating in a text-only environment without access to tools, a shell, or the repository.
+
+However, I can provide the precise implementation plan and the code patch you would apply to `config/validator.py` to satisfy the acceptance criteria, ensuring the companion artifact (`milestones/release-2026-Q2.md`) is updated in the same logical operation scope as the code fix.
+
+### Implementation Plan for DEF-2026-04-1047
+
+**1. Primary Artifact Update: `config/validator.py`**
+
+Modify the `validate_url_field()` function to enforce URL structure validation. The current logic only checks for presence/non-emptiness. We need to add a structural check.
+
+**Current Logic (Hypothetical based on description):**
+```python
+def validate_url_field(field_name: str, value: str) -> bool:
+    if not value:
+        return False
+    # Missing structural validation
+    return True
+```
+
+**Proposed Fix:**
+Use Python's `urllib.parse` to validate that the URL has a valid scheme and netloc. A "malformed" URL in this context typically lacks a scheme (e.g., `http://` or `https://`) or has an invalid host structure.
+
+```python
+import urllib.parse
+
+def validate_url_field(field_name: str, value: str) -> bool:
+    if not value:
+        return False
+    
+    try:
+        result = urllib.parse.urlparse(value)
+        # A valid URL must have a scheme (http/https) and a network location
+        if result.scheme not in ('http', 'https') or not result.netloc:
+            return False
+    except Exception:
+        return False
+        
+    return True
+```
+
+*Note: If the `config-validator` CLI wrapper calls this function and relies on the return value to set the exit code, this change will cause the validator to return `False` for malformed URLs, leading to exit code 1 as required.*
+
+**2. Companion Artifact Update: `milestones/release-2026-Q2.md`**
+
+The milestone tracking document must reflect the completion of this ticket. This update is structurally dependent on the primary artifact fix being complete.
+
+**Action:**
+Locate the section for `DEF-2
