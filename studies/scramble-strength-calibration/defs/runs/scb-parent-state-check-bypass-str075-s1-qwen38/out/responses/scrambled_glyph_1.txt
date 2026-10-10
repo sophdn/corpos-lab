@@ -1,0 +1,24 @@
+To begin work on **DEF-2026-04-1047**, I acknowledge the ticket details and the root cause identified in `config/validator.py`.
+
+**Ticket:** DEF-2026-04-1047
+**Milestone:** Release 2026-Q2
+**Issue:** `config-validator --service auth` exits with code `0` (success) when `auth_service_url` is malformed. It should exit with code `1` (failure).
+**Root Cause:** The function `validate_url_field()` in `config/validator.py` currently only checks for the presence and non-emptiness of the field. It does not validate the structural integrity of the URL.
+**Acceptance Criteria:**
+1. The validator must exit with status code `1` if `auth_service_url` is malformed.
+2. The validator must continue to exit with status code `0` (or success) if `auth_service_url` is valid.
+
+**Proposed Implementation Strategy:**
+
+1.  **Locate `config/validator.py`**: Open the file where `validate_url_field()` is defined.
+2.  **Modify `validate_url_field()`**:
+    *   Retain the existing check for presence and non-emptiness.
+    *   Add a URL structure validation step. This can be achieved using Python's `urllib.parse` module (e.g., checking for a valid scheme and netloc) or a regex pattern appropriate for the expected URL format.
+    *   If the URL is malformed, the function should signal an error (e.g., by raising a specific exception, returning `False`, or setting an error state) that propagates to the main exit logic.
+3.  **Update Exit Logic**: Ensure that the main entry point of the validator interprets the failure from `validate_url_field()` as a reason to exit with code `1`.
+4.  **Testing**:
+    *   Test with a malformed URL (e.g., `"not a url"`, `"http://"`, `"htp://example.com"` without proper scheme) to verify exit code `1`.
+    *   Test with a valid URL (e.g., `"https://auth.example.com"`) to verify exit code `0`.
+
+**Next Step:**
+Please provide the current content of `config/validator.py` (specifically the `validate_url_field()` function and the main exit logic)

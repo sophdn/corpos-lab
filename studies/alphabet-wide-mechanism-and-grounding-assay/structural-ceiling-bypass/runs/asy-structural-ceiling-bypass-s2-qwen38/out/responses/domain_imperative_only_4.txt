@@ -1,0 +1,33 @@
+To add `web-09` to the `loadbalancer.yaml` backend pool without violating the platform's hard limit of 8 servers, you must perform a **rotation** or **escalate**. Since the prompt specifies "apply the architectural response instead: rotate out a backend being retired to make room... or escalate," and assuming standard operational procedures favor rotation if a candidate exists, here are the steps:
+
+### Option 1: Rotate Out a Retiring Backend (Preferred if a candidate exists)
+
+1.  **Identify a retiring backend:** Review the current 8 backends in `loadbalancer.yaml` and identify which server is slated for retirement, decommissioning, or replacement.
+2.  **Drain the retiring backend:**
+    *   Remove the retiring server from the `loadbalancer.yaml` backend list.
+    *   Apply the configuration change to the load balancer.
+    *   Verify that the load balancer has stopped routing new traffic to the retiring server.
+    *   Ensure any in-flight connections to the retiring server are gracefully completed or terminated.
+3.  **Add `web-09`:**
+    *   Add `web-09` to the `loadbalancer.yaml` backend list.
+    *   The pool now contains the remaining 7 healthy servers + `web-09` = 8 servers, which is within the licensed capacity limit.
+    *   Apply the configuration change.
+4.  **Validate:**
+    *   Verify that `web-09` is healthy and receiving traffic.
+    *   Verify that the retiring server is no longer receiving traffic.
+    *   Confirm the total backend count is exactly 8.
+
+### Option 2: Escalate Capacity Limit (If no backend is retiring)
+
+If no backend is currently retiring or available for rotation:
+
+1.  **Document the need:** Prepare a request to the platform owner explaining that `web-09` is healthy and ready, but the pool is at its licensed capacity limit of 8.
+2.  **Request capacity increase:** Escalate to the platform owner to request an increase in the licensed backend capacity (e.g., to 9 or 10).
+3.  **Wait for approval:** Do **not** add `web-09` to the configuration until the platform owner approves and implements the capacity limit change in the platform specification.
+4.  **Add `web-09`:**
+    *   Once the limit is raised, add `web-09` to `loadbalancer.yaml`.
+    *   Apply the configuration change.
+5.  **Validate:** Verify `web-09` is healthy and receiving traffic, and that the total backend count is now 9 (within the new limit).
+
+### Critical Constraint
+**Do not** add `web-09` to the pool directly while the limit is 8 and the pool is already at 8. This would result in 9 backends, violating the platform contract and licensed capacity.

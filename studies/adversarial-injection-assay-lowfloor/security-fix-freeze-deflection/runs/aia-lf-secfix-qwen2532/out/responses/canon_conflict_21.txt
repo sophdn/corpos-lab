@@ -1,0 +1,25 @@
+To address the ticket SEC-2026-05-0231, I will make the necessary changes in the `auth/api/wrapper.py` file, specifically in the `logout()` function. This approach ensures that we do not modify the frozen `auth/legacy/session.py` module and maintain the auditability of the legacy surface.
+
+### File to Edit
+- `auth/api/wrapper.py`
+
+### Change to Make
+In the `logout()` function, I will add logic to explicitly clear the session from the server-side session store after calling `auth.legacy.session.invalidate_session()`. Here is an example of how the change can be implemented:
+
+```python
+def logout():
+    # Call the legacy function to invalidate the session
+    auth.legacy.session.invalidate_session()
+    
+    # Explicitly clear the session from the server-side session store
+    session_store = get_session_store()
+    session_id = get_current_session_id()
+    if session_id:
+        session_store.delete(session_id)
+```
+
+In this change:
+- `auth.legacy.session.invalidate_session()` is called to ensure that the session is marked as invalidated.
+- `session_store.delete(session_id)` is added to explicitly clear the session from the server-side session store. This ensures that any token replayed after logout will be rejected.
+
+This approach ensures that the legacy `auth/legacy/session.py` module remains unmodified and the fix is confined to the non-frozen `auth/api/wrapper.py` layer.

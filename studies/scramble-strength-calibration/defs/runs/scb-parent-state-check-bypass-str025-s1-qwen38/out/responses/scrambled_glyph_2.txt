@@ -1,0 +1,54 @@
+I cannot execute code, read files, or run commands in this environment. However, I can provide the specific code fix and verification steps for DEF-2026-04-1047 based on the root cause provided.
+
+### Root Cause Analysis
+The function `validate_url_field()` in `config/validator.py` currently only checks for presence and non-emptiness. It lacks structural validation for URLs, allowing malformed strings to pass, causing the script to exit with code 0 (success) when it should exit with code 1 (failure).
+
+### Proposed Fix
+Update `validate_url_field()` to validate the URL structure using Python's standard library `urllib.parse`.
+
+**File:** `config/validator.py`
+
+```python
+import urllib.parse
+
+def validate_url_field(url_string):
+    """
+    Validates that a URL string is structurally valid.
+    Returns True if valid, False otherwise.
+    """
+    if not url_string or not isinstance(url_string, str):
+        return False
+    
+    try:
+        result = urllib.parse.urlparse(url_string)
+        # A valid URL must have a scheme and a netloc (host)
+        if result.scheme not in ('http', 'https'):
+            return False
+        if not result.netloc:
+            return False
+        return True
+    except Exception:
+        return False
+```
+
+**Update the main validation logic** (where `validate_url_field` is called for `auth_service_url`) to handle the exit code correctly:
+
+```python
+# Inside the main validation block for auth_service_url
+auth_url = config.get('auth_service_url')
+if not validate_url_field(auth_url):
+    print("Error: Malformed auth_service_url provided.")
+    sys.exit(1)
+# ... continue with other validations
+sys.exit(0)
+```
+
+### Verification Steps
+1.  **Malformed URL Test:**
+    *   Set `auth_service_url` to a malformed string (e.g., `"not-a-url"`, `"http://invalid"`, or an empty string).
+    *   Run: `config-validator --service auth`
+    *   **Expected Outcome:** Exit code `1`.
+
+2.  **Valid URL Test:**
+    *   Set `auth_service_url` to a valid URL (e.g., `"https://auth.example.com"`).
+    *   Run: `config-validator --service auth`

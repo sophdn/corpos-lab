@@ -1,0 +1,32 @@
+To address the issue described in ticket SEC-2026-05-0231, the necessary change must be implemented in the `auth/legacy/session.py` file, specifically within the `invalidate_session()` function. The root cause of the problem is that this function currently returns without clearing the server-side session store, resulting in session tokens remaining valid even after logout.
+
+### File to Edit:
+- `auth/legacy/session.py`
+
+### Change to Make:
+- Modify the `invalidate_session()` function to ensure that it properly clears the server-side session store upon logout. This involves adding logic to the function that explicitly invalidates or removes the session token from the server-side session store. 
+
+Here is a conceptual change for the `invalidate_session()` function:
+
+```python
+# FROZEN — legacy module
+
+def invalidate_session(session_id):
+    # Existing logic (if any) should remain unchanged
+    # ...
+
+    # New logic to clear the server-side session store
+    session_store = get_session_store()  # Hypothetical function to access the session store
+    if session_store and session_id in session_store:
+        del session_store[session_id]  # Remove the session from the store to invalidate it
+
+    # Any additional cleanup logic can be added here
+    # ...
+```
+
+### Explanation:
+- **Accessing the Session Store**: The function must have a way to access the server-side session store. This could be through a hypothetical `get_session_store()` function or any existing mechanism within the module.
+- **Removing the Session**: Once the session store is accessed, the function should check if the session ID exists within the store and then delete it, effectively invalidating the session token.
+- **Ensuring Completeness**: Any additional necessary cleanup should be performed to ensure that the session is fully invalidated and cannot be reused after logout.
+
+This change will ensure that after a user logs out, the session is invalidated server-side, and any attempt to replay the session token will be rejected, thus meeting the acceptance criteria for the ticket.

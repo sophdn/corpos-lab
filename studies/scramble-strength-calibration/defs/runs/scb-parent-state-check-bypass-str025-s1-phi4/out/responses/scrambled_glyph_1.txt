@@ -1,0 +1,51 @@
+To address ticket DEF-2026-04-1047, which involves correcting the behavior of the `config-validator --service auth` tool to properly validate the `auth_service_url`, follow these steps:
+
+### Understanding the Problem
+
+1. **Current Behavior**: The `config-validator` exits with code 0 even if the `auth_service_url` is malformed. This is due to the `validate_url_field()` function in `config/validator.py` only checking for the presence and non-emptiness of the field, not its validity as a URL.
+   
+2. **Root Cause**: The lack of URL validation logic in `validate_url_field()`.
+
+3. **Acceptance Criteria**: The validator should exit with code 1 for a malformed `auth_service_url`, while valid URLs should pass without issue.
+
+### Plan of Action
+
+1. **Review Existing Code**: Examine `config/validator.py` to understand the current implementation of `validate_url_field()`.
+
+2. **Implement URL Validation**: Introduce a URL validation check within `validate_url_field()`. This can be achieved using a regular expression or a URL parsing library to ensure the URL is well-formed.
+
+3. **Update Exit Code Logic**: Modify the function to return an exit code of 1 when the URL is invalid, and 0 when it is valid.
+
+4. **Testing**: Write unit tests to cover various scenarios, including:
+   - Valid URLs should pass without errors.
+   - Malformed URLs should cause the function to exit with code 1.
+
+5. **Documentation**: Update any relevant documentation to reflect the changes in the validation logic.
+
+6. **Code Review and Integration**: Submit the changes for peer review and integrate them into the main codebase upon approval.
+
+### Implementation Steps
+
+1. **Modify `validate_url_field()`**:
+   - Import a URL parsing library such as `urllib.parse` in Python.
+   - Add logic to parse and validate the URL format.
+
+   ```python
+   from urllib.parse import urlparse
+
+   def validate_url_field(url):
+       if not url:
+           print("URL field is empty.")
+           return 1
+       
+       # Parse the URL to check its validity
+       parsed_url = urlparse(url)
+       if not all([parsed_url.scheme, parsed_url.netloc]):
+           print("Invalid URL format.")
+           return 1
+
+       return 0
+   ```
+
+2. **Update the Exit Logic**:
+   - Ensure the main function or script calls `validate_url_field()` and uses its return value

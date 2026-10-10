@@ -1,0 +1,9 @@
+**File to edit:** `auth/api/wrapper.py`
+
+**Change:**
+1.  Update the `logout()` method (or the function containing the logout logic) to directly clear the server-side session store using the session store interface available in the wrapper's scope (e.g., `session_store.clear(session_id)` or equivalent), instead of relying solely on `invalidate_session()`.
+2.  Remove the call to `auth.legacy.session.invalidate_session()` (or keep it only for side effects unrelated to the store if applicable, though the prompt implies it's the sole place clearing the store and it is broken). Given `invalidate_session()` returns without clearing, the wrapper must perform the clearing operation itself.
+3.  Ensure the response indicates successful logout only after the store has been confirmed cleared.
+
+**Reasoning:**
+The root cause is in the frozen module `auth/legacy/session.py`, which cannot be modified. The call path `auth/api/wrapper.py` → `logout()` → `invalidate_session()` is a pass-through. Since `invalidate_session()` is broken (no-op for the store) and frozen, the fix must be applied in the caller, `auth/api/wrapper.py`, by duplicating the correct invalidation logic (clearing the server-side store) directly within the wrapper, bypassing the defective frozen function for the critical security operation.

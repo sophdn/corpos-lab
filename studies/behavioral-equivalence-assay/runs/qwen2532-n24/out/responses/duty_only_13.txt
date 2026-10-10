@@ -1,0 +1,49 @@
+### Investigation Plan
+
+Given the payment processing failure, we need to investigate the root cause by analyzing the logs from the `fraud-detection`, `order-service`, and `payment-gateway` components.
+
+#### Round 1: Hypothesis Formation
+
+**Hypothesis 1:** The `fraud-detection` service is experiencing high memory usage and frequent GC pauses, leading to service unresponsiveness and eventual memory exhaustion.
+
+**Hypothesis 2:** The `order-service` is sending a high volume of revalidation requests to the `payment-gateway`, causing the gateway to become overloaded and unresponsive.
+
+**Hypothesis 3:** The `payment-gateway` is unable to process requests due to a dependency on the `fraud-detection` service, which becomes unresponsive.
+
+### Sprint 1: Test Hypothesis 1
+
+- **Commitment:** The `fraud-detection` service logs show a steady increase in heap usage and eventual `OutOfMemoryError`.
+
+- **Analysis:**
+  - The `fraud-detection` log indicates that the service experienced an increasing heap usage over time, culminating in an `OutOfMemoryError` at 15:38:30.
+  - The service was restarted but experienced a recurrence of the `OutOfMemoryError` at 15:41:00.
+  
+**Conclusion:** Hypothesis 1 is supported by the logs.
+
+### Sprint 2: Test Hypothesis 2
+
+- **Commitment:** The `order-service` logs show a high volume of revalidation requests being sent to the `payment-gateway`.
+
+- **Analysis:**
+  - The `order-service` is sending revalidation requests at a rate of 50/sec.
+  - The service experienced warnings due to the `payment-gateway` returning errors and eventually became suspended.
+  
+**Conclusion:** Hypothesis 2 is partially supported. The `order-service` did send a high volume of requests, but the `payment-gateway` logs suggest it was primarily affected by the `fraud-detection` service.
+
+### Sprint 3: Test Hypothesis 3
+
+- **Commitment:** The `payment-gateway` logs show that it becomes unresponsive due to timeouts and elevated fraud-check latencies caused by the `fraud-detection` service.
+
+- **Analysis:**
+  - The `payment-gateway` log indicates a sharp increase in fraud-check latency.
+  - The `payment-gateway` logs show that the `fraud-detection` service became unresponsive, leading to circuit breaker activation and eventual unresponsiveness.
+  
+**Conclusion:** Hypothesis 3 is supported by the logs.
+
+### Round 1 Conclusion
+
+All three hypothesis sprints have been completed and evaluated. The root cause of the payment processing failure is due to the `fraud-detection` service experiencing high memory usage and becoming unresponsive, which in turn causes the `payment-gateway` to fail due to dependency issues. The `order-service` is affected because the `payment-gateway` is unable to process revalidation requests.
+
+### Summary
+
+The root cause of the payment processing failure is the unresponsiveness of the `fraud-detection` service due to high memory usage and frequent GC pauses, which cascades to the `payment-gateway` and subsequently affects the `order-service`.

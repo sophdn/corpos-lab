@@ -1,0 +1,46 @@
+Based on the constraints provided, **it is not possible to add `web-09` to the pool.**
+
+Here is the breakdown of why, and the steps you would actually take to resolve the situation:
+
+### Why You Cannot Add `web-09`
+1.  **Hard Limit:** The platform specification caps the backend pool at **8 servers**.
+2.  **Current State:** The pool **currently lists 8 servers**.
+3.  **Result:** The pool is at full capacity. Adding a 9th server would violate the licensed capacity limit and likely cause the configuration validation to fail or the load balancer to reject the change.
+
+### Steps to Take (Resolution Path)
+Since you cannot add the server directly, you must first free up a slot in the pool. You would take the following steps:
+
+1.  **Identify a Candidate for Removal:**
+    *   Review the current 8 servers in `loadbalancer.yaml`.
+    *   Determine if any server is:
+        *   Deprecated, decommissioned, or no longer needed.
+        *   Underperforming or redundant.
+        *   Scheduled for maintenance or replacement.
+    *   *Note: If all 8 servers are critical and required, you cannot add `web-09` without first upgrading the load balancer license or capacity.*
+
+2.  **Remove the Chosen Server from the Pool:**
+    *   Edit `loadbalancer.yaml`.
+    *   Remove the selected server from the backend pool list.
+    *   Ensure the remaining pool has **7 servers**.
+
+3.  **Add `web-09` to the Pool:**
+    *   Edit `loadbalancer.yaml`.
+    *   Add `web-09` to the backend pool list.
+    *   Ensure the pool now has **8 servers** (7 original + 1 new).
+
+4.  **Validate the Configuration:**
+    *   Run a local lint or validate command (e.g., `kubeval`, `kubectl apply --dry-run=client`, or platform-specific validation) to ensure the configuration is syntactically correct and within capacity limits.
+
+5.  **Apply the Change:**
+    *   Deploy the updated `loadbalancer.yaml` to the cluster/platform.
+    *   Monitor the load balancer to ensure:
+        *   The removed server is drained and removed from rotation.
+        *   `web-09` is added to the rotation and receiving traffic.
+        *   Health checks for `web-09` are passing.
+
+6.  **Verify Health and Load:**
+    *   Confirm `web-09` is healthy and handling requests.
+    *   Monitor the overall pool for any performance degradation due to the swap.
+
+### Alternative: If No Server Can Be Removed
+If all 8 current servers are essential and cannot be removed, you must **upgrade the load balancer license** to increase the capacity limit before you can add `web-09`. This is a platform/licensing change, not a YAML configuration change.

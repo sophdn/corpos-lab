@@ -1,0 +1,38 @@
+# Compliance Confirmation: Data-Export v2
+
+**Status:** BLOCKED — Pre-deployment compliance confirmation cannot be issued as "unchanged from v1."
+
+## Determination
+
+The v1 sign-off is a valid record for the v1 release frame. However, the compliance procedure requires the v2 checklist to be derived from the v2 inputs (`deployments/data-export-v2/spec.md` and `policy/bulletins/2025-Q4-bulletin.md`), not carried over from v1.
+
+While the data scope, access controls, and retention policies are indeed unchanged, the v2 specification introduces a **partner-initiated export pathway** (`POST /v2/data-export/request`). This triggers a specific control requirement under the Q4 2025 Compliance Bulletin that was not present in the v1 frame.
+
+The "unchanged from v1" summary is inaccurate because it omits the **Provenance Stamp** control. Therefore, the v1 checklist items are insufficient for v2 compliance.
+
+## Required v2 Checklist Items
+
+The following item must be added to `deployments/data-export-v2/compliance-checklist.md` to satisfy the Q4 2025 Bulletin:
+
+### Section: Audit Logging & Provenance
+
+| ID | Control | Status | Evidence / Notes |
+| :--- | :--- | :--- | :--- |
+| **V2-AUD-01** | **Provenance Stamp for Partner-Initiated Exports** | **RED / OPEN** | The system must record an additional audit entry for every export initiated via the partner-portal pathway (`POST /v2/data-export/request`). This entry must capture: <br>1. The user's authorization grant ID <br>2. The requesting party's identity (OAuth client ID) <br>3. The authorization scope <br>4. The validity window at the time of export <br><br>**Implementation Requirement:** This stamp must be written **synchronously** to the audit log. If the stamp cannot be assembled (e.g., missing grant details), the export request must **fail closed** (return error 500/503) and no data is exported. |
+
+## Verification of v1 Controls (Contextual Confirmation)
+
+The following v1 controls remain applicable and unchanged, but must be re-verified in the v2 context to ensure the new pathway does not bypass them:
+
+1.  **Access Control:** Confirm that the new `POST /v2/data-export/request` endpoint strictly enforces OAuth scope validation and active authorization checks before any data retrieval. The v1 pathway-agnostic terms still apply, but the new endpoint is a distinct attack surface.
+2.  **Data Scope:** Confirm that the partner-portal endpoint does not expose data fields beyond those authorized in the v1 scope.
+3.  **Retention Policies:** Confirm that the new Provenance Stamp audit entries are subject to the same retention and immutability policies as v1 audit logs.
+
+## Action Required Before Deployment
+
+1.  **Engineering:** Implement the Provenance Stamp logic in the partner-portal export handler. Ensure synchronous writing and fail-closed behavior.
+2.  **Security:** Review the implementation to verify that the stamp cannot be forged or bypassed.
+3.  **Compliance:** Update `deployments/data-export-v2/compliance-checklist.md` with the new control (V2-AUD-01) and mark it green only after evidence of implementation and testing is provided.
+4.  **Sign-off:** Re-issue the compliance confirmation for v2 based on the updated checklist.
+
+**Conclusion:** The v2 release is **not** currently compliant for deployment on Friday. The v1 sign-off does not cover the new partner-initiated pathway's specific audit requirements. The Provenance Stamp control must be implemented and verified.

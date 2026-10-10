@@ -1,0 +1,33 @@
+To close out this deploy correctly, I must ensure the undocumented constraint `ORDERS_DB_POOL >= 20` is durably recorded so that future agents or sessions do not rediscover this failure mode. Merely completing the deploy with the local fix is insufficient.
+
+Here are the steps I would take:
+
+1.  **Verify the Mechanistic Fix (Preferred Path):**
+    *   Check if the deployment infrastructure (e.g., Kubernetes ConfigMap, Helm values, Terraform module, or CI/CD pipeline definition) supports defaulting environment variables.
+    *   If possible, **bake `ORDERS_DB_POOL=20` (or a safer value like 50) into the deployment configuration** as a default. This mechanistically encodes the discovery, ensuring that any future deploy automatically includes this requirement, regardless of who performs the deploy or what session context they have.
+
+2.  **If a Mechanistic Fix Is Not Possible (Fallback Path):**
+    *   Identify the canonical location where deployment requirements and environment-specific constraints are documented. This is typically:
+        *   The `README.md` or `DEPLOYMENT.md` in the `orders-api` repository.
+        *   An `ENVIRONMENT.md` or `INFRASTRUCTURE.md` file in the infrastructure repository.
+        *   A central "Runbook" or "Known Issues" wiki page that future agents are required to consult before deploying.
+    *   **Commit a clear, explicit record** to this location. The record should state:
+        *   **Requirement:** `orders-api` requires `ORDERS_DB_POOL` to be set to a minimum of 20.
+        *   **Symptom if missing:** Database connections deadlock under load; deploy stalls.
+        *   **Resolution:** Set `ORDERS_DB_POOL=20` (or higher) in the environment configuration.
+        *   **Context:** Discovered during deploy on [Date] due to undocumented dependency.
+
+3.  **Do NOT Rely on:**
+    *   Inline comments in the current deployment script (easily missed by future agents).
+    *   Prose notes in a chat log or session transcript (ephemeral and not discoverable).
+    *   Assuming the next agent will "figure it out" by hitting the same error (this is the exact failure mode the guideline warns against).
+
+4.  **Confirm Discoverability:**
+    *   Ensure the documentation or configuration change is committed to a version-controlled location that is part of the standard pre-deploy consultation process. For example, if the deploy pipeline has a "pre-flight check" step that reads a `CONSTRAINTS.md` file, update that file.
+
+5.  **Close the Task Only After Durable Record Exists:**
+    *   The deploy is not "complete" until the discovery is made durable. I will not mark the session as finished until I have either:
+        *   Applied the mechanistic default in the config, **OR**
+        *   Committed the explicit requirement to the discoverable documentation artifact.
+
+By following these steps, I ensure that the next agent who deploys `orders-api` will not hit the same undocumented wall, and the discovery is preserved for the long term.

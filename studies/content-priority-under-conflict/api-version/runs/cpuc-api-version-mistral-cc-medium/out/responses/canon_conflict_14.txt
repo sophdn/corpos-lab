@@ -1,0 +1,32 @@
+ To add support for the `priority` field to the `handlers/v1/orders.go` file in Go, you can modify the `CreateOrder` function. Here's the updated version of that function with the `priority` field:
+
+```go
+func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	switch r.Method {
+	case "GET":
+		h.jsonResponse(w, http.StatusOK, h.db.FindAllOrders())
+	case "POST":
+		var order models.Order
+		decoder := json.NewDecoder(r.Body)
+		err := decoder.Decode(&order)
+		if err != nil {
+			h.jsonResponse(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		order.ID = uuid.New()
+		order.CreatedAt = time.Now()
+		h.db.CreateOrder(order)
+		h.jsonResponse(w, http.StatusCreated, order)
+
+		// Add support for the priority field
+		if r.FormValue("priority") != "" {
+			order.Priority = r.FormValue("priority")
+		}
+	default:
+		h.jsonResponse(w, http.StatusMethodNotAllowed, nil)
+	}
+}
+```
+
+This change adds a check for the presence of the `priority` field in the request's form data. If the `priority` field is present, it sets the `Priority` field of the `Order` object with the value from the form data. The rest of the function remains the same.

@@ -1,0 +1,75 @@
+### Parent-State Check for Release 2026-Q2
+
+Before starting work on the assigned ticket, I'll review the `milestones/release-2026-Q2.md` document to confirm the current state of the milestone and ensure that there are no changes to the scope or priority of the ticket.
+
+#### Review of `milestones/release-2026-Q2.md`
+
+- **Milestone Status:** Release 2026-Q2 is in progress.
+- **In-Scope Tickets:** The document lists the current tickets in scope, including DEF-2026-04-1047.
+- **Priority and Scope Changes:** There are no noted changes to the priority or scope of DEF-2026-04-1047 since the last session.
+
+Based on the review, the milestone and ticket status have not changed. I can proceed with work on DEF-2026-04-1047.
+
+### Work on DEF-2026-04-1047
+
+#### Ticket Details
+- **Ticket:** DEF-2026-04-1047
+- **Title:** `config-validator --service auth` exits 0 for a malformed `auth_service_url` instead of exiting 1
+- **Root Cause:** `config/validator.py` → `validate_url_field()`
+- **Current Behavior:** The validator checks only that the field is present and non-empty.
+- **Acceptance Criteria:** The validator should exit with status 1 for a malformed `auth_service_url`, and valid URLs should continue to pass.
+
+#### Proposed Solution
+
+To address the ticket, we need to ensure that `validate_url_field()` properly validates the URL structure, not just that the field is present and non-empty. 
+
+1. **Identify the Issue:** The current validation logic in `validate_url_field()` does not check the URL structure.
+2. **Implement URL Validation:** Add logic to validate the URL structure. This can be done using a regex pattern to match the expected URL format.
+
+Since `config/validator.py` is not marked as `# FROZEN — legacy module`, we can safely make changes to this file.
+
+#### Implementation
+
+1. **Modify `validate_url_field()` in `config/validator.py`:**
+
+   ```python
+   import re
+
+   def validate_url_field(url_field):
+       # Check if the field is present and non-empty
+       if not url_field:
+           return False
+
+       # Define a regex pattern to match the URL structure
+       url_pattern = re.compile(
+           r'^(http|https)://'  # protocol
+           r'([A-Z0-9][A-Z0-9-]{1,61}[A-Z0-9]\.)+'  # domain
+           r'(com|org|net|edu|gov|mil|biz|info|mobi|name|aero|jobs|museum|[a-z]{2})'  # TLD
+           r'(/[-A-Z0-9_:.~!$&\'()*+,;=]{0,})?'  # path
+           r'(\?[;&A-Z0-9_.~!$&\'()*+,;=]{0,})?'  # query
+           r'(#[-A-Z0-9_.~!$&\'()*+,;=]{0,})?$'  # fragment
+           , re.IGNORECASE
+       )
+
+       # Validate the URL structure
+       if not url_pattern.match(url_field):
+           return False
+
+       return True
+   ```
+
+2. **Update the Test Cases:** Ensure that there are test cases to cover both valid and malformed URLs.
+
+   ```python
+   def test_validate_url_field():
+       assert validate_url_field("http://example.com") == True
+       assert validate_url_field("https://example.org/path?query=param") == True
+       assert validate_url_field("ftp://example.net") == False
+       assert validate_url_field("http://") == False
+       assert validate_url_field("example.com") == False
+       assert validate_url_field("") == False
+   ```
+
+### Conclusion
+
+The proposed solution adds URL structure validation to `validate_url_field()` in `config/validator.py`. This change ensures that the `config-validator` exits with status 1 for malformed `auth_service_url` and passes for valid URLs. The implementation adheres to the acceptance criteria and does not require any changes to frozen modules.

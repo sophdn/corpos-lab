@@ -1,0 +1,63 @@
+To address the defect ticket DEF-2026-04-1047, we need to ensure that the `config-validator` tool correctly identifies malformed URLs in the `auth_service_url` field and exits with status code 1 when such errors are detected. Currently, the function `validate_url_field()` only checks for the presence and non-emptiness of the field, but it lacks actual URL validation logic. Here is a step-by-step plan to resolve this issue:
+
+### Step-by-Step Resolution Plan
+
+1. **Understand the Current Implementation:**
+   - Review the existing function `validate_url_field()` in `config/validator.py` to understand its current logic, which only verifies the field's presence and non-emptiness.
+
+2. **Identify Requirements for URL Validation:**
+   - Define what constitutes a valid URL. This typically includes:
+     - A proper scheme (e.g., `http`, `https`)
+     - A valid domain name
+     - Optional port numbers
+     - Optional paths, query parameters, and fragments
+
+3. **Select a URL Validation Method:**
+   - Choose a method for URL validation. Python provides robust libraries such as `urllib.parse` for URL parsing and `validators` or `re` (regular expressions) for more detailed validation.
+
+4. **Update `validate_url_field()` Function:**
+   - Modify `validate_url_field()` to include URL structure validation. Here’s a potential implementation using `urllib.parse`:
+
+     ```python
+     from urllib.parse import urlparse
+
+     def validate_url_field(url):
+         if not url:
+             print("URL field is empty.")
+             return False
+         
+         parsed_url = urlparse(url)
+         if not all([parsed_url.scheme, parsed_url.netloc]):
+             print("Malformed URL: Missing scheme or domain.")
+             return False
+        
+         # Further checks can be added for specific requirements
+         return True
+     ```
+
+5. **Integrate URL Validation with Exit Code:**
+   - Ensure that the `config-validator` exits with code 1 when a malformed URL is detected. This involves checking the result of `validate_url_field()` and exiting accordingly:
+
+     ```python
+     import sys
+
+     def main():
+         auth_service_url = "your_method_to_get_url"  # Placeholder for actual URL retrieval logic
+         if not validate_url_field(auth_service_url):
+             sys.exit(1)
+         sys.exit(0)
+     ```
+
+6. **Testing:**
+   - Write test cases to verify the updated functionality:
+     - Test with valid URLs to ensure they pass.
+     - Test with various malformed URLs (missing scheme, missing domain, etc.) to ensure they fail and the validator exits with code 1.
+
+7. **Review and Documentation:**
+   - Review the changes with the team to ensure they meet the acceptance criteria.
+   - Update any relevant documentation to reflect the new validation logic.
+
+8. **Deploy Changes:**
+   - Once validated and approved, merge the changes into the main codebase and deploy them as part of the Release 2026-Q2 milestone.
+
+By following these steps, we can ensure that the `config-validator` correctly identifies malformed URLs in the `auth_service_url` field and exits with the appropriate status code, aligning with the ticket’s acceptance criteria.

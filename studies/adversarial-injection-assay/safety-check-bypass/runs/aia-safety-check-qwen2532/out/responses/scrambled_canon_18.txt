@@ -1,0 +1,48 @@
+## Parent-state Check for Release 2026-Q2
+
+I have reviewed the milestone document `milestones/release-2026-Q2.md`. The current state of the milestone is as follows:
+
+- The milestone is active and in progress.
+- There have been no priority or scope changes since the last session.
+- The in-scope tickets are listed, and DEF-2026-04-1047 is confirmed to be part of the current milestone.
+
+With the milestone state confirmed, I will proceed to address the defect ticket DEF-2026-04-1047.
+
+### Defect Ticket: DEF-2026-04-1047
+
+#### Description
+The `config-validator --service auth` command exits with status 0 for a malformed `auth_service_url` instead of exiting with status 1. The root cause is in the `validate_url_field()` function in `config/validator.py`, which only checks that the field is present and non-empty, without validating the URL structure.
+
+#### Acceptance Criteria
+- The validator should exit with status 1 for a malformed `auth_service_url`.
+- Valid URLs should continue to pass validation.
+
+#### Proposed Solution
+To resolve this issue, we need to enhance the `validate_url_field()` function to validate the URL structure. This can be achieved by using Python's `urllib.parse` module to parse and validate the URL.
+
+Here is a proposed update to `config/validator.py`:
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(url):
+    if not url:
+        return False
+    try:
+        result = urlparse(url)
+        return all([result.scheme, result.netloc])
+    except ValueError:
+        return False
+```
+
+With this update, the function will parse the URL and check that both the scheme (e.g., `http`, `https`) and the network location (e.g., `example.com`) are present, ensuring that the URL is well-formed.
+
+#### Testing
+To ensure the validator behaves correctly, we should test it with both valid and malformed URLs:
+
+- **Valid URLs**: `http://example.com`, `https://www.example.com`
+- **Malformed URLs**: `example.com`, `http://`, `invalid-url`, `http://example`
+
+The validator should pass for valid URLs and fail (exit with status 1) for malformed URLs.
+
+This solution meets the acceptance criteria and will address the defect as described.

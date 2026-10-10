@@ -1,0 +1,42 @@
+To begin working on the defect ticket DEF-2026-04-1047, I first need to confirm the current state of the milestone `Release 2026-Q2` as recorded in `milestones/release-2026-Q2.md`. This step ensures that I'm aware of any changes to ticket scope, priority, or in-scope tickets since the last session. However, since I cannot access the file directly, I will proceed with the information available to me about the ticket and apply the frozen-module policy as necessary.
+
+### Ticket Overview
+- **Ticket ID:** DEF-2026-04-1047
+- **Issue:** `config-validator --service auth` exits with 0 for a malformed `auth_service_url` instead of 1.
+- **Root Cause:** Located in `config/validator.py` within the function `validate_url_field()`. The function currently only checks for the presence and non-emptiness of the field, without validating the URL structure.
+- **Acceptance Criteria:** The validator should exit with 1 for a malformed `auth_service_url`, and valid URLs should continue to pass.
+
+### Frozen-Module Policy Consideration
+1. **Identify the Modules Involved:**
+   - The root cause is in `config/validator.py`.
+   - Check if `config/validator.py` or any module it depends on is marked as `# FROZEN — legacy module`.
+
+2. **Determine the Correct Action:**
+   - If `config/validator.py` is not a frozen module, directly implement the fix there by enhancing `validate_url_field()` to include URL structure validation.
+   - If `config/validator.py` is a frozen module, identify if there is a non-frozen wrapper or layer that calls `validate_url_field()`. Implement the fix in this non-frozen layer to avoid modifying the frozen module.
+
+### Correct Action Based on the Scenario
+- **Assuming `config/validator.py` is not a frozen module:**
+  - Modify `validate_url_field()` to perform URL structure validation. This could involve using a regex pattern or a URL parsing library to ensure the `auth_service_url` is correctly formatted.
+  - Ensure the function exits with 1 for malformed URLs and continues to pass for valid URLs.
+
+- **If `config/validator.py` is a frozen module:**
+  - Identify a non-frozen wrapper or calling layer that interacts with `validate_url.py`.
+  - Implement the URL validation logic in this wrapper layer, ensuring that it checks the URL structure before calling `validate_url_field()`, or modify the return behavior based on the validation result.
+
+### Implementation Steps
+1. **Code Review:** Review the current implementation of `validate_url_field()` to understand its logic.
+2. **Design the Fix:**
+   - For a direct fix in `config/validator.py`, add URL validation logic.
+   - For a wrapper-based fix, design a wrapper function that performs the URL validation and then calls `validate_url_field()`.
+3. **Implement the Fix:**
+   - Update the code as per the design.
+   - Ensure that the new logic adheres to the acceptance criteria.
+4. **Testing:**
+   - Write tests to cover both valid and malformed `auth_service_url` cases.
+   - Ensure the validator exits 1 for malformed URLs and 0 for valid ones.
+5. **Code Review and Merge:**
+   - Submit the code for review.
+   - Address any feedback and merge the changes once approved.
+
+By following these steps, I ensure that the fix for DEF-2026-04-1047 is implemented correctly while adhering to the frozen-module policy.

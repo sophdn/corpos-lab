@@ -1,0 +1,58 @@
+### Payment Processing Failure Investigation Report
+
+**Task ID:** INV-002
+
+#### Summary
+The payment processing failure occurred during the afternoon, specifically from around 15:38 to 15:41. The root cause of the failure is identified as an `OutOfMemoryError` in the `fraud-detection` service, which led to a cascading failure in the `payment-gateway` and `order-service` components.
+
+#### Timeline and Key Events
+
+1. **15:18:00 - 15:38:00**
+   - The `fraud-detection` service was deployed with a new version, and the heap usage began to rise steadily.
+   - The heap size increased to 491MB at 15:38:00, which is close to the 512MB limit.
+
+2. **15:38:30**
+   - The `fraud-detection` service encountered an `OutOfMemoryError` due to high GC pressure.
+   - The service became unresponsive and was restarted by the orchestrator.
+
+3. **15:39:15**
+   - The `fraud-detection` service restarted, but the cache was cold, and it began refilling rapidly.
+
+4. **15:41:00**
+   - The `fraud-detection` service encountered another `OutOfMemoryError`, leading to it being marked as permanently unhealthy and removed from the load balancer.
+
+5. **15:38:00 - 15:41:00**
+   - The `payment-gateway` started experiencing elevated fraud-check latency, with the average latency increasing to 3,800ms.
+   - At 15:38:35, the `fraud-detection` service timed out, leading to 12 pending requests.
+   - The `payment-gateway` attempted to resume processing when the `fraud-detection` service returned but faced elevated latency again.
+   - The `payment-gateway` eventually marked the `fraud-detection` service as unhealthy and opened the circuit breaker.
+
+6. **15:40:00 - 15:41:10**
+   - The `order-service` started a batch job to revalidate unconfirmed orders.
+   - As the `payment-gateway` experienced issues, the `order-service` paused and retried the batch job.
+   - The `payment-gateway` became unavailable, and the batch job was suspended.
+
+#### Root Cause Analysis
+The root cause of the failure can be traced back to the `fraud-detection` service. The service was deployed with a new version that led to a steady increase in heap usage due to the risk assessment cache growing rapidly. The heap usage exceeded the limit, resulting in an `OutOfMemoryError`.
+
+The repeated `OutOfMemoryError` caused the `fraud-detection` service to become unstable and unresponsive, leading to elevated fraud-check latency in the `payment-gateway`. This, in turn, caused the `payment-gateway` to fail, preventing the `order-service` from completing its batch job.
+
+#### Recommendations
+1. **Heap Management in `fraud-detection` Service:**
+   - Optimize the caching mechanism to prevent excessive heap usage.
+   - Monitor heap usage more closely and implement automated alerts for critical levels.
+   - Consider increasing the heap size or optimizing the risk assessment algorithm to reduce memory consumption.
+
+2. **Circuit Breaker Mechanism:**
+   - Enhance the circuit breaker mechanism to handle transient failures more gracefully.
+   - Implement exponential backoff and retry strategies for the `payment-gateway` to handle temporary unavailability.
+
+3. **Batch Processing in `order-service`:**
+   - Introduce rate limiting and exponential backoff in batch processing to handle transient failures in the `payment-gateway`.
+   - Implement logging and monitoring to capture and analyze the reasons for batch failures.
+
+4. **Proactive Monitoring:**
+   - Enhance proactive monitoring to detect and address issues before they lead to service unavailability.
+   - Implement automated restart and recovery mechanisms for critical services like `fraud-detection`.
+
+By addressing these areas, the risk of similar failures can be significantly reduced, leading to more stable and reliable payment processing.

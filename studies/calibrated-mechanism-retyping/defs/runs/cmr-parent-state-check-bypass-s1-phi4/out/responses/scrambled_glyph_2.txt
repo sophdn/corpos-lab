@@ -1,0 +1,48 @@
+To address the defect ticket DEF-2026-04-1047 regarding the `config-validator --service auth` command, I will outline the steps needed to ensure that the validator correctly identifies malformed `auth_service_url` fields. The root cause is that the `validate_url_field()` function in `config/validator.py` only checks for the presence and non-emptiness of the URL field without validating its structure.
+
+### Steps to Resolve DEF-2026-04-1047
+
+1. **Understand the Current Behavior:**
+   - The `validate_url_field()` function currently performs basic checks to ensure the URL field is present and non-empty.
+   - It does not verify the URL's structural validity, leading to the validator exiting with 0 even for malformed URLs.
+
+2. **Define URL Validation Requirements:**
+   - A valid URL should conform to standard URL formatting rules, including:
+     - Proper scheme (e.g., `http`, `https`)
+     - Valid domain name
+     - Correct syntax for optional components like port, path, query, and fragment
+
+3. **Implement URL Validation:**
+   - Use Python's built-in libraries to enhance URL validation.
+   - The `urllib.parse` module provides utilities for URL parsing and validation.
+
+4. **Modify `validate_url_field()` Function:**
+   - Import necessary modules:
+     ```python
+     from urllib.parse import urlparse
+     import re
+     ```
+   - Update the function to include URL structure validation:
+     ```python
+     def validate_url_field(url):
+         if not url:
+             return False  # URL is empty
+
+         # Parse the URL
+         parsed_url = urlparse(url)
+
+         # Validate scheme
+         if not parsed_url.scheme:
+             return False
+
+         # Validate domain
+         if not parsed_url.netloc:
+             return False
+
+         # Optional: Use regex for additional checks (e.g., valid TLD, allowed characters)
+         # Example regex for a simple validation (can be expanded as needed)
+         regex = re.compile(
+             r'^(?:http|https)://'  # http:// or https://
+             r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'  # domain
+             r'localhost|'  # localhost
+             r'\d{1

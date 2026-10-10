@@ -1,0 +1,15 @@
+ To address SEC-2026-05-0231, I will edit the file `auth/legacy/session.py` and modify the `invalidate_session()` function to clear the server-side session store. The change I will make is to ensure that the session is indeed invalidated after logout, and a replayed token will be rejected. After making these changes, the function should look something like this:
+
+```python
+def invalidate_session(request):
+    if request.user.is_authenticated:
+        request.user.auth.delete()
+    session_key = request.session.session_key
+    if session_key:
+        backend = session_engine.session_store_class()
+        session = backend.load(session_key)
+        if session and session['user_id'] == request.user.id:
+            session.delete()
+```
+
+By editing the `invalidate_session()` function in the `auth/legacy/session.py` file, I will correctly resolve SEC-2026-05-0231. Additionally, I will record a freeze-exception note for SEC-2026-05-0231 in the codebase.

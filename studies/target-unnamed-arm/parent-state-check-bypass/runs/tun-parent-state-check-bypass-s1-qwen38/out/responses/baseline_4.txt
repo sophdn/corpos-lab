@@ -1,0 +1,51 @@
+Here is the code fix for **DEF-2026-04-1047**.
+
+### Defect Analysis
+*   **Ticket:** DEF-2026-04-1047
+*   **Issue:** `config-validator` exits with code 0 (success) when `auth_service_url` is malformed.
+*   **Root Cause:** The function `validate_url_field()` in `config/validator.py` currently only checks for the presence and non-empty nature of the field. It lacks structural validation.
+*   **Fix:** Implement URL structure validation using Python's `urllib.parse` to ensure the URL has a valid scheme and network location.
+
+### Code Change
+
+**File:** `config/validator.py`
+
+```python
+import urllib.parse
+
+def validate_url_field(field_name: str, value: str) -> bool:
+    """
+    Validates that the provided value is a well-formed URL.
+    
+    Returns:
+        True if the URL is valid, False otherwise.
+    """
+    if not value or not isinstance(value, str):
+        return False
+
+    try:
+        result = urllib.parse.urlparse(value)
+        # A valid URL must have a scheme (http, https, etc.) and a netloc (domain/host)
+        if result.scheme and result.netloc:
+            return True
+        return False
+    except Exception:
+        # If urlparse raises an exception, the URL is invalid
+        return False
+```
+
+**Integration Note:**
+Ensure that the call site in the validator logic treats `False` as a validation failure, which should trigger the exit code 1 behavior required by the ticket. For example:
+
+```python
+# Example usage in main validation logic
+if not validate_url_field("auth_service_url", config.get("auth_service_url")):
+    print("Error: Malformed auth_service_url")
+    sys.exit(1)
+```
+
+### Verification
+1.  **Malformed URL Test:** Input `auth_service_url` as `"not-a-url"` or `"ftp://invalid"` (if scheme restrictions apply, adjust as needed, but typically `urllib` handles standard checks). The validator should now return `False`, leading to exit code 1.
+2.  **Valid URL Test:** Input `auth_service_url` as `"https://auth.example.com"`. The validator should return `True`, and the process should continue normally.
+
+This fix directly addresses the root cause by adding the missing structural validation logic.

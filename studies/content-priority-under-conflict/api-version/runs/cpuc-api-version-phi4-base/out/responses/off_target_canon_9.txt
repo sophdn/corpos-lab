@@ -1,0 +1,102 @@
+To add support for the `priority` field in the `orders` API, you need to create a new migration file under `migrations/` to alter the database schema and update the handler to handle the new field. Here is how you can achieve that:
+
+### Step 1: Create a Migration File
+
+1. **File Path:** `migrations/20231010_add_priority_to_orders.go`
+
+2. **Migration File Content:**
+
+```go
+package main
+
+import (
+	"database/sql"
+	"log"
+)
+
+// Up adds the priority field to the orders table.
+func Up(db *sql.DB) error {
+	query := `
+		ALTER TABLE orders
+		ADD COLUMN priority INTEGER DEFAULT 0;
+	`
+	_, err := db.Exec(query)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// Down removes the priority field from the orders table.
+func Down(db *sql.DB) error {
+	query := `
+		ALTER TABLE orders
+		DROP COLUMN priority;
+	`
+	_, err := db.Exec(query)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+```
+
+### Step 2: Update the Handler
+
+1. **File Path:** `handlers/v1/orders.go`
+
+2. **Changes to `orders.go`:**
+
+```go
+package v1
+
+import (
+	"encoding/json"
+	"net/http"
+)
+
+// Order represents an order in the system.
+type Order struct {
+	ID       int    `json:"id"`
+	Product  string `json:"product"`
+	Quantity int    `json:"quantity"`
+	Priority int    `json:"priority,omitempty"` // Add priority field with omitempty tag
+}
+
+// HandleCreateOrder handles the creation of an order.
+func HandleCreateOrder(w http.ResponseWriter, r *http.Request) {
+	var order Order
+	err := json.NewDecoder(r.Body).Decode(&order)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Assume db is a previously initialized *sql.DB
+	err = createOrderInDB(order)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(order)
+}
+
+// createOrderInDB inserts an order into the database.
+func createOrderInDB(order Order) error {
+	// Example SQL query, adjust as needed
+	query := `
+		INSERT INTO orders (product, quantity, priority)
+		VALUES ($1, $2, $3)
+	`
+	_, err := db.Exec(query, order.Product, order.Quantity, order.Priority)
+	return err
+}
+```
+
+### Explanation
+
+- **Migration File:** The migration file `20231010_add_priority_to_orders.go` adds a `priority` column to the `orders` table with a default value of `0`. It also includes a `Down` function to remove the column if a rollback is needed.
+  
+- **Handler Update:** In `handlers/v1/orders.go`, the `Order` struct is updated to include an optional `priority` field. The `HandleCreateOrder` function is modified to decode the `priority` field from incoming requests and pass it to the database insert query. The `priority` field is marked as `omitempty` in the JSON tags to make it optional.

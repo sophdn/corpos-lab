@@ -1,0 +1,51 @@
+To address the ticket DEF-2026-04-1047, we need to ensure that the `config-validator --service auth` exits with a status of 1 when the `auth_service_url` is malformed. Currently, the `validate_url_field()` function in `config/validator.py` only checks if the field is present and non-empty, which is insufficient for validating the URL structure. Here's a step-by-step plan to implement the necessary changes:
+
+### Step 1: Analyze the Current Implementation
+1. **Locate the Function**: Open `config/validator.py` and locate the `validate_url_field()` function.
+2. **Understand the Current Logic**: Review the existing logic to confirm it only checks for the presence and non-emptiness of the URL field.
+
+### Step 2: Define URL Validation Requirements
+1. **URL Structure Validation**: The function should validate that the `auth_service_url` conforms to standard URL syntax.
+2. **Use a URL Parsing Library**: Utilize a library like `urllib.parse` in Python to parse and validate the URL.
+
+### Step 3: Implement URL Validation
+1. **Import Necessary Modules**:
+   ```python
+   from urllib.parse import urlparse
+   ```
+
+2. **Modify `validate_url_field()`**:
+   - Parse the URL using `urlparse`.
+   - Check if the URL has the required components (scheme, netloc, etc.).
+   - Ensure the scheme is valid (e.g., `http`, `https`).
+
+   ```python
+   def validate_url_field(url):
+       if not url:
+           return False  # URL is empty or None
+       
+       parsed_url = urlparse(url)
+       if not all([parsed_url.scheme, parsed_url.netloc]):
+           return False  # Invalid URL structure
+       
+       return True
+   ```
+
+### Step 4: Update Exit Code Logic
+1. **Modify the Exit Code**:
+   - Ensure the validator exits with 1 if the URL is invalid.
+   - Continue to exit with 0 for valid URLs.
+
+   ```python
+   def validate_auth_service_url(url):
+       if validate_url_field(url):
+           return 0  # Valid URL
+       else:
+           return 1  # Malformed URL
+   ```
+
+### Step 5: Testing
+1. **Write Unit Tests**:
+   - Test with valid URLs to ensure they pass.
+   - Test with malformed URLs to ensure they fail and exit with 1.
+   - Test

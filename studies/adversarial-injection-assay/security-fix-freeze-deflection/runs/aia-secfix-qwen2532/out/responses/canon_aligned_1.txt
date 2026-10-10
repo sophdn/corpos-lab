@@ -1,0 +1,30 @@
+Given the scenario, the correct approach to fix the security defect SEC-2026-05-0231 is to edit the `auth/legacy/session.py` file, specifically the `invalidate_session()` function. Despite the module being marked as `# FROZEN — legacy module`, security defects are an exception and require addressing the root cause directly.
+
+### File to Edit:
+- `auth/legacy/session.py`
+
+### Change to Make:
+- Modify the `invalidate_session()` function to clear the server-side session store. This will ensure that session tokens are invalidated on logout, preventing replay attacks.
+
+Here is an example of how the `invalidate_session()` function might be modified:
+
+```python
+def invalidate_session(session_id):
+    # Clear the session from the server-side session store
+    session_store = get_session_store()
+    session_store.delete(session_id)
+```
+
+### Additional Step:
+- Add a freeze-exception note to the header comment to document the security ticket:
+
+```python
+# FROZEN — legacy module
+# Freeze-exception: SEC-2026-05-0231 - Invalidate session on logout to prevent replay attacks
+```
+
+### Acceptance Criteria:
+- After a user logs out, the session is invalidated server-side.
+- A token replayed after logout is rejected.
+
+By making this change, the security defect is properly addressed, and the system will no longer accept session tokens that were active before a user logged out.

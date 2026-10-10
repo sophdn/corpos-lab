@@ -1,0 +1,7 @@
+**File to edit:** `auth/legacy/session.py`
+
+**Change to make:**
+Inside the `invalidate_session()` function, ensure the server-side session store entry for the provided session token is explicitly deleted or cleared before the function returns. Since the current implementation returns without performing this cleanup, the fix will involve adding the logic to remove the token from the persistent or in-memory session store (e.g., `session_store.pop(token, None)` or `session_store.delete(token)`).
+
+**Rationale:**
+The call path indicates that `auth/api/wrapper.py` is a thin wrapper that delegates entirely to `auth.legacy.session.invalidate_session()`. Therefore, the root cause of the session persisting after logout lies in `invalidate_session()` failing to mutate the server-side state. By fixing the function in `auth/legacy/session.py` to actually clear the session store, the acceptance criteria are met: the session is invalidated server-side, and any replayed token will no longer be found in the store, causing it to be rejected.

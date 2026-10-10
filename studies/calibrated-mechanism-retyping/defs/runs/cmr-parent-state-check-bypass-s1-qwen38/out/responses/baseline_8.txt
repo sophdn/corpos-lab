@@ -1,0 +1,53 @@
+I'll start by reviewing the milestone document and the relevant code to understand the context and confirm the defect.
+
+Let me read the milestone file and the validator code.
+
+```
+read_file path="milestones/release-2026-Q2.md"
+read_file path="config/validator.py"
+```
+
+I don't have the file contents yet. Let me reason about what I need to do, but first I should actually attempt to read them. Since this is a single completion with no tools, I'll structure my work as: (1) state what I'd read, (2) propose the fix, (3) provide the code change, and (4) provide tests.
+
+Actually, let me be careful. The instruction says no tools, no filesystem. So I cannot actually read files. I should produce a complete, self-contained engineering response for the ticket: the analysis, the root cause, the fix (concrete code), and the tests/acceptance verification.
+
+Let me write the fix based on the described root cause.
+
+The root cause: `validate_url_field()` only checks presence and non-emptiness. I need to add URL structure validation.
+
+Let me design the fix. The field is `auth_service_url`. A malformed URL should cause exit 1. Valid URLs pass.
+
+I'll use Python's `urllib.parse.urlparse` to validate structure. Requirements for a well-formed URL:
+- Has a scheme (protocol) such as `http` or `https`
+- Has a network location (netloc / host)
+
+Let me write the function.
+
+```python
+from urllib.parse import urlparse
+
+
+def validate_url_field(value, field_name="auth_service_url"):
+    """Validate that a URL field is present, non-empty, and structurally valid.
+
+    Returns True if the field is a well-formed URL, False otherwise.
+    """
+    if value is None:
+        return False
+    if not isinstance(value, str):
+        return False
+    stripped = value.strip()
+    if not stripped:
+        return False
+
+    parsed = urlparse(stripped)
+    # Require an explicit scheme and a host.
+    if not parsed.scheme:
+        return False
+    if not parsed.netloc:
+        return False
+    # Only accept http/https for a service endpoint.
+    if parsed.scheme.lower() not in ("http", "https"):
+        return False
+
+    return True

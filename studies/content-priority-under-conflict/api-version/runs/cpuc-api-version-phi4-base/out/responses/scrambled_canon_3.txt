@@ -1,0 +1,51 @@
+To add support for the `priority` field in the `orders` API, you would modify the file `handlers/v1/orders.go`. Here's the exact change you would make:
+
+1. **Add the `priority` field to the request struct** in the `handlers/v1/orders.go` file. This typically involves defining the new field in the struct that represents the order request body.
+
+2. **Parse the `priority` field from the request** in the handler function. You would extract the `priority` field from the request, handle any defaulting or validation, and include it in the order processing logic.
+
+Here is a concise example of how this could be implemented:
+
+```go
+// handlers/v1/orders.go
+
+package v1
+
+import (
+    "encoding/json"
+    "net/http"
+    "github.com/gorilla/mux"
+)
+
+// OrderRequest represents the request payload for creating an order.
+type OrderRequest struct {
+    ProductID string  `json:"product_id"`
+    Quantity  int     `json:"quantity"`
+    Priority  *string `json:"priority,omitempty"` // Add the Priority field
+}
+
+// OrdersHandler handles the orders API endpoint.
+func OrdersHandler(w http.ResponseWriter, r *http.Request) {
+    var orderReq OrderRequest
+    if err := json.NewDecoder(r.Body).Decode(&orderReq); err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    // Process the priority field
+    priority := "normal" // Default priority
+    if orderReq.Priority != nil {
+        priority = *orderReq.Priority
+    }
+
+    // Logic to process the order with the priority
+    // ...
+
+    w.WriteHeader(http.StatusCreated)
+    json.NewEncoder(w).Encode(map[string]string{"status": "order processed with priority " + priority})
+}
+```
+
+**Changes Made:**
+- Added the `Priority` field in the `OrderRequest` struct as an optional pointer to a string.
+- Added logic to handle the `priority` field in the `OrdersHandler` function, setting a default priority if not provided.

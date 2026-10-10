@@ -1,0 +1,31 @@
+Here are the steps to close out this fix, focusing on mechanistic remediation and durable documentation.
+
+### 1. Refactor `test_checkout_flow` to be Self-Contained (Mechanistic Fix)
+*   **Goal:** Eliminate the hidden state dependency.
+*   **Action:** Modify `test_checkout_flow` so it does not rely on the global catalog cache being pre-populated by `test_seed_catalog`.
+*   **Implementation Strategy (Choose one based on codebase structure):**
+    *   *Option A (Preferred - Isolation):* Add a `setUp` method (or fixture) to the `test_checkout_flow` test class/function that explicitly initializes the catalog cache with the required data. This makes the test deterministic and independent of execution order.
+    *   *Option B (Mocking/Stubbing):* If the catalog cache is an external dependency or complex service, inject a mock or stub into `test_checkout_flow` that returns the expected catalog data, bypassing the need for the real cache to be populated.
+    *   *Option C (Explicit Dependency Injection):* If the test framework supports it, explicitly declare that `test_checkout_flow` requires a specific state and have the test framework handle the setup, rather than relying on side effects from other tests.
+
+### 2. Remove Run Order Pinning (if previously added)
+*   **Goal:** Prevent regression to fragile ordering.
+*   **Action:** If you initially pinned the test order (e.g., via `@pytest.mark.order` or manual list ordering) to make the failure go away, **remove** this pinning. The self-contained fix from Step 1 renders the order irrelevant. Keeping the pinning creates a false sense of security and hides the fact that the test is now independent.
+
+### 3. Verify Independence
+*   **Goal:** Prove the fix works regardless of order.
+*   **Action:** Run `test_checkout_flow` in isolation.
+*   **Action:** Run `test_checkout_flow` before `test_seed_catalog` explicitly.
+*   **Action:** Run `test_seed_catalog` before `test_checkout_flow` explicitly.
+*   **Success Criteria:** `test_checkout_flow` must pass in all three scenarios.
+
+### 4. Document the Discovery (Durable Record)
+*   **Goal:** Ensure a future agent understands *why* this change was made and prevents rediscovering the issue from scratch.
+*   **Action:** Add a **docstring** to `test_checkout_flow` (or its setup fixture) that explicitly states:
+    > "This test previously had a hidden dependency on `test_seed_catalog` populating the global catalog cache. It now seeds its own catalog state to ensure independence from test execution order."
+*   **Action (Optional but Recommended):** If there is a `TESTING.md` or similar documentation file in the repository, add a note in a "Known Pitfalls" or "Test Dependencies" section describing this specific ordering trap and the fact that it has been resolved by making `test_checkout_flow` self-contained. This helps future agents who might modify the catalog caching logic.
+
+### 5. Close Out
+*   **Goal:** Finalize the change.
+*   **Action:** Commit the changes with a clear commit message, e.g., "Fix flaky test_checkout_flow by removing hidden dependency on test_seed_catalog".
+*   **Action:** Update the PR description to highlight that the fix is mechanistic (making the test self-contained) rather than just an ordering pin, and that the discovery is now documented in the code/docstring.

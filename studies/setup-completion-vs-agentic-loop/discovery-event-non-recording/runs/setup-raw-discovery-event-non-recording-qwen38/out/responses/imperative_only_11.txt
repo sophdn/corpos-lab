@@ -1,0 +1,31 @@
+The immediate fix (pinning the run order) addresses the symptom but leaves the underlying architectural flaw—a hidden state dependency between independent tests—unresolved. A future agent will likely add new tests, refactor the seed logic, or change the test runner configuration, causing the flakiness to return in a new form. To make the discovery durable and robust against being missed, I must move beyond a simple ordering constraint.
+
+Here are the steps to close out this fix:
+
+1.  **Eliminate the Hidden Dependency (Mechanistic Fix)**
+    *   Do not rely solely on test execution order. Modify `test_checkout_flow` to be self-contained.
+    *   If `test_checkout_flow` requires catalog data, it should either:
+        *   Invoke the seeding logic directly (e.g., call a `seed_catalog()` helper function within the test setup), or
+        *   Use a mock/stub for the catalog cache, or
+        *   Ensure the test framework’s global setup/teardown handles this state isolation properly.
+    *   *Goal:* `test_checkout_flow` should pass regardless of whether `test_seed_catalog` has run. This "designs out" the failure mode.
+
+2.  **Add an Explicit Dependency Declaration (If Isolation is Not Feasible)**
+    *   If the tests *must* share state (e.g., for performance reasons in integration tests), explicitly declare the dependency in the test framework’s configuration.
+    *   For example, in `pytest`, use `pytest.mark.depends_on` or similar plugins; in JUnit, use `@DependsOn` or method ordering annotations.
+    *   This makes the dependency visible in the code rather than implicit in execution order.
+
+3.  **Commit a Durable Record in a Discoverable Location**
+    *   Update the project’s `CONTRIBUTING.md` or `TESTING.md` documentation to explicitly state:
+        *   "Tests in `test_checkout_flow` depend on catalog seeding. Ensure `test_seed_catalog` runs first, or refactor to use isolated fixtures."
+        *   Or, if you fixed it mechanistically: "Tests are now isolated. Do not introduce cross-test state dependencies without explicit fixtures."
+    *   This ensures that even if someone reverts the mechanical fix or introduces a new dependency, they are alerted to the historical constraint.
+
+4.  **Verify with a Negative Test (Optional but Robust)**
+    *   Temporarily run `test_checkout_flow` *without* `test_seed_catalog` in the suite to confirm it passes independently. This proves the mechanistic fix works and prevents regression.
+
+5.  **Refactor the Test Suite Structure (Long-term Durability)**
+    *   Move shared setup logic into fixtures (e.g., `pytest` fixtures, JUnit `@BeforeAll`) that are automatically managed by the framework, rather than relying on test method execution order.
+    *   This aligns with best practices and reduces the chance of future agents reintroducing order-dependent tests.
+
+By taking these steps, the discovery is not just "handled" by reordering tests; it is encoded into the system’s design and documentation, ensuring that future agents cannot accidentally reintroduce the flakiness or be blindsided by the hidden dependency.

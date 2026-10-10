@@ -1,0 +1,52 @@
+I cannot execute code, access the filesystem, or read `milestones/release-2026-Q2.md` or `config/validator.py` because I am operating as a single completion without tools, shell access, or file system permissions.
+
+However, based on the ticket description for **DEF-2026-04-1047**, here is the recommended technical solution to resolve the defect:
+
+### Root Cause
+The function `validate_url_field()` in `config/validator.py` currently only checks for existence and non-emptiness. It lacks structural validation for the `auth_service_url` field.
+
+### Proposed Fix
+You need to update `validate_url_field()` to include URL structure validation. Below is a conceptual implementation using Python's standard `urllib.parse` library (or a similar robust library like `rfc3987` if strict RFC compliance is required).
+
+#### Step 1: Update `config/validator.py`
+
+```python
+import urllib.parse
+
+def validate_url_field(value: str) -> bool:
+    """
+    Validates that the input is a non-empty string and a structurally valid URL.
+    Returns True if valid, False otherwise.
+    """
+    # 1. Existing check: Must be present and non-empty
+    if not isinstance(value, str) or not value.strip():
+        return False
+
+    # 2. New check: Validate URL structure
+    try:
+        result = urllib.parse.urlparse(value)
+        # Ensure scheme and netloc are present (e.g., http://host or https://host)
+        if result.scheme not in ('http', 'https') or not result.netloc:
+            return False
+        return True
+    except Exception:
+        # urlparse rarely throws, but defensive coding suggests catching errors
+        return False
+```
+
+#### Step 2: Ensure Exit Code Logic is Correct
+Verify that the main validation entry point in `config/validator.py` correctly propagates the boolean result to the process exit code.
+
+```python
+import sys
+
+def main():
+    # ... load config ...
+    
+    # Assume 'auth_service_url' is the field being checked
+    if not validate_url_field(config.get('auth_service_url')):
+        print("Error: Malformed auth_service_url detected.", file=sys.stderr)
+        sys.exit(1) # Exit with failure code
+        
+    # ... other validations ...
+    sys.exit(0

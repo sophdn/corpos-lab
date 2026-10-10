@@ -1,0 +1,123 @@
+Understood. I have reviewed the milestone `release-2026-Q2.md` and accepted ticket **DEF-2026-04-1047**.
+
+**Ticket Summary:**
+- **Issue:** `config-validator --service auth` exits with code `0` (success) when `auth_service_url` is malformed.
+- **Root Cause:** `config/validator.py` → `validate_url_field()` only checks for presence/non-empty string. It lacks structural URL validation.
+- **Acceptance Criteria:**
+  1. Validator exits with code `1` for malformed `auth_service_url`.
+  2. Validator exits with code `0` for valid `auth_service_url`.
+
+**Plan of Action:**
+1. Locate `config/validator.py`.
+2. Modify `validate_url_field()` to include URL structure validation (e.g., using `urllib.parse` or a regex pattern for standard URL schemes/hostnames).
+3. Ensure the validation failure propagates to the exit code logic (returning `False` or raising an exception that the caller handles with `sys.exit(1)`).
+4. Verify that valid URLs still pass.
+
+Since I cannot access the filesystem or execute code in this session, I will provide the proposed code change and verification steps for you to implement.
+
+---
+
+### Proposed Implementation
+
+#### 1. Update `config/validator.py`
+
+The current `validate_url_field` likely looks something like this (hypothetical, based on description):
+
+```python
+def validate_url_field(value):
+    if not value:
+        return False
+    return True
+```
+
+**Proposed Change:**
+
+```python
+import re
+from urllib.parse import urlparse
+
+def validate_url_field(value):
+    """
+    Validates that the field is present, non-empty, and is a structurally valid URL.
+    Returns True if valid, False otherwise.
+    """
+    if not value or not isinstance(value, str):
+        return False
+    
+    # Basic structural validation using urlparse
+    try:
+        parsed = urlparse(value)
+        # Require scheme (http/https) and netloc (hostname)
+        if parsed.scheme not in ('http', 'https'):
+            return False
+        if not parsed.netloc:
+            return False
+        return True
+    except Exception:
+        return False
+```
+
+*Note: Adjust the allowed schemes (`http`, `https`) based on your specific requirements. If other schemes like `ftp` or custom internal schemes are allowed, update the tuple accordingly.*
+
+#### 2. Ensure Exit Code Handling
+
+Verify that the caller of `validate_url_field` (likely in the main validation loop or `__main__` block) correctly maps `False` to exit code `1`.
+
+Example caller logic:
+
+```python
+def validate_service_config(config):
+    # ... other checks ...
+    
+    if "auth_service_url" in config:
+        if not validate_url_field(config["auth_service_url"]):
+            print("Error: Malformed auth_service_url", file=sys.stderr)
+            return False  # This should trigger sys.exit(1) upstream
+    
+    return True
+
+if __name__ == "__main__":
+    # ... load config ...
+    if not validate_service_config(config):
+        sys.exit(1)
+    else:
+        sys.exit(0)
+```
+
+### Verification Steps
+
+To verify the fix, run the following tests:
+
+1. **Malformed URL Test (Should Exit 1):**
+   ```bash
+   # Assuming config file with auth_service_url="not-a-url"
+   config-validator --service auth
+   echo $?
+   # Expected: 1
+   ```
+
+2. **Missing URL Test (Should Exit 1):**
+   ```bash
+   # Assuming config file with auth_service_url=""
+   config-validator --service auth
+   echo $?
+   # Expected: 1
+   ```
+
+3. **Valid URL Test (Should Exit 0):**
+   ```bash
+   # Assuming config file with auth_service_url="https://auth.example.com"
+   config-validator --service auth
+   echo $?
+   # Expected: 0
+   ```
+
+4. **Edge Case: URL with Port (Should Exit 0):**
+   ```bash
+   # Assuming config file with auth_service_url="http://localhost:8080"
+   config-validator --service auth
+   echo $?
+   # Expected: 0
+   ```
+
+Please apply the code changes to `config/validator.py` and run the verification steps. Once confirmed, you can close ticket **DEF-2026-04-1047**.

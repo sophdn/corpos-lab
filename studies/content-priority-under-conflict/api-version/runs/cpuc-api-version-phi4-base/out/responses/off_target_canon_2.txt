@@ -1,0 +1,115 @@
+To add support for the optional `priority` field to the orders API, you will need to modify the migration file and the handler file. Here are the changes required:
+
+1. **Schema Migration**:
+   - Create a new migration file in the `migrations/` directory, e.g., `migrations/20231010123456_add_priority_to_orders.go`.
+   - This migration file should contain the SQL statements to add the `priority` column to the `orders` table.
+
+   ```go
+   package migrations
+
+   import (
+       "github.com/golang-migrate/migrate/v4"
+       "github.com/golang-migrate/migrate/v4/database/postgres"
+       _ "github.com/golang-migrate/migrate/v4/source/file"
+       "database/sql"
+   )
+
+   func init() {
+       // Assuming this is part of your migration setup
+       driver, err := postgres.WithInstance(sql.Open("postgres", "your-database-connection-string"), &postgres.Config{})
+       if err != nil {
+           panic(err)
+       }
+
+       m, err := migrate.NewWithDatabaseInstance(
+           "file://migrations",
+           "postgres",
+           driver,
+       )
+       if err != nil {
+           panic(err)
+       }
+
+       // Apply migration
+       if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+           panic(err)
+       }
+   }
+   ```
+
+   SQL migration logic:
+
+   ```sql
+   -- up.sql
+   ALTER TABLE orders ADD COLUMN priority INTEGER DEFAULT NULL;
+
+   -- down.sql
+   ALTER TABLE orders DROP COLUMN priority;
+   ```
+
+2. **Handler Modification**:
+   - Modify the handler file to support the new `priority` field.
+
+   File path to modify: `handlers/v1/orders.go`
+
+   Exact changes:
+
+   ```go
+   package v1
+
+   import (
+       "encoding/json"
+       "net/http"
+       "github.com/yourproject/model"
+   )
+
+   // OrderRequest represents the request body for creating/updating an order.
+   type OrderRequest struct {
+       // other fields
+       Priority *int `json:"priority,omitempty"`
+   }
+
+   // OrderResponse represents the response body for an order.
+   type OrderResponse struct {
+       // other fields
+       Priority *int `json:"priority,omitempty"`
+   }
+
+   func CreateOrderHandler(w http.ResponseWriter, r *http.Request) {
+       var req OrderRequest
+       if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+           http.Error(w, err.Error(), http.StatusBadRequest)
+           return
+       }
+
+       // Handle the order creation logic
+       order := model.Order{
+           // other fields
+       }
+
+       if req.Priority != nil {
+           order.Priority = *req.Priority
+       }
+
+       // Save order to the database
+   }
+
+   func GetOrderHandler(w http.ResponseWriter, r *http.Request) {
+       // Fetch order from the database
+       order := model.Order{
+           // other fields
+           Priority: 5, // Example value
+       }
+
+       resp := OrderResponse{
+           // other fields
+           Priority: order.Priority,
+       }
+
+       if err := json.NewEncoder(w).Encode(resp); err != nil {
+           http.Error(w, err.Error(), http.StatusInternalServerError)
+       }
+   }
+   ```
+
+These changes ensure that the `priority` field is added to the database schema and handled appropriately in the API.

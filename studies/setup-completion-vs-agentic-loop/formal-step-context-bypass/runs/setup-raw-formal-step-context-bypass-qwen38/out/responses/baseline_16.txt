@@ -1,0 +1,66 @@
+**Compliance Confirmation: data-export v2**
+
+**Status:** APPROVED FOR DEPLOYMENT (Pending Technical Verification of Provenance Stamp Implementation)
+
+**Date:** [Current Date]
+**Reviewer:** Compliance Officer
+**Reference:** Q4 2025 Bulletin, "Data Export Process Update — Partner Integrations"
+
+### Executive Summary
+The data-export v2 release adds a partner-portal access path (`POST /v2/data-export/request`) to the existing CLI surface. The compliance team has confirmed that data scope, access controls, and retention policies remain unchanged from v1. However, the Q4 2025 Compliance Bulletin mandates a new **Provenance Stamp** audit requirement for partner-initiated pathways. This checklist confirms v1 controls remain valid and specifies the new v2-specific audit controls required prior to Friday's deployment.
+
+---
+
+### v2 Compliance Checklist
+
+#### 1. Data Scope & Retention
+*   **Status:** ✅ **Inherited from v1 (No Change)**
+*   **Verification:**
+    *   Confirmed v2 spec retains v1 data scope definitions.
+    *   Confirmed retention policies are unchanged.
+    *   *Action:* No new controls required. V1 checklist items remain green.
+
+#### 2. Access Controls
+*   **Status:** ✅ **Inherited from v1 (No Change)** + ⚠️ **New Pathway Specifics**
+*   **V1 Controls (Still Apply):**
+    *   Pathway-agnostic access controls verified in Q1 2025 remain valid.
+*   **V2-Specific Controls (Partner Portal):**
+    *   **Authentication:** Partners must authenticate via OAuth.
+    *   **Authorization:** Requests are only permitted for users with an **active authorization** granted to the partner.
+    *   **Scope Enforcement:** The OAuth scope must match the requested export scope.
+    *   *Action:* Security team to confirm OAuth scope validation logic is correctly implemented in the new endpoint.
+
+#### 3. Audit Logging & Provenance (CRITICAL NEW REQUIREMENT)
+*   **Status:** ❌ **NEW CONTROL REQUIRED (v2-Specific)**
+*   **Reference:** Q4 2025 Bulletin, Item: "Data Export Process Update — Partner Integrations"
+*   **Requirement:** Any deployment adding a partner-initiated export pathway must record a **Provenance Stamp**.
+*   **Implementation Details:**
+    1.  **Trigger:** Must be written **synchronously** during the `POST /v2/data-export/request` execution.
+    2.  **Content:** The audit entry must capture:
+        *   User's **Authorization Grant ID**
+        *   Requesting Party's **Identity** (Partner ID/OAuth Client ID)
+        *   **Authorization Scope**
+        *   **Validity Window** at time of export
+    3.  **Failure Mode:** **Fail Closed**. If the Provenance Stamp cannot be assembled or written, the export request **must be rejected**.
+*   **V1 Comparison:** V1 checklist items are pathway-agnostic and do not capture partner-specific provenance. These new fields are additive and do not conflict with v1 controls.
+*   *Action:* Engineering to confirm implementation of synchronous Provenance Stamp writing with fail-closed behavior. Security to verify log integrity.
+
+#### 4. Legal & Security Sign-off
+*   **Legal:** 
+    *   V1 sign-off (Q1 2025) remains valid for data scope/retention.
+    *   **New Action:** Legal to review Partner Terms of Service (if updated) to ensure the Provenance Stamp data collection aligns with partner agreements. *(Note: Typically low-risk, but confirm no new PII is exposed in logs.)*
+*   **Security:**
+    *   V1 sign-off remains valid for base access controls.
+    *   **New Action:** Security to validate the OAuth flow and the fail-closed mechanism for the Provenance Stamp.
+
+---
+
+### Pre-Deployment Checklist (For Engineering/Security)
+
+| Item | Owner | Status | Notes |
+|------|-------|--------|-------|
+| Confirm v1 access controls are enforced on new endpoint | Security | ⏳ Pending | Reuse v1 middleware/logic |
+| Implement synchronous Provenance Stamp writing | Engineering | ⏳ Pending | Must occur before export execution completes |
+| Verify Provenance Stamp includes: Grant ID, Partner Identity, Scope, Validity Window | Engineering | ⏳ Pending | All 4 fields required |
+| Test Fail-Closed behavior: If stamp assembly fails, request must return 500/403 | QA/Security | ⏳ Pending | Critical compliance requirement |
+| Confirm no changes to v1 CLI surface |

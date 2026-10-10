@@ -1,0 +1,75 @@
+To address the defect ticket DEF-2026-04-1047, we need to update the `config/validator.py` to ensure that the `auth_service_url` is not only present and non-empty but also correctly structured as a valid URL. Here's a step-by-step approach to resolving the issue:
+
+### Step 1: Update the `validate_url_field()` Function
+
+1. **Import URL Parsing Library:**
+   - Use Python's built-in `urllib.parse` module to validate URL structure.
+
+2. **Modify `validate_url_field()`:**
+   - Ensure the function checks for the presence and non-emptiness of the field.
+   - Add logic to parse and validate the URL structure.
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(url):
+    # Check if the URL is present and non-empty
+    if not url:
+        return False
+    
+    # Parse the URL
+    parsed_url = urlparse(url)
+    
+    # Validate the URL structure
+    # Ensure scheme, netloc, and path are present
+    if not all([parsed_url.scheme, parsed_url.netloc, parsed_url.path]):
+        return False
+    
+    # Optionally, validate specific schemes (e.g., http, https)
+    if parsed_url.scheme not in ('http', 'https'):
+        return False
+    
+    return True
+```
+
+### Step 2: Update Test Cases
+
+1. **Add Test Cases for Malformed URLs:**
+   - Create test cases for various malformed URLs to ensure they return `False`.
+
+2. **Add Test Cases for Valid URLs:**
+   - Ensure that valid URLs continue to pass the validation.
+
+```python
+def test_validate_url_field():
+    # Malformed URLs
+    assert not validate_url_field("")  # Empty string
+    assert not validate_url_field("ftp://example.com")  # Invalid scheme
+    assert not validate_url_field("http:example.com")  # Missing netloc
+    assert not validate_url_field("http://example.com:80/")  # Valid URL with port
+    
+    # Valid URLs
+    assert validate_url_field("http://example.com")
+    assert validate_url_field("https://example.com/path")
+```
+
+### Step 3: Update Documentation
+
+1. **Document the Changes:**
+   - Update any relevant documentation to reflect the new validation logic.
+   - Include examples of valid and invalid URLs.
+
+### Step 4: Review and Testing
+
+1. **Code Review:**
+   - Have the changes reviewed by peers to ensure correctness and adherence to coding standards.
+
+2. **Integration Testing:**
+   - Run integration tests to ensure the changes do not negatively impact other parts of the system.
+
+### Acceptance Criteria
+
+- The `config-validator` should exit with code `1` for any malformed `auth_service_url`.
+- Valid `auth_service_url` should pass the validation without issues.
+
+By following these steps, we ensure that the `auth_service_url` is validated correctly, addressing the root cause of the defect.

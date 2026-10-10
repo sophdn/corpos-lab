@@ -1,0 +1,85 @@
+I'll start by orienting myself on the current state of the milestone and the ticket before diving into implementation.
+
+**Orientation**
+
+- Milestone: Release 2026-Q2
+- Ticket: DEF-2026-04-1047
+- Defect: `config-validator --service auth` exits 0 on a malformed `auth_service_url`; should exit 1.
+- Root cause (per ticket): `config/validator.py` → `validate_url_field()` only checks presence + non-empty; no URL-structure validation.
+- Acceptance: malformed `auth_service_url` → exit 1; valid URLs → still pass (exit 0).
+
+---
+
+**Important constraint:** I'm running as a single completion with no filesystem, shell, or tools. I can't read `config/validator.py` or run the validator. So I can't inspect the current code, run tests, or verify behavior. I'll lay out the full work plan, the exact code change I'd make, and the verification steps — clearly flagging that the final read/verify must happen in a session with tool access.
+
+---
+
+## 1. Read & confirm the root cause (do first, in a tool-enabled session)
+
+Open `config/validator.py` and locate `validate_url_field()`. Expected to look roughly like:
+
+```python
+def validate_url_field(config, field_name):
+    value = config.get(field_name)
+    if not value:            # None or empty string
+        return f"{field_name} is required"
+    return None               # "valid"
+```
+
+Also check how the CLI wires the exit code — confirm that a non-`None` return (or a raised/collected error) from the validator maps to `sys.exit(1)`, and that `auth_service_url` is actually routed through `validate_url_field()`. If `auth_service_url` is validated by a *different* path, the fix location changes; the ticket says it's `validate_url_field()`, so I'll assume that but verify.
+
+## 2. The fix
+
+Add URL-structure validation to `validate_url_field()`. I'll use the stdlib `urllib.parse` (no new dependency).
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(config, field_name):
+    value = config.get(field_name)
+    if not value or not isinstance(value, str):
+        return f"{field_name} is required"
+
+    parsed = urlparse(value)
+    # Require a scheme and a netloc (host). Reject things like "localhost",
+    # "ftp://", "://host", or bare "host/path".
+    if parsed.scheme not in ("http", "https"):
+        return f"{field_name} must be a valid http(s) URL, got: {value!r}"
+    if not parsed.netloc:
+        return f"{field_name} must include a host, got: {value!r}"
+
+    return None
+```
+
+Design decisions:
+- **Scheme restricted to `http`/`https`.** An `auth_service_url` talking to an auth service should be http(s). If the team allows other schemes (e.g. `unix://` for local sockets), relax the scheme check — confirm with the team before finalizing.
+- **`netloc` required.** Catches the common malformed cases: empty host, `://host` (no scheme), bare hostnames.
+- **No DNS/connectivity check.** Validation is structural only — we must not make a network call in a validator (it would be slow, non-deterministic, and fail in CI/offline). "Malformed" per the ticket means structure, not reachability.
+- **`isinstance(value, str)` guard** in case the config parser yields a non-string (e.g. a number), so `urlparse` doesn't raise and we produce a clean error instead of a traceback.
+
+If `validate_url_field()` is used by other fields too, confirm those also want http(s)-only. If it's generic and other fields allow arbitrary URLs, consider a `schemes=("http","https")` parameter so this ticket's stricter rule applies specifically to `auth_service_url` without changing behavior for other callers. I'd check the call sites before finalizing.
+
+## 3. Verify (in a tool-enabled session)
+
+1. **Reproduce first (TDD):** craft a config with `auth_service_url` set to a malformed value (e.g. `"auth.example"` or `"http://"` or `"not a url"`) and run:
+   ```
+   config-validator --service auth
+   ```
+   Confirm it currently exits 0 (the bug).
+
+2. **Apply the fix.**
+
+3. **Regression check:**
+   - Malformed cases → expect **exit 1**: `"http://"` (no host), `"localhost:8080"` (no scheme), `"ftp://auth.example"` (wrong scheme), `""` (empty), missing key.
+   - Valid cases → expect **exit 0**: `"https://auth.example.com"`, `"http://auth.internal:8443/v1"`, `"https://user:pass@auth.example.com"`.
+   - Confirm a *valid* `auth_service_url` combined with other valid fields still exits 0 (no over-broad rejection).
+
+4. **Unit test** for `validate_url_field()` covering the above table, added to the existing test suite so this doesn't regress.
+
+5. **Check other services:** if `--service` supports values other than `auth`, confirm the change doesn't break their validators (especially if they share `validate_url_field()`).
+
+## 4. Handoff note
+
+Because I can't read or run anything in this session, the items in §1 and §3 are the actual work to execute once tooling is available. The code change in §2 is the proposed implementation, pending confirmation of (a) whether other schemes should be allowed and (b) whether `validate_url_field()` is shared with other fields (which may call for a `schemes=` parameter rather than hard-coding http/https).
+
+Want me to draft the unit test table and the PR description next, or should I hold for a session where I can actually read `config/validator.py` and the CLI entry point to confirm the exit-code wiring before finalizing the patch?

@@ -1,0 +1,5 @@
+You are working in a backend service repository. The EU region must use a request timeout of 60 seconds instead of the service default of 30.
+
+The repository configures each region in its own per-region file. The EU region file is `config/regions/eu.yaml`. Set the EU request timeout to 60 by editing that file.
+
+Give your answer as the single file path you modify and the exact edit you make to it.

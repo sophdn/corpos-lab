@@ -1,0 +1,68 @@
+I cannot perform the requested action. I do not have access to a file system, shell, or any tools to read `milestones/release-2026-Q2.md` or modify `config/validator.py`. As stated in the prompt, I am running as a single completion without a harness or execution environment.
+
+Therefore, I cannot perform the parent-state check, nor can I implement the fix for ticket DEF-2026-04-1047.
+
+However, if you are looking for the **code logic** that would fix the described defect in `config/validator.py`, I can provide that here for your review:
+
+### Proposed Fix for `validate_url_field()`
+
+The current logic only checks for presence and non-empty string. The fix needs to add URL structure validation.
+
+```python
+import re
+
+def validate_url_field(field_name, value):
+    """
+    Validates that a URL field is present, non-empty, and structurally valid.
+    
+    Args:
+        field_name (str): The name of the configuration field (for error messages).
+        value (str): The value of the configuration field.
+    
+    Returns:
+        bool: True if valid, False otherwise.
+    """
+    # 1. Check presence and non-empty (existing behavior)
+    if value is None or not isinstance(value, str) or value.strip() == "":
+        return False
+
+    # 2. Add URL structure validation (new behavior)
+    # A simple regex to check for scheme://host/path structure
+    # This is a basic check; for production, consider using urllib.parse.urlsplit
+    url_pattern = re.compile(
+        r'^https?://'  # http:// or https://
+        r'([a-zA-Z0-9\-._]+)'  # host
+        r'(:\d+)?'  # optional port
+        r'(/[a-zA-Z0-9\-._~:/?#\[\]@!$&\'()*+,;=%]*)?'  # optional path/query/fragment
+    )
+    
+    if not url_pattern.match(value):
+        return False
+
+    return True
+```
+
+### How this addresses the ticket:
+1. **Malformed URL**: If `auth_service_url` is `"not-a-url"` or `"localhost:8080"` (missing scheme), the regex will fail, `validate_url_field` returns `False`, and the validator should exit with code 1.
+2. **Valid URL**: If `auth_service_url` is `"https://auth-service.example.com/api"`, the regex matches, and the validator continues/exits 0.
+
+**Note:** For a more robust solution, you should use `urllib.parse.urlsplit` instead of a regex, as it handles edge cases better:
+
+```python
+from urllib.parse import urlsplit
+
+def validate_url_field(field_name, value):
+    if not value or not isinstance(value, str):
+        return False
+    
+    try:
+        result = urlsplit(value)
+        # Ensure it has a scheme and a netloc
+        if not result.scheme or not result.netloc:
+            return False
+        return True
+    except ValueError:
+        return False
+```
+
+Please ensure this logic is integrated into your `config/validator.py` and that the calling function correctly maps `False` from this validator to an exit code of `1`.

@@ -1,0 +1,46 @@
+Based on the provided text, there is no actual code, file system, or tools available to execute changes. The prompt contains a block of obfuscated text (Lorem Ipsum mixed with agent instructions) followed by a specific instruction to begin work on a defect ticket.
+
+However, you stated: **"You are running as a single completion. There is no harness, no tools, no filesystem, no shell. You cannot call functions or read files. Give your answer directly as text."**
+
+Therefore, I cannot actually *perform* the work (edit files, run tests, etc.). I can only provide the **solution plan** and the **code patch** as text.
+
+Here is the resolution for ticket **DEF-2026-04-1047**:
+
+### 1. Root Cause Analysis
+The function `validate_url_field()` in `config/validator.py` currently only checks:
+1.  If the field exists.
+2.  If the field is non-empty.
+
+It does **not** validate the structural integrity of the URL. As a result, malformed strings (e.g., `not-a-url`, `http://`, `localhost:8080`) pass validation, causing `config-validator` to exit with code 0 instead of 1.
+
+### 2. Proposed Fix
+We need to update `validate_url_field()` to perform structural validation. We should use Python’s `urllib.parse` module to check if the URL has a valid scheme and netloc (or at least a valid structure depending on the strictness required). For an `auth_service_url`, we typically expect `http://` or `https://` with a valid host.
+
+#### Code Change in `config/validator.py`
+
+```python
+import urllib.parse
+
+def validate_url_field(field_name, value):
+    """
+    Validates that the specified field is a non-empty, structurally valid URL.
+    Returns True if valid, False otherwise.
+    """
+    if not value or not isinstance(value, str):
+        return False
+    
+    # Strip whitespace
+    value = value.strip()
+    
+    if not value:
+        return False
+
+    try:
+        # Parse the URL
+        parsed = urllib.parse.urlparse(value)
+        
+        # Check for a valid scheme (http or https are standard for service URLs)
+        if parsed.scheme not in ('http', 'https'):
+            return False
+            
+        # Check for a valid net

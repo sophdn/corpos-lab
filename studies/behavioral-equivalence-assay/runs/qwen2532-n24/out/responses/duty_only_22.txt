@@ -1,0 +1,69 @@
+### Investigation Plan
+
+To investigate the payment processing failure, we need to follow a structured approach to identify the root cause. The logs from the `fraud-detection`, `order-service`, and `payment-gateway` components will help us trace the sequence of events and understand the interactions between these components.
+
+#### Hypotheses
+1. **Fraud Detection Service Failure:** The fraud-detection service experienced high memory usage and eventually crashed, leading to payment processing failures.
+2. **Order Service Batch Job:** The batch job in the order-service might have overloaded the payment-gateway, causing it to fail.
+3. **Payment Gateway Dependency Issues:** The payment-gateway might have failed due to dependency issues, specifically related to the fraud-detection service.
+
+#### Sprints
+1. **Sprint 1: Fraud Detection Service Memory Usage**
+   - **Commitment:** The fraud-detection service crashed due to memory exhaustion.
+   - **Evidence:** Logs from `fraud-detection.log` showing memory usage and error messages.
+
+2. **Sprint 2: Order Service Batch Job Impact**
+   - **Commitment:** The order-service batch job overloaded the payment-gateway, causing it to fail.
+   - **Evidence:** Logs from `order-service.log` showing batch job progress and interaction with the payment-gateway.
+
+3. **Sprint 3: Payment Gateway Dependency Issues**
+   - **Commitment:** The payment-gateway failed due to dependency issues with the fraud-detection service.
+   - **Evidence:** Logs from `payment-gateway.log` showing dependency status and error messages.
+
+### Sprint Execution
+
+#### Sprint 1: Fraud Detection Service Memory Usage
+
+**Commitment:** The fraud-detection service crashed due to memory exhaustion.
+
+**Evidence:**
+- `fraud-detection.log` shows that the service experienced increasing heap memory usage, reaching critical levels and eventually leading to an `OutOfMemoryError`:
+  ```log
+  [15:38:00] ERROR Risk assessment cache: 41,200 entries, 491MB heap (limit: 512MB) — critical
+  [15:38:30] ERROR java.lang.OutOfMemoryError: GC overhead limit exceeded
+  ```
+
+**Conclusion:** The fraud-detection service crashed due to memory exhaustion, which is consistent with the commitment. This sprint confirms the first hypothesis.
+
+#### Sprint 2: Order Service Batch Job Impact
+
+**Commitment:** The order-service batch job overloaded the payment-gateway, causing it to fail.
+
+**Evidence:**
+- `order-service.log` shows that the batch job was in progress during the failure window, but the payment-gateway started returning errors:
+  ```log
+  [15:38:40] WARN  Payment-gateway returning errors for batch requests — pausing
+  [15:41:10] ERROR Payment-gateway unavailable — batch job suspended
+  ```
+
+**Conclusion:** While the order-service batch job was running, the payment-gateway started returning errors and became unavailable. However, this seems to be a consequence of the fraud-detection service failure rather than the primary cause. This sprint does not confirm the second hypothesis.
+
+#### Sprint 3: Payment Gateway Dependency Issues
+
+**Commitment:** The payment-gateway failed due to dependency issues with the fraud-detection service.
+
+**Evidence:**
+- `payment-gateway.log` shows that the fraud-detection service became unavailable, leading to dependency issues and eventual circuit breaker activation:
+  ```log
+  [15:38:35] ERROR Fraud-detection service timeout: 12 requests pending
+  [15:41:05] ERROR Fraud-detection service removed from pool — no healthy instances
+  [15:41:06] ERROR Circuit breaker OPEN for fraud-detection
+  ```
+
+**Conclusion:** The payment-gateway experienced dependency issues with the fraud-detection service, leading to its failure. This sprint confirms the third hypothesis.
+
+### Summary
+
+The root cause of the payment processing failure is the memory exhaustion in the fraud-detection service, which caused it to crash. This, in turn, led to dependency issues in the payment-gateway, causing it to fail. The order-service batch job was impacted but was not the primary cause of the failure.
+
+**Confirmed Hypothesis:** The fraud-detection service failure due to memory exhaustion is the root cause of the payment processing failure.

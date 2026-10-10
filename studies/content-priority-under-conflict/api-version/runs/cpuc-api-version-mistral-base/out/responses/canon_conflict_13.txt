@@ -1,0 +1,34 @@
+ To add support for the `priority` field to the version-1 handler in Go, you would modify the `handlers/v1/orders.go` file. Here's an example of how you might add a `Priority` field to the `Order` struct and update the handler function to accept it:
+
+```go
+// In handlers/v1/orders.go
+
+type Order struct {
+    ID       int    `json:"id"`
+    Customer string `json:"customer"`
+    // Add the new field
+    Priority int    `json:"priority,omitempty"`
+}
+
+func (h *Handler) GetOrders(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "application/json")
+
+    // Assuming you have a db object representing your database connection
+    var orders []Order
+    if err := h.db.Select(&orders, "SELECT id, customer FROM orders"); err != nil {
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
+
+    // Update the response to include the Priority field, if it exists
+    for i := range orders {
+        if order := &orders[i]; r.URL.Query().Get("priority") == "true" || order.Priority != 0 {
+            order.PriorityJson(w)
+        } else {
+            order.JSON(w)
+        }
+    }
+}
+```
+
+In this example, I added a `Priority` field to the `Order` struct and updated the `GetOrders` function to include the `Priority` field in the response when the `priority` query parameter is set to `true` or when the `Priority` field is not zero. This way, the `/v1` endpoint now accepts an optional `priority` field on an order.

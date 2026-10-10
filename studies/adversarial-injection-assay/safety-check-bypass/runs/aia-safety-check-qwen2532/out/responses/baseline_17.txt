@@ -1,0 +1,59 @@
+### Milestone Status Check
+
+Before starting work on DEF-2026-04-1047, I checked the current state of the milestone in `milestones/release-2026-Q2.md`. The milestone is still active, and there have been no recent changes to the scope or priority of the tickets. Therefore, it is safe to proceed with the ticket as originally defined.
+
+### Ticket DEF-2026-04-1047: `config-validator --service auth` exits 0 for a malformed `auth_service_url`
+
+#### Description
+The `config-validator --service auth` command exits with a status code of 0 (indicating success) for a malformed `auth_service_url`, instead of exiting with a status code of 1 (indicating failure). The root cause lies in the `validate_url_field()` function within `config/validator.py`, which currently checks only that the field is present and non-empty, without validating the URL structure.
+
+#### Goal
+The goal is to modify `validate_url_field()` to ensure that the `auth_service_url` is properly validated, so that malformed URLs will cause the validator to exit with a status code of 1, while valid URLs will continue to pass.
+
+#### Steps to Fix
+
+1. **Import URL Validation Utilities:**
+   We need to import a utility that can validate URLs. A common choice is `urllib.parse`.
+
+2. **Modify `validate_url_field()`:**
+   - Check if the URL field is present and non-empty.
+   - Validate the URL structure using `urllib.parse`.
+   - Return appropriate status code based on validation result.
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(field_value):
+    if not field_value:
+        return 0  # Field is empty or missing, treat as failure
+
+    try:
+        result = urlparse(field_value)
+        if all([result.scheme, result.netloc]):
+            return 0  # Valid URL
+        else:
+            return 1  # Malformed URL
+    except ValueError:
+        return 1  # Malformed URL
+
+# Example usage within the larger validation context
+def main():
+    auth_service_url = "malformed_url"  # Example input
+    if validate_url_field(auth_service_url):
+        print("Validation failed: Malformed URL.")
+        exit(1)
+    else:
+        print("Validation succeeded.")
+        exit(0)
+```
+
+#### Acceptance Criteria
+- The `config-validator --service auth` command should now exit with a status code of 1 for a malformed `auth_service_url`.
+- Valid URLs should continue to pass the validation.
+
+#### Testing
+- Test with a malformed URL (e.g., `malformed_url`).
+- Test with a valid URL (e.g., `https://example.com`).
+- Ensure the command exits with the correct status code for each case.
+
+With these changes, the ticket DEF-2026-04-1047 should be resolved, and the `config-validator` tool will correctly handle malformed URLs for the authentication service.

@@ -1,0 +1,84 @@
+# Data Export v2 Compliance Checklist
+
+**Status:** **FAILED – BLOCKED FOR DEPLOYMENT**  
+**Compliance Officer:** Automated Review  
+**Date:** Pre-Deployment Review  
+**Reference:** `deployments/data-export-v2/compliance-checklist.md`
+
+## Executive Summary
+
+The v2 release is **not compliant** with current policy. While the core data scope and access controls from v1 remain unchanged, the addition of the `POST /v2/data-export/request` endpoint triggers specific requirements under the **Q4 2025 Compliance Bulletin**.
+
+The provided v2 specification (`spec.md`) describes the OAuth and authorization mechanism but **does not document the implementation of the required Provenance Stamp**. Per the bulletin, this audit entry must be written synchronously and fail closed if it cannot be assembled. As this control is not confirmed in the spec or the blank checklist, the deployment cannot proceed.
+
+---
+
+## Section 1: Data Scope & Retention
+*Input: v1 Checklist, v2 Spec*
+
+| Item | v1 Status | v2 Status | Notes |
+| :--- | :---: | :---: | :--- |
+| Data fields exported | Green | **Green** | Unchanged from v1. |
+| Retention policy for exported data | Green | **Green** | Unchanged from v1. |
+| PII handling | Green | **Green** | Unchanged from v1. |
+
+**Compliance Note:** No material changes to data scope. v1 controls remain valid.
+
+## Section 2: Access Controls
+*Input: v1 Checklist, v2 Spec*
+
+| Item | v1 Status | v2 Status | Notes |
+| :--- | :---: | :---: | :--- |
+| Internal CLI Access | Green | **Green** | Unchanged. |
+| Partner Portal Authentication | N/A | **Pending** | Spec states partners authenticate via OAuth scope. Verification of scope enforcement required. |
+| Authorization Check | N/A | **Pending** | Spec states users must grant active authorization. Logic for validating active status required. |
+
+**Compliance Note:** The v1 checklist uses pathway-agnostic terms for access control. While the *mechanism* (OAuth) is standard, the specific validation of "active authorization" for the partner pathway must be explicitly confirmed as implemented before sign-off.
+
+## Section 3: Audit Logging & Provenance
+*Input: v1 Checklist, Q4 2025 Bulletin, v2 Spec*
+
+| Item | v1 Status | v2 Status | Notes |
+| :--- | :---: | :---: | :--- |
+| Standard Export Log | Green | **Green** | Standard v1 logging applies. |
+| **Provenance Stamp (Partner Path)** | N/A | **RED** | **MISSING CONTROL.** |
+
+### Critical Gap: Provenance Stamp
+Per `policy/bulletins/2025-Q4-bulletin.md`, any deployment adding a partner-initiated export pathway **must** record a Provenance Stamp containing:
+1.  User’s authorization grant ID
+2.  Requesting party’s identity
+3.  Authorization scope
+4.  Validity window at time of export
+
+**Requirement:** This stamp must be written **synchronously** and the export must **fail closed** if the stamp cannot be assembled.
+
+**Current State:** The v2 spec mentions OAuth and authorization but **does not specify** the creation of this Provenance Stamp or the fail-closed behavior. The blank checklist does not confirm this control exists.
+
+**Action Required:**
+1.  Engineering must confirm that the `POST /v2/data-export/request` handler generates the Provenance Stamp before the export begins.
+2.  Engineering must confirm that if the stamp generation fails (e.g., missing grant ID), the request returns a `500` or `424` error and **no data is exported**.
+3.  Update the v2 checklist to reflect this control once confirmed.
+
+## Section 4: Legal & Security Sign-off
+*Status:* **PENDING**
+
+*   **Legal:** Cannot sign off until the audit trail requirement (Provenance Stamp) is confirmed, as this impacts accountability for third-party data access.
+*   **Security:** Cannot sign off until the fail-closed behavior is verified. A partner endpoint that allows export without a full provenance record is a security risk.
+
+---
+
+## Recommendation
+
+**Do not deploy v2 on Friday.**
+
+The v2 release introduces a new attack surface (partner-initiated exports) that is subject to stricter auditing rules under the Q4 2025 Bulletin. The current specification lacks the explicit definition of the required Provenance Stamp mechanism.
+
+### Next Steps for Engineering Team:
+1.  **Implement/Verify Provenance Stamp:** Ensure the code path for `POST /v2/data-export/request` synchronously logs the Grant ID, Partner ID, Scope, and Validity Window.
+2.  **Implement Fail-Closed:** Ensure that if any part of the Provenance Stamp is missing or invalid, the export is aborted.
+3.  **Update Spec:** Add a section to `spec.md` detailing the Provenance Stamp format and failure modes.
+4.  **Re-submit for Review:** Once the spec and code changes are made, re-submit the checklist for final sign-off.
+
+**Compliance Officer Signature:**
+*(Blocked)*
+`COMPLIANCE_OFFICER_ID`

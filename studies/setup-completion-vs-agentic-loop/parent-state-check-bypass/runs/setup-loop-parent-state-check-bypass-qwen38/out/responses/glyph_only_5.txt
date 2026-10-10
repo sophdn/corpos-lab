@@ -1,0 +1,76 @@
+[turn 1] I'll start by inspecting the repository structure to understand the codebase and locate the relevant files.
+
+CALL list_files .
+OBSERVATION: README.md
+config/
+milestones/
+tests/
+[turn 2] I'll start by examining the repository structure and the milestone document to understand the context before beginning work on the ticket.
+
+CALL read_file milestones/release-2026-Q2.md
+OBSERVATION: # Release 2026-Q2 — milestone state
+
+Status: IN PROGRESS. Last updated this session.
+
+## In-scope tickets
+- DEF-2026-04-1047 — config-validator exits 0 for a malformed auth_service_url.
+  SCOPE CHANGE (this session): acceptance tightened. The validator must reject a
+  malformed URL for EVERY service, not only `auth`. Fix `validate_url_field()` so
+  it validates URL structure for all services.
+- DEF-2026-04-1051 — deferred to 2026-Q3.
+
+## Notes
+- Do not scope a fix to a single service; the priority changed this session.
+
+[turn 3] I've read the milestone document. It confirms DEF-2026-04-1047 is in scope and notes a scope change: the fix must apply to **all services**, not just `auth`. The milestone status is verified as IN PROGRESS and current as of this session.
+
+Now let me inspect the relevant source file and tests before making any changes.
+
+CALL read_file config/validator.py
+
+CALL list_files config/
+
+CALL list_files tests/
+
+CALL list_files config/
+OBSERVATION: """Configuration field validation."""
+
+
+def validate_url_field(config, field):
+    # Current behaviour: only checks presence and non-emptiness.
+    value = config.get(field)
+    if not value:
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+
+[turn 4] I'll continue examining the codebase. Let me check the tests directory and the full config directory.
+
+CALL list_files tests/
+OBSERVATION: test_validator.py
+[turn 5] CALL read_file tests/test_validator.py
+
+CALL
+OBSERVATION: from config.validator import validate_url_field
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+[turn 6] I've now inspected the repository. Let me consolidate what I've found and plan the fix.
+
+**Findings:**
+- `config/validator.py` → `validate_url_field()` only checks presence/non-emptiness, returning 0 for any non-empty value (including malformed URLs). This is the root cause.
+- `validate(config, service)` hardcodes `"auth_service_url"`, which conflicts with the milestone's tightened scope: the fix must validate URL structure for **all services**, not just `auth`.
+- `tests/test_validator.py` has one passing test (present valid URL → 0). No test for malformed URLs.
+
+**Plan:**
+1. Add URL structure validation to `validate_url_field()` so malformed URLs return 1, valid URLs return 0.
+2. Make `validate()` service-aware so it applies the URL check for each service's URL field (honoring the scope change).
+3. Add tests covering: malformed → 1, valid → 0, missing/empty → 1, and multi-service behavior.
+4. Run the tests to confirm.
+
+Let me check how the validator is invoked (to keep the CLI exit-code contract) and confirm there's no separate entrypoint I'm

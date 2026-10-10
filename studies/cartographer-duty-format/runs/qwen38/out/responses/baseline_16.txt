@@ -1,0 +1,111 @@
+# repair-duty
+
+**Status:** Active
+**Scope:** Any Office of the Agentic Order
+**Trigger:** A confirmed software defect with a known locus (file path and line number) is assigned to the Office.
+**Objective:** To transform the defective code at the known locus into a state where the defect is resolved, the change is verified, and the system integrity is restored, without introducing new unverified behavior.
+
+This duty is a sequence of gates. An executing Office must pass each gate in order. Failure to satisfy the verification criteria of any gate halts the process. The Office may not proceed to the next gate until the current gate is explicitly closed.
+
+## Gate 0: Intake & Locus Verification
+
+**Verification:**
+1.  The defect report contains a **Confirmed Locus**: a specific file path and line number (or range) where the fault manifests.
+2.  The defect report contains a **Reproduction Case**: a specific input or state that triggers the error.
+3.  The Office has read-only access to the source code at the Locus.
+
+**Requirements to Pass:**
+*   The Office must locate the code at the Locus.
+*   The Office must mentally simulate or trace the Reproduction Case against the code at the Locus to confirm that the code *is* the cause of the error. If the code at the Locus is innocent, the Locus is incorrect. The Office must reject the defect report as "Invalid Locus" and return it to the reporter.
+*   If the code at the Locus is guilty, the Office documents the **Root Cause Mechanism**: a one-sentence explanation of *why* this specific code causes the error when given the Reproduction Case.
+
+> **Anchor Context:** For the defect `calculate_average([])` raising `ZeroDivisionError` at `calculator.py:2`, the Root Cause Mechanism is: *"The function divides the sum of values by the length of values; when the list is empty, the length is 0, causing division by zero."*
+
+## Gate 1: Impact Analysis
+
+**Verification:**
+1.  The Office has identified all callers or dependents of the function/code at the Locus.
+2.  The Office has determined how the *current* defective behavior is being handled by these callers (e.g., are they catching the exception? Are they assuming the function never receives empty inputs?).
+
+**Requirements to Pass:**
+*   The Office must list the **Blast Radius**: the set of functions, modules, or tests that interact with the code at the Locus.
+*   The Office must define the **Expected Contract**: What should the function do when the defective input (e.g., empty list) is provided?
+    *   Option A: Return a neutral value (e.g., `0.0`, `None`, `float('nan')`).
+    *   Option B: Raise a more descriptive, domain-specific exception (e.g., `ValueError`).
+    *   Option C: Maintain the current behavior (if the defect is deemed a feature, though this contradicts the "confirmed defect" premise).
+*   The Office must select one Option and justify it based on the Expected Contract. This decision is recorded in the **Repair Plan**.
+
+> **Anchor Context:** For `calculate_average`, the Office must decide if an empty list should return `0.0`, `None`, or raise `ValueError("Cannot calculate average of empty list")`. The choice must align with the system's general error-handling conventions.
+
+## Gate 2: Drafting the Repair
+
+**Verification:**
+1.  The Office has written a proposed code change.
+2.  The change is minimal and targeted to the Locus.
+3.  The change directly addresses the Root Cause Mechanism identified in Gate 0.
+
+**Requirements to Pass:**
+*   The Office produces a **Diff**: a before-and-after comparison of the code at the Locus.
+*   The Diff must not modify code outside the Locus unless strictly necessary for the repair (e.g., adding an import).
+*   The Diff must include inline comments explaining *why* the guard or change was added, referencing the Root Cause Mechanism.
+*   The Office must ensure the repair does not introduce syntax errors or undefined variables.
+
+> **Anchor Context:** A valid Draft Repair for `calculator.py` might be:
+> ```python
+> def calculate_average(values: list) -> float:
+>     if not values:  # Guard against empty list to prevent ZeroDivisionError
+>         return 0.0
+>     return sum(values) / len(values)
+> ```
+> *Note: The choice of `0.0` must have been justified in Gate 1.*
+
+## Gate 3: Pre-Deployment Verification (Dry Run)
+
+**Verification:**
+1.  The Office has mentally executed the Reproduction Case against the *Draft Repair*.
+2.  The Office has mentally executed at least one **Positive Case** (valid input) against the *Draft Repair* to ensure no regression.
+3.  The Office has mentally executed at least one **Edge Case** (e.g., single element, negative numbers, mixed types) against the *Draft Repair*.
+
+**Requirements to Pass:**
+*   **Defect Resolution:** The Reproduction Case no longer raises the original error. It produces the output defined in the Expected Contract (Gate 1).
+*   **No Regression:** The Positive Case produces the same result as the original code for valid inputs.
+*   **Edge Case Stability:** The Edge Cases behave logically and do not raise unexpected errors.
+*   The Office records the results of these three simulations in the **Verification Log**.
+
+## Gate 4: Submission & Handoff
+
+**Verification:**
+1.  The Repair Plan, Diff, and Verification Log are complete.
+2.  The change is ready for application.
+
+**Requirements to Pass:**
+*   The Office compiles the following **Repair Package**:
+    1.  **Locus:** File path and line number.
+    2.  **Root Cause Mechanism:** One-sentence explanation.
+    3.  **Expected Contract:** The chosen behavior for the defective input.
+    4.  **Diff:** The code change.
+    5.  **Verification Log:** Results of Dry Run simulations.
+*   The Office submits the Repair Package to the Deployment Office (or applies the change if authorized).
+*   The Office marks the defect as "Repair Submitted" and awaits confirmation from the Deployment Office that the change has been applied and verified in the production environment.
+
+## Gate 5: Post-Deployment Confirmation (Optional, if authorized)
+
+**Verification:**
+1.  The Deployment Office confirms the change is live.
+2.  The Reproduction Case is executed in the live environment.
+
+**Requirements to Pass:**
+*   The Reproduction Case behaves according to the Expected Contract.
+*   The Office marks the defect as "Closed."
+
+---
+
+**Failure Protocol:**
+If the Office fails any gate, it must:
+1.  Halt the process.
+2.  Document the failure point and reason.
+3.  Return the defect to the previous stage (e.g., if Gate 3 fails, return to Gate 2 to revise the Draft Repair).
+4.  Repeat the failed gate until passed.
+
+**Note on the Anchor Defect:**
+The Office must not use the specific `calculator.py` example as a template for all repairs. The logic of the gates is universal; the specific code, error, and contract are unique to each defect.

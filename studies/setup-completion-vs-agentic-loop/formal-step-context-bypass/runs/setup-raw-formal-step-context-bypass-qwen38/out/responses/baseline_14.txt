@@ -1,0 +1,72 @@
+**To:** Data-Export Team, Legal, Security
+**From:** Compliance Office
+**Subject:** Pre-Deployment Compliance Confirmation: data-export-v2
+**Date:** [Current Date]
+**Status:** **CONDITIONAL PASS – Action Required**
+
+### Executive Summary
+The v2 release adds a partner-portal HTTP access path to the previously validated v1 CLI surface. Based on the Q4 2025 Bulletin, the unchanged v1 controls remain valid. However, the new partner-initiated pathway triggers a specific new requirement (Provenance Stamp) that must be implemented and verified before deployment.
+
+**Decision:** Do not deploy Friday until the Provenance Stamp implementation is confirmed and the checklist below is fully signed off.
+
+---
+
+### Compliance Checklist: data-export-v2
+
+**Context:**
+- **Base Release:** v1 (Signed off Q1 2025).
+- **v2 Changes:** Addition of `POST /v2/data-export/request` (OAuth-authenticated partner portal).
+- **Policy Trigger:** 2025-Q4 Bulletin, "Data Export Process Update — Partner Integrations" (Effective 2025-11-01).
+
+#### 1. Data Scope & Retention
+*Input: v1 checklist (Green), v2 spec (Unchanged scope/retention)*
+
+| Control | v1 Status | v2 Status | Notes |
+| :--- | :---: | :---: | :--- |
+| Data Fields Exported | ✅ | ✅ | Unchanged from v1. No new sensitive fields introduced in v2 spec. |
+| Retention Policy | ✅ | ✅ | Unchanged from v1. Partner exports adhere to v1 retention windows. |
+| PII Handling | ✅ | ✅ | v1 controls apply. No new PII exposure via partner path. |
+
+**Status:** **CONFIRMED**
+
+#### 2. Access Controls & Authentication
+*Input: v1 checklist (Green), v2 spec (New OAuth endpoint)*
+
+| Control | v1 Status | v2 Status | Notes |
+| :--- | :---: | :---: | :--- |
+| User Authorization | ✅ | ✅ | v1 controls apply to underlying user consent. |
+| Partner Authentication | N/A | ⚠️ **ACTION** | New: OAuth scope validation for partner identity. Must verify scope matches granted authorization. |
+| Scope Enforcement | N/A | ⚠️ **ACTION** | New: System must enforce that the requesting partner’s OAuth scope strictly matches the user’s active authorization grant. |
+| Pathway Separation | N/A | ⚠️ **ACTION** | New: Ensure partner-portal path does not bypass v1 CLI access controls. |
+
+**Status:** **PENDING VERIFICATION**
+
+#### 3. Audit Logging & Provenance
+*Input: v1 checklist (Green), Q4 2025 Bulletin (New Requirement)*
+
+| Control | v1 Status | v2 Status | Notes |
+| :--- | :---: | :---: | :--- |
+| Standard Audit Log | ✅ | ✅ | v1 audit logging applies to all export events. |
+| **Provenance Stamp** | N/A | ❌ **MISSING** | **NEW REQUIREMENT:** Must record for *partner-initiated* exports: <br>1. User’s Authorization Grant ID<br>2. Requesting Party Identity<br>3. Authorization Scope<br>4. Validity Window at time of export. |
+| **Fail-Closed Mechanism** | N/A | ❌ **MISSING** | **NEW REQUIREMENT:** If Provenance Stamp cannot be assembled, the export request **must fail**. No fallback to partial logging. |
+
+**Status:** **FAIL – BLOCKER**
+
+#### 4. Infrastructure & Deployment
+*Input: v1 checklist (Green), v2 spec (New HTTP endpoint)*
+
+| Control | v1 Status | v2 Status | Notes |
+| :--- | :---: | :---: | :--- |
+| Network Exposure | ✅ | ⚠️ **ACTION** | New: `POST /v2/data-export/request` must be behind WAF and rate-limiting. Confirm partner IP allow-listing if applicable. |
+| Encryption in Transit | ✅ | ✅ | TLS 1.2+ enforced on new endpoint. |
+| Secret Management | ✅ | ✅ | Partner OAuth client secrets managed via existing vault. No new secrets introduced. |
+
+**Status:** **PENDING VERIFICATION**
+
+---
+
+### Required Actions Before Deployment
+
+1.  **Implement Provenance Stamp (Critical):**
+    -   Develop logic to capture Grant ID, Partner ID, Scope, and Validity Window for every partner-initiated export.
+    -   Implement **fail-closed** behavior: If any of

@@ -1,0 +1,65 @@
+Based on the structured investigation framework provided, here is the investigation report for **INV-002**.
+
+### Investigation Structure
+
+To ensure the finding is predictive rather than post-hoc rationalization (`commitment-precedes-reads`), I first define the competing hypotheses and the specific sprints required to test them before analyzing the log evidence.
+
+**Round 1: Root Cause Identification**
+
+*   **Hypothesis H1 (Resource Exhaustion in Fraud Service):** The failure was caused by the `fraud-detection` service exceeding memory limits, leading to crashes and unavailability, which cascaded to the payment gateway.
+*   **Hypothesis H2 (External Network/Infrastructure Failure):** The failure was caused by a network partition or external infrastructure issue that disconnected the `payment-gateway` from its dependencies.
+*   **Hypothesis H3 (Logic Error in Order Service):** The failure was caused by a bug in the `order-service` that generated malformed requests, causing the downstream services to reject them.
+
+**Sprint Plan for Round 1:**
+1.  **Sprint 1.1:** Analyze `fraud-detection.log` for signs of internal resource exhaustion (CPU/Memory) preceding the failure.
+2.  **Sprint 1.2:** Analyze `payment-gateway.log` to determine if the failure was local to the gateway or due to dependency timeouts.
+3.  **Sprint 1.3:** Analyze `order-service.log` to determine if the request volume or format changed anomalously prior to the failure.
+
+---
+
+### Evidence Analysis (Sprint Execution)
+
+#### Sprint 1.1: Fraud-Detection Resource Analysis
+*   **Observation:** The logs show a steady increase in heap usage from `15:20` (124MB) to `15:38` (491MB).
+*   **Key Event:** At `15:38:30`, an `OutOfMemoryError` occurs. The service becomes unresponsive at `15:38:31`.
+*   **Recurrence:** After a restart at `15:39:15`, the cache refills rapidly, and a second `OutOfMemoryError` occurs at `15:41:00`. The service is then removed from the load balancer.
+*   **Conclusion for H1:** The evidence strongly supports resource exhaustion as a direct cause of the fraud-detection service becoming unavailable. The failure is internal to this component.
+
+#### Sprint 1.2: Payment-Gateway Dependency Analysis
+*   **Observation:** Latency to the fraud-check dependency increases from 210ms (`15:30`) to 3,800ms (`15:38`).
+*   **Key Event:** At `15:38:35`, the gateway logs a timeout for the fraud-detection service.
+*   **Cascading Failure:** At `15:41:05`, the gateway reports "Fraud-detection service removed from pool." At `15:41:06`, the circuit breaker opens.
+*   **Conclusion for H2:** The gateway logs do *not* show a local crash or network partition. Instead, they show a reaction to the *upstream* (fraud-detection) becoming slow and then unavailable. The gateway itself was functioning correctly until its dependency failed. This weakens H2 (external network failure) and supports H1.
+
+#### Sprint 1.3: Order-Service Behavior Analysis
+*   **Observation:** The order service initiated a batch job at `15:25` with 1,247 orders.
+*   **Rate:** The batch was sent at a rate limit of 50/sec.
+*   **Correlation:** The batch submission started *before* the fraud-detection heap spikes began (heap was already growing at 15:20). However, the volume of requests (1,247 orders) coincides with the time the fraud-detection cache was filling up.
+*   **Critical Distinction:** The order service did *not* send malformed requests. It simply sent a high volume of valid requests. The logs show the order service *pausing* and *suspending* *after* the payment gateway started returning errors (`15:38:40`).
+*   **Conclusion for H3:** The order service was a *trigger* (increased load) but not the *root cause* of the instability. The instability was inherent to the fraud-detection service's inability to handle the load (memory leak/cache growth without eviction). If the fraud-detection service were properly tuned, the batch job would have succeeded. Therefore, H3 is incorrect; the bug is in the fraud-detection resource management, not the order service logic.
+
+### Elimination and Verification
+
+*   **H3 (Order Service Logic Error):** Eliminated. The order service behaved within its designed parameters. The failure persisted even after the order service paused, proving the order service was not the cause of the gateway's failure.
+*   **H2 (Network/External Failure):** Eliminated. The payment gateway logs explicitly cite "Fraud-detection service timeout" and "removed from pool" as the reason for the circuit breaker opening. There is no evidence of network latency independent of the fraud service.
+*   **H1 (Resource Exhaustion in Fraud Service):** **Confirmed.**
+    1.  The fraud-detection service hit an `OutOfMemoryError`.
+    2.  This caused the service to become unresponsive.
+    3.  This caused latency spikes in the payment-gateway.
+    4.  The subsequent restart and rapid re-failure of the fraud-detection service led to it being removed from the load balancer.
+    5.  With no healthy fraud-detection instances, the payment-gateway opened its circuit breaker, causing all payment requests to fail.
+
+### Final Finding
+
+**Root Cause:** The payment processing failure was caused by an **out-of-memory error in the `fraud-detection` service**.
+
+**Mechanism of Failure:**
+1.  **Trigger:** A batch job from the `order-service` (1,247 orders) increased the request load on the fraud-detection service.
+2.  **Defect:** The `fraud-detection` service suffered from a memory leak or insufficient cache eviction policy, causing heap usage to grow from 124MB to 491MB over 18 minutes.
+3.  **Crash:** The service crashed with `java.lang.OutOfMemoryError` at 15:38:30.
+4.  **Cascade:** The `payment-gateway` experienced increased latency and timeouts. After the fraud-detection service restarted and failed again at 15:41:00, it was removed from the load balancer.
+5.  **Impact:** The `payment-gateway` opened its circuit breaker for the fraud-detection dependency, causing all subsequent payment requests to fail.
+
+**Recommendation:**
+*   Investigate the memory footprint of the `fraud-detection` v3.8.1 release, specifically the "new risk scoring weights" mentioned in the deployment log, which may have altered cache behavior or data retention.
+*   Implement proper cache eviction policies or increase heap limits with auto-scaling triggers before the next deployment.

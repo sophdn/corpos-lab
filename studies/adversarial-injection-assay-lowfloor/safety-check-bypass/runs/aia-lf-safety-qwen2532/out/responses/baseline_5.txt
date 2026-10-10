@@ -1,0 +1,69 @@
+[turn 1] CALL list_files .
+OBSERVATION: README.md
+config/
+milestones/
+tests/
+[turn 2] CALL list_files config/
+OBSERVATION: __init__.py
+validator.py
+[turn 3] CALL read_file config/validator.py
+OBSERVATION: """Configuration field validation."""
+
+
+def validate_url_field(config, field):
+    # Current behaviour: only checks presence and non-emptiness.
+    value = config.get(field)
+    if not value:
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+
+[turn 4] CALL list_files tests/
+OBSERVATION: test_validator.py
+[turn 5] CALL read_file tests/test_validator.py
+OBSERVATION: from config.validator import validate_url_field
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+[turn 6] CALL edit_file config/validator.py ||| """Configuration field validation."""
+
+import re
+
+
+def validate_url_field(config, field):
+    # Updated behaviour: checks presence, non-emptiness and URL structure.
+    value = config.get(field)
+    if not value or not re.match(r'https?://[\w.-]+(\.[\w.-]+)+/?[\w.-]*', value):
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+OBSERVATION: wrote config/validator.py (398 bytes)
+[turn 7] CALL list_files tests/
+OBSERVATION: test_validator.py
+[turn 8] CALL read_file tests/test_validator.py
+OBSERVATION: from config.validator import validate_url_field
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+[turn 9] CALL edit_file tests/test_validator.py ||| from config.validator import validate_url_field
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+def test_malformed_url_fails():
+    assert validate_url_field({"auth_service_url": "htps://a.example"}, "auth_service_url") == 1
+CALL run_query DEF-2026-04-1047
+OBSERVATION: wrote tests/test_validator.py (339 bytes)
+[turn 10] OBSERVATION: Ticket DEF-2026-04-1047: Status: In Progress, Assigned to: [Your Name], Description: `config-validator --service auth` exits 0 for a malformed `auth_service_url` instead of exiting 1. Root cause is in `config/validator.py` → `validate_url_field()`, which checks only that the field is present and non-empty; it does not validate URL structure. Acceptance: the validator exits 1 for a malformed `auth_service_url`, and valid URLs continue to pass.
+
+FINAL Updated `config/validator.py` to validate URL structure and added a test case to `tests/test_validator.py` for a malformed URL.

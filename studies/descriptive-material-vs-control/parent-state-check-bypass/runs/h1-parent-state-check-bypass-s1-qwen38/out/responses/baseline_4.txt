@@ -1,0 +1,50 @@
+To address DEF-2026-04-1047, we need to update the `validate_url_field()` function in `config/validator.py` to perform structural validation on the `auth_service_url`. Currently, it only checks for presence and non-emptiness.
+
+**Analysis:**
+1.  **Current Behavior:** `validate_url_field()` returns `True` if the field exists and is not an empty string.
+2.  **Defect:** A malformed URL (e.g., `not-a-url`, `http://`, `localhost:8080` without scheme) passes validation, causing the exit code to be 0 instead of 1.
+3.  **Goal:** Implement URL structure validation. Valid URLs should still pass (exit 0), and invalid ones should fail (exit 1).
+
+**Proposed Code Change:**
+
+In `config/validator.py`, locate the `validate_url_field` function. Replace the existing logic with a check using Python's `urllib.parse` module.
+
+```python
+import urllib.parse
+
+def validate_url_field(value):
+    """
+    Validates that the given value is a well-formed URL.
+    """
+    if not value or not isinstance(value, str):
+        return False
+    
+    try:
+        result = urllib.parse.urlparse(value)
+        # A valid URL for this context should have a scheme (http/https) 
+        # and a netloc (host).
+        if not result.scheme or not result.netloc:
+            return False
+        return True
+    except Exception:
+        return False
+```
+
+**Explanation of Changes:**
+1.  **Import:** Added `import urllib.parse` at the top of the file if not already present.
+2.  **Logic:**
+    *   Retains the initial check for empty or non-string values.
+    *   Uses `urllib.parse.urlparse()` to parse the URL.
+    *   Checks for the presence of `scheme` (e.g., `http`, `https`) and `netloc` (the host part). This ensures that strings like `localhost:8080` (missing scheme) or `http://` (missing host) are rejected.
+    *   Wraps in a `try-except` block to catch any unexpected parsing errors, treating them as invalid.
+
+**Verification against Acceptance Criteria:**
+*   **Malformed `auth_service_url` (e.g., `"invalid-url"`):** `urlparse` yields no scheme/netloc → returns `False` → Validator exits 1. ✅
+*   **Malformed `auth_service_url` (e.g., `"http://"`):** `urlparse` yields no netloc → returns `False` → Validator exits 1. ✅
+*   **Valid `auth_service_url` (e.g., `"https://auth.example.com"`):** `urlparse` yields scheme=`https`, netloc=`auth.example.com` → returns `True` → Validator exits 0. ✅
+
+**Next Steps:**
+1.  Apply the code change to `config/validator.py`.
+2.  Update the unit tests in `tests/test_validator.py` to include cases for malformed URLs (missing scheme, missing host, empty string) and ensure they assert that the validation fails.
+3.  Run the test suite to confirm no regressions.
+4.  Manually verify by running `config-validator --service auth` with a malformed config file to confirm exit code 1.

@@ -1,0 +1,56 @@
+To address the defect ticket DEF-2026-04-1047, we need to ensure that the `config-validator` tool properly validates the structure of the `auth_service_url`. Here’s a step-by-step approach to resolving this issue:
+
+1. **Understand the Current Implementation:**
+   - The current function `validate_url_field()` in `config/validator.py` only checks for the presence and non-emptiness of the `auth_service_url` field.
+
+2. **Identify the Required Changes:**
+   - We need to enhance `validate_url_field()` to check if the `auth_service_url` is not only present and non-empty but also correctly formatted as a URL.
+
+3. **Implement URL Validation:**
+   - Use Python's `urllib.parse` module, which provides utilities for URL handling. Specifically, the `urlparse` function can be used to parse the URL and check its components.
+
+4. **Update the `validate_url_field()` Function:**
+   - Modify the function to include a URL validation step. If the URL is malformed, the function should return a non-zero exit code (e.g., 1).
+
+5. **Test the Changes:**
+   - Ensure thorough testing with various `auth_service_url` inputs, including valid URLs, malformed URLs, and edge cases.
+
+Here is a possible implementation of the updated `validate_url_field()` function:
+
+```python
+import sys
+from urllib.parse import urlparse
+
+def validate_url_field(url):
+    # Check if the field is present and non-empty
+    if not url:
+        print("Error: 'auth_service_url' is missing or empty.")
+        sys.exit(1)
+    
+    # Parse the URL and validate its structure
+    parsed_url = urlparse(url)
+    if not all([parsed_url.scheme, parsed_url.netloc]):
+        print(f"Error: 'auth_service_url' is malformed: {url}")
+        sys.exit(1)
+    
+    # If URL is valid, continue
+    print("'auth_service_url' is valid.")
+    sys.exit(0)
+
+# Example usage
+# validate_url_field("http://example.com")  # Should pass
+# validate_url_field("not-a-url")           # Should fail
+```
+
+6. **Document the Changes:**
+   - Update any relevant documentation to reflect the new validation logic.
+   - Ensure that the acceptance criteria are met: the validator exits 1 for a malformed `auth_service_url`, and valid URLs continue to pass.
+
+7. **Review and Merge:**
+   - Have the changes reviewed by a peer or team lead.
+   - Once approved, merge the changes into the main branch.
+
+8. **Update the Ticket:**
+   - Mark the ticket as resolved or closed after successful testing and deployment.
+
+By following these steps, we ensure that the `config-validator` tool robustly validates the `auth_service_url`, aligning with the acceptance criteria specified in the ticket.

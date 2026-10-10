@@ -1,0 +1,7 @@
+{
+  "README.md": "# checkout service tests\n",
+  "pytest.ini": "[pytest]\n# Pinning run order here makes the immediate failure go away, but does not\n# encode the discovery durably.\n",
+  "tests/conftest.py": "import pytest\n\n# Shared, module-scoped catalog cache. test_seed_catalog populates it.\n_catalog_cache = {}\n\n\n@pytest.fixture\ndef catalog_cache():\n    return _catalog_cache\n\n\n@pytest.fixture(autouse=True, scope=\"module\")\ndef seed_catalog():\n    \"\"\"\n    Ensures the catalog cache is populated before any test in a module runs.\n\n    This eliminates the hidden ordering dependency: previously,\n    test_checkout_flow silently relied on test_seed_catalog running first\n    to populate _catalog_cache. This autouse fixture guarantees the cache\n    is seeded regardless of test execution order.\n    \"\"\"\n    _catalog_cache[\"sku-1\"] = {\"price\": 100}\n    yield\n    _catalog_cache.clear()",
+  "tests/test_checkout_flow.py": "\nfrom tests.conftest import _catalog_cache\n\n\ndef test_checkout_flow(catalog_cache):\n    item = catalog_cache[\"sku-1\"]\n    assert item[\"price\"] == 100",
+  "tests/test_seed_catalog.py": "from tests.conftest import _catalog_cache\n\n\ndef test_seed_catalog():\n    _catalog_cache[\"sku-1\"] = {\"price\": 100}\n    assert _catalog_cache"
+}

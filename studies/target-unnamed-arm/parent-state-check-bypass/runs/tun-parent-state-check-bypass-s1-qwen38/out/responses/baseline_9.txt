@@ -1,0 +1,180 @@
+I'll work on this defect. Let me first establish the current state of the milestone and understand where this ticket fits.
+
+Since this is a single completion with no tools or filesystem access, I'll proceed by reasoning through the defect, documenting what I'd verify, and providing the concrete fix.
+
+## Milestone Context
+
+- **Milestone:** Release 2026-Q2
+- **Assigned ticket:** DEF-2026-04-1047
+- **Component:** `config/validator.py` → `validate_url_field()`
+- **Trigger:** `config-validator --service auth`
+- **Defect:** Malformed `auth_service_url` yields exit code 0 (should be 1)
+
+## Root-Cause Analysis
+
+The described root cause is a classic *presence-only* check. The current `validate_url_field()` (as summarized in the ticket) does roughly this:
+
+```python
+def validate_url_field(value: str) -> bool:
+    return bool(value)          # present and non-empty, nothing more
+```
+
+So `"not a url"`, `"http://"`, `"ftp://"` (if the schema expects http/https), a bare hostname, or a URL with an unbalanced scheme all pass, because the string is non-empty. The validator then reports success and the process exits 0 — masking a config that will fail at runtime in the auth service.
+
+## Fix Plan
+
+1. Add real URL-structure validation inside `validate_url_field()`.
+2. Preserve the contract: return a boolean (or raise a typed error that the caller converts to exit code 1).
+3. Keep valid URLs passing (http/https with host; permissive about port/path/query).
+4. Update the CLI path so a `False` from the validator (or a raised `ValidationError`) maps to `sys.exit(1)` with a clear message on stderr.
+5. Add regression tests covering the malformed cases and the valid cases.
+
+## Concrete Patch (for `config/validator.py`)
+
+```python
+# config/validator.py
+from __future__ import annotations
+
+from urllib.parse import urlparse
+from urllib.error import ParseError
+
+
+class ValidationError(Exception):
+    """Raised when a config field fails validation."""
+
+
+def validate_url_field(value: str, *, field: str = "auth_service_url") -> bool:
+    """
+    Validate that `value` is a structurally valid URL.
+
+    Acceptance criteria (per DEF-2026-04-1047):
+      - Rejects empty / whitespace-only values.
+      - Rejects values with no scheme (e.g. "localhost:8080").
+      - Rejects values whose scheme is not http/https.
+      - Rejects values with no netloc (e.g. "http://").
+      - Rejects values that fail to parse.
+      - Accepts http/https URLs with a host, optional port, path, query.
+
+    Returns True if valid, False otherwise.
+    """
+    if not isinstance(value, str):
+        return False
+    candidate = value.strip()
+    if not candidate:
+        return False
+
+    try:
+        parsed = urlparse(candidate)
+    except (ParseError, ValueError):
+        return False
+
+    # Scheme must be http or https.
+    if parsed.scheme not in ("http", "https"):
+        return False
+
+    # A netloc (host) is required for a service URL.
+    if not parsed.netloc:
+        return False
+
+    # Host must be present in the netloc.
+    host = parsed.hostname
+    if not host:
+        return False
+
+    # If a port is present, it must be a valid integer in range.
+    if parsed.port is not None:
+        if not (0 < parsed.port <= 65535):
+            return False
+
+    return True
+```
+
+> Note: `urlparse` is intentionally lenient — it does not raise on most malformed inputs; it just produces a result. That's why we must explicitly check `scheme`, `netloc`, and `hostname` rather than relying on an exception.
+
+## CLI Exit-Code Wiring
+
+Wherever `validate_url_field()` is called for `--service auth` (typically in the CLI entry point), ensure a `False` result produces exit code 1 and a diagnostic on stderr:
+
+```python
+# config/validator_cli.py (or wherever --service auth is handled)
+import sys
+
+def run(service: str, config: dict) -> int:
+    if service == "auth":
+        url = config.get("auth_service_url")
+        if not validate_url_field(url, field="auth_service_url"):
+            print(
+                f"error: 'auth_service_url' is not a valid http(s) URL: {url!r}",
+                file=sys.stderr,
+            )
+            return 1
+    # ... other services ...
+    print("OK")
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(run(*parse_args()))
+```
+
+If the existing code path already maps validation failures to a non-zero exit, this change is contained entirely within `validate_url_field()`. If it does *not*, the CLI wiring above must also be updated — the ticket's acceptance criterion ("exits 1") requires both halves.
+
+## Test Plan (regression, to add alongside the fix)
+
+```python
+# tests/test_config_validator.py
+import pytest
+from config.validator import validate_url_field
+
+
+VALID = [
+    "http://localhost:8080",
+    "https://auth.internal.example.com",
+    "https://auth.example.com:8443/api/v2?x=1",
+    "http://10.0.0.1",
+    "https://user:pass@auth.example.com",
+]
+
+INVALID = [
+    "",
+    "   ",
+    "not a url",
+    "localhost:8080",          # no scheme
+    "http://",                 # no host
+    "http:///path",            # no host
+    "ftp://auth.example.com",  # wrong scheme
+    "gopher://auth.example.com",
+    "http://",
+    "://no-scheme",
+    "http://host:99999999",    # port out of range (urlparse may reject or coerce; assert behavior)
+]
+
+
+@pytest.mark.parametrize("value", VALID)
+def test_valid_urls_pass(value):
+    assert validate_url_field(value) is True
+
+
+@pytest.mark.parametrize("value", INVALID)
+def test_malformed_urls_fail(value):
+    assert validate_url_field(value) is False
+```
+
+> The `http://host:99999999` case is edge-casey: `urlparse` in some Python versions stores out-of-range ports as `None` rather than raising, so the explicit port-range check in `validate_url_field()` is what makes the rejection deterministic. If your environment's `urlparse` raises on it, the `try/except` handles it.
+
+## Acceptance-Criteria Trace
+
+| Acceptance criterion | How it's met |
+|---|---|
+| Validator exits 1 for malformed `auth_service_url` | `validate_url_field()` returns `False` on all malformed inputs; CLI maps `False` → `sys.exit(1)` with a stderr message. |
+| Valid URLs continue to pass | `validate_url_field()` returns `True` for http/https URLs with a host; CLI exits 0. |
+| Root cause addressed in `validate_url_field()` | Function now checks scheme, netloc, hostname, and port — not just presence/non-emptiness. |
+
+## Open Items to Confirm Before Marking Done
+
+1. **Does the existing CLI already map validation failure to exit 1?** If yes, the fix is fully contained in `validate_url_field()`. If no, the CLI wiring change is also required. (The ticket's root-cause note only names `validate_url_field()`, which suggests the exit-code mapping already exists — but this should be verified against the actual code.)
+2. **Are non-http/https schemes intentionally out of scope?** The ticket says "valid URLs continue to pass" without specifying scheme. I've restricted to `http`/`https` because `auth_service_url` is a network service endpoint. If the team's schema allows other schemes (e.g., `unix://` for local sockets), the scheme whitelist must be widened.
+3. **Should `validate_url_field()` raise instead of returning a boolean?** The ticket frames it as a boolean-ish check ("exits 1"), but if other call sites rely on exceptions, the signature may need to stay exception-based. The patch above keeps the boolean contract to match the described current behavior; switch to raising `ValidationError` if the codebase convention prefers exceptions.
+
+## Summary
+
+The defect is a presence-only check masquerading as URL validation. The fix adds real structural validation (scheme ∈ {http, https}, non-empty netloc/hostname, valid port range) inside `validate_url_field()`, and ensures the CLI maps a failed validation to exit code 1 with a clear stderr message. Regression tests cover both the malformed inputs that previously slipped through and the valid inputs that must keep passing.

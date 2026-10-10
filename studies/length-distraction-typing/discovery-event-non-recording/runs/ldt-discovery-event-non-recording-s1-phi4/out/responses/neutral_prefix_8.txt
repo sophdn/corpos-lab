@@ -1,0 +1,29 @@
+To address the flakiness in the integration test suite due to the dependency between `test_seed_catalog` and `test_checkout_flow`, follow these steps to ensure a stable and reliable test environment:
+
+1. **Identify Dependencies:**
+   - Confirm that `test_checkout_flow` relies on the catalog cache created by `test_seed_catalog`. This understanding is crucial for refactoring the tests to eliminate the dependency.
+
+2. **Refactor Test Setup:**
+   - Extract the catalog seeding logic from `test_seed_catalog` into a separate setup function or fixture. This function should be responsible for populating the catalog cache, ensuring it can be accessed by other tests without explicit order dependency.
+
+3. **Use Setup Fixtures:**
+   - Implement a setup fixture at the test suite level that runs before any tests. This fixture should call the extracted catalog seeding function, ensuring the catalog cache is initialized prior to any test execution.
+   - If your testing framework supports fixtures (e.g., pytest), use the `@pytest.fixture` decorator with the `scope="module"` or `scope="session"` to ensure the setup runs once per test module or session, respectively.
+
+4. **Modify Test Functions:**
+   - Update `test_seed_catalog` to focus on verifying specific catalog seeding logic rather than performing the seeding itself. This allows `test_seed_catalog` to serve as a validation test rather than a setup test.
+   - Modify `test_checkout_flow` to remove any setup logic related to the catalog cache, relying instead on the centralized setup fixture.
+
+5. **Ensure Test Independence:**
+   - Review the entire test suite to ensure other tests do not have similar hidden dependencies. Each test should be self-contained and not rely on the state set up by other tests.
+
+6. **Run Tests in Isolation:**
+   - Execute the entire test suite to verify that the refactoring has resolved the flakiness. Ensure that tests run in any order without affecting each other, confirming that the setup fixture correctly initializes shared state.
+
+7. **Document the Changes:**
+   - Update any documentation related to the test suite to reflect the changes made. Clearly describe the new setup fixture and its purpose, ensuring future maintainers understand the test environment configuration.
+
+8. **Monitor for Flakiness:**
+   - Continue to monitor the test suite for any signs of flakiness. If issues arise, investigate further to ensure there are no other hidden dependencies or state management issues.
+
+By following these steps, you can eliminate the ordering dependency between `test_seed_catalog` and `test_checkout_flow`, resulting in a more robust and reliable test suite.

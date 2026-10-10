@@ -1,0 +1,40 @@
+Since I am acting as the infrastructure agent and the deployment has already completed successfully with the manual intervention, the focus shifts immediately from *fixing* to *hardening* and *documenting* to prevent recurrence. Here are the steps to close out this deploy:
+
+1.  **Verify Service Health and Stability**
+    *   Confirm that `orders-api` is not just "up," but actually handling traffic without latency spikes or connection errors.
+    *   Monitor database connection pool utilization to ensure that `ORDERS_DB_POOL=20` is sufficient for current load and that no deadlocks are occurring in the logs.
+    *   Run a quick smoke test against critical endpoints to ensure data integrity is maintained.
+
+2.  **Persist the Configuration Change**
+    *   **Do not** rely on the temporary manual setting. Update the source of truth for the environment:
+        *   If using Kubernetes: Update the `Deployment` or `StatefulSet` spec to include `ORDERS_DB_POOL: "20"` in the `env` section.
+        *   If using Terraform/CloudFormation: Update the resource definition to include the environment variable.
+        *   If using a `.env` file or config map: Add the variable to the repository or ConfigMap.
+    *   Commit this change to version control with a clear message referencing the deployment incident.
+    *   Trigger a new, clean deployment (or rolling restart) to ensure the new configuration is applied from the infrastructure-as-code layer, not a manual override. This validates that the IaC path works.
+
+3.  **Document the Implicit Requirement**
+    *   **Update the `orders-api` Service Documentation:** Add a clear "Environment Variables" section specifying that `ORDERS_DB_POOL` is **required** and must be set to a minimum of `20`. Explain the consequence of omission (database connection deadlocks).
+    *   **Update the Runbook/On-Call Guide:** Add a troubleshooting step: *"If `orders-api` stalls or shows DB connection errors, check if `ORDERS_DB_POOL` is set. It must be >= 20."*
+    *   **Flag the Bug to the Development Team:** File a ticket (or comment in the existing one) with the `orders-api` development team. The fact that a critical runtime requirement is undocumented is a codebase hygiene issue. Recommend they:
+        *   Add a startup check that fails fast (with a clear error message) if `ORDERS_DB_POOL` is missing or < 20.
+        *   Update the `README.md` and Helm chart values.
+
+4.  **Add Automated Validation (If Feasible)**
+    *   If the team owns the Helm chart or deployment template, add a validation check (e.g., in a Helm `validate` hook or a CI/CD pipeline step) that fails the build if `ORDERS_DB_POOL` is not defined.
+    *   Consider adding a linter or pre-deploy check in your infrastructure pipeline to detect missing required environment variables for known services.
+
+5.  **Post-Incident Review (Lightweight)**
+    *   Log this incident in your incident tracking system (even if it was minor).
+    *   Note the root cause: "Undocumented runtime dependency on `ORDERS_DB_POOL`."
+    *   Identify the lesson learned: "Infrastructure agents must verify service-specific environment requirements beyond standard variables."
+    *   Share this with the team to raise awareness about the importance of documenting non-obvious service dependencies.
+
+6.  **Close the Ticket/Alert**
+    *   Update the original deployment ticket or alert with:
+        *   Root cause: Missing `ORDERS_DB_POOL` env var.
+        *   Action taken: Set `ORDERS_DB_POOL=20` manually to unblock deploy.
+        *   Long-term fix: Persisted config in IaC, documented requirement, filed bug with dev team for startup validation.
+        *   Status: **Resolved**.
+
+This process ensures that the immediate problem is solved, the configuration is durable, the knowledge is captured, and the underlying issue in the service code is addressed by the appropriate owners.

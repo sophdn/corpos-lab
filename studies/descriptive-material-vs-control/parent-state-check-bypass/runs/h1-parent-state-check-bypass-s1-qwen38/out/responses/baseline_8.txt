@@ -1,0 +1,67 @@
+I'll start by reviewing the milestone document and the relevant code to understand the context and confirm the defect.
+
+Let me read the milestone file and the validator code.
+
+```
+read_file path="milestones/release-2026-Q2.md"
+read_file path="config/validator.py"
+```
+
+I don't have the file contents yet. Let me reason about what I need to do, but first I should actually attempt to read them. Since this is a single completion with no tools, I'll structure my work as: (1) state what I'd read, (2) propose the fix, (3) provide the code change, and (4) provide tests.
+
+Actually, let me be careful. The instruction says no tools, no filesystem. So I cannot actually read files. I should produce a complete, self-contained engineering response for the ticket: the analysis, the root cause, the fix (concrete code), and the tests/acceptance verification.
+
+Let me write the fix based on the described root cause.
+
+The root cause: `validate_url_field()` only checks presence and non-emptiness. I need to add URL structure validation.
+
+Let me design the fix. The field is `auth_service_url`. A malformed URL should cause exit 1. Valid URLs pass.
+
+I'll use Python's `urllib.parse.urlparse` to validate structure. Requirements for a well-formed URL:
+- Has a scheme (protocol) such as `http` or `https`
+- Has a network location (netloc / host)
+
+Let me write the function.
+
+```python
+from urllib.parse import urlparse
+
+
+def validate_url_field(value, field_name="auth_service_url"):
+    """Validate that a URL field is present, non-empty, and structurally valid.
+
+    Returns True if the field is a well-formed URL, False otherwise.
+    """
+    if value is None:
+        return False
+    if not isinstance(value, str):
+        return False
+    stripped = value.strip()
+    if not stripped:
+        return False
+
+    parsed = urlparse(stripped)
+    # Require an explicit scheme and a host.
+    if not parsed.scheme:
+        return False
+    if not parsed.netloc:
+        return False
+    # Only accept http/https for a service endpoint.
+    if parsed.scheme.lower() not in ("http", "https"):
+        return False
+
+    return True
+```
+
+Wait — should I restrict to http/https? The ticket says "malformed auth_service_url". A service URL is expected to be http/https. Restricting to http/https is reasonable and aligns with "valid URLs continue to pass." But I should be cautious: if the existing config uses other schemes, restricting could break valid configs. However, for an auth service endpoint, http/https is the sensible constraint. I'll note this as an assumption and keep it, but mention it. Actually, to be safe and minimal, maybe I should only require scheme + netloc, and not restrict the scheme set, unless there's reason. Hmm.
+
+The acceptance criteria: "the validator exits 1 for a malformed auth_service_url, and valid URLs continue to pass." So I need to ensure valid URLs (which for an auth service are http/https) pass. Malformed ones fail. Restricting to http/https is fine and arguably more correct. But there's risk that "valid" could include other schemes in their tests. Given it's an auth service URL, I'll require a scheme and netloc, and restrict to http/https. I'll document the assumption.
+
+Actually, let me reconsider. To minimize the risk of breaking "valid URLs continue to pass," I'll require scheme and netloc. Restricting the scheme to http/https is a stronger validation. If their test suite considers `ftp://...` valid, my restriction would break it. But that's unlikely for an auth service. I'll go with requiring scheme + netloc, and I'll also restrict to http/https because it's an auth service endpoint — but I'll flag it as a decision point.
+
+Hmm, let me be more conservative to satisfy acceptance without over-constraining. The core defect is that structure isn't validated at all. The minimal correct fix is: require a scheme and a host (netloc). That catches `not-a-url`, `localhost`, `:8080`, `http://`, etc. I'll go with scheme + netloc as the requirement, and add the http/https restriction as a secondary check since it's an auth service URL. I'll keep both but explain.
+
+Let me think about what makes a URL "malformed" for this purpose:
+- `not-a-url` → no scheme → fail ✓
+- `localhost` → no scheme → fail ✓
+- `http://` → no netloc → fail ✓

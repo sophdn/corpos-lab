@@ -1,0 +1,42 @@
+ To resolve DEF-2026-04-1047, I will modify the `validate_url_field()` function in `config/validator.py` to check for a valid URL structure. Here's a suggested approach:
+
+1. Import the necessary libraries for URL validation, such as `re` for regular expressions or `validators` from the `python-slugify` package.
+
+```python
+import re
+from validators import url as url_validator
+```
+
+2. In the `validate_url_field()` function, perform a regular expression check on the `auth_service_url` to ensure it has the expected format, such as `http://example.com` or `https://example.com`.
+
+```python
+def validate_url_field(field):
+    if not field:
+        return False
+
+    # Validate the URL format
+    url_regex = re.compile(r'^(http|https)://[a-zA-Z0-9]+.[a-zA-Z]{2,}|localhost$')
+    if not url_regex.match(field):
+        return False
+
+    # Check that the URL is valid using urlvalidator (optional)
+    if not url_validator.url_is_valid(field):
+        return False
+
+    return True
+```
+
+3. Update the `config_validator` function to call `validate_url_field()` for the `auth_service_url` and handle the case when it returns `False`.
+
+```python
+def config_validator():
+    # ... (existing code) ...
+
+    if not validate_url_field(config['auth']['auth_service_url']):
+        print("Error: malformed auth_service_url")
+        return 1
+
+    # ... (existing code) ...
+```
+
+With these modifications, the `config-validator --service auth` will now exit 1 for a malformed `auth_service_url`, and valid URLs will continue to pass. After testing the changes, you can merge them back into the main codebase.

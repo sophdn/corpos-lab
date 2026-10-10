@@ -1,0 +1,37 @@
+Path to modify: `handlers/v1/orders.go`
+
+Change to make:
+
+1. Add the `priority` field to the order struct.
+2. Modify the request binding and validation accordingly.
+
+```go
+// Assuming the original order struct looks something like this:
+type Order struct {
+    ID        string `json:"id"`
+    Product   string `json:"product"`
+    Quantity  int    `json:"quantity"`
+    // Add the priority field
+    Priority  *int    `json:"priority,omitempty"` // Using a pointer to support optional field
+}
+
+// Modify the handler function to handle the new field
+func CreateOrder(w http.ResponseWriter, r *http.Request) {
+    var order Order
+    if err := json.NewDecoder(r.Body).Decode(&order); err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    // Validate the order including the new priority field
+    if order.Priority != nil && (*order.Priority < 1 || *order.Priority > 10) {
+        http.Error(w, "Priority must be between 1 and 10 if provided", http.StatusBadRequest)
+        return
+    }
+
+    // Proceed with creating the order
+    // ...
+}
+```
+
+This change allows the order to optionally include a `priority` field with validation to ensure the priority is between 1 and 10 if provided.

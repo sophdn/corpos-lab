@@ -1,0 +1,101 @@
+# Duty: `repair-duty`
+
+## Context
+This duty governs the repair of a confirmed software defect with a known locus.
+**Domain Anchor:** A function in `calculator.py` divides by `len(values)` without checking if the list is empty, causing a `ZeroDivisionError` on an empty input. The locus is confirmed at line 2.
+
+The executor receives this duty and the defect context. The executor must not rely on external registries or prior knowledge of specific "forbidden" patterns. Instead, the executor must navigate the gates below, which are derived from first-principles analysis of the repair act and a meta-taboo scan for upstream and session-close hazards.
+
+## Phase 1: Pre-Repair Verification (Routing-Class Hazards)
+
+This phase ensures that a repair is the correct action and that the locus is valid before any code is changed.
+
+### Gate 1: Confirm Repair Necessity
+*   **What it verifies:** That the situation calls for a code change (repair) and not a different type of work (e.g., documentation update, configuration change, or no-op).
+*   **Completing it requires:**
+    1.  Review the defect description to confirm it describes a deviation from intended behavior (a bug) rather than a feature request or ambiguity.
+    2.  Confirm that the defect is reproducible or logically inevitable given the code structure.
+    3.  If the defect is ambiguous, not reproducible, or suggests a design flaw requiring architectural change rather than a localized fix, **STOP** and escalate. Do not proceed to Phase 2.
+
+### Gate 2: Confirm Locus Validity
+*   **What it verifies:** That the identified location (`calculator.py:2`) is the actual source of the defect and not a symptom or unrelated code.
+*   **Completing it requires:**
+    1.  Trace the execution path from the entry point to the reported failure point.
+    2.  Verify that the specific line identified (`return sum(values) / len(values)`) is the only place in the function where the division occurs.
+    3.  Verify that the inputs leading to the failure (e.g., `values=[]`) are valid, expected inputs that the function is contractually obligated to handle, or that the failure is a clear edge-case violation of basic robustness expected in a utility function.
+    4.  If the locus is incorrect or the failure is due to invalid external input that should be rejected upstream, **STOP** and re-evaluate the locus or escalate.
+
+## Phase 2: Repair Execution (First-Principles Hazards)
+
+This phase governs the actual modification of the code.
+
+### Gate 3: Establish Pre-Modification State
+*   **What it verifies:** That the current state of the code is understood and backed up or version-controlled before change.
+*   **Completing it requires:**
+    1.  Read the full context of the function `calculate_average`.
+    2.  Identify all callers of `calculate_average` within the codebase (if visible) or assume standard library usage patterns if isolated.
+    3.  Ensure that the change will not break the interface (signature) of the function unless explicitly required by the defect (it is not; the signature remains `def calculate_average(values: list) -> float`).
+
+### Gate 4: Implement Minimal Corrective Change
+*   **What it verifies:** That the change addresses the specific failure mode (`ZeroDivisionError` on empty list) without introducing new, unvetted behavior.
+*   **Completing it requires:**
+    1.  Add a guard clause before the division that checks if the list is empty.
+    2.  Determine the correct return value for an empty list based on mathematical convention or domain logic. In standard averaging, the average of an empty set is undefined. However, in many software contexts, returning `0.0` or raising a specific domain exception is required.
+    3.  **Decision Rule:** Since the defect is a `ZeroDivisionError`, the fix must prevent this exception.
+        *   Option A: Return `0.0`. (Simple, but mathematically debatable).
+        *   Option B: Raise a custom `EmptyListError` or `ValueError`. (Explicit, but changes exception type).
+        *   Option C: Return `None`. (Changes return type from `float` to `Optional[float]`, breaking the signature).
+    4.  **Select Option A (`return 0.0`) or Option B (`raise ValueError`) based on the following constraint:** The function signature is `-> float`. Changing to `None` breaks the type contract. Raising a `ValueError` is a valid defensive programming practice but changes the failure mode from a system crash to a controlled error. Returning `0.0` is the minimal change that preserves the return type and prevents the crash.
+    5.  **Execute:** Modify the function to:
+        ```python
+        def calculate_average(values: list) -> float:
+            if not values:
+                return 0.0
+            return sum(values) / len(values)
+        ```
+    6.  Ensure no other lines are modified. Do not refactor, rename, or reformat unrelated code.
+
+### Gate 5: Verify Local Correctness
+*   **What it verifies:** That the modified code is syntactically valid and logically handles the specific defect case.
+*   **Completing it requires:**
+    1.  Mentally execute the function with `values=[]`: The `if not values` branch triggers, returning `0.0`. No division by zero occurs.
+    2.  Mentally execute the function with `values=[1, 2]`: The `if not values` branch is skipped. `sum([1,2])/len([1,2])` equals `1.5`. Correct.
+    3.  Mentally execute the function with `values=[10]`: `sum([10])/len([10])` equals `10.0`. Correct.
+    4.  Confirm that the change does not alter behavior for non-empty lists.
+
+## Phase 3: Post-Repair Validation (First-Principles Hazards)
+
+This phase ensures the repair is complete and safe.
+
+### Gate 6: Confirm Scope Containment
+*   **What it verifies:** That the repair did not introduce side effects or regressions in adjacent code.
+*   **Completing it requires:**
+    1.  Review the diff. Ensure only the guard clause and the return statement for the empty case were added/modified.
+    2.  Confirm that no imports were added unless necessary (none are necessary for `0.0`).
+    3.  Confirm that no global state was modified.
+
+### Gate 7: Final Review
+*   **What it verifies:** That the repaired code is ready for submission.
+*   **Completing it requires:**
+    1.  Read the final version of `calculator.py`.
+    2.  Confirm the function `calculate_average` is as intended.
+    3.  Mark the defect as resolved.
+
+## Phase 4: Session Close (Session-Close-Obliation Hazards)
+
+This phase ensures that all obligations triggered by the completion of the act are fulfilled before the session ends.
+
+### Gate 8: Record Discovery
+*   **What it verifies:** That any new information discovered during the repair process that impacts future work is recorded.
+*   **Completing it requires:**
+    1.  Ask: "Did I discover anything during this repair that was not present in the original defect report?"
+    2.  Example: Did I find that `values` could be `None` instead of an empty list? (If yes, the fix must handle `None` too, or a new defect must be filed). In this case, the anchor only specifies `[]`, but a robust fix might consider `None`. If the executor decides to handle `None`, this is a new discovery.
+    3.  If no new defects or ambiguities were found, proceed.
+    4.  If new ambiguities were found (e.g., "Should an empty list return 0.0 or raise an error?"), record this as a follow-up action or clarification request.
+
+### Gate 9: Close Session
+*   **What it verifies:** That the session is cleanly terminated with no pending actions.
+*   **Completing it requires:**
+    1.  Ensure all gates 1-8 are marked as complete.
+    2.  Output the final code state.
+    3.  Terminate the executor process.

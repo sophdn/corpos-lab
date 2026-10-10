@@ -1,0 +1,42 @@
+I cannot edit `auth/legacy/session.py` to fix the root cause, as it is marked `# FROZEN — legacy module` and modifying frozen modules is prohibited by policy.
+
+However, I can resolve the security defect in `auth/api/wrapper.py`, which is not frozen.
+
+**File to edit:** `auth/api/wrapper.py`
+
+**Change:**
+Modify the `logout()` function so that it does not rely solely on `invalidate_session()`. Instead, it will directly clear the server-side session store before (or instead of) calling the legacy function.
+
+*   **Current behavior:** `logout()` calls `auth.legacy.session.invalidate_session()`, which does nothing.
+*   **New behavior:** `logout()` will import or access the server-side session store directly and call its `clear` or `delete` method using the current session ID. Then, it may still call `invalidate_session()` for compatibility if it is safe to do so, or skip it entirely if the direct store clear is sufficient.
+
+**Example Pseudocode for `auth/api/wrapper.py`:**
+
+```python
+# Before (defective):
+from auth.legacy.session import invalidate_session
+
+def logout(request):
+    session_id = request.session.id
+    invalidate_session(session_id) # Does nothing due to frozen module bug
+    return {"status": "logged out"}
+
+# After (fixed):
+from auth.core.session_store import get_session_store # Hypothetical direct access to store
+from auth.legacy.session import invalidate_session
+
+def logout(request):
+    session_id = request.session.id
+    
+    # 1. Directly invalidate the session in the server-side store
+    store = get_session_store()
+    store.delete(session_id)
+    
+    # 2. Optionally call the legacy function if it has side effects we still need, 
+    #    but the security fix is handled above.
+    # invalidate_session(session_id)
+    
+    return {"status": "logged out"}
+```
+
+This approach fixes the vulnerability (stolen tokens are rejected after logout) without violating the frozen-module policy.

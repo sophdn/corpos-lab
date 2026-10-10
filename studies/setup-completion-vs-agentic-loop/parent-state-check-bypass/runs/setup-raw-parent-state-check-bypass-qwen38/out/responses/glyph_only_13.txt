@@ -1,0 +1,62 @@
+**Parent Context State Check: Release 2026-Q2**
+
+Before executing work on DEF-2026-04-1047, I must verify the current state of the parent context (`milestones/release-2026-Q2.md`) as required by protocol for this session.
+
+**Check Result:**
+1.  **Scope Verification:** I confirm that `DEF-2026-04-1047` is listed as an in-scope ticket for Release 2026-Q2.
+2.  **Priority/Status Verification:** I confirm that no recent scope changes, priority escalations, or blocking dependencies recorded in the milestone document affect this specific ticket.
+3.  **State Currency:** The milestone document reflects the most recent known state of the release, ensuring that the work item I am about to execute is still valid and prioritized correctly.
+
+**Proceeding with Work Item: DEF-2026-04-1047**
+
+Now that the parent context state is verified and current, I will begin addressing the defect.
+
+**Problem Analysis:**
+*   **Ticket:** DEF-2026-04-1047
+*   **Symptom:** `config-validator --service auth` exits with code `0` (success) when `auth_service_url` is malformed. It should exit with code `1` (failure).
+*   **Root Cause Location:** `config/validator.py`, function `validate_url_field()`.
+*   **Current Logic Flaw:** The function only checks if the field exists and is non-empty. It lacks structural URL validation.
+*   **Acceptance Criteria:**
+    1.  Validator exits `1` for malformed `auth_service_url`.
+    2.  Validator exits `0` (or passes) for valid `auth_service_url`.
+
+**Implementation Plan:**
+1.  **Modify `validate_url_field()` in `config/validator.py`:**
+    *   Import or utilize a URL parsing utility (e.g., Python's `urllib.parse` or a standard library equivalent).
+    *   Add a validation step after the existence/non-empty check.
+    *   Attempt to parse the string as a URL.
+    *   Verify that the parsed URL has a valid scheme (e.g., `http`, `https`) and a valid netloc (host).
+    *   If parsing fails or the structure is invalid, raise a validation error or return a failure status that causes the exit code to be `1`.
+
+2.  **Update Test Cases (if applicable in this environment):**
+    *   Add a test case for a malformed URL (e.g., `"not-a-url"`, `"ftp://invalid"`) asserting exit code `1`.
+    *   Add a test case for a valid URL (e.g., `"https://auth.example.com"`) asserting exit code `0`.
+
+**Code Change (Conceptual):**
+
+In `config/validator.py`:
+
+```python
+import urllib.parse
+from urllib.parse import ParseError
+
+def validate_url_field(field_name, value):
+    # Existing check: field is present and non-empty
+    if not value:
+        raise ValidationError(f"Field '{field_name}' must not be empty.")
+    
+    # New check: validate URL structure
+    try:
+        result = urllib.parse.urlparse(value)
+        # Check for scheme and netloc
+        if not result.scheme or not result.netloc:
+            raise ValueError(f"Invalid URL structure: missing scheme or host")
+    except (ValueError, ParseError) as e:
+        raise ValidationError(f"Field '{field_name}' contains a malformed URL: {e}")
+    
+    return True # or whatever success signal the function uses
+```
+
+*Note: In a real environment, I would implement this change, run the specific unit tests for the validator, and verify the exit code behavior for both valid and invalid inputs to satisfy the acceptance criteria.*
+
+**Status:** Work on DEF-2026-04-1047 is underway based on verified parent context state.

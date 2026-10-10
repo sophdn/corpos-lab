@@ -1,0 +1,60 @@
+To address the defect ticket DEF-2026-04-1047, we need to ensure that the `config-validator` correctly validates the `auth_service_url` and exits with code 1 if the URL is malformed. Here's a step-by-step plan to resolve the issue:
+
+### Plan
+
+1. **Understand the Current Implementation**:
+   - Review the current `validate_url_field()` function in `config/validator.py`.
+   - Identify that it only checks for the presence and non-emptiness of the `auth_service_url`.
+
+2. **Define URL Validation Requirements**:
+   - The URL should be a valid URL structure, which typically includes a scheme (e.g., `http`, `https`), a domain, and optionally a port, path, query parameters, etc.
+   - Use a standard URL validation library to ensure compliance with URL standards.
+
+3. **Implement URL Validation**:
+   - Import a URL validation library, such as `urllib.parse` from the Python standard library or `validators` from PyPI.
+   - Modify `validate_url_field()` to include a URL structure validation step.
+
+4. **Update the Function**:
+   - In `validate_url_field()`, after checking for presence and non-emptiness, parse the URL using the chosen library.
+   - If the URL is invalid, log an appropriate error message and exit the program with code 1.
+   - If the URL is valid, allow the function to continue without exiting.
+
+5. **Testing**:
+   - Write test cases for valid and invalid `auth_service_url` inputs.
+   - Ensure that valid URLs pass without issues and malformed URLs cause the validator to exit with code 1.
+
+6. **Documentation**:
+   - Update any relevant documentation to reflect the changes in URL validation.
+   - Ensure that the acceptance criteria are clearly documented and understood.
+
+### Sample Code Update
+
+Here's a conceptual update to the `validate_url_field()` function using `urllib.parse`:
+
+```python
+from urllib.parse import urlparse
+import sys
+
+def validate_url_field(url):
+    if not url:
+        print("Error: URL is empty.")
+        sys.exit(1)
+
+    # Parse the URL
+    parsed_url = urlparse(url)
+    
+    # Check if the scheme and netloc (domain) are present
+    if not parsed_url.scheme or not parsed_url.netloc:
+        print("Error: Malformed URL.")
+        sys.exit(1)
+
+    # If URL is valid, continue without exiting
+    return True
+```
+
+### Acceptance Testing
+
+- **Valid URL Test**: Provide a well-formed URL like `https://example.com` and ensure the validator exits with code 0.
+- **Invalid URL Tests**: Provide malformed URLs like `htp://example`, `example.com` (missing scheme), and `://example.com` (missing domain) and ensure the validator exits with code 1.
+
+By following this plan, we can ensure that the `config-validator` behaves as expected and meets the acceptance criteria for DEF-2026-04-1047.

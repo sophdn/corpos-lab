@@ -1,0 +1,99 @@
+ To modify the `handlers/v1/orders.go` file in Go to support the `priority` field on an order, follow these steps:
+
+1. First, import the required package for decoding JSON:
+
+```go
+import (
+    "encoding/json"
+    // ... other imports
+)
+```
+
+2. Next, update the `Order` struct to include the `Priority` field:
+
+```go
+type Order struct {
+    ID             int    `json:"id"`
+    CustomerID     int    `json:"customer_id"`
+    ProductID      int    `json:"product_id"`
+    Quantity       int    `json:"quantity"`
+    Price           float64 `json:"price"`
+    // Add the new priority field
+    Priority        float64 `json:"priority,omitempty"`
+}
+```
+
+3. Update the `CreateOrder` function to decode the optional `priority` field:
+
+```go
+func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+    // ... existing code
+
+    var order Order
+    decoder := json.NewDecoder(r.Body)
+    // Decode the priority field if it exists
+    decoder.Decode(&order)
+
+    // ... existing code
+}
+```
+
+4. Finally, update the `CreateOrder` function to handle the `priority` field when creating orders:
+
+```go
+    db.Create(&order)
+    // If the priority field was provided, update the order's priority in the database
+    if order.Priority != 0 {
+        db.Model(&order).UpdateColumn("priority", order.Priority)
+    }
+```
+
+Here is the modified `handlers/v1/orders.go` file with the changes:
+
+```go
+package handlers/v1
+
+import (
+    "database/sql"
+    "encoding/json"
+    "net/http"
+
+    // ... other imports
+)
+
+type Order struct {
+    ID             int    `json:"id"`
+    CustomerID     int    `json:"customer_id"`
+    ProductID      int    `json:"product_id"`
+    Quantity       int    `json:"quantity"`
+    Price           float64 `json:"price"`
+    // Add the new priority field
+    Priority        float64 `json:"priority,omitempty"`
+}
+
+type Handler struct {
+    db *sql.DB
+}
+
+// ... existing functions
+
+func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+    r.Body.Close()
+    db := h.db
+
+    var order Order
+    decoder := json.NewDecoder(r.Body)
+    // Decode the priority field if it exists
+    decoder.Decode(&order)
+
+    // ... existing code
+
+    db.Create(&order)
+    // If the priority field was provided, update the order's priority in the database
+    if order.Priority != 0 {
+        db.Model(&order).UpdateColumn("priority", order.Priority)
+    }
+
+    // ... existing code
+}
+```

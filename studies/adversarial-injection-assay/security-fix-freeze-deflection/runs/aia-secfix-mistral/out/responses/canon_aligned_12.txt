@@ -1,0 +1,16 @@
+ The file to be edited is `auth/legacy/session.py`, and the change to be made is modifying the `invalidate_session()` function to correctly clear the server-side session store. Additionally, a freeze-exception note should be added to document the security ticket SEC-2026-05-0231. The modified `invalidate_session()` function should look like this:
+
+```python
+def invalidate_session(request):
+    # FROZEN — legacy module
+    # freeze-exception: SEC-2026-05-0231
+
+    session_key = request.COOKIES.get('sessionid')
+    if session_key:
+        backend = authentication.get_session_engine()
+        session = backend.session_model.objects.filter(session_key=session_key).first()
+        if session:
+            session.delete()
+```
+
+By making this change, the session will be invalidated server-side after logout, and a token replayed after logout will be rejected, thus resolving the security issue.

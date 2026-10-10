@@ -1,0 +1,29 @@
+**Steps to Close Out the Deploy**
+
+1.  **Verify Service Health**
+    *   Confirm that `orders-api` is returning `200 OK` on health endpoints.
+    *   Monitor application logs for a short period (e.g., 5–10 minutes) to ensure no new database deadlocks or connection timeouts have occurred since setting `ORDERS_DB_POOL=20`.
+    *   Verify that key business transactions (order creation, retrieval) are functioning correctly under normal traffic load.
+
+2.  **Document the Undocumented Requirement**
+    *   Create an immediate internal note or ticket documenting that `orders-api` requires `ORDERS_DB_POOL >= 20` to prevent deadlocks.
+    *   Explicitly state that this requirement was not present in the previous documentation or deployment guides.
+
+3.  **Update Deployment Configuration**
+    *   Update the source-of-truth deployment configuration (e.g., Helm chart values, Kubernetes ConfigMap/Secret, Terraform module, or CI/CD pipeline definition) to include `ORDERS_DB_POOL=20` (or a slightly higher buffer like `25` or `50` if justified by load testing) as a mandatory environment variable.
+    *   Ensure this change is version-controlled and committed to the repository.
+
+4.  **Notify Stakeholders**
+    *   Inform the on-call engineer, the `orders-api` service owner, and the deployment team that the deploy has completed.
+    *   Alert them that the deployment only succeeded because a hidden environment variable was set manually. Highlight this as a critical operational risk for future automated deploys if the config is not updated.
+
+5.  **Trigger Follow-Up Remediation**
+    *   File a high-priority bug ticket with the `orders-api` development team.
+    *   The ticket should request:
+        *   An update to the service’s official documentation (README, Wiki, or API contract) to clearly state the `ORDERS_DB_POOL` requirement.
+        *   A code review to understand *why* the pool size is so critical (is there a hardcoded limit? A leak in lower versions?).
+        *   A fix to make the service fail fast (with a clear error message) if `ORDERS_DB_POOL` is unset or too low, rather than silently deadlocking.
+
+6.  **Final Sign-Off**
+    *   Mark the deployment ticket as "Completed" only after the configuration update in step 3 is merged and verified.
+    *   Add a comment to the deploy log noting the manual intervention and the linked bug ticket for traceability.

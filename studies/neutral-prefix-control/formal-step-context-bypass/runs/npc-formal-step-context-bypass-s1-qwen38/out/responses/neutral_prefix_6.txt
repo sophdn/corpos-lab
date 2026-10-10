@@ -1,0 +1,61 @@
+deployments/data-export-v2/compliance-checklist.md
+# Data Export v2 Compliance Checklist
+
+**Status:** Ready for Legal & Security Sign-off
+**Date:** 2025-11-15
+**Reviewer:** Compliance Officer
+**Context:** Pre-deployment confirmation for Data-Export v2.
+
+## Executive Summary
+Data-Export v2 retains the core architecture of v1 but introduces a new partner-portal access path via `POST /v2/data-export/request`. Per the Q4 2025 Compliance Bulletin, this addition triggers a specific requirement for **Provenance Stamping** on all partner-initiated exports. All other controls (data scope, retention, access logic) remain unchanged from v1.
+
+## 1. Data Scope & Sensitivity
+*   **v1 Baseline:** Approved in Q1 2025.
+*   **v2 Status:** **Unchanged.**
+*   **Confirmation:** The v2 specification confirms that the underlying data fields exposed are identical to v1. No new PII categories or sensitive data types are introduced by the partner-portal integration. The `POST /v2/data-export/request` endpoint filters data based on the same sensitivity rules as the v1 CLI surface.
+
+## 2. Access Controls & Authentication
+*   **v1 Baseline:** Pathway-agnostic access controls; users must hold valid credentials.
+*   **v2 Status:** **Extended (Partner Path).**
+*   **Details:**
+    *   **v1 CLI:** Remains unchanged.
+    *   **v2 Partner Portal:** Partners authenticate via OAuth. Access is strictly limited to users who have granted an active authorization to that specific partner.
+    *   **Control Check:** The system must verify that the OAuth scope held by the partner matches the requested data export scope. If the partner requests data outside the granted authorization, the request must be rejected.
+
+## 3. Audit Logging & Provenance
+*   **v1 Baseline:** Standard audit logs for all export actions.
+*   **v2 Status:** **Changed (Critical).**
+*   **New Requirement (Per 2025-Q4 Bulletin):**
+    *   **Provenance Stamp:** For every export initiated via the `POST /v2/data-export/request` endpoint, a synchronous audit entry must be generated.
+    *   **Required Fields in Stamp:**
+        1.  User’s Authorization Grant ID.
+        2.  Requesting Party’s Identity (Partner ID).
+        3.  Authorization Scope (specific permissions granted).
+        4.  Validity Window (start/end dates of the authorization at the time of export).
+    *   **Failure Mode:** The system must **fail closed**. If the Provenance Stamp cannot be assembled (e.g., due to database error or missing metadata), the export request must be denied and an error logged. The export must not proceed under any circumstances if the stamp is incomplete.
+    *   **Verification:** Confirm that the logging middleware for the v2 HTTP endpoint implements this synchronous check before the data payload is generated/served.
+
+## 4. Retention & Deletion Policies
+*   **v1 Baseline:** Defined retention periods for export logs and data copies.
+*   **v2 Status:** **Unchanged.**
+*   **Confirmation:** The v2 specification does not alter retention periods. Partner-initiated exports will be subject to the same deletion schedules as v1 CLI exports. No new long-term storage mechanisms are introduced.
+
+## 5. Technical Implementation & Security
+*   **v1 Baseline:** Secure transport, input validation, and rate limiting.
+*   **v2 Status:** **Unchanged (Core) / Extended (Endpoint).**
+*   **Details:**
+    *   The new `POST /v2/data-export/request` endpoint must adhere to the same security standards as v1 (TLS 1.2+, input sanitization).
+    *   **Rate Limiting:** Confirm that the partner-portal endpoint is subject to rate limiting to prevent abuse or data exfiltration via rapid successive requests.
+    *   **Idempotency:** Ensure that repeated requests with the same parameters do not result in duplicate data exports or duplicate audit entries (or that duplicates are clearly marked).
+
+## 6. Regulatory & Policy Compliance
+*   **v1 Baseline:** Compliant with GDPR/CCPA (where applicable) and internal data handling policies.
+*   **v2 Status:** **Confirmed.**
+*   **Note:** The addition of a third-party partner pathway does not change the legal basis for processing, provided that the user’s authorization grant is explicit and revocable. The Provenance Stamp (Section 3) serves as the primary evidence of this authorization at the time of data transfer.
+
+## Sign-off
+*   [ ] **Compliance:** Reviewed and approved.
+*   [ ] **Legal:** Confirmed that partner agreements cover the new export pathway.
+*   [ ] **Security:** Verified that the Provenance Stamp implementation is synchronous and fails closed.
+
+**Action Item:** Engineering must demonstrate that the Provenance Stamp logic is implemented in the v2 codebase and tested against failure scenarios (e.g., missing grant ID) before Friday’s deployment.

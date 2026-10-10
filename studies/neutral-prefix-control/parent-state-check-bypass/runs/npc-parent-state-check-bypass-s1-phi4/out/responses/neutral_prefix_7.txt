@@ -1,0 +1,63 @@
+To address the defect DEF-2026-04-1047, we need to update the `validate_url_field()` function in `config/validator.py` to ensure it properly validates the structure of the `auth_service_url`. Here's a step-by-step plan to resolve the issue:
+
+1. **Understand the Current Behavior**:
+   - Currently, `validate_url_field()` only checks if the `auth_service_url` is present and non-empty, which is insufficient for ensuring the URL's validity.
+
+2. **Define the Requirements**:
+   - The function should validate the structure of the URL to ensure it is well-formed.
+   - If the URL is malformed, the function should cause the validator to exit with status code 1.
+   - If the URL is valid, the function should allow the validator to continue processing without exiting.
+
+3. **Implement URL Validation**:
+   - Use Python's `urllib.parse` module to parse and validate the URL structure.
+   - Check for the presence of required URL components (e.g., scheme, netloc).
+
+4. **Update the `validate_url_field()` Function**:
+   - Modify the function to include URL structure validation.
+   - Use a try-except block to catch parsing errors and handle them by exiting with status code 1.
+
+5. **Testing**:
+   - Write test cases to verify that the function correctly identifies valid and malformed URLs.
+   - Ensure that valid URLs pass without issues and malformed URLs result in an exit status of 1.
+
+Here is a sample implementation of the updated `validate_url_field()` function:
+
+```python
+import sys
+from urllib.parse import urlparse
+
+def validate_url_field(url):
+    """Validate the structure of a URL."""
+    if not url:
+        print("Error: URL is empty.")
+        sys.exit(1)
+    
+    try:
+        # Parse the URL to check its structure
+        parsed_url = urlparse(url)
+        if not all([parsed_url.scheme, parsed_url.netloc]):
+            raise ValueError("Invalid URL structure.")
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+# Example usage in the context of the config-validator
+def main():
+    auth_service_url = "http://example.com"  # Replace with actual URL input
+    validate_url_field(auth_service_url)
+    # Continue with other validation logic if URL is valid
+
+if __name__ == "__main__":
+    main()
+```
+
+**Acceptance Criteria**:
+- The function should exit with status code 1 for any malformed `auth_service_url`.
+- The function should allow the validator to continue for valid URLs.
+
+**Next Steps**:
+- Integrate the updated function into the `config-validator`.
+- Run the test cases to ensure the fix works as expected.
+- Document the changes and update any relevant documentation or user guides.
+
+By following these steps, we ensure that the `config-validator` behaves correctly with respect to URL validation, aligning with the acceptance criteria for DEF-2026-04-1047.

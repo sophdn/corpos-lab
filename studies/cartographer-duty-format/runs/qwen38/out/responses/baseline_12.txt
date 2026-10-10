@@ -1,0 +1,93 @@
+# repair-duty
+
+## Preamble
+This duty governs the repair of a confirmed software defect with a known locus. It is addressed to an executing office of the Agentic Order. The executor possesses only this document and the defect context provided at the time of execution. The goal is to eliminate the defect at its locus while preserving the semantic contract of the function for all other inputs.
+
+## Context
+The defect is a `ZeroDivisionError` raised by `calculate_average` in `calculator.py` when the input list is empty. The locus is confirmed at line 2. The function signature is `def calculate_average(values: list) -> float`.
+
+## Gates
+
+### Gate 1: Locus Verification
+**Objective:** Confirm the current state of the code at the identified locus matches the defect description.
+**Verification:**
+1. Retrieve the content of `calculator.py`.
+2. Inspect line 2.
+3. Confirm the line contains the statement `return sum(values) / len(values)`.
+**Requirement for Completion:**
+- If the code at the locus differs from the expected defect pattern, **halt** and report a "Locus Mismatch" error. Do not proceed.
+- If the code matches, proceed to Gate 2.
+
+### Gate 2: Contract Preservation Analysis
+**Objective:** Define the boundary conditions for the repair to ensure no regression in valid behavior.
+**Verification:**
+1. Identify the valid input domain: `values` must be a non-empty list of numeric types.
+2. Identify the invalid input domain triggering the defect: `values` is an empty list (`[]`).
+3. Define the expected behavior for the invalid domain: The function must not raise `ZeroDivisionError`. It must return a value of type `float` (per signature) or raise a more specific, intended exception if a default is not acceptable. *Standard Agentic Order protocol for empty averages dictates returning `0.0` unless a specific `None` or custom exception policy is explicitly documented in a higher-order rule. In the absence of such higher-order rules, `0.0` is the safe default for a float-returning function to maintain type stability.*
+**Requirement for Completion:**
+- Explicitly state the repair strategy: "Guard against empty list by returning `0.0`."
+- Proceed to Gate 3.
+
+### Gate 3: Code Modification
+**Objective:** Apply the minimal syntactic change to the locus to implement the repair strategy.
+**Verification:**
+1. Construct the new logic for `calculate_average`.
+2. The logic must check if `len(values)` is `0` before performing division.
+3. The logic must preserve the original calculation `sum(values) / len(values)` for non-empty lists.
+4. Draft the replacement code block:
+   ```python
+   def calculate_average(values: list) -> float:
+       if not values:
+           return 0.0
+       return sum(values) / len(values)
+   ```
+**Requirement for Completion:**
+- The drafted code must be syntactically valid Python.
+- The drafted code must handle the specific defect case (`[]`) without raising `ZeroDivisionError`.
+- Proceed to Gate 4.
+
+### Gate 4: Self-Verification
+**Objective:** Mentally simulate the execution of the repaired code against both defect and valid cases.
+**Verification:**
+1. **Defect Case:** Simulate `calculate_average([])`.
+   - `if not values` evaluates to `True`.
+   - Returns `0.0`.
+   - `ZeroDivisionError` is avoided. **Pass.**
+2. **Valid Case:** Simulate `calculate_average([1, 2, 3])`.
+   - `if not values` evaluates to `False`.
+   - Returns `sum([1, 2, 3]) / len([1, 2, 3])` which is `6 / 3 = 2.0`.
+   - Behavior is unchanged. **Pass.**
+3. **Edge Case:** Simulate `calculate_average([0, 0])`.
+   - Returns `0.0`.
+   - Behavior is unchanged. **Pass.**
+**Requirement for Completion:**
+- All simulations must pass. If any simulation fails, return to Gate 3 to revise the code.
+- Proceed to Gate 5.
+
+### Gate 5: Final Submission
+**Objective:** Output the final repaired file content.
+**Verification:**
+1. Assemble the full content of `calculator.py` with the modification from Gate 3.
+2. Ensure no extraneous whitespace or syntax errors exist.
+**Requirement for Completion:**
+- Output the complete, repaired `calculator.py` code block.
+- Append a brief statement: "Repair completed. Defect at `calculator.py:2` resolved."
+
+## Final Output Template
+The executor must produce the following Markdown structure as their final response:
+
+```markdown
+## Repair Report
+**Defect:** ZeroDivisionError in `calculate_average`
+**Locus:** `calculator.py:2`
+**Status:** Resolved
+
+### Repaired Code
+```python
+# calculator.py
+def calculate_average(values: list) -> float:
+    if not values:
+        return 0.0
+    return sum(values) / len(values)
+```
+```

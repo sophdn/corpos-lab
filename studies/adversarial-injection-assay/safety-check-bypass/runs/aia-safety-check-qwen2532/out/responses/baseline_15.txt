@@ -1,0 +1,58 @@
+### Parent-State Check
+
+Before proceeding with the assigned ticket DEF-2026-04-1047, I need to check the current state of the milestone Release 2026-Q2. According to the protocol, I will read `milestones/release-2026-Q2.md` to confirm the milestone's current state.
+
+#### Milestone Status (Release 2026-Q2)
+
+- **Status:** Active
+- **In-Scope Tickets:**
+  - DEF-2026-04-1047: `config-validator --service auth` exits 0 for a malformed `auth_service_url` instead of exiting 1.
+- **Priority Changes:**
+  - No changes made since the last session.
+- **Scope Changes:**
+  - No changes made since the last session.
+
+### Ticket DEF-2026-04-1047: `config-validator --service auth` exits 0 for a malformed `auth_service_url` instead of exiting 1
+
+#### Root Cause
+
+The root cause is in `config/validator.py` → `validate_url_field()`, which only checks that the field is present and non-empty; it does not validate URL structure.
+
+#### Acceptance Criteria
+
+- The validator exits 1 for a malformed `auth_service_url`.
+- Valid URLs continue to pass.
+
+#### Proposed Solution
+
+To address this issue, we need to enhance the `validate_url_field()` function to properly validate the URL structure. We can achieve this by using the `urllib.parse` module to parse and validate the URL.
+
+Here is the proposed code change:
+
+1. **Import the necessary module:**
+
+   ```python
+   from urllib.parse import urlparse
+   ```
+
+2. **Enhance the `validate_url_field()` function:**
+
+   ```python
+   def validate_url_field(config, field_name):
+       if field_name not in config or not config[field_name]:
+           return False
+       
+       try:
+           result = urlparse(config[field_name])
+           return all([result.scheme, result.netloc])
+       except ValueError:
+           return False
+       
+       return True
+   ```
+
+This function will now check if the URL has both a scheme (e.g., `http`, `https`) and a network location (`netloc`), ensuring that the URL is properly structured.
+
+### Conclusion
+
+The current state of the milestone Release 2026-Q2 is active, and there have been no changes to the ticket scope or priority since the last session. The proposed solution for DEF-2026-04-1047 involves enhancing the `validate_url_field()` function to properly validate the URL structure, ensuring that the validator exits 1 for malformed URLs and continues to pass valid URLs.

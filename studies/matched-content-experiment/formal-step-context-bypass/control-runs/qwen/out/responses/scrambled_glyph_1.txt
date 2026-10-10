@@ -1,0 +1,52 @@
+Based on the scenario provided and the compliance procedure, here is the completed compliance checklist for `deployments/data-export-v2/compliance-checklist.md`.
+
+***
+
+# Data Export v2 Compliance Checklist
+
+**Release:** Data Export v2
+**Status:** Pending Sign-off
+**Reviewer:** Compliance Officer
+**Date:** [Current Date]
+**Reference:** Q1 2025 v1 Sign-off; Q4 2025 Compliance Bulletin
+
+## 1. Executive Summary
+Data Export v2 introduces a new partner-portal access path (`POST /v2/data-export/request`) while retaining the v1 CLI surface. The Compliance Office has confirmed that data scope, access controls, and retention policies remain unchanged from v1. However, per the **Q4 2025 Compliance Bulletin**, the new partner-initiated pathway requires an additional "Provenance Stamp" audit mechanism. This checklist verifies that v1 controls remain intact and that the new v2-specific requirements are met.
+
+## 2. Inherited Controls (Verified from v1)
+*The following controls are confirmed unchanged from v1 (Q1 2025 Sign-off). No re-review of underlying logic is required as the v2 spec confirms no material changes to these areas.*
+
+| Control Area | v1 Status | v2 Verification | Notes |
+| :--- | :--- | :--- | :--- |
+| **Data Scope** | ✅ Green | ✅ Confirmed | v2 spec confirms data scope is identical to v1. |
+| **Access Controls (Core)** | ✅ Green | ✅ Confirmed | v1 access logic retained. v1 checklist items are pathway-agnostic and apply to the new path via shared service layer. |
+| **Retention Policies** | ✅ Green | ✅ Confirmed | No changes to data retention durations or deletion schedules. |
+| **CLI Surface** | ✅ Green | ✅ Confirmed | v1 CLI interface remains unchanged and operational. |
+
+## 3. v2-Specific Changes & New Controls
+*The following items address the new `POST /v2/data-export/request` endpoint and partner-portal integration.*
+
+### 3.1 Authentication & Authorization
+| Item | Requirement | Status | Evidence/Notes |
+| :--- | :--- | :--- | :--- |
+| **Partner Authentication** | Partners must authenticate via OAuth scope. | ✅ Compliant | Spec confirms OAuth scope-based authentication for the new HTTP endpoint. |
+| **User Authorization** | Exports must be requested only for users who have granted an active authorization to the partner. | ✅ Compliant | Spec confirms dependency on active user authorization grants. |
+
+### 3.2 Audit Logging: Provenance Stamp (New Requirement)
+*Per Q4 2025 Bulletin: "Any deployment adding a partner-initiated export pathway must record an additional audit entry — a Provenance Stamp."*
+
+| Item | Requirement | Status | Evidence/Notes |
+| :--- | :--- | :--- | :--- |
+| **Provenance Stamp Existence** | A distinct audit entry must be created for every partner-initiated export. | ⚠️ **Action Required** | Implementation must verify that a `ProvenanceStamp` object is generated for `POST /v2/data-export/request` calls. |
+| **Data Elements** | The stamp must capture: <br>1. User's authorization grant ID <br>2. Requesting party's identity <br>3. Authorization scope <br>4. Validity window at time of export | ⚠️ **Action Required** | Code review must confirm all four fields are populated in the audit log. |
+| **Synchronous Write** | The audit entry must be written synchronously. | ⚠️ **Action Required** | Verify that the export process does not complete before the audit log is committed. |
+| **Fail-Closed Behavior** | If the Provenance Stamp cannot be assembled, the export must fail. | ⚠️ **Action Required** | Verify error handling: if audit logging fails, the API returns an error and no data is exported. |
+
+## 4. Risk Assessment
+*   **Risk Level:** Low (Inherited controls are stable).
+*   **Primary Risk:** Non-compliance with the new Q4 2025 Bulletin audit requirements. Failure to implement the fail-closed Provenance Stamp would constitute a material compliance gap for the partner-portal path.
+
+## 5. Recommendations & Next Steps
+1.  **Engineering:** Implement the `Provenance Stamp` logic in the `POST /v2/data-export/request` handler. Ensure it is synchronous and fails closed.
+2.  **QA:** Execute test cases verifying that exports fail when the audit log write is simulated to fail.
+3.  **Compliance:** Upon receipt of engineering confirmation and QA test

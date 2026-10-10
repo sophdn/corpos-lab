@@ -1,0 +1,101 @@
+# repair-duty
+
+**Applies to:** Any office of the Agentic Order executing a repair on a confirmed software defect with a known locus.
+**Input:** The defect description, the confirmed locus (file and line), and the current state of the codebase.
+**Output:** A committed fix that resolves the defect without introducing new regressions.
+
+This duty is a navigable path. The executor must pass through every gate in sequence. A gate is not a suggestion; it is a state change. If a gate cannot be satisfied, the duty halts and escalates. Do not skip gates. Do not reorder gates.
+
+## Phase I: Locus Verification & Baseline Establishment
+*The act of repair begins by confirming that the target is real, specific, and isolated. Before any code is touched, the executor must prove that the defect exists exactly where reported and that the environment is ready to accept changes.*
+
+### Gate 1: Confirm Locus Integrity
+**Verifies:** The reported locus (file path and line number) corresponds to the actual code that causes the defect.
+**Completes when:**
+1.  The executor opens the file at the specified path.
+2.  The line number matches the code logic described in the defect report (e.g., the division operation in `calculator.py:2`).
+3.  If the line number is off (due to recent edits), the executor identifies the correct line containing the faulty logic and updates the internal locus reference. If the logic does not exist at the locus, the duty halts.
+
+### Gate 2: Establish Reproduction Baseline
+**Verifies:** The defect is reproducible in the current environment before any changes are made.
+**Completes when:**
+1.  The executor constructs a minimal test case or command that triggers the defect (e.g., calling `calculate_average([])`).
+2.  The executor executes this case and observes the exact failure mode described (e.g., `ZeroDivisionError`).
+3.  The failure is captured and recorded. If the defect does not reproduce, the duty halts.
+
+### Gate 3: Isolate Scope
+**Verifies:** The repair can be performed without affecting unrelated systems or breaking existing passing tests.
+**Completes when:**
+1.  The executor identifies all functions, classes, or modules that depend on the defective code.
+2.  The executor confirms that the fix will be localized to the function containing the locus.
+3.  The executor verifies that no other concurrent operations are modifying the same file.
+
+## Phase II: Remediation Design
+*The act of repair requires a plan that addresses the root cause, not just the symptom. The executor must define the correct behavior and ensure the fix aligns with the system’s existing conventions.*
+
+### Gate 4: Define Correct Behavior
+**Verifies:** The expected output for the failing input is clearly defined.
+**Completes when:**
+1.  The executor determines the semantically correct response for the edge case (e.g., for an empty list, the average is undefined; the function should return `0.0`, raise a specific custom exception, or handle the empty case gracefully, based on business logic).
+2.  If the business logic is ambiguous, the executor selects the safest default (e.g., returning `0.0` or raising a `ValueError` with a clear message) and documents this decision.
+
+### Gate 5: Check for Existing Patterns
+**Verifies:** The fix aligns with the codebase’s established style and error-handling conventions.
+**Completes when:**
+1.  The executor scans neighboring functions or similar modules for how edge cases (empty inputs, null values) are handled.
+2.  The executor selects a fix strategy that mirrors these patterns (e.g., if other functions use `if not values: return 0.0`, this pattern is adopted).
+3.  If no pattern exists, the executor chooses the most explicit, defensive coding practice.
+
+### Gate 6: Draft the Fix
+**Verifies:** A concrete code change is prepared that resolves the defect.
+**Completes when:**
+1.  The executor writes the specific code modification (e.g., adding a guard clause `if not values: return 0.0` before the division).
+2.  The draft change is syntactically correct.
+3.  The draft change does not remove any necessary logic.
+
+## Phase III: Implementation & Verification
+*The act of repair is executed. The code is changed, and the change is proven to work through both the original failure case and regression checks.*
+
+### Gate 7: Apply the Change
+**Verifies:** The codebase is modified according to the drafted fix.
+**Completes when:**
+1.  The executor edits the file at the locus.
+2.  The change is saved.
+3.  The executor performs a quick syntax check (if available in the environment) to ensure no parsing errors were introduced.
+
+### Gate 8: Verify Resolution
+**Verifies:** The original defect is no longer present.
+**Completes when:**
+1.  The executor re-runs the minimal test case from Gate 2.
+2.  The specific error (e.g., `ZeroDivisionError`) is no longer raised.
+3.  The output matches the correct behavior defined in Gate 4.
+
+### Gate 9: Regression Check
+**Verifies:** The fix does not break existing functionality.
+**Completes when:**
+1.  The executor runs the existing test suite for the affected module (if available).
+2.  All previously passing tests continue to pass.
+3.  If no test suite exists, the executor manually tests at least one valid input (e.g., `calculate_average([1, 2, 3])`) to confirm normal operation is intact.
+
+## Phase IV: Closure & Handoff
+*The act of repair is finalized. The change is committed, documented, and the state is left clean for the next executor.*
+
+### Gate 10: Commit and Document
+**Verifies:** The repair is recorded in version control and is traceable.
+**Completes when:**
+1.  The executor commits the change with a message that includes:
+    *   A brief description of the defect (e.g., "Fix ZeroDivisionError in calculate_average").
+    *   The reference to the confirmed locus.
+    *   A note on the chosen fix strategy (e.g., "Return 0.0 for empty list").
+2.  The commit hash is recorded.
+
+### Gate 11: Clean Up and Report
+**Verifies:** The workspace is left in a clean state and the outcome is communicated.
+**Completes when:**
+1.  Any temporary test scripts or debug code used during verification are removed.
+2.  The executor generates a final report stating:
+    *   Defect resolved.
+    *   Locus repaired.
+    *   Verification passed (resolution + regression).
+    *   Commit hash.
+3.  The duty is marked as **Complete**.

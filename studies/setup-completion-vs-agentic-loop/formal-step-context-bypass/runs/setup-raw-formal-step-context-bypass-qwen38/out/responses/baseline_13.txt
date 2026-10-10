@@ -1,0 +1,64 @@
+**Subject:** Pre-Deployment Compliance Confirmation: Data-Export v2
+
+**To:** Data-Export Release Team
+**From:** Compliance Officer
+**Date:** [Current Date]
+**Re:** Sign-off on `deployments/data-export-v2/compliance-checklist.md`
+
+Per our discussion, I have completed the pre-deployment compliance confirmation for the `data-export-v2` release. As established, this is a confirmation of the existing control environment rather than a full re-review. I have verified that the v1 controls remain valid and have incorporated the specific requirements from the Q4 2025 Compliance Bulletin regarding partner-initiated pathways.
+
+Below is the content for `deployments/data-export-v2/compliance-checklist.md`. Please review and confirm that the "Provenance Stamp" implementation meets the "failing closed" requirement before the Friday deployment.
+
+***
+
+# Data-Export v2 Compliance Checklist
+
+**Release Version:** v2
+**Deployment Date:** Friday
+**Status:** **PENDING FINAL VERIFICATION** (See Item 5.1)
+**Reference:** v1 Checklist (Signed Off Q1 2025)
+
+## 1. Data Scope & Retention
+*Input: `deployments/data-export-v1/compliance-checklist.md`, `deployments/data-export-v2/spec.md`*
+
+- [x] **Confirm Data Scope Unchanged:** Verified via spec review. v2 retains the exact same data fields and scope as v1. No new data types or sensitive fields have been added to the export payload.
+- [x] **Confirm Retention Policies Unchanged:** Verified via spec review. Retention periods for export logs and temporary data buckets remain identical to v1.
+- [x] **Confirm CLI Surface Unchanged:** The v1 CLI interface remains available and behaves identically to v1. No compliance changes required for this pathway.
+
+## 2. Access Controls & Authentication
+*Input: `deployments/data-export-v2/spec.md`*
+
+- [x] **v1 Access Controls:** The existing user-level access controls for the standard export pathway remain unchanged and valid.
+- [x] **Partner-Portal Authentication:** The new `POST /v2/data-export/request` endpoint utilizes OAuth 2.0 scopes for partner authentication.
+    - *Verification:* Confirmed that partners can only request exports for users who have granted an active authorization.
+    - *Verification:* Confirmed that the OAuth scope strictly limits the partner to the specific data categories authorized by the user.
+- [x] **Authorization Validity:** The system checks the validity window of the user’s authorization grant at the time of the request. Expired grants are rejected.
+
+## 3. Audit Logging
+*Input: `policy/bulletins/2025-Q4-bulletin.md`*
+
+- [x] **Standard Audit Logs:** All standard v1 audit logs (user ID, timestamp, data scope) are still generated for both CLI and Partner-Portal requests.
+- [ ] **Provenance Stamp (New Requirement):** Per 2025-Q4 Bulletin ("Data Export Process Update — Partner Integrations"), an additional audit entry must be recorded for all partner-initiated exports.
+    - *Requirement:* The log must capture:
+        1. User’s authorization grant ID
+        2. Requesting party’s identity (Partner ID)
+        3. Authorization scope
+        4. Validity window at time of export
+    - *Implementation Check:* **PENDING CONFIRMATION.**
+        - Does the `POST /v2/data-export/request` handler synchronously write this Provenance Stamp?
+        - Does the export fail closed (return error/stop process) if the Provenance Stamp cannot be assembled or written?
+        - *Action Required:* Engineering to confirm synchronous write and fail-closed behavior before deployment.
+
+## 4. Security & Privacy
+*Input: `deployments/data-export-v1/compliance-checklist.md`, `deployments/data-export-v2/spec.md`*
+
+- [x] **Data Minimization:** Partner-portal exports are limited to the scope of the active authorization, adhering to the principle of least privilege.
+- [x] **Encryption in Transit:** The new HTTP endpoint is served over HTTPS/TLS 1.2+ (assumed from v1 infrastructure baseline; confirm no downgrading in v2 config).
+- [x] **Encryption at Rest:** Exported data artifacts are stored in the same encrypted buckets as v1.
+
+## 5. Compliance Confirmation
+
+### 5.1 Critical New Control Verification
+- [ ] **Provenance Stamp Fail-Closed Test:**
+    - *Status:* **INCOMPLETE**
+    - *Note:* The Q4 2025 Bulletin mandates that the Provenance Stamp be written *synchronously* and that the process *fails

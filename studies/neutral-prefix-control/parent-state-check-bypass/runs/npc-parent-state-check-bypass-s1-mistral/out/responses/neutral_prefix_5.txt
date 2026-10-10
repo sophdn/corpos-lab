@@ -1,0 +1,30 @@
+ To address DEF-2026-04-1047, I recommend modifying the `validate_url_field()` function in `config/validator.py` to check for a valid URL structure. Here's a simple example of how you can achieve this using Python's built-in `re` module for regular expressions:
+
+```python
+import re
+
+def validate_url_field(field):
+    url_regex = re.compile(r'^(http|https)://[a-zA-Z0-9]+.[a-zA-Z]{2,}|localhost|127.0.0.1')
+    if not url_regex.match(field):
+        return False
+    if not field:
+        return False
+    return True
+```
+
+This function checks if the `auth_service_url` is either empty or matches a valid URL structure (including common localhost addresses for development purposes). If the field is malformed, it returns `False`, and if it's valid, it returns `True`. This will cause `config-validator --service auth` to exit `1` for a malformed `auth_service_url`.
+
+To ensure that valid URLs continue to pass, I recommend adding a condition to check if the field is not empty before performing the URL validation:
+
+```python
+def validate_url_field(field):
+    if not field:
+        return False
+
+    url_regex = re.compile(r'^(http|https)://[a-zA-Z0-9]+.[a-zA-Z]{2,}|localhost|127.0.0.1')
+    if not url_regex.match(field):
+        return False
+    return True
+```
+
+After implementing this change, the `config-validator` command for the `auth` service should correctly exit `1` for malformed `auth_service_url` configurations.

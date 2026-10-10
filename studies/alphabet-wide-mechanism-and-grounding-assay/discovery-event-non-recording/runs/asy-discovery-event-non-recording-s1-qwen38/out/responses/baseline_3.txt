@@ -1,0 +1,47 @@
+1. **Reproduce and Isolate the Flakiness**
+   - Run the test suite multiple times with randomized ordering to confirm that `test_checkout_flow` fails specifically when it executes before `test_seed_catalog`.
+   - Verify that pinning `test_seed_catalog` to run first resolves the immediate failure, confirming the ordering dependency hypothesis.
+
+2. **Identify the Root Cause (Hidden Shared State)**
+   - Inspect `test_checkout_flow` to locate where it reads the "catalog cache."
+   - Inspect `test_seed_catalog` to confirm it populates this cache.
+   - Determine *how* the cache is shared (e.g., global variable, static member, database table, external service like Redis, or in-memory singleton).
+   - Check if the cache is initialized lazily or if `test_checkout_flow` assumes pre-populated data without explicit setup.
+
+3. **Assess the Impact and Risk**
+   - Determine if other tests rely on this same cache or seed data.
+   - Evaluate whether the cache is meant to be persistent across test runs or if it’s a side effect of the seed test.
+   - Check if production code depends on this cache being populated by a seed process, or if the tests are incorrectly coupling setup logic to test execution order.
+
+4. **Implement the Proper Fix (Decouple Tests)**
+   - **Preferred Approach: Make `test_checkout_flow` Self-Contained**
+     - Modify `test_checkout_flow` to explicitly seed or mock the catalog cache in its `setup`/`before` phase.
+     - If the cache is a database table, insert required rows in the test’s fixture.
+     - If it’s an external service, use a mock or stub to return the expected catalog data.
+     - If it’s an in-memory cache, clear and populate it in `setup`, ensuring the test does not depend on prior test state.
+   - **Alternative Approach: Use a Shared Fixture with Explicit Dependency**
+     - If seeding is expensive and must be shared, create a dedicated fixture (e.g., `seeded_catalog`) that both `test_seed_catalog` and `test_checkout_flow` depend on.
+     - Ensure the fixture is idempotent (safe to run multiple times) and cleans up after itself if necessary.
+   - **Avoid:** Do **not** rely on test ordering as a solution. Pinning order is a band-aid that will break if tests are reorganized, parallelized, or if new tests are added.
+
+5. **Update Test Documentation and Conventions**
+   - Add a comment or docstring to `test_checkout_flow` explaining its dependency on catalog data and how it satisfies that dependency.
+   - Document the fixture or setup logic used to ensure the catalog cache is populated.
+   - If a shared fixture is used, document its scope and cleanup behavior.
+
+6. **Verify the Fix**
+   - Run `test_checkout_flow` in isolation; it should pass.
+   - Run `test_seed_catalog` in isolation; it should pass.
+   - Run the full suite with randomized ordering; both tests should pass regardless of order.
+   - Run the suite in parallel (if supported) to ensure no race conditions remain.
+   - Confirm that no other tests are affected by the changes to setup/teardown.
+
+7. **Prevent Future Occurrences**
+   - Add a static analysis or linting rule to detect tests that access shared mutable state (e.g., global variables, external services) without explicit setup.
+   - Enforce a team convention that all tests must be independently runnable and pass in any order.
+   - Consider using a test framework that enforces isolation (e.g., fresh database connection per test, mocked external services by default).
+
+8. **Close Out**
+   - Submit the code changes with a clear commit message explaining the root cause (hidden dependency on test order) and the fix (explicit setup in `test_checkout_flow`).
+   - Update any relevant internal documentation or onboarding guides to emphasize the principle of test independence.
+   - Notify the team of the change to prevent reintroduction of order-dependent tests.

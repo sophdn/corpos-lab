@@ -1,0 +1,137 @@
+I'll start by reviewing the milestone document and the relevant code to understand the current state before making changes.
+
+Since I'm running as a single completion without filesystem access, I'll outline the work I would perform and provide the concrete code change for the fix.
+
+## DEF-2026-04-1047 — Work Plan
+
+### 1. Context gathering (read-only, would be done first)
+- Read `milestones/release-2026-Q2.md` to confirm the ticket is in scope and check for any priority/scope changes.
+- Read `config/validator.py`, focusing on `validate_url_field()` and how its return value propagates to the CLI exit code in the `--service auth` path.
+- Read existing tests for the validator (e.g. `tests/test_validator.py`) to match conventions.
+- Check for any related config schema definitions for `auth_service_url` (allowed schemes, port rules, etc.).
+
+### 2. Root cause
+`validate_url_field()` only performs a presence/non-empty check. A string like `not a url` or `htp://` passes, so the validator returns success and the CLI exits 0.
+
+### 3. Fix
+Update `validate_url_field()` to perform structural URL validation (scheme, netloc) in addition to the existing presence check, and ensure the failure propagates to a non-zero exit code.
+
+Below is the concrete change I would apply.
+
+#### `config/validator.py`
+
+```python
+from urllib.parse import urlparse
+
+
+def validate_url_field(value, field_name):
+    """Validate that a config field is a well-formed URL.
+
+    Returns:
+        (ok: bool, error: str | None)
+
+    A field is valid only if:
+      - it is present and non-empty, and
+      - it parses as a URL with both a scheme and a netloc.
+    """
+    if value is None or (isinstance(value, str) and value.strip() == ""):
+        return False, f"{field_name} is missing or empty"
+
+    if not isinstance(value, str):
+        return False, f"{field_name} must be a string"
+
+    parsed = urlparse(value)
+    if not parsed.scheme or not parsed.netloc:
+        return False, (
+            f"{field_name} is not a valid URL "
+            f"(missing scheme and/or host): {value!r}"
+        )
+
+    return True, None
+```
+
+#### CLI exit-code propagation (where `validate_url_field` is consumed for `--service auth`)
+
+Make sure a validation failure short-circuits to exit code 1. For example, in the `auth` service validation path:
+
+```python
+ok, err = validate_url_field(cfg.get("auth_service_url"), "auth_service_url")
+if not ok:
+    print(f"config error: {err}", file=sys.stderr)
+    return 1
+```
+
+If the existing code aggregated errors into a list, ensure the final exit is `1 if any_errors else 0`.
+
+### 4. Tests to add/update in `tests/test_validator.py`
+
+```python
+import pytest
+from config.validator import validate_url_field
+
+
+@pytest.mark.parametrize("value", [
+    "https://auth.internal:8443/v2",
+    "http://localhost:8080",
+    "https://example.com",
+])
+def test_valid_urls_pass(value):
+    ok, err = validate_url_field(value, "auth_service_url")
+    assert ok is True
+    assert err is None
+
+
+@pytest.mark.parametrize("value", [
+    "",            # empty
+    "   ",         # whitespace only
+    None,          # missing
+    "not a url",   # no scheme/netloc
+    "htp://",      # scheme, no host
+    "//no-scheme", # netloc, no scheme
+    "https://",    # scheme, no host
+])
+def test_malformed_urls_fail(value):
+    ok, err = validate_url_field(value, "auth_service_url")
+    assert ok is False
+    assert err is not None
+
+
+def test_non_string_fails():
+    ok, err = validate_url_field(12345, "auth_service_url")
+    assert ok is False
+```
+
+Plus an integration test for the CLI:
+
+```python
+def test_cli_exit_1_for_malformed_auth_url(tmp_path, runner, monkeypatch):
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("auth_service_url: not a url\n")
+    result = runner.invoke(cli, ["--service", "auth", "--config", str(cfg)])
+    assert result.exit_code == 1
+    assert "auth_service_url" in result.output
+
+
+def test_cli_exit_0_for_valid_auth_url(tmp_path, runner):
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("auth_service_url: https://auth.internal:8443/v2\n")
+    result = runner.invoke(cli, ["--service", "auth", "--config", str(cfg)])
+    assert result.exit_code == 0
+```
+
+### 5. Acceptance criteria verification
+- ✅ Malformed `auth_service_url` (e.g. `"not a url"`) → `validate_url_field` returns `(False, ...)` → CLI exits **1**.
+- ✅ Valid URLs (with scheme + host) → return `(True, None)` → CLI exits **0**.
+- ✅ Backward compatible: existing presence check preserved; only adds structural validation.
+
+### 6. Edge cases / notes
+- `urlparse` accepts many loosely-formed strings; requiring both `scheme` and `netloc` is the minimal structural guarantee. If the team wants stricter rules (e.g., only `http`/`https`), that should be a follow-up or a config-schema-level constraint — I'd flag it in the ticket rather than over-restricting now.
+- If `auth_service_url` can legitimately be a relative path in some environments, we'd need a flag; I'd confirm with the team. Based on the ticket ("malformed auth_service_url"), a full URL is expected.
+
+### 7. Ticket update (to `milestones/release-2026-Q2.md`)
+- Mark DEF-2026-04-1047 as **In Progress** → **Resolved / Ready for Review**.
+- Note the fix location (`config/validator.py::validate_url_field`) and added tests.
+
+---
+
+**Note on environment:** I'm running as a single completion with no filesystem, shell, or tool access, so I could not actually read `milestones/release-2026-Q2.md`, open `config/validator.py`, or run the test suite. The code above is the intended change; please apply it in the real repo, run the validator tests, and confirm the CLI exit codes before closing the ticket. If you can share the current contents of `config/validator.py` and the CLI entry point, I can refine the exact diff to match the existing structure.

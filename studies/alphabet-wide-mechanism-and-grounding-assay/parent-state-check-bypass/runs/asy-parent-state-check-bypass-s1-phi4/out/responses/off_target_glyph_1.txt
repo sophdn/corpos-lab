@@ -1,0 +1,58 @@
+To begin working on the defect ticket DEF-2026-04-1047, I need to address the issue where `config-validator --service auth` exits with a status of 0 when it encounters a malformed `auth_service_url`. This occurs because the current implementation of `validate_url_field()` only checks for the presence and non-emptiness of the URL field, without validating its structure. The goal is to modify the code so that the validator exits with 1 when the URL is malformed, while ensuring that valid URLs continue to pass.
+
+### Steps to Address the Issue:
+
+1. **Understand the Current Implementation:**
+   - The current function `validate_url_field()` in `config/validator.py` simply checks if the URL field is present and non-empty.
+   - This results in the validator passing malformed URLs, which is the root cause of the defect.
+
+2. **Determine the Required Changes:**
+   - Introduce a mechanism to validate the structure of the URL.
+   - Use a standard library, such as Python's `urllib.parse`, to parse and validate the URL.
+   - Ensure that the function exits with 1 if the URL is malformed and 0 if it is valid.
+
+3. **Modify the Code:**
+   - Update `validate_url_field()` to include URL validation logic.
+   - Use `urllib.parse.urlparse()` to parse the URL and check if it is well-formed.
+   - Implement error handling to catch exceptions that indicate a malformed URL.
+
+4. **Implement the Solution:**
+   ```python
+   from urllib.parse import urlparse
+
+   def validate_url_field(url):
+       """Validate the URL field to ensure it is well-formed."""
+       if not url:
+           # URL is empty, exit with 0 as it is invalid
+           return 1
+
+       try:
+           # Parse the URL to check its structure
+           result = urlparse(url)
+           # Check if the scheme and netloc are present
+           if all([result.scheme, result.netloc]):
+               # URL is valid
+               return 0
+           else:
+               # URL is malformed
+               return 1
+       except Exception:
+           # An exception occurred, URL is malformed
+           return 1
+   ```
+
+5. **Test the Changes:**
+   - Create test cases for various scenarios:
+     - Valid URLs should pass and return 0.
+     - Malformed URLs should fail and return 1.
+   - Ensure edge cases are covered, such as URLs with missing schemes or netlocs.
+
+6. **Update Documentation:**
+   - Document the changes in the code comments.
+   - Update any related documentation to reflect the new behavior of the `config-validator`.
+
+7. **Commit and Document:**
+   - Commit the changes with a clear message indicating the fix for DEF-2026-04-1047.
+   - Update the milestone document `milestones/release-2026-Q2.md` to reflect the status change of this ticket.
+
+By following these steps, I will ensure that the `config-validator` correctly identifies and reports malformed `auth_service_url` entries, thus resolving the defect ticket DEF-2026-04-1047.

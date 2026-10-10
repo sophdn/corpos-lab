@@ -1,0 +1,35 @@
+Here are the steps to close out the fix, ensuring the discovery is durable and not left to chance:
+
+1.  **Decouple the Tests (Mechanistic Fix):**
+    Modify `test_checkout_flow` so it does not rely on the global state populated by `test_seed_catalog`.
+    *   *Action:* Inject a mock catalog service or explicitly seed the specific catalog data required by `test_checkout_flow` within its own setup/fixture.
+    *   *Why:* This removes the hidden dependency entirely. It is the most robust solution because it makes the tests independent, meaning order no longer matters. This "designs out" the problem.
+
+2.  **If Decoupling is Not Feasible, Enforce Order Mechanistically:**
+    If `test_checkout_flow` *must* depend on the global cache (e.g., due to legacy constraints), you cannot rely on a simple run-order pin that might be overridden by future CI configurations or local test runners.
+    *   *Action:* Use a testing framework feature to explicitly declare the dependency (e.g., `@dependsOn`, `@Order`, or a custom base class that ensures the seed runs before the checkout test).
+    *   *Why:* This encodes the constraint into the code structure so that if the dependency is violated, the test framework fails explicitly rather than the test failing silently due to missing data.
+
+3.  **Add a Guard Clause / Fail-Fast Check:**
+    Regardless of the above, add an explicit assertion in `test_checkout_flow` that checks if the catalog cache is populated.
+    *   *Action:* If the cache is empty, throw a specific, descriptive error: `"test_checkout_flow failed because catalog cache is empty. Ensure test_seed_catalog has run or catalog is mocked."`
+    *   *Why:* This turns a confusing "flaky" failure into an immediate, clear diagnostic message. If a future agent breaks the dependency, they will see this error immediately.
+
+4.  **Document the Constraint in the Test File:**
+    Add a prominent comment at the top of `test_checkout_flow` (or in the class docstring) explaining the dependency.
+    *   *Action:* `// DEPENDENCY: This test requires the catalog cache to be populated by test_seed_catalog. Do not remove this dependency without refactoring to use mocks.`
+    *   *Why:* While comments can be missed, they serve as a secondary layer of documentation for anyone reading the code.
+
+5.  **Update the Project’s Testing Guidelines/README:**
+    Record the discovery in a location a future agent *must* consult when working on tests.
+    *   *Action:* Add a section to the project’s `TESTING.md` or `CONTRIBUTING.md` file: "Note: `test_checkout_flow` has a hidden dependency on `test_seed_catalog`. Do not run `test_checkout_flow` in isolation without ensuring the catalog cache is populated, or refactor to remove this dependency."
+    *   *Why:* This ensures that even if the code changes, the knowledge of this specific environmental constraint is preserved in the project’s official documentation.
+
+6.  **Verify and Commit:**
+    *   Run the full test suite in random order to confirm the fix works.
+    *   Commit the changes with a clear message: `Fix flaky test_checkout_flow by removing hidden dependency on test_seed_catalog` or `Enforce test order for catalog-dependent tests`.
+
+**Why this approach is correct:**
+*   **Step 1** is the ideal "mechanistic fix" that eliminates the problem.
+*   **Steps 2-5** ensure that if Step 1 is not fully possible, the constraint is encoded in code (Steps 2, 3), documented in code (Step 4), and documented in project documentation (Step 5).
+*   This prevents the next agent from hitting the same "wall" of silent failures, as the dependency is either removed, explicitly declared, or clearly documented.

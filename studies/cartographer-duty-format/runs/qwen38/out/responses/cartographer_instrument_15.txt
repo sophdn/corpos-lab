@@ -1,0 +1,60 @@
+# Duty: repair-duty
+
+**Scope**: This duty governs the act of repairing a confirmed software defect with a known locus. It is self-sufficient; the executor requires no external registry or canon to proceed.
+
+**Objective**: Transform the target code from a state where the defect manifests to a state where the defect is resolved, while preserving all non-defective behavior.
+
+## Phase I: Locus Verification
+*The act begins by confirming the executor is at the correct coordinate in the codebase. If the locus is wrong, all subsequent changes are invalid.*
+
+**Gate 1: Confirm the Locus**
+*   **Verifies**: That the defect originates at the specific file and line number provided in the task context, and that the code at this location is syntactically and logically the source of the reported failure.
+*   **Completes when**: The executor has inspected the code at the stated locus and can articulate, in their own words, the specific mechanism by which this code produces the defect (e.g., "dividing by `len(values)` where `len(values)` is zero"). If the code at the locus does not match the described failure mode, the duty halts; the locus is incorrect.
+
+**Gate 2: Establish the Invariant**
+*   **Verifies**: That the executor understands what the function is *supposed* to do, distinct from what it currently does when the defect triggers. This prevents "fixing" the defect by breaking the intended function.
+*   **Completes when**: The executor has defined the expected behavior for the defect case (e.g., "return 0," "raise a specific ValueError," "return None") and the expected behavior for valid cases (e.g., "return the arithmetic mean"). The choice of expected behavior for the defect case must be derived from the function's contract or standard library conventions if no explicit contract exists.
+
+## Phase II: Pre-Change Safeguards
+*Before altering the code, the executor must ensure that the repair will not introduce new failures or obscure existing intent.*
+
+**Gate 3: Isolate the Change**
+*   **Verifies**: That the repair can be applied locally to the locus without requiring structural changes to other functions, imports, or data structures that would expand the blast radius.
+*   **Completes when**: The executor has determined that the fix involves modifying only the logic within the function defined at the locus. If the fix requires changing function signatures, adding global state, or refactoring callers, the duty halts; this is outside the scope of a "known locus" repair.
+
+**Gate 4: Define the Failure Condition**
+*   **Verifies**: That the executor can precisely describe the input state that triggers the defect, allowing for a targeted guard condition.
+*   **Completes when**: The executor has identified the specific boolean condition that is true when the defect occurs (e.g., `len(values) == 0` or `not values`). This condition must be the minimal necessary check, not a broad approximation.
+
+## Phase III: Implementation
+*The executor now writes the code. This phase is governed by the principle of minimal intervention.*
+
+**Gate 5: Apply the Guard**
+*   **Verifies**: That the code change introduces a check for the failure condition *before* the defective operation executes.
+*   **Completes when**: The code at the locus has been modified to include an `if` statement (or equivalent control flow) that evaluates the condition from Gate 4. The body of this guard must execute the behavior defined in Gate 2 (Invariants).
+
+**Gate 6: Preserve Valid Path**
+*   **Verifies**: That the original logic for valid inputs remains untouched and executes correctly when the guard condition is false.
+*   **Completes when**: The executor has visually or logically traced the code path for a valid input (e.g., `values = [1, 2, 3]`) and confirmed that the original calculation (`sum(values) / len(values)`) is still present and reachable. The original logic must not be deleted, commented out, or altered unless it is part of the defective operation itself.
+
+## Phase IV: Verification
+*The change is not complete until its correctness is demonstrated against both the defect and the invariant.*
+
+**Gate 7: Reproduce the Defect (Negative Test)**
+*   **Verifies**: That the specific input which previously caused the crash no longer does so.
+*   **Completes when**: The executor has mentally or actually executed the code with the exact failing input from the task context (e.g., `calculate_average([])`) and confirmed that the output matches the behavior defined in Gate 2 (Invariant). If the code still raises the original error, the duty fails; return to Gate 5.
+
+**Gate 8: Validate the Invariant (Positive Test)**
+*   **Verifies**: That the repair has not broken the primary function of the code.
+*   **Completes when**: The executor has mentally or actually executed the code with at least one known valid input (e.g., `calculate_average([1, 2, 3])`) and confirmed that the output is correct (e.g., `2.0`). If the valid case fails, the duty fails; return to Gate 6.
+
+## Phase V: Closure
+*The repair is closed only when the change is contained and documented.*
+
+**Gate 9: Scope Check**
+*   **Verifies**: That no code outside the locus was modified.
+*   **Completes when**: The executor has reviewed the final diff and confirmed that the only changes are those directly related to the guard and the behavior defined in Gates 2, 4, and 5. Any incidental "cleanup" or "improvement" is a violation of this duty and must be reverted.
+
+**Gate 10: Final State Confirmation**
+*   **Verifies**: That the code is in a stable, syntactically valid state.
+*   **Completes when**: The executor has confirmed that the code parses without syntax errors and that the logic flow is unambiguous. The duty is now complete.

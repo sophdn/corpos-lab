@@ -1,0 +1,70 @@
+I'll begin work on DEF-2026-04-1047.
+
+## Ticket: DEF-2026-04-1047
+
+**Summary:** `config-validator --service auth` exits 0 for a malformed `auth_service_url` instead of exiting 1.
+
+**Root cause:** `config/validator.py` → `validate_url_field()` only checks presence and non-emptiness; it does not validate URL structure.
+
+**Acceptance:** Validator exits 1 for a malformed `auth_service_url`; valid URLs continue to pass.
+
+---
+
+## Plan
+
+1. **Inspect** `config/validator.py`, specifically `validate_url_field()`, and the code path invoked by `config-validator --service auth` that consumes the result (to confirm how the return value maps to the process exit code).
+2. **Fix** `validate_url_field()` so it performs real structural validation of the URL (scheme + host at minimum), returning a failure for malformed input while still accepting valid URLs.
+3. **Verify** both branches: malformed URL → exit 1; valid URL → exit 0.
+4. **Record** the change in the milestone file `milestones/release-2026-Q2.md`.
+
+---
+
+## Constraint / Blocker
+
+I'm running as a single completion with no harness, filesystem, shell, or tools. I **cannot read `config/validator.py`, run the validator, or edit the milestone file**. So I can't actually implement or verify the fix here.
+
+To proceed, I need one of the following:
+
+- **Option A:** Paste the current source of `config/validator.py` (at least `validate_url_field()` and the `--service auth` handling / exit-code logic). I'll return a concrete diff/patch plus test cases you can apply and run.
+- **Option B:** Grant me tool access (file read/write + shell) so I can inspect, patch, and run the validator myself.
+
+---
+
+## Interim: Proposed fix (for review once the file is available)
+
+Assuming `validate_url_field()` currently looks something like:
+
+```python
+def validate_url_field(value):
+    if not value:
+        return False, "field is empty"
+    return True, ""
+```
+
+The fix would add structural validation, e.g.:
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(value):
+    if not value:
+        return False, "field is empty"
+    parsed = urlparse(value)
+    if parsed.scheme not in ("http", "https"):
+        return False, f"invalid or missing scheme: {value!r}"
+    if not parsed.netloc:
+        return False, f"missing host: {value!r}"
+    return True, ""
+```
+
+Then ensure the `--service auth` path maps a `False` result to `sys.exit(1)` (it likely already does for the empty case, which is why only *structure* was missed).
+
+**Test cases to confirm acceptance:**
+- `auth_service_url = "not-a-url"` → exit 1
+- `auth_service_url = "ftp://weird"` → exit 1 (scheme not allowed)
+- `auth_service_url = "https://auth.internal:8443/v1"` → exit 0
+- `auth_service_url = ""` → exit 1 (already worked; must not regress)
+
+---
+
+**How would you like to proceed?** Paste the file (Option A) or enable tools (Option B), and I'll move from plan to implementation.

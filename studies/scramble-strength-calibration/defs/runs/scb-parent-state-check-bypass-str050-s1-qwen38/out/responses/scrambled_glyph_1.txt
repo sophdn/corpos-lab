@@ -1,0 +1,57 @@
+Based on the constraints provided (single completion, no tools, no filesystem access), I cannot execute code, read `config/validator.py`, or modify files directly. However, I can provide the precise implementation logic and code changes required to resolve **DEF-2026-04-1047**, which you can then apply to the codebase.
+
+### Root Cause Analysis
+The function `validate_url_field()` in `config/validator.py` currently only performs a truthiness check (presence and non-emptiness). It does not verify the syntactic structure of the URL, causing malformed strings (e.g., `"not-a-url"`, `"http://"`) to pass validation and result in exit code 0.
+
+### Solution Strategy
+1.  Import `urllib.parse` (standard library, no new dependencies).
+2.  Update `validate_url_field()` to parse the URL.
+3.  Verify that the scheme is `http` or `https` and that a netloc (host) is present.
+4.  If validation fails, raise a specific exception or return a failure state that triggers the exit code 1 logic in the main entry point.
+
+### Code Change for `config/validator.py`
+
+```python
+import urllib.parse
+
+def validate_url_field(value, field_name="url"):
+    """
+    Validates that the provided value is a well-formed URL with a valid scheme.
+    
+    Args:
+        value (str): The URL string to validate.
+        field_name (str): Name of the field for error reporting.
+        
+    Returns:
+        bool: True if valid, False otherwise.
+    """
+    if not value:
+        return False
+        
+    try:
+        parsed = urllib.parse.urlparse(value)
+        
+        # Check if scheme is http or https
+        if parsed.scheme not in ('http', 'https'):
+            return False
+            
+        # Check if netloc (host) is present
+        if not parsed.netloc:
+            return False
+            
+        return True
+        
+    except Exception:
+        # urlparse generally doesn't raise for malformed strings, 
+        # but we catch any unexpected errors to ensure safety
+        return False
+```
+
+### Code Change for Main Entry Point (e.g., `__main__.py` or `cli.py`)
+
+Ensure the exit code is set correctly based on the validation result:
+
+```python
+import sys
+from config.validator import validate_url_field
+

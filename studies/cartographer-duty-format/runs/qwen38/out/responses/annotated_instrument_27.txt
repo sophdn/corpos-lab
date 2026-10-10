@@ -1,0 +1,146 @@
+# repair-duty
+
+This duty governs the execution of a repair for a confirmed software defect where the locus has already been identified. It applies to the specific case of the `ZeroDivisionError` at `calculator.py:2` within the function `calculate_average`, but the gates defined here are structural and apply to any repair of a confirmed locus.
+
+## Taboos
+
+| Taboo Slug | Application |
+| :--- | :--- |
+| `triggers-routing` | The defect is a confirmed `ZeroDivisionError` at a known locus. The routing to "repair" rather than "investigation" must be validated to prevent executing a repair on an unconfirmed or misrouted prompt. |
+| `explicit-prerequisite-gate` | The repair requires a confirmed locus record. The duty must verify that the file, line, and failure mode are explicitly named before any code modification is attempted. |
+| `investigation-fix-criterion-predeclaration` | To prevent "fishing" for a fix, the passing criterion (e.g., `calculate_average([])` returns a defined value without raising) must be declared before the code is changed. |
+| `investigation-fix-scope-boundary` | The fix must be confined to the confirmed locus (`calculator.py:2` and its immediate logical context). Editing unrelated lines breaks the anchor to the root cause. |
+| `fix-locus-identification` | The fix must be applied to the canonical source location (`calculator.py`), not to a consumer or call site that merely triggers the error. |
+| `fix-attempt-root-cause-reassessment` | If the first fix fails, the duty requires a new root-cause citation before a second attempt, preventing blind trial-and-error. |
+| `investigation-advisory-fix-durability` | If the repair involves an advisory change (e.g., a comment or docstring warning), it must be rejected unless durability is proven (i.e., the caller cannot bypass it). Structural fixes are preferred for this defect class. |
+| `completion-evidence-required` | The repair cannot be declared complete without a co-located verification artifact (test output or script execution) that proves the defect is resolved. |
+| `document-claim-verification` | The executor cannot claim success based on written assertion; they must provide observed test results. |
+| `known-constraint-documentation` | If environmental constraints (e.g., Python version differences in division behavior) are discovered, they must be recorded before the session closes. |
+
+---
+
+## Gate 1: Routing Confirmation
+
+*Taboo: `triggers-routing`*
+
+**State:** The executor must confirm that the incoming prompt is a **Repair** task, not an **Investigation** task.
+**Verification:**
+1.  The prompt explicitly states that the defect is **confirmed**.
+2.  The prompt explicitly states that the **locus is known**.
+3.  If either condition is false, this gate rejects the entry into the repair duty. The task must be re-routed to an Investigation duty.
+**Rejection Clause:** If the locus is not confirmed or the defect nature is uncertain, the executor is prohibited from writing code. The rejection message is: *"Routing invalid: Locus not confirmed or defect nature unverified. Re-route to Investigation."*
+
+## Gate 2: Locus Record Verification
+
+*Taboo: `explicit-prerequisite-gate`*
+
+**State:** The executor must possess a valid Locus Record.
+**Verification:**
+1.  The record names the **file**: `calculator.py`.
+2.  The record names the **line**: `2`.
+3.  The record names the **failure mode**: `ZeroDivisionError` raised when `len(values)` is zero.
+4.  The executor must output this record verbatim before proceeding.
+**Rejection Clause:** If any component of the Locus Record is missing, ambiguous, or not explicitly cited, the gate fails. Rejection message: *"Prerequisite failed: Locus record incomplete. File, line, and failure mode must be explicitly named."*
+
+## Gate 3: Passing Criterion Declaration
+
+*Taboo: `investigation-fix-criterion-predeclaration`*
+
+**State:** The executor must define the exact condition for success before modifying any code.
+**Verification:**
+1.  The executor writes a statement of the **Passing Criterion**.
+2.  For this defect, the criterion must specify:
+    *   `calculate_average([])` does **not** raise `ZeroDivisionError`.
+    *   The function returns a defined value (e.g., `0.0`, `None`, or `float('nan')`) or raises a different, intended exception (e.g., `ValueError`) with a clear message.
+    *   Existing valid inputs (e.g., `[1, 2, 3]`) still return the correct average (`2.0`).
+3.  This criterion is frozen. It cannot be changed after code modification begins.
+**Rejection Clause:** If the criterion is vague (e.g., "fix the error") or if the executor attempts to modify code before declaring this criterion, the gate fails. Rejection message: *"Criterion not pre-declared. Define the exact observable success condition before touching code."*
+
+## Gate 4: Scope Boundary Check
+
+*Taboo: `investigation-fix-scope-boundary`*
+
+**State:** The executor must define the exact lines of code they intend to modify.
+**Verification:**
+1.  The executor lists the line numbers in `calculator.py` that will be altered.
+2.  These lines must be within the logical scope of the confirmed locus (`calculator.py:2` and the function `calculate_average`).
+3.  The executor must justify why each line is necessary for the fix.
+4.  Any line outside the function `calculate_average` or unrelated to the division operation is prohibited.
+**Rejection Clause:** If the executor plans to edit lines outside the confirmed locus (e.g., renaming variables in other functions, adding unrelated imports, or modifying call sites), the gate fails. Rejection message: *"Scope violation: Proposed edits exceed the confirmed locus. Remove opportunistic adjacent edits."*
+
+## Gate 5: Canonical Source Application
+
+*Taboo: `fix-locus-identification`*
+
+**State:** The executor must apply the fix to the canonical source location.
+**Verification:**
+1.  The fix is implemented in `calculator.py`.
+2.  The fix is **not** implemented in a test file, a calling script, or a wrapper function.
+3.  The executor must confirm: "I am modifying `calculator.py`, not a consumer."
+**Rejection Clause:** If the proposed fix involves changing the caller to pass a non-empty list, or adding a `try/except` block in the calling code to suppress the error, the gate fails. Rejection message: *"Locus misidentified: Fix applied to consumer/call site. Canonical source location `calculator.py` remains unchanged."*
+
+## Gate 6: Advisory Durability Check (Conditional)
+
+*Taboo: `investigation-advisory-fix-durability`*
+
+**State:** If the proposed fix is **advisory** (e.g., adding a comment, docstring, or warning log) rather than **structural** (e.g., adding a guard clause), this gate fires.
+**Verification:**
+1.  The executor must prove that the advisory fix cannot be bypassed by a caller.
+2.  For example, if the fix is a comment, does it prevent the `ZeroDivisionError`? No.
+3.  If the fix is a `logging.warning`, does it prevent the crash? No.
+4.  Therefore, for this defect type (crash on invalid input), an advisory fix is inherently insufficient unless accompanied by a structural guard.
+**Rejection Clause:** If the fix is purely advisory and does not prevent the exception, the gate fails. Rejection message: *"Advisory fix rejected: Durability check failed. Caller can bypass advisory warning and still trigger `ZeroDivisionError`. A structural fix (e.g., guard clause) is required."*
+
+## Gate 7: Implementation and Verification
+
+*Taboo: `completion-evidence-required`*
+*Taboo: `document-claim-verification`*
+
+**State:** The executor implements the fix and verifies it.
+**Verification:**
+1.  The executor modifies `calculator.py` according to the Scope Boundary (Gate 4).
+2.  The executor runs a test case or script that executes:
+    ```python
+    from calculator import calculate_average
+    print(calculate_average([]))
+    print(calculate_average([1, 2, 3]))
+    ```
+3.  The executor must capture the **actual output** of this run.
+4.  The output must match the Passing Criterion declared in Gate 3.
+5.  The executor **cannot** write "The fix works" without providing the observed output.
+**Rejection Clause:** If the executor claims success without providing the observed test output, or if the output does not match the pre-declared criterion, the gate fails. Rejection message: *"Completion evidence missing or mismatched. Provide observed test output matching the pre-declared criterion."*
+
+## Gate 8: Failure Reassessment (Conditional)
+
+*Taboo: `fix-attempt-root-cause-reassessment`*
+
+**State:** This gate fires **only** if Gate 7 fails (i.e., the fix did not work).
+**Verification:**
+1.  The executor is prohibited from making a second code change immediately.
+2.  The executor must write a **Revised Root-Cause Citation**.
+3.  This citation must explain why the first fix failed and what new root cause is now identified.
+4.  The executor must return to Gate 3 (Passing Criterion Declaration) with a revised criterion if the root cause has shifted.
+**Rejection Clause:** If the executor attempts a second fix without a revised root-cause citation, the gate fails. Rejection message: *"Second attempt prohibited: Revised root-cause citation required before further code modification."*
+
+## Gate 9: Constraint Documentation
+
+*Taboo: `known-constraint-documentation`*
+
+**State:** Before closing the session, the executor must document any environmental constraints discovered.
+**Verification:**
+1.  Did the behavior of `sum([]) / len([])` depend on the Python version? (No, `ZeroDivisionError` is standard, but if the environment had a custom `float` subclass or similar, it must be recorded).
+2.  If the fix relies on a specific behavior (e.g., returning `0.0` for empty lists), is this a business logic constraint that should be documented?
+3.  The executor must add a note to the repair report: "Constraints: None discovered" or "Constraints: [List any]."
+**Rejection Clause:** If the session closes without a constraint documentation section, the gate fails. Rejection message: *"Constraint documentation missing. Record any environmental or business logic constraints discovered during repair."*
+
+## Final Output
+
+The executor must produce a repair report containing:
+1.  The Locus Record.
+2.  The Pre-declared Passing Criterion.
+3.  The Scope Boundary (list of modified lines).
+4.  The Code Diff.
+5.  The Observed Test Output (matching the criterion).
+6.  The Constraint Documentation.
+
+If all gates are passed, the repair is declared **Complete**.
