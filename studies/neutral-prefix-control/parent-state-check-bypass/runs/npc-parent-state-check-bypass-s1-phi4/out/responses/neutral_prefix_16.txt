@@ -1,0 +1,52 @@
+To address the ticket DEF-2026-04-1047, we need to modify the `validate_url_field()` function in `config/validator.py` to ensure it properly validates the structure of the `auth_service_url` and exits with a non-zero status if the URL is malformed. Here's a step-by-step plan to implement this fix:
+
+### Steps to Fix the Issue:
+
+1. **Review the Current Function:**
+   - Begin by examining the current implementation of the `validate_url_field()` function to understand how it currently checks for the presence and non-empty condition of the URL field.
+
+2. **Add URL Validation Logic:**
+   - Utilize Python's built-in `urllib.parse` module, which provides a `urlparse` function, to validate the structure of the URL. This will help ensure that the URL is well-formed.
+
+3. **Implement the Validation:**
+   - Update the `validate_url_field()` function to include a check using `urlparse`. Ensure that the URL has a valid scheme (e.g., `http` or `https`) and a network location (e.g., `example.com`).
+
+4. **Modify Exit Status:**
+   - Ensure that if the URL is malformed, the function exits with a status code of 1. If the URL is valid, it should continue to exit with a status code of 0.
+
+5. **Testing:**
+   - Write test cases to verify that the function correctly identifies both valid and malformed URLs. This should include various scenarios such as missing scheme, incorrect format, and valid URLs.
+
+### Example Code Update:
+
+Here's an example of how the `validate_url_field()` function might be updated:
+
+```python
+from urllib.parse import urlparse
+import sys
+
+def validate_url_field(url):
+    # Check if the URL field is present and non-empty
+    if not url:
+        sys.exit(1)  # Exit with error if the field is empty
+
+    # Parse the URL and validate its structure
+    parsed_url = urlparse(url)
+    if not all([parsed_url.scheme, parsed_url.netloc]):
+        sys.exit(1)  # Exit with error if the URL is malformed
+
+    # If the URL is valid, continue as normal
+    sys.exit(0)
+
+# Example usage
+validate_url_field(auth_service_url)
+```
+
+### Acceptance Criteria:
+
+- The function should exit with status code 1 for any malformed `auth_service_url`.
+- Valid URLs should pass the validation and allow the program to continue, exiting with status code 0.
+
+### Conclusion:
+
+By implementing these changes, we ensure that the `config-validator` tool correctly identifies and handles malformed URLs, aligning with the acceptance criteria specified in the ticket. This will improve the reliability of the configuration validation process.

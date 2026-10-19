@@ -1,0 +1,55 @@
+To address the ticket DEF-2026-04-1047, we need to enhance the `validate_url_field()` function in `config/validator.py` to ensure that the `auth_service_url` is not only present and non-empty but also properly structured as a valid URL. Here's a step-by-step plan to implement the necessary changes:
+
+### Step 1: Understand the Current Implementation
+
+The current implementation of `validate_url_field()` checks only for the presence and non-emptiness of the `auth_service_url`. This is insufficient because it does not validate the URL's structure.
+
+### Step 2: Define URL Validation Requirements
+
+A valid URL should conform to the following structure:
+- Scheme (e.g., `http`, `https`)
+- Authority (e.g., `example.com`)
+- Path (optional, e.g., `/path/to/resource`)
+- Query (optional, e.g., `?key=value`)
+- Fragment (optional, e.g., `#section`)
+
+### Step 3: Implement URL Validation
+
+To validate the URL structure, we can use Python's `urllib.parse` module, which provides tools for URL parsing and validation. Specifically, `urllib.parse.urlparse()` can be used to break down the URL into components, and `urllib.request` can be used to verify the scheme.
+
+### Step 4: Update the `validate_url_field()` Function
+
+Here's how the updated function might look:
+
+```python
+import urllib.parse
+
+def validate_url_field(url):
+    """Validate the URL structure of the given field."""
+    if not url:
+        return False  # URL is empty
+
+    parsed_url = urllib.parse.urlparse(url)
+    
+    # Check for the presence of scheme and netloc (authority)
+    if not parsed_url.scheme or not parsed_url.netloc:
+        return False  # Invalid URL structure
+
+    # Optionally, check for valid schemes
+    valid_schemes = {'http', 'https'}
+    if parsed_url.scheme not in valid_schemes:
+        return False  # Invalid scheme
+
+    # If all checks pass, the URL is valid
+    return True
+
+def validate_config(config):
+    """Validate the configuration fields."""
+    if 'auth_service_url' in config:
+        if not validate_url_field(config['auth_service_url']):
+            print("Error: Invalid auth_service_url")
+            return 1  # Exit with error code 1 for invalid URL
+
+    # Other validation logic...
+
+    return 0  # Exit with success code 0

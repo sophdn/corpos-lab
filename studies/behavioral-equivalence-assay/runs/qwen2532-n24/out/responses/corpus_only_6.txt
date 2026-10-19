@@ -1,0 +1,54 @@
+### Investigation Report: Payment Processing Failure
+
+#### Summary
+The payment processing failure occurred between 15:38 and 15:41, causing the payment gateway to become unavailable and the order service to suspend its batch job. The root cause of the failure was identified as an OutOfMemoryError in the fraud-detection service, which led to elevated latency and timeouts.
+
+#### Hypotheses
+1. **Fraud-detection service OutOfMemoryError**: The fraud-detection service experienced an OutOfMemoryError, causing it to become unresponsive.
+2. **Order-service batch job interference**: The batch job initiated by the order service might have overwhelmed the payment gateway, leading to unavailability.
+3. **Payment-gateway dependency issues**: The payment gateway might have experienced issues with its dependencies, leading to unavailability.
+
+#### Rounds and Sprints
+
+**Round 1: Fraud-detection service OutOfMemoryError**
+
+1.1 **Sprint: Analyze Fraud-detection log**
+
+- **Observation**:
+  - At 15:38:30, the fraud-detection service encountered an `OutOfMemoryError`.
+  - The cache size and heap usage increased significantly, reaching critical levels before the error occurred.
+  - The service was restarted by the orchestrator at 15:39:15, but it failed again due to continued elevated request rates.
+
+- **Conclusion**: The fraud-detection service experienced an `OutOfMemoryError` due to excessive cache usage and heap pressure, causing it to become unresponsive.
+
+**Round 2: Order-service batch job interference**
+
+2.1 **Sprint: Analyze Order-service log**
+
+- **Observation**:
+  - The order-service initiated a batch job to revalidate 1,247 orders, submitting them at a rate of 50/sec.
+  - The batch job progress was steady until 15:38:40, when the payment-gateway started returning errors.
+  - The batch job was suspended at 15:41:10 with 209 orders remaining.
+
+- **Conclusion**: The batch job did not directly cause the failure, but it contributed to the elevated request load on the payment gateway, exacerbating the issue.
+
+**Round 3: Payment-gateway dependency issues**
+
+3.1 **Sprint: Analyze Payment-gateway log**
+
+- **Observation**:
+  - The payment-gateway experienced elevated fraud-check latency starting at 15:37:00.
+  - At 15:38:35, the fraud-detection service timed out, and the circuit breaker was opened at 15:41:06.
+  - The payment gateway became unresponsive due to the unavailability of the fraud-detection service.
+
+- **Conclusion**: The payment-gateway became unresponsive due to the unavailability of the fraud-detection service, which was the primary cause of the elevated latency and timeouts.
+
+#### Root Cause
+The root cause of the payment processing failure was the `OutOfMemoryError` in the fraud-detection service. This error caused the fraud-detection service to become unresponsive, leading to elevated latency and timeouts, which in turn caused the payment-gateway to become unresponsive and the order-service batch job to suspend.
+
+#### Recommendations
+1. **Address Memory Pressure**: Investigate and optimize the memory usage in the fraud-detection service. Consider increasing the heap size or implementing cache eviction policies to prevent memory saturation.
+2. **Monitor and Alert**: Set up monitoring and alerts for memory usage and cache size in the fraud-detection service to detect and prevent future memory issues.
+3. **Batch Job Optimization**: Review the batch job process in the order-service to ensure it does not overwhelm the system during peak times. Consider implementing a more gradual submission rate or queuing mechanism.
+
+By addressing these issues, the system should be more resilient to memory pressure and better equipped to handle elevated request loads without becoming unresponsive.

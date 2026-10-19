@@ -1,0 +1,46 @@
+To address the defect ticket DEF-2026-04-1047, we need to update the `config/validator.py` file to ensure that the `validate_url_field()` function properly validates the structure of `auth_service_url`. Currently, the function only checks for the presence and non-emptiness of the field, which is insufficient for our needs. Here's a step-by-step plan to resolve the issue:
+
+### Step 1: Understand the Current Implementation
+- **Current Behavior**: The `validate_url_field()` function only checks if `auth_service_url` is present and non-empty.
+- **Problem**: It does not verify the URL's structure, allowing malformed URLs to pass validation.
+
+### Step 2: Define the Acceptance Criteria
+- **Acceptance Criteria**: The `validate_url_field()` should:
+  - Exit with code 1 if `auth_service_url` is malformed.
+  - Exit with code 0 if `auth_service_url` is valid.
+
+### Step 3: Update the `validate_url_field()` Function
+1. **Import Required Modules**: Use Python's `urllib.parse` module to validate URLs.
+   ```python
+   from urllib.parse import urlparse
+   ```
+
+2. **Modify `validate_url_field()`**:
+   - Parse the URL using `urlparse()`.
+   - Check if the scheme and netloc are present, as these are essential components of a valid URL.
+   - Return an error code if the URL is malformed.
+
+   Here's a possible implementation:
+   ```python
+   def validate_url_field(url):
+       if not url:
+           return 1  # Exit with code 1 if the URL is empty
+
+       parsed_url = urlparse(url)
+       if not parsed_url.scheme or not parsed_url.netloc:
+           return 1  # Exit with code 1 if the URL is malformed
+
+       return 0  # Exit with code 0 if the URL is valid
+   ```
+
+### Step 4: Test the Changes
+- **Unit Tests**: Write unit tests to cover various scenarios:
+  - Valid URLs should pass (exit code 0).
+  - Empty strings should fail (exit code 1).
+  - Malformed URLs (missing scheme or netloc) should fail (exit code 1).
+
+### Step 5: Document the Changes
+- Update the documentation to reflect the new behavior of the `validate_url_field()` function.
+- Ensure that the documentation is clear about the criteria for a valid URL.
+
+### Step 6: Review

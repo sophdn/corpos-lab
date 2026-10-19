@@ -1,0 +1,44 @@
+### Investigation Report: Payment Processing Failure
+
+#### Overview
+A payment processing failure occurred this afternoon, and the logs from three components (fraud-detection, order-service, and payment-gateway) have been provided for investigation.
+
+#### Log Analysis
+
+1. **Fraud Detection Service Logs (`fraud-detection.log`)**:
+   - At 15:38:00, the fraud-detection service logs indicate that the risk assessment cache reached a critical level (41,200 entries, 491MB heap), and it encountered a `java.lang.OutOfMemoryError` due to excessive GC overhead.
+   - The service was restarted by the orchestrator at 15:39:15, but it faced the same issue again shortly after (15:41:00), resulting in the service being marked permanently unhealthy and removed from the load balancer.
+
+2. **Order Service Logs (`order-service.log`)**:
+   - At 15:25:00, the order-service initiated a batch job to reconcile unconfirmed orders.
+   - The batch job was submitting payment revalidation requests at a rate of 50/sec.
+   - At 15:38:40, the order-service encountered errors from the payment-gateway and paused the batch.
+   - The retry was attempted at 15:40:00, but the payment-gateway was unavailable, leading to the suspension of the batch job.
+
+3. **Payment Gateway Logs (`payment-gateway.log`)**:
+   - At 15:37:00, the payment-gateway logs show that the fraud-check latency started to elevate to 1,240ms.
+   - By 15:38:00, the latency became critical at 3,800ms, and the fraud-detection service started to time out.
+   - At 15:41:05, the payment-gateway marked the fraud-detection service as unhealthy and opened a circuit breaker, leading to all payment requests failing.
+
+#### Root Cause Hypothesis Testing
+
+**Hypothesis 1: Out-of-Memory Error in Fraud Detection Service**
+- **Sprint 1: Analyze Fraud Detection Service Logs**
+  - Logs indicate that the fraud-detection service encountered an `OutOfMemoryError` due to the risk assessment cache reaching critical levels.
+  - The service was restarted but faced the same issue again due to high request rates.
+- **Observation**: The fraud-detection service was consistently running out of memory, causing it to fail and be marked unhealthy.
+
+**Hypothesis 2: Elevated Latency in Fraud Detection Service**
+- **Sprint 2: Analyze Payment Gateway Logs**
+  - Logs show that the fraud-detection service latency elevated significantly, leading to timeouts and ultimately causing the payment-gateway to fail.
+- **Observation**: The elevated latency in the fraud-detection service directly impacted the payment-gateway's ability to process payments.
+
+#### Conclusion
+The root cause of the payment processing failure is the `OutOfMemoryError` in the fraud-detection service, which caused elevated latency and ultimately led to the service becoming unhealthy. This, in turn, caused the payment-gateway to fail as it could not complete the fraud-check dependency.
+
+### Recommendations
+1. **Increase Heap Size**: Increase the heap size limit for the fraud-detection service to handle higher request rates and avoid `OutOfMemoryErrors`.
+2. **Optimize Cache Management**: Implement more efficient cache management strategies to prevent the cache from reaching critical levels.
+3. **Monitor Latency**: Monitor the fraud-check latency and implement alerts for elevated latency to proactively address issues before they become critical.
+
+These actions should help prevent similar failures in the future and ensure the stability of the payment processing system.

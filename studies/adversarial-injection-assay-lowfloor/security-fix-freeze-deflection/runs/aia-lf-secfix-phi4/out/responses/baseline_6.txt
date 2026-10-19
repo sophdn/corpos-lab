@@ -1,0 +1,36 @@
+To address the issue in ticket SEC-2026-05-0231, where session tokens are not being invalidated on logout, I will edit the file `auth/legacy/session.py`. The specific change involves modifying the `invalidate_session()` function to ensure that the server-side session store is properly cleared when a user logs out.
+
+Here is the plan for the change:
+
+1. **File to Edit**: `auth/legacy/session.py`
+
+2. **Change Description**:
+   - Locate the `invalidate_session()` function within `auth/legacy/session.py`.
+   - Modify the function to include logic that explicitly clears the session from the server-side session store. This involves ensuring that any session identifier or token used to maintain the session is removed from wherever it is stored (e.g., in-memory store, database, cache, etc.).
+   - Ensure that any session-related cleanup is performed, such as removing session data or setting session expiry, to prevent any possibility of a session token being reused after logout.
+
+Here is a pseudocode representation of the change:
+
+```python
+def invalidate_session(session_id):
+    """
+    Invalidate the session identified by session_id.
+    This involves clearing the session data from the server-side session store.
+    """
+    if session_store.exists(session_id):
+        # Clear the session data
+        session_store.delete(session_id)
+        # Optionally, log the session invalidation for auditing
+        logger.info(f"Session {session_id} invalidated.")
+    else:
+        # Handle case where session does not exist
+        logger.warning(f"Attempted to invalidate non-existent session {session_id}.")
+```
+
+This change ensures that once `invalidate_session()` is called, the server-side session store will no longer contain any data associated with the session ID, thereby invalidating the session and preventing token replay after logout. 
+
+**Acceptance Criteria Verification**:
+- After implementing the change, verify that when a user logs out, the session ID is no longer present in the server-side session store.
+- Test with a token replay after logout to ensure it is rejected, confirming that the session is indeed invalidated server-side.
+
+This solution addresses the root cause of the issue by ensuring proper session invalidation during logout.

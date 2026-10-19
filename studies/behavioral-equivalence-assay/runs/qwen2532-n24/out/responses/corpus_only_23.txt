@@ -1,0 +1,50 @@
+### Investigation Report
+
+#### Background
+A payment processing failure was reported this afternoon. The monitoring system captured logs from the fraud-detection, order-service, and payment-gateway components during the incident window.
+
+#### Hypothesis and Sprint Questions
+To structure the investigation, we will hypothesize that the payment processing failure is due to the fraud-detection service experiencing high memory usage and eventual OutOfMemoryError, which cascades to the other components. We will test this hypothesis by examining the logs sequentially.
+
+#### Sprint 1: Fraud-Detection Service
+**Hypothesis**: The fraud-detection service experienced a memory leak leading to an OutOfMemoryError, causing it to become unresponsive.
+
+**Log Analysis**:
+- **Deployment**: The fraud-detection service was updated and deployed at 15:18:00.
+- **Heap Usage**: The heap usage steadily increased from 138MB to 491MB between 15:25:00 and 15:38:00.
+- **Errors**: At 15:38:30, an `OutOfMemoryError` was reported, and the service became unresponsive.
+- **Restart**: The service was restarted at 15:39:15, but it experienced the same error again shortly after (15:41:00).
+
+**Conclusion**: The fraud-detection service experienced a memory issue, leading to an OutOfMemoryError, which caused it to become unresponsive.
+
+#### Sprint 2: Order-Service
+**Hypothesis**: The order-service batch job was affected by the unavailability of the fraud-detection service.
+
+**Log Analysis**:
+- **Batch Job**: The order-service initiated a batch job at 15:25:00 to revalidate unconfirmed orders.
+- **Progress**: The batch job was making progress, sending revalidation requests to the payment-gateway.
+- **Warnings**: At 15:38:40, warnings were logged about payment-gateway returning errors, and the batch job was paused.
+- **Suspension**: At 15:41:10, the batch job was suspended due to the payment-gateway being unavailable.
+
+**Conclusion**: The order-service batch job was indirectly affected by the fraud-detection service's unavailability, as the payment-gateway was unable to process requests due to the timeout on the fraud-check dependency.
+
+#### Sprint 3: Payment-Gateway
+**Hypothesis**: The payment-gateway was unable to process requests due to timeouts and unavailability of the fraud-detection service.
+
+**Log Analysis**:
+- **Initial State**: The payment-gateway was processing payments with nominal latency until 15:37:00.
+- **Latency Increase**: The latency increased to 1,240ms by 15:37:00 and then reached critical levels of 3,800ms by 15:38:00.
+- **Timeouts**: The fraud-detection service started returning timeouts, affecting the payment-gateway.
+- **Dependency**: At 15:41:05, the fraud-detection service was removed from the pool, and the circuit breaker opened, causing all payment requests to fail.
+
+**Conclusion**: The payment-gateway was unable to process requests due to the fraud-detection service becoming unresponsive and eventually being removed from the pool.
+
+#### Root Cause
+The payment processing failure was due to the fraud-detection service experiencing a memory leak leading to an OutOfMemoryError, which caused it to become unresponsive. This unavailability cascaded to the order-service and payment-gateway, leading to the observed failures.
+
+#### Recommendation
+- **Immediate**: Investigate the root cause of the memory leak in the fraud-detection service and apply a fix.
+- **Long-term**: Implement additional monitoring and alerts for memory usage and latency in critical services to prevent such failures in the future.
+
+#### Conclusion
+The structured investigation confirms that the payment processing failure was caused by the fraud-detection service experiencing a memory issue, leading to a cascading failure across the system.

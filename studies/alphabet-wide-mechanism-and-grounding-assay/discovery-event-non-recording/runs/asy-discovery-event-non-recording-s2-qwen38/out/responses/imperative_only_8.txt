@@ -1,0 +1,21 @@
+To close out the deploy correctly, you must ensure the undocumented constraint `ORDERS_DB_POOL >= 20` is made durable so that future deploys do not suffer from the same silent deadlock. Since I am operating as a single completion without tools, I will outline the specific steps I would take to achieve this durable record, prioritizing a mechanistic fix over a passive note.
+
+**Step 1: Implement a Mechanistic Fix in the Deployment Configuration**
+The most robust way to prevent this issue from recurring is to encode the requirement directly into the deployment definition. I would modify the deployment manifest (e.g., Kubernetes Deployment YAML, Helm values, or Docker Compose file) to explicitly set `ORDERS_DB_POOL=20` (or a higher value if appropriate) as a default environment variable for the `orders-api` service. By baking this into the configuration, the constraint is satisfied by default for any future agent or automated pipeline, removing the need for manual intervention.
+
+**Step 2: Add a Validation Check or Lint Rule (If Applicable)**
+If the deployment platform supports pre-deploy validation scripts or linters, I would add a check that fails the deploy if `ORDERS_DB_POOL` is not set or is set to a value less than 20. This turns a silent runtime failure into a loud, immediate deployment error, preventing the deadlock from ever occurring in production.
+
+**Step 3: Document the Constraint in a Discoverable Location**
+In addition to the mechanistic fix, I would document this requirement in a central, high-visibility location that future agents are required to consult. This could be:
+- The service’s `README.md` or `CONTRIBUTING.md` file, specifically in a "Prerequisites" or "Environment Variables" section.
+- The team’s infrastructure runbook or operations manual.
+- A dedicated `ENVIRONMENT_REQUIREMENTS.md` file in the repository root.
+
+The documentation should clearly state: *"orders-api requires ORDERS_DB_POOL to be set to at least 20 to prevent database connection deadlocks under load."*
+
+**Step 4: Verify the Fix**
+Before closing the session, I would confirm that the updated deployment configuration (with the explicit env var and/or validation rule) is committed to the source repository and that the current successful deploy reflects this change. This ensures that the next time the service is deployed, the fix is already in place.
+
+**Why this is necessary:**
+Simply setting the variable for this one deploy and moving on would leave the next agent blind to this requirement. They would likely deploy without the variable, encounter the same silent deadlock under load, and waste time debugging an issue that is already known and fixed. By making the fix mechanistic (in the config) and discoverable (in the docs), I ensure that the discovery is durable and cannot be missed.

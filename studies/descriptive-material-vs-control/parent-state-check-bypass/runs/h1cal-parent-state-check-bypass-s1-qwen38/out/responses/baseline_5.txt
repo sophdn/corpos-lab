@@ -1,0 +1,108 @@
+I'll start by reviewing the milestone document and the relevant source files to understand the current state before making changes.
+
+Let me check the milestone file and the validator code.
+
+Since I'm in a single-completion mode without filesystem access, I cannot actually read `milestones/release-2026-Q2.md` or `config/validator.py`. I'll proceed by documenting my work plan and the intended fix based on the ticket details provided, so the change is clearly specified and can be applied.
+
+---
+
+## DEF-2026-04-1047 — Work Record
+
+### 1. Context Review (from ticket)
+
+- **Milestone:** Release 2026-Q2 (tracked in `milestones/release-2026-Q2.md`)
+- **Symptom:** `config-validator --service auth` exits `0` when `auth_service_url` is malformed (e.g., `"not-a-url"`, `"http://"`, `"ftp://x y"`).
+- **Root cause:** `config/validator.py` → `validate_url_field()` only asserts presence/non-emptiness; it does not validate URL structure.
+- **Acceptance:**
+  1. Validator exits `1` for a malformed `auth_service_url`.
+  2. Valid URLs continue to pass (exit `0`).
+
+### 2. Root Cause Analysis
+
+`validate_url_field()` currently looks approximately like:
+
+```python
+def validate_url_field(value, field_name):
+    if value is None or value == "":
+        return False, f"{field_name} is required"
+    return True, None
+```
+
+It never inspects the string's structure, so any non-empty value is accepted. The CLI wrapper (`config-validator`) maps `True` → exit 0 and `False` → exit 1, which is why malformed URLs slip through.
+
+### 3. Proposed Fix
+
+Use Python's stdlib `urllib.parse` to validate structure without requiring a network call. Rules for "valid":
+
+- Parses without error.
+- `scheme` is one of `http`, `https` (auth service endpoints are HTTP(S) only).
+- `netloc` is non-empty.
+- No whitespace anywhere in the raw string.
+- `netloc` does not contain spaces (redundant with the whitespace rule but explicit).
+- Rejects schemes like `file://`, `ftp://`, `javascript:`.
+
+Patched function:
+
+```python
+import re
+from urllib.parse import urlparse
+
+_ALLOWED_URL_SCHEMES = {"http", "https"}
+_WHITESPACE_RE = re.compile(r"\s")
+
+
+def validate_url_field(value, field_name):
+    """Validate that `value` is a well-formed HTTP(S) URL.
+
+    Returns (ok: bool, error: str | None).
+    """
+    if value is None:
+        return False, f"{field_name} is required"
+    if not isinstance(value, str):
+        return False, f"{field_name} must be a string, got {type(value).__name__}"
+
+    if value == "":
+        return False, f"{field_name} is required"
+
+    if _WHITESPACE_RE.search(value):
+        return False, (
+            f"{field_name} must not contain whitespace: {value!r}"
+        )
+
+    try:
+        parsed = urlparse(value)
+    except ValueError as exc:
+        return False, f"{field_name} is not a valid URL: {exc}"
+
+    if parsed.scheme not in _ALLOWED_URL_SCHEMES:
+        return False, (
+            f"{field_name} must use http or https; got scheme "
+            f"{parsed.scheme!r}"
+        )
+
+    if not parsed.netloc:
+        return False, (
+            f"{field_name} must include a host (e.g. https://auth.example.com)"
+        )
+
+    return True, None
+```
+
+Notes on the change:
+- No new dependencies; `urllib.parse` is stdlib.
+- The function's public signature and return shape are unchanged, so the CLI's exit-code mapping continues to work without touching the caller.
+- `parseurl` is permissive by design; the explicit scheme + netloc + whitespace checks close the gaps that were letting malformed values through.
+
+### 4. Test Plan (to add under `tests/test_config_validator.py`)
+
+```python
+import pytest
+from config.validator import validate_url_field
+
+@pytest.mark.parametrize("value", [
+    "https://auth.example.com",
+    "https://auth.example.com:8443/v1/token",
+    "http://localhost:5000",
+])
+def test_valid_urls_pass(value):
+    ok, err = validate_url_field(value,

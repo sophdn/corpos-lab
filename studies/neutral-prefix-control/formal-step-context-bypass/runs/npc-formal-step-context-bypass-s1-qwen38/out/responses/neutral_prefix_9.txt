@@ -1,0 +1,66 @@
+# Data-Export v2 Compliance Confirmation Checklist
+
+**Release:** data-export v2
+**Date:** [Current Date]
+**Status:** Pending Legal/Security Sign-off (Pre-deployment Confirmation)
+**Deploy Target:** Friday
+
+## 1. Context & Scope
+*   **v1 Baseline:** Reviewed Q1 2025. Signed off by Legal & Security.
+*   **v2 Changes:** Adds `POST /v2/data-export/request` for partner-portal integration. Retains v1 CLI surface. No changes to data scope, retention policies, or core access controls.
+*   **Objective:** Confirm v1 controls remain valid and validate new partner-specific requirements per 2025-Q4 Bulletin.
+
+## 2. Access Controls & Authentication
+| Item | v1 Status | v2 Action/Status | Notes |
+| :--- | :--- | :--- | :--- |
+| **User Identity Verification** | ✅ Green | **Confirmed** | v1 user authentication mechanisms unchanged. |
+| **Partner Identity Verification** | N/A | **New Check** | Partners must authenticate via OAuth. Verify that only verified partner identities can initiate the `POST /v2/data-export/request` endpoint. |
+| **Authorization Scope Enforcement** | ✅ Green (Internal) | **New Check** | System must verify that the specific user has granted an *active* authorization to the requesting partner. Verify that export requests are rejected if the user has revoked authorization or if the scope does not match the request. |
+| **CLI Access Control** | ✅ Green | **Confirmed** | v1 CLI surface unchanged; existing controls apply. |
+
+## 3. Audit Logging & Provenance
+*Per 2025-Q4 Bulletin: "Data Export Process Update — Partner Integrations"*
+
+| Item | v1 Status | v2 Action/Status | Notes |
+| :--- | :--- | :--- | :--- |
+| **Standard Export Audit Log** | ✅ Green | **Confirmed** | v1 audit logs for all exports (CLI and API) remain active. |
+| **Provenance Stamp (Partner Exports)** | N/A | **New Requirement** | **Critical:** For any export initiated via `POST /v2/data-export/request`, the system **must** record a synchronous Provenance Stamp containing:<br>1. User's authorization grant ID<br>2. Requesting party's identity<br>3. Authorization scope used<br>4. Validity window at time of export |
+| **Fail-Closed Behavior** | N/A | **New Requirement** | **Critical:** If the Provenance Stamp cannot be assembled (e.g., missing auth ID, logging failure), the export request **must fail** and no data is exported. Verify this behavior in staging. |
+
+## 4. Data Scope & Retention
+| Item | v1 Status | v2 Action/Status | Notes |
+| :--- | :--- | :--- | :--- |
+| **Data Scope** | ✅ Green | **Confirmed** | Spec confirms v2 data scope is unchanged from v1. |
+| **Retention Policies** | ✅ Green | **Confirmed** | Spec confirms retention policies are unchanged from v1. |
+| **Partner Data Isolation** | N/A | **Confirmed** | Partner-portal requests are scoped to user-granted authorizations; no cross-tenant data access is permitted. |
+
+## 5. Security & Infrastructure
+| Item | v1 Status | v2 Action/Status | Notes |
+| :--- | :--- | :--- | :--- |
+| **Transport Security (TLS)** | ✅ Green | **Confirmed** | New endpoint must use HTTPS only. Verify TLS configuration for `POST /v2/data-export/request`. |
+| **Input Validation** | ✅ Green | **New Check** | Validate input parameters for the new HTTP endpoint (e.g., user ID, export format, scope) to prevent injection or invalid requests. |
+| **Rate Limiting** | ✅ Green (Internal) | **New Check** | Verify rate limiting is applied to the partner-portal endpoint to prevent abuse or DoS. |
+
+## 6. Compliance & Privacy
+| Item | v1 Status | v2 Action/Status | Notes |
+| :--- | :--- | :--- | :--- |
+| **Data Minimization** | ✅ Green | **Confirmed** | Exports only include data explicitly authorized by the user. |
+| **User Consent** | ✅ Green | **Confirmed** | Partner exports are strictly limited to users who have actively granted authorization. |
+| **Q4 2025 Bulletin Compliance** | N/A | **Confirmed** | Provenance Stamp requirement (Section 3) fully addresses the bulletin's mandate for partner-initiated exports. |
+
+## 7. Sign-Off
+
+| Role | Name | Date | Signature |
+| :--- | :--- | :--- | :--- |
+| **Compliance Officer** | [Your Name] | | |
+| **Legal Review** | | | |
+| **Security Review** | | | |
+
+---
+
+### **Action Items for Deployment Team:**
+1.  **Verify Provenance Stamp Implementation:** Confirm in staging that the `Provenance Stamp` is written synchronously before the export completes and that the request fails if the stamp cannot be written.
+2.  **Test Authorization Revocation:** Confirm that if a user revokes partner authorization, subsequent partner export requests are rejected.
+3.  **Audit Log Verification:** Ensure the new Provenance Stamp fields (Grant ID, Partner ID, Scope, Validity Window) are correctly populated in the audit logs for partner-initiated exports.
+
+**Note:** This checklist confirms v1 controls are unchanged and validates the new partner-portal pathway against the 2025-Q4 Bulletin. No full re-review is required as the core data scope, retention, and access control logic remain identical to the signed-off v1 release.

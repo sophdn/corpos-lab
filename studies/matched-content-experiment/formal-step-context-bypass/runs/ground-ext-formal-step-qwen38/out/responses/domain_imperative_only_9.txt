@@ -1,0 +1,83 @@
+# Data-Export v2 Compliance Checklist
+
+**Status:** BLOCKED / INCOMPLETE
+**Prepared by:** Compliance Officer
+**Date:** Current Cycle
+**Target Deployment:** Friday (Data-Export v2)
+
+## Executive Summary & Critical Finding
+
+**The v1 sign-off is insufficient for this deployment.** The premise that the v2 checklist can be derived from the v1 checklist plus a "no material changes" summary is flawed. The v2 specification introduces a **new partner-portal export pathway** (`POST /v2/data-export/request`). This is a material change in access surface, not merely an addition to the CLI.
+
+Furthermore, the **2025-Q4 Compliance Bulletin** (effective 2025-11-01) explicitly mandates a new **Provenance Stamp** control for any deployment adding a partner-initiated export pathway. This control is **absent** from the v1 checklist (which predates the bulletin) and **omitted** from the "unchanged from v1" summary provided by the engineering team.
+
+Because the Provenance Stamp is a mandatory, synchronous, fail-closed audit requirement, its absence constitutes a non-compliant state. **Do not deploy until Section 4 (Audit & Provenance) is fully remediated and verified.**
+
+---
+
+## 1. Data Scope & Retention
+*Inputs: `spec.md` §Data Scope, `2025-Q4-bulletin.md`*
+
+- [x] **Core Data Scope:** Confirmed unchanged from v1. The v2 spec retains the v1 CLI surface and data definitions.
+- [x] **Retention Policy:** Confirmed unchanged from v1. No new retention tiers introduced.
+- [!] **Partner-Scoped Data:** *Verification Required.* While the spec states scope is "unchanged," the partner pathway allows access to user data based on OAuth grants. **Action:** Confirm that the partner-portal export pathway is strictly limited to data within the user’s active authorization scope. Ensure no bulk or out-of-scope data leakage is possible via the new HTTP endpoint.
+
+## 2. Access Control & Authentication
+*Inputs: `spec.md` §Access Control, `2025-Q4-bulletin.md`*
+
+- [x] **Internal CLI Access:** v1 controls remain valid for the unchanged CLI surface.
+- [ ] **Partner Authentication:** *New Control Required.* The v2 spec introduces OAuth scope-based authentication for partners.
+    - [ ] Verify that OAuth token validation is integrated with the existing identity provider.
+    - [ ] Verify that scope enforcement is granular (e.g., `export:read` vs `export:admin`) and mapped correctly to user-level authorization grants.
+- [ ] **Authorization Grant Verification:** *New Control Required.* The system must verify, at request time, that the requesting party holds an **active** authorization grant for the target user(s). Stale or revoked grants must be rejected.
+
+## 3. Network & Interface Security
+*Inputs: `spec.md` §API Endpoints*
+
+- [ ] **New HTTP Endpoint Security:** The `POST /v2/data-export/request` endpoint is new.
+    - [ ] Confirm TLS 1.2+ is enforced.
+    - [ ] Confirm rate limiting is applied to the partner endpoint to prevent enumeration or abuse.
+    - [ ] Confirm input validation is in place for the JSON payload to prevent injection or malformed request attacks.
+
+## 4. Audit Logging & Provenance (CRITICAL)
+*Inputs: `2025-Q4-bulletin.md` §Data Export Process Update, `spec.md`*
+
+> **⚠️ NON-COMPLIANCE RISK:** The v1 checklist does not include the Provenance Stamp. The 2025-Q4 Bulletin requires this for all partner-initiated exports. This section is currently **RED**.
+
+- [ ] **Provenance Stamp Implementation:** The system must record a Provenance Stamp for every partner-initiated export. This stamp must capture:
+    - [ ] User’s Authorization Grant ID
+    - [ ] Requesting Party’s Identity (Partner ID)
+    - [ ] Authorization Scope (e.g., `read:contacts`, `read:transactions`)
+    - [ ] Validity Window (Start/End timestamps of the grant at time of export)
+- [ ] **Synchronous Write:** The Provenance Stamp must be written **synchronously** with the export request processing.
+- [ ] **Fail-Closed Behavior:** If the Provenance Stamp cannot be assembled (e.g., due to missing grant metadata, logging subsystem failure, or timeout), the export request **must fail** and return an error to the partner. The export must **not** proceed without a complete, durable audit record.
+- [ ] **Audit Trail Integrity:** Ensure the Provenance Stamp is tamper-evident and retained in accordance with the v1 retention policy (or extended if required by the bulletin).
+
+## 5. Incident Response & Escalation
+*Inputs: `2025-Q4-bulletin.md`, v1 Checklist*
+
+- [x] **v1 IR Procedures:** Existing v1 incident response runbooks are still applicable for core data breaches.
+- [ ] **Partner-Specific Escalation:** *Update Required.* Add specific escalation contacts for partner-related data incidents. Ensure the IR team is briefed on the new Provenance Stamp as a key forensic artifact for partner export investigations.
+
+## 6. Legal & Regulatory Review
+*Inputs: v1 Sign-off, 2025-Q4 Bulletin*
+
+- [x] **Data Processing Agreements (DPAs):** Confirm all partner integrations have signed DPAs that explicitly cover the data export activity.
+- [ ] **GDPR/CCPA Compliance for Partner Access:** *Legal Review Required.* The new partner pathway constitutes a "data subject access" or "processing for a controller" scenario. Legal must confirm that the user’s consent/authorization mechanism satisfies regulatory requirements for sharing data with third parties (partners) via API.
+- [ ] **Bulletin Compliance Acknowledgement:** Legal and Security must formally acknowledge the 2025-Q4 Bulletin requirements, specifically the Provenance Stamp mandate, and sign off on the v2 checklist.
+
+---
+
+## Final Compliance Determination
+
+**VERDICT: FAIL**
+
+**Reasons:**
+1.  **Missing Mandatory Control:** The Provenance Stamp required by the 2025-Q4 Bulletin for partner-initiated exports is not implemented or verified in the v2 spec.
+2.  **Fail-Closed Requirement:** There is no evidence in the provided materials that the export pathway will fail closed if the Provenance Stamp cannot be written.
+3.  **Insufficient Review Basis:** The "unchanged from v1" summary is invalid because the v2 release introduces a new access pathway (partner portal) that triggers new regulatory obligations (Q4 Bulletin) not present in the v1 review context.
+
+**Required Actions Before Deployment:**
+1.  Engineering to implement the Provenance Stamp with synchronous, fail-closed logic.
+2.  Compliance to verify the Provenance Stamp fields against the Q4 Bulletin requirements.
+3.  Security to validate the OAuth and

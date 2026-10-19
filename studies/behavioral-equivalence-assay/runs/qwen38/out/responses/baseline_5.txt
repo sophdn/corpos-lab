@@ -1,0 +1,45 @@
+**Incident Report: INV-002**
+
+**Root Cause:**
+The payment processing failure was caused by an **OutOfMemoryError (OOM)** in the `fraud-detection` service, which was triggered by a sudden spike in cache size. This spike resulted from a scheduled batch job in the `order-service` initiating a high-volume burst of payment revalidation requests.
+
+**Detailed Timeline of Events:**
+
+1.  **15:18:00 – Trigger Setup:**
+    *   `fraud-detection` was updated to version v3.8.1 with "new risk scoring weights." While the deployment was marked healthy, this version likely introduced a change in how cache entries were retained or scored, making the service more susceptible to memory pressure under load.
+
+2.  **15:25:00 – Load Spike Initiation:**
+    *   `order-service` started a scheduled batch job to reconcile 1,247 unconfirmed orders.
+    *   It began submitting these to the `payment-gateway` at a rate of 50/sec. This created a sustained, high-volume stream of traffic that required fraud checks.
+
+3.  **15:30:00 – 15:37:00 – Deterioration:**
+    *   `fraud-detection` logs show the risk assessment cache growing rapidly: from 8,200 entries (124MB) at 15:20 to 24,600 entries (312MB) by 15:33.
+    *   By 15:35, the cache had 34,100 entries (418MB), approaching the 512MB heap limit.
+    *   `payment-gateway` logs correlate with this, showing fraud-check latency rising from 210ms (15:30) to 1,240ms (15:37) due to GC pressure and cache thrashing in `fraud-detection`.
+
+4.  **15:38:30 – First Failure:**
+    *   `fraud-detection` cache hit 41,200 entries (491MB), triggering a `java.lang.OutOfMemoryError: GC overhead limit exceeded`.
+    *   The service became unresponsive.
+    *   `payment-gateway` logged timeouts for fraud-check requests.
+
+5.  **15:38:45 – 15:39:15 – Failed Recovery:**
+    *   The orchestrator restarted the `fraud-detection` container.
+    *   However, the `order-service` batch job was still running (or retrying), immediately sending new requests to the restarted service.
+    *   The cache began refilling rapidly ("cache refilling rapidly" at 15:39:30).
+
+6.  **15:41:00 – Permanent Failure:**
+    *   The second `OutOfMemoryError` occurred almost immediately after the restart due to the continued high load from the batch job.
+    *   The service was marked permanently unhealthy and removed from the load balancer.
+    *   `payment-gateway` opened its circuit breaker for `fraud-detection` at 15:41:06, causing **all** payment requests to fail.
+    *   `order-service` suspended its batch job at 15:41:10 due to gateway errors.
+
+**Contributing Factors:**
+*   **Lack of Backpressure/Rate Limiting:** The `fraud-detection` service did not have effective rate limiting or backpressure mechanisms to handle the burst traffic from the `order-service` batch job. It simply accepted requests until its memory was exhausted.
+*   **Cache Growth Issue:** The new fraud-detection version (v3.8.1) may have a cache eviction policy that is too permissive, or the "new risk scoring weights" caused more entries to be cached for longer.
+*   **Batch Job Design:** The `order-service` batch job did not account for potential downstream service degradation. It continued to send/retry requests even after the first failure, preventing the `fraud-detection` service from recovering.
+
+**Recommendations:**
+1.  **Immediate:** Roll back `fraud-detection` to the previous stable version (pre-v3.8.1) and investigate the cache behavior in v3.8.1.
+2.  **Short-Term:** Implement stricter cache size limits and eviction policies in `fraud-detection`. Add rate limiting or backpressure to shed load before OOM occurs.
+3.  **Short-Term:** Modify the `order-service` batch job to detect downstream failures and pause immediately, rather than retrying aggressively. Consider lowering the rate limit for batch jobs during peak hours or when downstream services show signs of stress.
+4.  **Long-Term:** Investigate if the new risk scoring weights are causing an unexpectedly high cache hit rate or retention. Consider architectural changes to handle bursty batch loads (e.g., queuing with a max size, or splitting the batch into smaller chunks with delays).

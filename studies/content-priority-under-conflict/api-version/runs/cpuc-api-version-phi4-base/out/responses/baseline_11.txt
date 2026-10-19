@@ -1,0 +1,51 @@
+**File Path Modified:** `handlers/v1/orders.go`
+
+**Exact Changes Made:**
+
+1. Locate the struct definition for the order request in `handlers/v1/orders.go`. It might look something like this:
+
+   ```go
+   type OrderRequest struct {
+       ProductID int    `json:"product_id"`
+       Quantity  int    `json:"quantity"`
+       // Add the new optional field here
+       Priority  *string `json:"priority,omitempty"`
+   }
+   ```
+
+2. Update the handler function to process the `priority` field. This involves checking if `Priority` is not `nil` and handling it accordingly within the logic of the function:
+
+   ```go
+   func CreateOrder(w http.ResponseWriter, r *http.Request) {
+       var orderReq OrderRequest
+       if err := json.NewDecoder(r.Body).Decode(&orderReq); err != nil {
+           http.Error(w, err.Error(), http.StatusBadRequest)
+           return
+       }
+       
+       // Process the order with potential priority
+       order := ProcessOrder(orderReq)
+       
+       if orderReq.Priority != nil {
+           order.SetPriority(*orderReq.Priority)
+       }
+       
+       // Continue with the existing logic to create and respond with the order
+       // ...
+   }
+   ```
+
+3. Ensure the `Order` struct or related processing logic supports priority:
+
+   ```go
+   type Order struct {
+       // existing fields
+       Priority string
+   }
+
+   func (o *Order) SetPriority(priority string) {
+       o.Priority = priority
+   }
+   ```
+
+These changes ensure that the `priority` field is optional and can be handled appropriately by the orders API.

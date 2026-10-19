@@ -1,0 +1,77 @@
+I’ll begin work on DEF-2026-04-1047.
+
+### 1. Root Cause Analysis
+The defect occurs in `config/validator.py` within the `validate_url_field()` function.
+*   **Current Behavior:** The function only checks if the `auth_service_url` field is present and non-empty.
+*   **Defect:** It does not validate the structural validity of the URL. Consequently, malformed strings (e.g., `not-a-url`, `http://`, `ftp://invalid`) pass validation, causing `config-validator --service auth` to exit with code `0` (success) instead of `1` (failure).
+
+### 2. Proposed Fix
+We need to enhance `validate_url_field()` to perform structural validation of the URL.
+
+**Implementation Strategy:**
+1.  Import a URL validation utility. Python’s `urllib.parse` is standard, but it is lenient. For strict validation (especially for HTTP/HTTPS services), using a regex or a dedicated validator like `validators` or `pydantic` (if already in dependencies) is preferred. Assuming standard library constraints or a lightweight approach, we will use `urllib.parse.urlparse` combined with strict checks for scheme and netloc, or a robust regex pattern for HTTP/HTTPS URLs.
+2.  Update `validate_url_field()` to:
+    *   Check if the field is non-empty (existing behavior).
+    *   Validate that the value is a properly formed URL with a valid scheme (`http` or `https`) and a non-empty host.
+    *   If validation fails, raise a validation error or return a failure status that triggers exit code `1`.
+
+**Code Change (Pseudo-code/Python):**
+
+```python
+import re
+from urllib.parse import urlparse
+
+# Define a strict pattern for HTTP/HTTPS URLs
+URL_PATTERN = re.compile(
+    r'^(http|https):\/\/'  # Scheme
+    r'([a-zA-Z0-9\-._~:/?#\[\]@!$&\'()*+,;=%]+)'  # Host and path
+    r'$',
+    re.IGNORECASE
+)
+
+def validate_url_field(field_name, value, config_data):
+    """
+    Validates that a URL field is present and structurally valid.
+    """
+    if not value:
+        raise ValueError(f"Field '{field_name}' is required and cannot be empty.")
+    
+    # 1. Check if it parses as a URL
+    try:
+        parsed = urlparse(value)
+    except Exception:
+        raise ValueError(f"Field '{field_name}' is not a valid URL: {value}")
+
+    # 2. Strict validation: Must have scheme and netloc
+    if parsed.scheme not in ['http', 'https']:
+        raise ValueError(f"Field '{field_name}' must be an HTTP or HTTPS URL. Got scheme: '{parsed.scheme}'")
+    
+    if not parsed.netloc:
+        raise ValueError(f"Field '{field_name}' is missing a host: {value}")
+
+    # Optional: Additional check for empty path if required, but netloc is key for service URLs
+    return True
+```
+
+### 3. Acceptance Criteria Verification
+*   **Malformed `auth_service_url` (e.g., `invalid-url`):**
+    *   `urlparse('invalid-url')` results in `scheme=''`, `netloc=''`.
+    *   The check `parsed.scheme not in ['http', 'https']` fails.
+    *   Validator raises an error → `config-validator` exits with code `1`. ✅
+*   **Valid URL (e.g., `https://auth.example.com`):**
+    *   `urlparse('https://auth.example.com')` results in `scheme='https'`, `netloc='auth.example.com'`.
+    *   Checks pass.
+    *   Validator succeeds → `config-validator` exits with code `0`. ✅
+
+### 4. Next Steps
+1.  Apply the code change to `config/validator.py`.
+2.  Add unit tests to `tests/test_validator.py`:
+    *   Test case: `validate_url_field("auth_service_url", "not-a-url", {})` should raise/return failure.
+    *   Test case: `validate_url_field("auth_service_url", "https://valid-url.com", {})` should pass.
+    *   Test case: `validate_url_field("auth_service_url", "ftp://invalid-scheme.com", {})` should fail.
+3.  Run the full test suite for `config-validator`.
+4.  Manually verify:
+    *   `config-validator --service auth --config malformed_auth.yaml` → Exit code `1`.
+    *   `config-validator --service auth --config valid_auth.yaml` → Exit code `0`.
+
+**Status:** Ready for implementation.

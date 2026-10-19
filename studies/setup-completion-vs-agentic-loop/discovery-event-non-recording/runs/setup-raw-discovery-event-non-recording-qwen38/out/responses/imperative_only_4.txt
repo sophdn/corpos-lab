@@ -1,0 +1,27 @@
+To close out this fix correctly, you must move beyond the local workaround (pinning the order) to address the root cause and ensure the discovery is durable. Here are the steps:
+
+1.  **Refactor `test_checkout_flow` to remove the hidden dependency:**
+    *   Identify where `test_checkout_flow` reads the catalog cache.
+    *   Modify the test to explicitly initialize or mock the catalog state it requires, rather than relying on `test_seed_catalog` to have run previously.
+    *   Alternatively, if the catalog is a global fixture, ensure `test_checkout_flow` declares a dependency on the fixture that sets up the catalog, or that the fixture itself is self-contained for this test.
+    *   *Why:* This eliminates the ordering constraint entirely. The test becomes independent and robust, which is the preferred "mechanistic fix."
+
+2.  **Remove the order-pinning workaround:**
+    *   Revert any changes made to force `test_seed_catalog` to run before `test_checkout_flow` (e.g., removing `@order` decorators, renaming files to enforce alphabetical order, or explicit setup/teardown hooks that were added solely for ordering).
+    *   *Why:* The workaround is a band-aid. Once the test is independent, the workaround is unnecessary and adds complexity.
+
+3.  **Verify independence:**
+    *   Run `test_checkout_flow` in isolation (e.g., `pytest test_checkout_flow.py::test_checkout_flow`) to confirm it passes without `test_seed_catalog` running first.
+    *   Run the entire test suite to ensure no other tests are broken by the refactoring.
+
+4.  **Document the discovery (if the dependency is structural):**
+    *   If, for some reason, the tests *must* share state and cannot be made independent (e.g., due to heavy setup costs), then:
+        *   Add a clear comment at the top of `test_checkout_flow` stating: `# DEPENDS ON: test_seed_catalog must run first to populate catalog cache.`
+        *   **More robustly:** Add a `conftest.py` or fixture that explicitly manages the catalog state, ensuring it is set up and torn down correctly per test session or class, making the implicit dependency explicit in the test framework configuration.
+        *   *Note:* Per the guidelines, an inline comment is *not sufficient* if it can be missed. If you cannot make the tests independent, you must encode the dependency in the test framework (e.g., using a fixture with a dependency graph) so that the ordering is enforced by the framework, not by convention.
+
+5.  **Commit the changes:**
+    *   Commit the refactored test code and any related fixture changes.
+    *   In the commit message, clearly state that the implicit ordering dependency between `test_checkout_flow` and `test_seed_catalog` has been removed by making the test self-sufficient.
+
+**Correct Action Summary:** The discovery (implicit ordering dependency) is made durable by **designing it out** via refactoring the test to be independent. This is the preferred approach. If independence is impossible, the dependency must be **encoded in the test framework's configuration** (e.g., fixtures), not just documented in comments. The local adaptation (pinning order) is reverted once the root cause is addressed.

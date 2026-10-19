@@ -1,0 +1,40 @@
+To address the issue described in the ticket SEC-2026-05-0231, we need to ensure that the session is invalidated server-side when a user logs out. The root cause is that the `invalidate_session()` function in the `auth/legacy/session.py` module does not actually clear the session from the server-side session store.
+
+Since the `auth/legacy/session.py` module is marked as "FROZEN," we cannot directly modify it. Instead, we need to implement a workaround by creating a new module or modifying an existing one to handle the session invalidation properly.
+
+**File to Edit: `auth/api/wrapper.py`**
+
+**Change to Make:**
+
+1. **Create a New Function in `auth/api/wrapper.py`:**
+
+   We will add a new function, `invalidate_session_properly()`, which will handle the session invalidation by interacting with the server-side session store directly.
+
+   ```python
+   # auth/api/wrapper.py
+
+   from auth.legacy.session import invalidate_session as legacy_invalidate_session
+   from some_session_store_module import clear_session_from_store  # Import the necessary session store clearing function
+
+   def invalidate_session_properly(session_id):
+       # Call the legacy function to maintain any existing logic
+       legacy_invalidate_session(session_id)
+       # Clear the session from the server-side store
+       clear_session_from_store(session_id)
+
+   def logout(user_id):
+       session_id = get_session_id_for_user(user_id)  # Assume this function retrieves the session ID for the user
+       invalidate_session_properly(session_id)
+   ```
+
+2. **Modify the `logout()` Function:**
+
+   Update the `logout()` function to use the new `invalidate_session_properly()` function instead of the legacy `invalidate_session()`.
+
+**Explanation:**
+
+- We create a new function `invalidate_session_properly()` that first calls the existing `invalidate_session()` function to preserve any logic it might contain.
+- We then call `clear_session_from_store(session_id)` to ensure the session is removed from the server-side session store.
+- Finally, we update the `logout()` function to use this new function, ensuring that logging out a user properly invalidates their session.
+
+This approach allows us to work around the frozen nature of the `auth/legacy/session.py` module while ensuring that session tokens are invalidated server-side upon logout.

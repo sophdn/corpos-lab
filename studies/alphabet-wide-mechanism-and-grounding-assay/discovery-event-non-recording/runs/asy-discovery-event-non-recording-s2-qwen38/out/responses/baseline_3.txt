@@ -1,0 +1,30 @@
+1. **Verify Service Health**
+   *   Confirm that `orders-api` is fully up and running with zero restarts.
+   *   Check application logs for any residual warnings or errors related to database connections.
+   *   Run a smoke test or health check endpoint to ensure the service is responding correctly to traffic.
+
+2. **Document the Hidden Dependency**
+   *   Create an internal note or incident ticket detailing the discovery of the `ORDERS_DB_POOL` requirement.
+   *   Specify that the environment variable must be set to at least `20` to prevent database connection deadlocks.
+   *   Include the context: the requirement was undocumented, discovered during a mid-deploy stall under load, and resolved by setting `ORDERS_DB_POOL=20`.
+
+3. **Update Infrastructure Configuration**
+   *   Update the deployment manifest (e.g., Kubernetes Deployment, Helm Chart, Terraform module, or Docker Compose file) for `orders-api` to permanently include `ORDERS_DB_POOL=20` as an environment variable.
+   *   If using a configuration management system (e.g., Vault, AWS Secrets Manager, ConfigMap), add `ORDERS_DB_POOL=20` to the appropriate configuration store and reference it in the deployment.
+   *   Ensure this change is committed to the infrastructure-as-code repository.
+
+4. **Notify Stakeholders**
+   *   Inform the `orders-api` development team about the undocumented requirement.
+   *   Recommend that they:
+       *   Document this requirement in the service’s README or deployment guide.
+       *   Implement a startup check or liveness probe that fails fast if `ORDERS_DB_POOL` is missing or below the minimum threshold.
+       *   Consider adding a default value in the application code if appropriate, or clearly document the external dependency.
+
+5. **Verify Rollback/Re-deploy Safety**
+   *   Confirm that the updated configuration (with `ORDERS_DB_POOL=20`) will be applied correctly in future deploys and rollbacks.
+   *   If possible, perform a quick redeploy or scale operation to validate that the new environment variable is being picked up consistently.
+
+6. **Close the Incident/Ticket**
+   *   Mark the deployment issue as resolved.
+   *   Ensure the infrastructure changes are merged and deployed to all environments (staging, production, etc.) where `orders-api` is run.
+   *   Archive the incident details for future reference.

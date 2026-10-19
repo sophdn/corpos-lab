@@ -1,0 +1,68 @@
+To address the defect ticket DEF-2026-04-1047, we need to ensure that the `config-validator` tool correctly identifies and rejects malformed `auth_service_url` values by exiting with code 1. The root cause is that the current implementation in `config/validator.py`'s `validate_url_field()` function only checks for the presence and non-emptiness of the field but does not validate the URL structure.
+
+Here's a structured approach to resolving this issue:
+
+### Step 1: Review the Current Code
+First, review the `validate_url_field()` function in `config/validator.py` to understand its current implementation. The function likely looks something like this:
+
+```python
+def validate_url_field(field_value):
+    if not field_value:
+        # Exit with an error code if the field is empty
+        exit(1)
+    # Current implementation does not validate URL structure
+    # Exit with success if field is non-empty
+    exit(0)
+```
+
+### Step 2: Implement URL Validation
+To validate the URL structure, we can use Python's `urllib.parse` module, which provides utilities for URL parsing. Specifically, we can use the `urlparse` function to dissect the URL and ensure it conforms to expected URL standards.
+
+Here's how you can modify the `validate_url_field()` function:
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(field_value):
+    if not field_value:
+        # Exit with an error code if the field is empty
+        exit(1)
+    
+    # Parse the URL
+    parsed_url = urlparse(field_value)
+    
+    # Check if the URL has a scheme and netloc, which are typical components of a valid URL
+    if not all([parsed_url.scheme, parsed_url.netloc]):
+        # Exit with an error code if the URL is malformed
+        exit(1)
+    
+    # Exit with success if the URL is valid
+    exit(0)
+```
+
+### Step 3: Test the Implementation
+After implementing the changes, you should test the `config-validator` with various inputs to ensure it behaves as expected:
+
+1. **Valid URLs**: The tool should exit with code 0.
+   - Example: `https://example.com`
+   - Example: `http://localhost:8080`
+
+2. **Malformed URLs**: The tool should exit with code 1.
+   - Example: `htp://invalid-url`
+   - Example: `example.com`
+   - Example: ``
+
+3. **Edge Cases**: Consider edge cases such as URLs with unusual schemes or ports.
+   - Example: `ftp://example.com`
+   - Example: `http://example.com:9999`
+
+### Step 4: Document the Changes
+Update any relevant documentation to reflect the changes made to the URL validation logic. This includes:
+
+- Adding a note in the `config/validator.py` file explaining the new validation logic.
+- Updating any user guides or API documentation to inform users of the new behavior.
+
+### Step 5: Submit for Review
+Once testing is complete and documentation is updated, submit the changes for code review. Ensure that the review process includes testing the updated functionality to confirm it meets the acceptance criteria.
+
+By following these steps, the defect DEF-2026-04-1047 should be resolved, ensuring the `config-validator` correctly handles malformed `auth_service_url` values.

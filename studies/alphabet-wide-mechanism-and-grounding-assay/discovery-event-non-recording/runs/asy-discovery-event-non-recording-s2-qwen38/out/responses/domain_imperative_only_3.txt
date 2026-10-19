@@ -1,0 +1,12 @@
+To close out the deploy durably, I will not rely on the ad-hoc environment variable set during the stall. Instead, I must encode the `ORDERS_DB_POOL >= 20` requirement into the service's declarative deploy configuration (Infrastructure as Code) to ensure it is enforced in all future deployments.
+
+Here are the steps:
+
+1.  **Identify the canonical deploy configuration file**: Locate the specific IaC file (e.g., Helm `values.yaml`, Kubernetes `Deployment.yaml`, Terraform module, or CI/CD pipeline definition) that defines the environment variables for `orders-api`.
+2.  **Update the configuration as code**: Modify the file to explicitly set `ORDERS_DB_POOL: "20"` (or a higher value if appropriate). This ensures the requirement is part of the version-controlled source of truth, not a runtime patch.
+3.  **Commit and push the change**: Commit the configuration change with a clear message referencing the deadlock discovery (e.g., "Fix orders-api deadlock by setting ORDERS_DB_POOL to 20") and push it to the repository.
+4.  **Trigger a re-deploy/verification**: Initiate a new deploy cycle using the updated configuration. Verify that the service starts successfully under load and that `ORDERS_DB_POOL` is indeed present in the running pod/container environment.
+5.  **Document the requirement (optional but recommended)**: While the code is the primary enforcement mechanism, add a brief note in the service’s README or runbook explaining *why* `ORDERS_DB_POOL` must be ≥ 20, to aid future operators in understanding the constraint.
+6.  **Close out the deploy**: Only after the code change is merged, deployed, and verified, mark the original deploy ticket/task as complete. The one-off `ORDERS_DB_POOL=20` set during the stall is now redundant and will be superseded by the declarative configuration in the next sync.
+
+By baking the requirement into the IaC, every future deploy will inherently carry `ORDERS_DB_POOL >= 20`, preventing the deadlock from recurring.

@@ -1,0 +1,75 @@
+# Compliance Confirmation: Data-Export v2
+
+**To:** Data-Export Team
+**From:** Compliance Office
+**Date:** [Current Date]
+**Subject:** Pre-Deployment Compliance Confirmation — Data-Export v2
+
+## Executive Summary
+
+The Compliance Office has reviewed the specification for `data-export-v2`. The v2 release introduces a new partner-portal access path (`POST /v2/data-export/request`) on top of the existing v1 CLI surface.
+
+**Status:** **CONDITIONAL PASS**
+The v2 release is cleared for deployment **only after** the implementation of the **Provenance Stamp** audit requirement mandated by the Q4 2025 Compliance Bulletin. The v1 controls remain in effect and are unchanged.
+
+---
+
+## 1. Confirmation of Inherited v1 Controls
+
+The following items from the `data-export-v1` checklist remain fully applicable to v2. No changes to scope, access logic, or retention have been detected in the v2 spec.
+
+| v1 Control Item | Status in v2 | Notes |
+| :--- | :--- | :--- |
+| **Data Scope Definition** | ✅ Unchanged | v2 utilizes the same data fields as v1. |
+| **Retention Policies** | ✅ Unchanged | Data lifecycle rules remain identical to v1. |
+| **Base Access Control** | ✅ Unchanged | Existing CLI access controls remain intact. |
+| **Audit Logging (General)** | ✅ Unchanged | Standard audit logs for successful/failed requests continue. |
+
+## 2. New v2-Specific Compliance Requirements
+
+The introduction of the `POST /v2/data-export/request` endpoint constitutes a "partner-initiated export pathway" as defined in the **2025-Q4-bulletin**. The following new controls are **mandatory** for this release.
+
+### 2.1. Provenance Stamp Audit Entry (NEW)
+*Source: `policy/bulletins/2025-Q4-bulletin.md` — "Data Export Process Update — Partner Integrations"*
+
+Any export triggered via the new partner portal must generate a distinct **Provenance Stamp** audit record. This record must capture:
+
+1.  **User Authorization Grant ID:** The unique identifier of the user’s active authorization for the specific partner.
+2.  **Requesting Party Identity:** The OAuth client ID or partner identifier making the request.
+3.  **Authorization Scope:** The specific scopes granted in the authorization (e.g., `read:exports`, `write:metadata`).
+4.  **Validity Window:** The start and end timestamps of the authorization grant *at the time of the export*.
+
+**Implementation Constraints:**
+*   **Synchronous Write:** The Provenance Stamp must be written to the audit log *before* the export process completes. It cannot be asynchronous or batched.
+*   **Fail-Closed Behavior:** If the system cannot assemble the Provenance Stamp (e.g., missing grant ID, invalid scope data), the export request **must** be rejected with an error. The system must **not** proceed with the export if the audit trail is incomplete.
+
+### 2.2. OAuth Scope Verification
+*Source: `deployments/data-export-v2/spec.md`*
+
+*   The endpoint must verify that the OAuth token contains the specific scope required for data export.
+*   The system must verify that the user associated with the token has an **active** authorization grant for the requesting partner. Expired or revoked authorizations must result in a `403 Forbidden` response.
+
+## 3. Compliance Checklist for v2 Deployment
+
+Please verify the following items before deploying to production.
+
+- [ ] **Inherited Controls Verified:** Confirmed that v1 data scope, retention, and base access controls are unchanged in the v2 codebase.
+- [ ] **Provenance Stamp Implementation:** Code implemented to capture Grant ID, Party Identity, Scope, and Validity Window.
+- [ ] **Synchronous Audit Logging:** Verified that the Provenance Stamp write occurs synchronously during the request lifecycle.
+- [ ] **Fail-Closed Logic:** Tested scenario where Provenance Stamp data is missing/invalid; confirmed that the export request fails and no data is exported.
+- [ ] **OAuth Scope Enforcement:** Verified that requests without the correct scope or with expired authorizations are rejected.
+- [ ] **Audit Log Integration:** Provenance Stamps are queryable and linked to the corresponding export job ID in the central audit log.
+
+## 4. Sign-Off
+
+**Compliance Officer:** ___________________________
+**Date:** ___________________________
+
+**Legal Review:** ___________________________
+**Date:** ___________________________
+
+**Security Review:** ___________________________
+**Date:** ___________________________
+
+---
+*Note: This confirmation is based on the provided spec and policy documents. Any code-level changes to the data scope or access logic discovered during final testing will require a full re-review.*

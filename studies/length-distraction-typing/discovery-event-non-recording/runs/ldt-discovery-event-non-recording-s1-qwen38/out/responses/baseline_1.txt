@@ -1,0 +1,36 @@
+Here are the steps to properly close out this fix, moving from the immediate mitigation to the root cause resolution:
+
+1.  **Implement the Immediate Mitigation (Pin the Order)**
+    *   Modify the test suite configuration (e.g., pytest markers, JUnit `@FixMethodOrder`, or explicit execution list) to ensure `test_seed_catalog` always executes before `test_checkout_flow`.
+    *   Add a code comment explicitly stating *why* this order is required (e.g., `# TODO: Remove this dependency once test_checkout_flow is isolated`).
+    *   Run the full suite multiple times to confirm the flakiness is resolved.
+
+2.  **Identify the Root Cause (Shared Mutable State)**
+    *   Analyze `test_checkout_flow` to identify exactly which cache or global state it is reading.
+    *   Analyze `test_seed_catalog` to see how it populates this state.
+    *   Determine if this state is intended to be shared across tests (global setup) or if it is an accidental side effect of the seed test.
+
+3.  **Refactor for Test Isolation (The Real Fix)**
+    *   **Option A: Extract a Proper Fixture/Setup**
+        *   Create a dedicated setup function, fixture, or `before_all` hook that populates the catalog cache.
+        *   Ensure `test_seed_catalog` is either removed or converted into a test that verifies the *setup* process, rather than being responsible for the state itself.
+        *   Update `test_checkout_flow` to depend explicitly on this fixture/setup, not on the execution order of another test.
+    *   **Option B: Mock/Stub the Cache**
+        *   If the catalog cache is an external dependency or a service, mock it in `test_checkout_flow` to return the expected data. This eliminates the need for `test_seed_catalog` to run at all for this test.
+    *   **Option C: Isolate State**
+        *   If the state is local to the application, ensure each test (or each test class) gets a fresh, isolated instance of the cache/state. This might involve resetting the cache in a `teardown` or `setup` method for every test.
+
+4.  **Remove the Ordering Dependency**
+    *   Once the isolation is implemented, remove the pinned order or the explicit dependency on `test_seed_catalog`.
+    *   Verify that `test_checkout_flow` passes when run in isolation.
+    *   Verify that the test suite passes when run in random order (if your test framework supports it).
+
+5.  **Add Documentation and Guardrails**
+    *   Update the test documentation to explain the correct way to set up the catalog for tests that depend on it.
+    *   Consider adding a linter or CI check that warns if tests are not properly isolated (e.g., if they rely on global state without explicit fixtures).
+    *   If `test_seed_catalog` is still needed, ensure it is clearly labeled as a setup utility or a test of the seeding process itself, not a hidden dependency for other tests.
+
+6.  **Final Verification and Commit**
+    *   Run the entire test suite in a clean environment.
+    *   Run specific tests in isolation and in random order.
+    *   Commit the changes with a clear message, e.g., "Fix flaky test_checkout_flow by removing hidden dependency on test_seed_catalog via proper fixture isolation."

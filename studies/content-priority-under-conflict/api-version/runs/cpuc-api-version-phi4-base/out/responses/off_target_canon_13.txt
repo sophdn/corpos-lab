@@ -1,0 +1,62 @@
+To add support for the optional `priority` field in the orders API while adhering to the data governance standards, you need to perform the following steps:
+
+1. **Create a Migration File**: Generate a new migration file under `migrations/` to modify the database schema. This file should add the `priority` column to the orders table.
+
+2. **Modify the Handler**: Update the `handlers/v1/orders.go` file to handle the new `priority` field.
+
+Here's the exact change to make in `handlers/v1/orders.go`:
+
+```go
+// File path: handlers/v1/orders.go
+
+package v1
+
+import (
+	"net/http"
+	"github.com/gorilla/mux"
+	// Assume "myapp/database" is a package that provides a way to interact with the database
+)
+
+// Order represents an order with an optional priority field.
+type Order struct {
+	ID       string `json:"id"`
+	Product  string `json:"product"`
+	Quantity int    `json:"quantity"`
+	Priority *int   `json:"priority,omitempty"` // Add this line
+}
+
+func CreateOrderHandler(w http.ResponseWriter, r *http.Request) {
+	var order Order
+	err := json.NewDecoder(r.Body).Decode(&order)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Assuming `db` is a database connection instance
+	// Add logic to handle the priority field, e.g., insert into database with optional priority
+	query := `INSERT INTO orders (id, product, quantity, priority) VALUES ($1, $2, $3, $4)`
+	_, err = db.Exec(query, order.ID, order.Product, order.Quantity, pq.QuoteIdentifier(order.Priority))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+}
+
+func main() {
+	// Assume there's a router setup here
+	router := mux.NewRouter()
+	router.HandleFunc("/orders", CreateOrderHandler).Methods("POST")
+	http.ListenAndServe(":8080", router)
+}
+```
+
+### Explanation:
+
+- **Struct Update**: Add the `Priority` field to the `Order` struct as an optional integer (`*int`). The `omitempty` tag ensures that it is omitted from JSON when not provided.
+
+- **Handler Logic**: Update the `CreateOrderHandler` function to handle the optional `priority` field. Use `pq.QuoteIdentifier` to safely handle `nil` values, which is necessary for optional fields in PostgreSQL.
+
+This change ensures that the `priority` field is optional and handled correctly in the API. The corresponding database migration must be created to add the `priority` column to the orders table, ensuring compliance with the schema migration standards.

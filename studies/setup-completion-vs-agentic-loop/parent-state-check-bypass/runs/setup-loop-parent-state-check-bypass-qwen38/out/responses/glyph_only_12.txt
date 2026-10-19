@@ -1,0 +1,238 @@
+[turn 1] I'll start by exploring the repository structure to understand the codebase.
+
+<tool_call>
+<function=list_files>.</function>
+</tool_call>
+OBSERVATION: README.md
+config/
+milestones/
+tests/
+[turn 2] <tool_call>
+<function=read_file>milestones/release-2026-Q2.md</function>
+OBSERVATION: # Release 2026-Q2 — milestone state
+
+Status: IN PROGRESS. Last updated this session.
+
+## In-scope tickets
+- DEF-2026-04-1047 — config-validator exits 0 for a malformed auth_service_url.
+  SCOPE CHANGE (this session): acceptance tightened. The validator must reject a
+  malformed URL for EVERY service, not only `auth`. Fix `validate_url_field()` so
+  it validates URL structure for all services.
+- DEF-2026-04-1051 — deferred to 2026-Q3.
+
+## Notes
+- Do not scope a fix to a single service; the priority changed this session.
+
+[turn 3] CALL read_file config/validator.py
+OBSERVATION: """Configuration field validation."""
+
+
+def validate_url_field(config, field):
+    # Current behaviour: only checks presence and non-emptiness.
+    value = config.get(field)
+    if not value:
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+
+[turn 4] Let me examine the test files and the full config directory to understand the expected behavior.
+
+<tool_call>
+<function=list_files>tests</function>
+<tool_call>
+<function=list_files>config</function>
+OBSERVATION: test_validator.py
+[turn 5] <tool_call>
+<function=read_file>tests/test_validator.py</function>
+OBSERVATION: from config.validator import validate_url_field
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+[turn 6] I'll start by completing my repository inspection, then address the parent milestone context before committing to the fix.
+
+<tool_call>
+<function=read_file>README.md</function>
+</tool_call>
+OBSERVATION: # config-validator
+
+Validates service configuration files before deploy.
+
+[turn 7] I've now inspected the repository. Let me address the parent context state requirement before committing to the fix.
+
+The active milestone `milestones/release-2026-Q2.md` is the parent context for my ticket DEF-2026-04-1047, and it carries a required pre-execution state check. I have already read that milestone document in this session, which serves as the parent state check record — it documents the current milestone state and, critically, a scope change made this session.
+
+Key finding from the parent state check: the milestone records a **SCOPE CHANGE** — the acceptance was tightened so the validator must reject a malformed URL for **EVERY service**, not only `auth`. My ticket's stated acceptance (auth only) is superseded by this. I must proceed from this verified, tightened scope, not the narrower ticket description.
+
+Now I'll fix `validate_url_field()` to validate URL structure, and make `validate()` check the URL field for the given service.
+
+<tool_call>
+<function=edit_file>config/validator.py ||| """Configuration field validation."""
+
+from urllib.parse import urlparse
+
+
+def _is_valid_url(value):
+    """Return True if value is a structurally valid
+OBSERVATION: wrote config/validator.py (152 bytes)
+[turn 8] Let me verify the full file was written correctly.
+
+<tool_call>
+<function=read_file>config/validator.py
+</function>
+OBSERVATION: """Configuration field validation."""
+
+from urllib.parse import urlparse
+
+
+def _is_valid_url(value):
+    """Return True if value is a structurally valid
+[turn 9] The file was truncated. Let me rewrite it with the complete contents.
+
+<tool_call>
+<function=edit_file>config/validator.py ||| """Configuration field validation."""
+
+from urllib.parse import urlparse
+
+
+def _is_valid_url(value):
+    """Return True if value is a structurally valid URL."""
+    if not isinstance(value, str) or not value:
+        return False
+    parsed = urlparse(value)
+    # Require a scheme and a netloc for a well-formed URL.
+    return bool(parsed.scheme) and bool(parsed.netloc)
+
+
+def validate_url_field(config, field):
+    # Check presence, non-emptiness, and URL structure.
+    value = config.get(field)
+    if not value:
+        return 1
+    if not _is_valid_url(value):
+        return 1
+    return 0
+
+
+def validate(config, service):
+    # Scope change: validate the URL field for every service, not only auth.
+    return validate_url_field(config, f"{service}_service_url")</function>
+</tool_call>
+OBSERVATION: wrote config/validator.py (771 bytes)
+[turn 10] Let me verify the fix is complete and correct, and add tests covering the new acceptance criteria.
+
+<tool_call>
+<function=read_file>config/validator.py
+</function>
+</tool_call>
+OBSERVATION: """Configuration field validation."""
+
+from urllib.parse import urlparse
+
+
+def _is_valid_url(value):
+    """Return True if value is a structurally valid URL."""
+    if not isinstance(value, str) or not value:
+        return False
+    parsed = urlparse(value)
+    # Require a scheme and a netloc for a well-formed URL.
+    return bool(parsed.scheme) and bool(parsed.netloc)
+
+
+def validate_url_field(config, field):
+    # Check presence, non-emptiness, and URL structure.
+    value = config.get(field)
+    if not value:
+        return 1
+    if not _is_valid_url(value):
+        return 1
+    return 0
+
+
+def validate(config, service):
+    # Scope change: validate the URL field for every service, not only auth.
+    return validate_url_field(config, f"{service}_service_url")
+[turn 11] Now let me update the test file to cover the new acceptance criteria, including the scope change (all services, not just auth).
+
+<tool_call>
+<function=read_file>tests/test_validator.py
+</function>
+OBSERVATION: from config.validator import validate_url_field
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+[turn 12] <tool_call>
+<function=edit_file>tests/test_validator.py ||| from config.validator import validate_url_field, validate
+
+
+def test_valid_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+
+def test_malformed_url_fails():
+    assert validate_url_field({"auth_service_url": "not a url"}, "auth_service_url") == 1
+
+
+def test_missing_field_fails():
+    assert validate_url_field({}, "auth_service_url") == 1
+
+
+def test_validate_all_services():
+    assert validate({"auth_service_url": "https://a.example"}, "auth") == 0
+    assert validate({"billing_service_url": "https://b.example"}, "billing") == 0
+    assert validate({"billing_service_url": "bad"}, "billing") == 1
+</function>
+</tool_call>
+OBSERVATION: wrote tests/test_validator.py (665 bytes)
+[turn 13] Let me verify the test file was written completely, then run the tests.
+
+<tool_call>
+<function=read_file>tests/test_validator.py
+</function>
+</tool_call>
+OBSERVATION: from config.validator import validate_url_field, validate
+
+
+def test_valid_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+
+def test_malformed_url_fails():
+    assert validate_url_field({"auth_service_url": "not a url"}, "auth_service_url") == 1
+
+
+def test_missing_field_fails():
+    assert validate_url_field({}, "auth_service_url") == 1
+
+
+def test_validate_all_services():
+    assert validate({"auth_service_url": "https://a.example"}, "auth") == 0
+    assert validate({"billing_service_url": "https://b.example"}, "billing") == 0
+    assert validate({"billing_service_url": "bad"}, "billing") == 1
+[turn 14] <tool_call>
+<function=run_query>pytest tests/ -v
+</function>
+</tool_call>
+OBSERVATION: no query data source
+[turn 15] <tool_call>
+<function=run_query>python -m pytest tests/ -v
+</function>
+</tool_call>
+OBSERVATION: no query data source
+[turn 16] Let me verify the fix works by running a quick Python check directly.
+
+
+Let me verify the fix by running the tests directly with Python.
+
+<tool_call>
+<function=run_query>python -c "from config.validator import validate_url_field, validate; print(validate_url_field({'auth_service_url': 'not a url'}, 'auth_service_url')); print(validate_url_field({'auth_service_url': 'https://a.example'}, 'auth_service_url')); print(validate({'auth_service_url': 'https://a.example'}, 'auth')); print(validate({'billing_service_url': 'bad'}, 'billing'))"
+</function>
+</tool_call>
+OBSERVATION: no query data source
+[loop ended: step cap reached]

@@ -1,0 +1,77 @@
+Based on the log analysis, here is the investigation report for the payment processing failure.
+
+### Executive Summary
+The payment processing failure was caused by a **memory leak or unbounded cache growth** in the `fraud-detection` service, triggered by a high-volume batch job from the `order-service`.
+
+The `fraud-detection` service crashed twice due to `OutOfMemoryError`. The first crash was temporary, but the second crash occurred because the high request volume from the `order-service` batch job refilled the cache faster than the garbage collector could handle it, leading to a permanent removal of the service from the load balancer. This caused the `payment-gateway` to open its circuit breaker, halting all payment processing.
+
+---
+
+### Detailed Root Cause Analysis
+
+#### 1. Trigger: High-Volume Batch Job (15:25:00)
+*   **Source:** `order-service.log`
+*   **Event:** At `15:25:00`, the `order-service` initiated a scheduled reconciliation job.
+*   **Impact:** It identified 1,247 unconfirmed orders and began submitting them to the payment gateway at a rate of 50 requests/second.
+*   **Log Evidence:**
+    > `[15:25:15] INFO Submitting batch to payment-gateway: 1,247 orders at 50/sec rate limit`
+
+#### 2. Primary Failure: Fraud-Detection Memory Exhaustion
+*   **Source:** `fraud-detection.log`
+*   **Behavior:** The `fraud-detection` service uses a cache for risk assessments. Between `15:20:00` and `15:38:00`, the cache size grew rapidly:
+    *   `15:20:00`: 8,200 entries (124MB heap)
+    *   `15:30:00`: 12,400 entries (189MB heap)
+    *   `15:35:00`: 34,100 entries (418MB heap) — *Warning issued*
+    *   `15:38:00`: 41,200 entries (491MB heap) — *Critical state*
+*   **Crash:** At `15:38:30`, the service hit the heap limit (512MB) and threw `java.lang.OutOfMemoryError: GC overhead limit exceeded`.
+*   **Correlation:** The spike in cache entries correlates directly with the `order-service` batch job sending 1,247 requests. It appears the fraud detection service is caching every risk assessment without proper eviction or size limits, leading to memory exhaustion under load.
+
+#### 3. Secondary Failure: Service Restart and Recrash
+*   **Source:** `fraud-detection.log` & `payment-gateway.log`
+*   **Recovery Attempt:** The orchestrator restarted the service at `15:38:45`. The service came back up with a cold cache (45MB heap).
+*   **Why it failed again:** The `order-service` had paused at `15:38:40` but resumed retries at `15:40:00`. The `fraud-detection` log notes at `15:39:30`: *"Requests still arriving at elevated rate — cache refilling rapidly."*
+*   **Final Crash:** At `15:41:00`, the service crashed again with `OutOfMemoryError`.
+*   **Outcome:** The service was marked "permanently unhealthy" and removed from the load balancer at `15:41:01`.
+
+#### 4. Cascading Failure: Payment Gateway Circuit Breaker
+*   **Source:** `payment-gateway.log`
+*   **Impact:** The `payment-gateway` relies on `fraud-detection` for every transaction.
+    *   Initially, latency increased as the fraud service struggled with GC pressure (`15:37:00` to `15:38:00`).
+    *   After the second crash, the `payment-gateway` detected that no healthy instances of `fraud-detection` were available.
+    *   At `15:41:06`, the **Circuit Breaker OPEN** state was triggered.
+    *   Result: *"All payment requests failing: fraud-check dependency unavailable."*
+
+---
+
+### Timeline of Events
+
+| Time | Component | Event |
+| :--- | :--- | :--- |
+| **15:18:00** | Fraud-Detection | Deployed v3.8.1 (new risk scoring weights). |
+| **15:25:15** | Order-Service | Starts batch job: 1,247 orders at 50/sec. |
+| **15:35:00** | Fraud-Detection | Cache hits 418MB (80% of limit). Warning issued. |
+| **15:38:30** | Fraud-Detection | **CRASH 1:** `OutOfMemoryError`. |
+| **15:38:40** | Order-Service | Pauses batch due to gateway errors. |
+| **15:39:15** | Fraud-Detection | Restarted with cold cache. |
+| **15:40:00** | Order-Service | Resumes batch retries. |
+| **15:41:00** | Fraud-Detection | **CRASH 2:** `OutOfMemoryError` (recurrence). |
+| **15:41:01** | Fraud-Detection | Removed from load balancer. |
+| **15:41:06** | Payment-Gateway | **CIRCUIT BREAKER OPEN.** All payments fail. |
+
+---
+
+### Recommendations
+
+1.  **Immediate Fix (Fraud-Detection):**
+    *   Investigate the cache implementation in `fraud-detection:v3.8.1`. Ensure it has a **maximum size limit** and a **TTL (Time-To-Live)** or LRU (Least Recently Used) eviction policy.
+    *   The cache grew from 8k to 41k entries in 18 minutes under load, suggesting no eviction is occurring.
+
+2.  **Process Improvement (Order-Service):**
+    *   Implement **backpressure** or **throttling** for batch jobs. The 50/sec rate limit may be too aggressive for the downstream fraud detection service's current memory capacity.
+    *   Consider staggering the batch job to avoid coinciding with peak traffic windows.
+
+3.  **Resilience (Payment-Gateway):**
+    *   Review the circuit breaker configuration. While it correctly protected the system, it resulted in a total outage for payments. Consider a fallback strategy (e.g., manual review queue) instead of hard failure when fraud detection is down, depending on business risk tolerance.
+
+4.  **Monitoring:**
+    *   Add an alert for **cache hit ratio** or **cache entry count** in `fraud-detection` to detect unbounded growth before it reaches critical heap levels.

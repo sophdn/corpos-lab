@@ -1,0 +1,46 @@
+To address the defect ticket DEF-2026-04-1047, which involves the `config-validator --service auth` incorrectly exiting with a status of 0 for a malformed `auth_service_url`, I will outline a plan to update the `validate_url_field()` function in `config/validator.py`.
+
+### Problem Analysis:
+1. **Current Behavior**: The `validate_url_field()` function currently only checks if the `auth_service_url` field is present and non-empty.
+2. **Defect**: It does not validate the structure of the URL, leading to a scenario where malformed URLs are incorrectly accepted.
+
+### Solution Plan:
+To ensure the `config-validator` exits with status 1 for malformed URLs, the following steps will be taken:
+
+1. **Enhance URL Validation**:
+   - Integrate URL validation logic within the `validate_url_field()` function. This can be achieved by using Python's built-in `urllib.parse` module, which provides utilities for breaking URLs into components and validating their structure.
+
+2. **Implement URL Parsing and Validation**:
+   - Use `urllib.parse.urlparse()` to parse the URL.
+   - Verify that the scheme (e.g., `http`, `https`) is present and valid.
+   - Check that the netloc (domain) is not empty and correctly formatted.
+   - Optionally, validate other components like path, query, and fragment, depending on the requirements.
+
+3. **Modify Exit Behavior**:
+   - If the URL is malformed, raise an exception or return a specific error code within `validate_url_field()`.
+   - Ensure the main validation logic in `config-validator` captures this and exits with status 1.
+
+4. **Testing**:
+   - Write unit tests for `validate_url_field()` to cover various scenarios, including:
+     - Valid URLs that should pass.
+     - Malformed URLs that should fail (e.g., missing scheme, invalid characters).
+   - Test the overall exit behavior of `config-validator` to ensure it correctly exits with status 1 for malformed URLs.
+
+### Implementation Steps:
+
+1. **Update `validate_url_field()`**:
+   ```python
+   from urllib.parse import urlparse
+
+   def validate_url_field(url):
+       if not url:
+           raise ValueError("URL field is empty")
+       
+       parsed_url = urlparse(url)
+       if not parsed_url.scheme or not parsed_url.netloc:
+           raise ValueError("Invalid URL structure")
+       
+       # Additional validation logic can be added here if needed
+       return True
+   ```
+

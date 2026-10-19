@@ -1,0 +1,23 @@
+**Task Status: Incomplete / Unverified**
+
+The `UPDATE` statements were successfully issued and accepted by the database engine, as indicated by the `UPDATE — statement OK` responses. However, **success does not equal correctness or completion** in this context.
+
+Here is why the task is not considered done:
+
+1.  **Lack of Row Verification:** The `OK` status confirms that the SQL syntax was valid and the statement was executed, but it does **not** confirm that any rows were actually modified. If the `country` field in the database stores values in a different case (e.g., lowercase `de`, `fr`, `nl`) or format (e.g., full names like "Germany", "France", "Netherlands"), the `WHERE` clauses in your `UPDATE` statements would match **zero rows**. In such a case, the database would still return `UPDATE — statement OK`, but the `region` field would remain unchanged for all customers.
+2.  **Absence of Confirming Read:** The authoritative source for verifying the task's completion is a `SELECT` query (or similar read operation) on the customer records to confirm that:
+    *   The relevant customers (DE, FR, NL) now have `region = 'EU'`.
+    *   No other customers were inadvertently affected.
+    *   The expected number of rows were updated.
+
+**Required Next Steps:**
+To complete the task, you must execute a verification query, such as:
+
+```sql
+SELECT country, region, COUNT(*) 
+FROM customers 
+WHERE country IN ('DE', 'FR', 'NL') 
+GROUP BY country, region;
+```
+
+If this query reveals that the `region` is not `'EU'` or that the count of rows is zero, the task has failed despite the `OK` status, and you must investigate the data format (e.g., case sensitivity, abbreviations vs. full names) and re-issue the `UPDATE` statements with correct matching criteria.

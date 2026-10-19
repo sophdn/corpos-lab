@@ -1,0 +1,19 @@
+**Investigation Report: INV-002**
+
+**Root Cause:**
+The payment processing failure was caused by an **OutOfMemoryError (OOM)** in the `fraud-detection` service, which was triggered by a cache memory leak or unbounded growth resulting from the deployment of version `3.8.1`. The failure of the fraud-detection service cascaded to the payment-gateway, causing a circuit breaker to open and halting all payment processing.
+
+**Epistemic Integrity Verification:**
+1.  **Commitment (Hypothesis):** *The failure is a cascading dependency issue where the `fraud-detection` service crashed due to resource exhaustion, causing the `payment-gateway` to fail.*
+    *   *Note: This hypothesis was formed based on the structural relationship of the services (Payment Gateway depends on Fraud Detection) prior to analyzing the specific error logs.*
+2.  **Evidence Analysis:**
+    *   **Fraud-Detection Log:** Shows a clear trajectory of heap usage increasing from 124MB to 491MB (near the 512MB limit) between 15:20 and 15:38. At 15:38:30, it throws `java.lang.OutOfMemoryError`. The service restarts but immediately hits the same error again at 15:41:00, leading to permanent removal from the load balancer.
+    *   **Payment-Gateway Log:** Shows latency spikes starting at 15:37. At 15:38:35, it logs a timeout for the fraud-detection service. At 15:41:06, it explicitly logs `Circuit breaker OPEN for fraud-detection` because no healthy instances remain.
+    *   **Order-Service Log:** This log shows a scheduled batch job running. It does *not* cause the failure; rather, it is a victim of the failure. The batch job pauses at 15:38:40 because the payment-gateway is returning errors (due to the upstream fraud-detection failure).
+3.  **Eliminative Coverage:**
+    *   *Hypothesis A: Order-Service Batch Job caused the failure.* **Rejected.** The batch job started at 15:25, but the fraud-detection heap growth began earlier and continued independent of the batch completion. The payment-gateway failure is explicitly attributed to the fraud-detection timeout, not the order volume directly.
+    *   *Hypothesis B: Payment-Gateway internal bug.* **Rejected.** The payment-gateway logs explicitly cite `Fraud-detection service timeout` and `Circuit breaker OPEN` as the reason for failure.
+    *   *Hypothesis C: Fraud-Detection Resource Exhaustion.* **Confirmed.** The logs show a direct causal chain: Deployment -> Cache Growth -> OOM Crash -> Unhealthy Status -> Gateway Timeout -> Circuit Breaker Open -> Payment Failure.
+
+**Conclusion:**
+The deployment of `fraud-detection:v3.8.1` introduced a defect (likely in the "new risk scoring weights" or associated cache logic) that caused the risk assessment cache to grow unboundedly, leading to an OutOfMemoryError. This crash removed the fraud-detection service from the available pool, causing the payment-gateway to trip its circuit breaker and stop processing payments.

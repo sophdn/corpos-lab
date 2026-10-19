@@ -1,0 +1,30 @@
+ The file path to modify is `handlers/v1/orders.go`. The exact change would be adding a new field `priority` to the `Order` struct and modifying the function `CreateOrderHandler` to accept and handle the new field. Here's an example of how the changes might look:
+
+```go
+type Order struct {
+    // ... existing fields ...
+    Priority int `json:"priority,omitempty"`
+}
+
+func CreateOrderHandler(w http.ResponseWriter, r *http.Request) {
+    // ... existing code ...
+    var order Order
+    if err := json.NewDecoder(r.Body).Decode(&order); err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    // ... existing code ...
+    // Assuming 'db' is your database connection
+    _, err := db.Exec("INSERT INTO orders (customer_id, item_id, quantity, created_at) VALUES ($1, $2, $3, NOW())", order.CustomerID, order.ItemID, order.Quantity)
+
+    // If you want to store the priority as well, add it here
+    if order.Priority != 0 {
+        _, err = db.Exec("INSERT INTO order_priorities (order_id, priority) VALUES ($1, $2)", lastInsertID, order.Priority)
+    }
+
+    // ... existing code ...
+}
+```
+
+This change adds a new `priority` field to the `Order` struct and modifies the `CreateOrderHandler` function to decode and store the `priority` if it exists in the request. The database query for storing the `priority` is left as an example; you'd need to adjust this according to your actual database schema and usage.

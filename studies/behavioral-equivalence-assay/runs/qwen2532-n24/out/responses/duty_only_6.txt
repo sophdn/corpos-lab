@@ -1,0 +1,39 @@
+### Investigation Report: Payment Processing Failure
+
+#### Round 1: Hypothesis Testing
+
+**Hypothesis 1: Fraud Detection Service Overload**
+- **Commitment:** The fraud-detection service experienced an overload due to a high number of entries in the risk assessment cache, leading to out-of-memory errors and service unresponsiveness.
+- **Sprint 1:** Review logs from the fraud-detection service.
+  - **Observation:** The fraud-detection service showed increasing cache entries and heap usage, reaching critical levels and eventually failing due to out-of-memory errors.
+  - **Conclusion:** Confirmed. The service became unresponsive due to excessive cache usage and heap pressure.
+- **Sprint 2:** Check for any recent configuration changes that might have exacerbated the issue.
+  - **Observation:** A new configuration update (new risk scoring weights) was deployed just before the failure.
+  - **Conclusion:** Confirmed. The update may have contributed to the increased load on the cache.
+
+**Hypothesis 2: Batch Processing Interference**
+- **Commitment:** The batch reconciliation job running in the order-service might have contributed to the high load on the fraud-detection service.
+- **Sprint 1:** Review logs from the order-service.
+  - **Observation:** The order-service was in the middle of a batch reconciliation job, sending a large number of revalidation requests to the payment-gateway.
+  - **Conclusion:** Confirmed. The batch job was active during the incident and may have increased the load on the fraud-detection service.
+- **Sprint 2:** Check if the payment-gateway experienced any issues due to the batch job.
+  - **Observation:** The payment-gateway reported elevated fraud-check latency and eventually marked the fraud-detection service as unavailable.
+  - **Conclusion:** Confirmed. The high fraud-check latency and eventual service unavailability align with the batch job's activity.
+
+#### Round Summary
+
+- **Hypothesis 1 (Fraud Detection Service Overload):** Confirmed.
+- **Hypothesis 2 (Batch Processing Interference):** Confirmed.
+
+#### Root Cause
+
+The root cause of the payment processing failure was the combined effect of the fraud-detection service experiencing an overload due to a high number of entries in the risk assessment cache and a large batch reconciliation job running in the order-service. The new configuration update to the fraud-detection service likely exacerbated the issue. This overload led to out-of-memory errors and service unresponsiveness, ultimately causing the payment-gateway to mark the fraud-detection service as unavailable.
+
+#### Recommendations
+
+1. **Cache Management:** Investigate and implement better cache management strategies to prevent the risk assessment cache from reaching critical levels.
+2. **Configuration Review:** Review recent configuration updates to ensure they do not inadvertently increase the load on the service.
+3. **Batch Job Optimization:** Optimize batch jobs to avoid overwhelming dependent services during critical times.
+4. **Monitoring and Alerts:** Enhance monitoring and alerting to detect cache pressure and service unresponsiveness early, allowing for proactive intervention.
+
+By addressing these areas, the system can better handle high load scenarios and prevent similar failures in the future.

@@ -1,0 +1,45 @@
+Based on the logs provided, here is the investigation report.
+
+### Hypothesis
+The payment processing failure was caused by an `OutOfMemoryError` in the **fraud-detection** service, triggered by a rapid accumulation of cache entries. This memory exhaustion was driven by a surge in incoming requests, specifically a batch revalidation job from the **order-service**. The failure of fraud-detection cascaded to the **payment-gateway**, causing a circuit breaker to open and halting all payment processing.
+
+### Evidence & Causal Chain
+
+**1. Root Cause: Memory Exhaustion in fraud-detection**
+The `fraud-detection.log` shows a clear progression from normal operation to critical failure:
+*   **15:20–15:33:** The risk assessment cache grows steadily (8,200 to 24,600 entries). Heap usage rises from 124MB to 312MB.
+*   **15:35:** Heap usage hits 418MB (81% of 512MB limit), triggering a warning.
+*   **15:37:** Garbage Collection (GC) pressure becomes elevated (890ms pause), indicating the JVM is struggling to manage memory.
+*   **15:38:** Heap usage reaches 491MB (96% of limit).
+*   **15:38:30:** The service crashes with `java.lang.OutOfMemoryError: GC overhead limit exceeded`.
+*   **15:39–15:41:** The service restarts but immediately fails again ("recurrence") because requests are still arriving at an elevated rate, refilling the cache too quickly. It is permanently removed from the load balancer.
+
+**2. Contributing Factor: Surge in Traffic from order-service**
+The `order-service.log` reveals the source of the "elevated rate" of requests mentioned in the fraud-detection logs:
+*   **15:25:** A scheduled batch job starts, identifying 1,247 unconfirmed orders.
+*   **15:25:15:** The order-service begins submitting these orders to the payment-gateway at a rate of 50/sec.
+*   **15:25–15:38:** The batch progresses steadily. The timing of this batch submission correlates directly with the rapid growth of the fraud-detection cache.
+    *   Fraud-detection cache growth accelerates significantly between 15:30 and 15:33 (jumping from 12,400 to 24,600 entries), coinciding with the order-service sending the bulk of the 1,247 requests.
+*   **15:38:40:** The order-service notices payment-gateway errors and pauses, but this is a *symptom* of the downstream failure, not the cause.
+
+**3. Cascade Effect: Payment-Gateway Failure**
+The `payment-gateway.log` confirms the dependency chain:
+*   **15:35–15:38:** Latency for fraud-checks rises sharply (380ms → 1,240ms → 3,800ms) as the fraud-detection service slows down under GC pressure.
+*   **15:38:35:** Fraud-detection service times out.
+*   **15:39:00:** Fraud-detection briefly returns (likely the restart at 15:39:15 in its own log), but latency remains elevated.
+*   **15:41:05:** Fraud-detection is removed from the pool due to persistent unhealthiness.
+*   **15:41:06:** The payment-gateway opens its circuit breaker for fraud-detection.
+*   **15:41:30:** All payment requests fail because the required fraud-check dependency is unavailable.
+
+### Conclusion
+
+The primary failure is an **`OutOfMemoryError` in the fraud-detection service**.
+
+*   **Immediate Cause:** The fraud-detection service's risk assessment cache grew beyond its 512MB heap limit, leading to GC overhead and eventual crash.
+*   **Trigger:** A scheduled batch job from the order-service sent 1,247 revalidation requests in rapid succession, causing a sudden spike in load on the fraud-detection service.
+*   **Impact:** The crash of fraud-detection caused timeouts in the payment-gateway, which ultimately tripped its circuit breaker and stopped all payment processing.
+
+**Recommendation:**
+1.  **Immediate:** Investigate why the fraud-detection cache grew so rapidly. Check if the new risk scoring weights (deployed at 15:18) changed caching behavior or if the cache eviction policy is insufficient for burst loads.
+2.  **Medium-term:** Implement rate limiting or throttling on the order-service batch jobs to prevent sudden spikes in traffic to dependent services like fraud-detection.
+3.  **Long-term:** Review the resource limits for fraud-detection and consider auto-scaling policies or more aggressive cache eviction strategies to handle peak loads.

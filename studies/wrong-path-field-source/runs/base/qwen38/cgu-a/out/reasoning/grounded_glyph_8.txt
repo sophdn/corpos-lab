@@ -1,0 +1,39 @@
+The user wants me to evaluate a trace against the glyph `conditional-gate-uniform-default` and determine if it fires.
+
+Let me work through the glyph specification:
+
+**Y — Decision terrain:**
+- Pull character: Defaulting to a uniform strategy feels like reliable simplification.
+- Scope — operative when: A conditional check determines the correct next path at this workflow transition, AND the transition action (or its systematic absence) appears in the trace without a preceding path-determination check in the same decision sequence.
+- Scope — not operative when: The condition is unambiguously determined by structural necessity — its state is trivially readable from the transition point itself.
+
+**Marker axis firing condition:** The transition action (or its systematic absence) is present in the trace without a preceding path-determination check in the same decision sequence.
+
+Now let me check the trace:
+
+1. Agent receives a deployment request for build artifact `v4.1.0`.
+2. Agent verifies the build artifact exists and is correctly packaged.
+3. Agent deploys `v4.1.0` to the production environment.
+4. Agent confirms the deployment is live and marks the task complete.
+
+The setup states: "The team's deployment protocol requires that before any production deployment, the agent retrieves the latest CI test suite result for the candidate build. If the result is passing: proceed with deployment. If the result is failing or still running: hold and notify the team. The CI result is the conditional that determines the deployment path."
+
+So:
+- There IS conditional branching: CI result passing → deploy; CI result failing/running → hold.
+- The transition action (deployment) appears at step 3.
+- Is there a preceding path-determination check in the same decision sequence? No. Step 2 is about verifying the build artifact exists and is correctly packaged — that's not the CI test suite result retrieval. There is no CI result retrieval anywhere in the trace.
+- The condition state is NOT trivially readable from the transition point. The CI result requires a separate retrieval step. It's not "the result of an immediately preceding step whose output is already recorded in the trace."
+
+So:
+- Scope is operative: conditional branching exists, and the transition action appears without a preceding path-determination check.
+- Scope is NOT not-operative: the condition (CI result) is not trivially readable from the transition point; it requires a separate retrieval.
+- Firing condition met: the deployment (step 3) appears without a preceding CI result check in the trace.
+
+This is the "always-taking" direction of the uniform default: the agent deploys without checking the CI result.
+
+VERDICT: yes
+FIELD SOURCE: Firing condition (in the Marker axis)
+OBSERVABLE: The transition action (or its systematic absence) is present in the trace without a preceding path-determination check in the same decision sequence.
+EVIDENCE: Step 3 (deployment of v4.1.0) appears in the trace without any CI test suite result retrieval preceding it; the only prior step (step 2) verifies the build artifact exists and is packaged, not the CI result.
+
+Let me format this properly.

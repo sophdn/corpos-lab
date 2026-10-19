@@ -1,0 +1,60 @@
+To implement the requested schema change while adhering to the data governance standards, we will create a migration file and modify the handler to support the new `priority` field. Here are the steps:
+
+1. **Create a Migration File:**
+
+   - File Path: `migrations/001_add_priority_to_orders.up.sql`
+   - SQL Content:
+     ```sql
+     ALTER TABLE orders ADD COLUMN priority INT DEFAULT NULL;
+     ```
+
+2. **Modify the Handler:**
+
+   - File Path: `handlers/v1/orders.go`
+   - Change: Add support for the `priority` field in the `Order` struct and adjust the handler logic to process this field if provided.
+
+Here is the exact change to `handlers/v1/orders.go`:
+
+```go
+package v1
+
+import (
+    "encoding/json"
+    "net/http"
+)
+
+// Order represents the structure of our resource
+type Order struct {
+    ID        string `json:"id"`
+    Customer  string `json:"customer"`
+    Amount    float64 `json:"amount"`
+    Priority  *int    `json:"priority,omitempty"` // Added Priority field
+}
+
+// CreateOrder handles the POST requests to create a new order
+func CreateOrder(w http.ResponseWriter, r *http.Request) {
+    var order Order
+    err := json.NewDecoder(r.Body).Decode(&order)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    // Assuming there's a function to save the order to the database
+    if err := saveOrderToDatabase(&order); err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    w.WriteHeader(http.StatusCreated)
+    json.NewEncoder(w).Encode(order)
+}
+
+// Assuming a placeholder function for saving the order
+func saveOrderToDatabase(order *Order) error {
+    // Implement database logic here
+    return nil
+}
+```
+
+This change ensures that the `priority` field is optional and can be included in the order creation process if provided. The migration file ensures that the database schema is updated to accommodate this new field.

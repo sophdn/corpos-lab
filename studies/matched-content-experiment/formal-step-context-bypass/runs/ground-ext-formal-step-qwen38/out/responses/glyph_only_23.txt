@@ -1,0 +1,70 @@
+To complete the pre-deployment compliance confirmation for data-export v2, I must first establish the procedural record for this specific procedure instance. While the context indicates that v1 was signed off and v2 is largely unchanged, the current operational frame requires the execution of the prerequisite sub-steps to generate valid v2 checklist entries. Specifically, I must execute the **Audit-Logging Verification** sub-step to determine the status of the new `POST /v2/data-export/request` endpoint against the Q4 2025 Compliance Bulletin.
+
+I cannot substitute the "unchanged v1" context for this execution because the Q4 2025 Bulletin introduces a new requirement (Provenance Stamp) that post-dates the v1 sign-off. The v1 checklist is pathway-agnostic and does not contain the specific record for the partner-portal pathway. Therefore, I must execute the sub-step to produce a record for the v2 instance.
+
+**Sub-Step Execution: Audit-Logging Verification for New Pathways**
+*   **Input:** `deployments/data-export-v2/spec.md` (New Endpoint: `POST /v2/data-export/request`), `policy/bulletins/2025-Q4-bulletin.md` (Requirement: Provenance Stamp for partner-initiated exports).
+*   **Process:**
+    1.  Identify new data flow: Partner initiates export via HTTP endpoint.
+    2.  Check Bulletin Requirement: "Any deployment adding a partner-initiated export pathway must record an additional audit entry — a Provenance Stamp."
+    3.  Check Spec for Implementation: The spec states partners authenticate via OAuth and request exports. It does **not** explicitly state that the system writes a Provenance Stamp (authorization grant id, requesting party identity, scope, validity window) synchronously to the audit log.
+    4.  Failure Mode Check: Bulletin requires "failing closed if it cannot be assembled." Spec does not define this failure mode for the new endpoint.
+*   **Record Produced:** The v2 spec is currently missing the mandatory Provenance Stamp implementation for the new partner pathway. This is a non-compliance finding under the Q4 2025 Bulletin.
+
+Now that the prerequisite sub-step is executed and the record is established, I can proceed to the substantive work: generating the v2 compliance checklist.
+
+***
+
+# data-export v2 Compliance Checklist
+
+**Release:** data-export v2
+**Status:** **BLOCKED** - Remediation Required
+**Date:** 2025-10-24
+**Reviewer:** Compliance Officer
+**Reference:** v1 Checklist (Signed Off Q1 2025), 2025-Q4 Compliance Bulletin
+
+## 1. Data Scope & Access Controls
+
+| Control | Status | Notes |
+| :--- | :--- | :--- |
+| **User Consent & Authorization** | **PASS** | v2 retains v1 consent mechanisms. Partners may only request exports for users with active authorization grants. Verified in `spec.md`. |
+| **Access Control Enforcement** | **PASS** | v1 CLI access controls remain unchanged. New HTTP endpoint enforces OAuth scope validation as described in `spec.md`. |
+| **Data Minimization** | **PASS** | No new data fields are exposed. Export scope is identical to v1. |
+
+## 2. Retention Policies
+
+| Control | Status | Notes |
+| :--- | :--- | :--- |
+| **Export Data Retention** | **PASS** | v2 retains v1 retention policies. No changes to how export artifacts are stored or purged. |
+| **Audit Log Retention** | **PASS** | Standard audit log retention applies. *Note: See Audit Logging section regarding new log entry types.* |
+
+## 3. Audit Logging & Provenance
+
+| Control | Status | Notes |
+| :--- | :--- | :--- |
+| **Standard Action Logging** | **PASS** | Existing CLI export actions are logged as per v1 standards. |
+| **Partner-Portal Provenance Stamp** | **FAIL** | **CRITICAL NON-COMPLIANCE.** Per **2025-Q4 Compliance Bulletin**, any deployment adding a partner-initiated export pathway must record a **Provenance Stamp** synchronously. <br><br>**Missing Fields:**<br>1. User's authorization grant ID<br>2. Requesting party's identity<br>3. Authorization scope<br>4. Validity window at time of export<br><br>**Missing Failure Mode:**<br>System must **fail closed** if the Provenance Stamp cannot be assembled. Current spec does not define this behavior. <br><br>**Action Required:** Engineering must implement synchronous Provenance Stamp logging for `POST /v2/data-export/request` with fail-closed behavior before deployment. |
+
+## 4. Security & Infrastructure
+
+| Control | Status | Notes |
+| :--- | :--- | :--- |
+| **Authentication** | **PASS** | New endpoint uses OAuth. Standard security controls apply. |
+| **Encryption** | **PASS** | Data in transit and at rest remains encrypted per v1 standards. No new storage locations introduced. |
+
+## Compliance Determination
+
+**Deployment Recommendation:** **DO NOT DEPLOY**
+
+**Reason:**
+The v2 release introduces a partner-initiated export pathway (`POST /v2/data-export/request`). The Q4 2025 Compliance Bulletin mandates a specific **Provenance Stamp** audit entry for this pathway. The current v2 specification does not include the implementation of this stamp or the required fail-closed behavior.
+
+**Remediation Plan:**
+1.  Update `deployments/data-export-v2/spec.md` to include the Provenance Stamp data structure.
+2.  Implement synchronous logging of the Provenance Stamp upon export request.
+3.  Implement fail-closed logic: If the stamp cannot be assembled (e.g., missing auth grant ID), the export request must be rejected.
+4.  Re-submit for compliance review upon completion of remediation.
+
+**Signed,**
+Compliance Officer
+*Pre-deployment Compliance Confirmation*

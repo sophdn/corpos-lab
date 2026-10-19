@@ -1,0 +1,64 @@
+## Incident Investigation Report: INV-002
+
+**Status:** Resolved (Service removed from rotation)
+**Root Cause:** Memory Exhaustion in `fraud-detection` service triggered by a surge in request volume from the `order-service` reconciliation batch.
+
+### 1. Executive Summary
+The payment processing failure was caused by an **`OutOfMemoryError` (OOM)** in the `fraud-detection` service. The service's risk assessment cache grew uncontrollably due to a high-volume batch job initiated by the `order-service`. When the `fraud-detection` service crashed and failed to recover, the `payment-gateway` opened its circuit breaker, causing all payment requests to fail.
+
+### 2. Timeline of Events
+
+| Time | Component | Event |
+| :--- | :--- | :--- |
+| **15:18:00** | fraud-detection | New version `v3.8.1` deployed with updated risk scoring weights. |
+| **15:25:00** | order-service | **Trigger Event:** Scheduled batch job starts. Finds 1,247 unconfirmed orders. Begins submitting revalidation requests at 50/sec. |
+| **15:30:00** | fraud-detection | Cache growth begins to accelerate (12,400 entries, 189MB heap). |
+| **15:35:00** | fraud-detection | Cache approaches limit (34,100 entries, 418MB heap). GC pressure becomes elevated. |
+| **15:37:00** | payment-gateway | Latency spikes to 1,240ms due to `fraud-detection` slowing down. |
+| **15:38:30** | fraud-detection | **Failure Point:** `java.lang.OutOfMemoryError: GC overhead limit exceeded`. Service becomes unresponsive. |
+| **15:38:45** | fraud-detection | Orchestrator restarts the container. |
+| **15:39:15** | fraud-detection | Service restarts with cold cache. However, `order-service` continues sending traffic. |
+| **15:39:30** | fraud-detection | Cache refills rapidly due to ongoing batch traffic. |
+| **15:41:00** | fraud-detection | **Second Failure:** Recurring `OutOfMemoryError`. Service marked permanently unhealthy. |
+| **15:41:06** | payment-gateway | **Cascading Failure:** Circuit breaker for `fraud-detection` opens. All payment requests fail. |
+| **15:41:10** | order-service | Batch job suspended after detecting gateway errors. |
+
+### 3. Detailed Analysis
+
+#### A. The Trigger: Order Reconciliation Batch
+The `order-service` initiated a scheduled reconciliation job at **15:25:00**. It identified 1,247 unconfirmed orders and began submitting them for payment revalidation at a rate of 50 requests/second. This created a sustained, high-volume load on the `payment-gateway` and, by extension, the `fraud-detection` service, which is a dependency for every payment request.
+
+#### B. The Primary Failure: Fraud-Detection OOM
+The `fraud-detection` service (v3.8.1) experienced a memory leak or unbounded cache growth:
+1.  **Cache Bloat:** The risk assessment cache grew from ~8,200 entries (124MB) at 15:20 to 41,200 entries (491MB) at 15:38.
+2.  **Heap Limit:** The service hit its 512MB heap limit.
+3.  **GC Pressure:** As the heap filled, Garbage Collection (GC) pauses increased (890ms at 15:37), causing latency spikes seen in the `payment-gateway`.
+4.  **Crash:** At 15:38:30, the service threw an `OutOfMemoryError` and crashed.
+5.  **Failed Recovery:** After the orchestrator restarted the service at 15:39:15, the high volume of traffic from the `order-service` batch caused the cache to refill rapidly. The service crashed again at 15:41:00 with the same OOM error. Because it failed to stabilize after restart, it was marked "permanently unhealthy."
+
+#### C. The Cascading Failure: Payment Gateway
+The `payment-gateway` depends on `fraud-detection` for risk checks.
+1.  **Latency Spike:** As `fraud-detection` struggled with GC, latency rose from 210ms to 3,800ms.
+2.  **Timeouts:** At 15:38:35, the gateway recorded timeouts for pending fraud checks.
+3.  **Circuit Breaker:** When `fraud-detection` was removed from the load balancer pool at 15:41:05, the gateway had no healthy instances to call.
+4.  **Total Outage:** The gateway opened its circuit breaker at 15:41:06, causing **all** payment requests to fail immediately, regardless of whether they were part of the batch or individual transactions.
+
+### 4. Root Cause Conclusion
+The **primary root cause** was the **uncontrolled memory growth** in the `fraud-detection` service's risk assessment cache, which was exacerbated by the **high-volume batch traffic** from `order-service`.
+
+The **contributing factor** was the lack of **backpressure or rate-limiting mechanisms** in the `fraud-detection` service. It did not throttle incoming requests when its cache approached the heap limit, allowing the batch job to drive it into an OOM state. Furthermore, the service lacked a **graceful degradation strategy**; instead of failing over or returning cached/default risk scores, it crashed entirely, taking down the entire payment processing pipeline.
+
+### 5. Recommendations
+
+1.  **Immediate Fix:**
+    *   **Rollback or Patch:** Roll back `fraud-detection` to `v3.8.0` or apply a hotfix that caps the risk assessment cache size or implements LRU eviction more aggressively.
+    *   **Increase Heap:** Temporarily increase the heap limit for `fraud-detection` to 1GB to provide headroom while investigating the cache growth.
+
+2.  **Short-Term Actions:**
+    *   **Throttle Batch Jobs:** Configure the `order-service` reconciliation job to use a lower rate limit (e.g., 10/sec) or run during off-peak hours to avoid spiking `fraud-detection` traffic.
+    *   **Circuit Breaker Tuning:** Review the `payment-gateway` circuit breaker configuration. Consider allowing a "degraded mode" where payments can proceed with a default risk score if `fraud-detection` is down, rather than failing all requests.
+
+3.  **Long-Term Solutions:**
+    *   **Cache Management:** Implement strict bounds on the risk assessment cache in `fraud-detection`. Add monitoring alerts for cache size and heap usage before reaching critical levels.
+    *   **Load Shedding:** Implement load shedding in `fraud-detection` so that when memory pressure is high, it can reject non-critical requests or return a default value instead of crashing.
+    *   **Batch Job Scheduling:** Move the order reconciliation batch to a time window with lower overall transaction volume to reduce the risk of resource contention.

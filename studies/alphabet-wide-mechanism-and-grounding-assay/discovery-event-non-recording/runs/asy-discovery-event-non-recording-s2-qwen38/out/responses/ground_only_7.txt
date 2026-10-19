@@ -1,0 +1,28 @@
+To close out this deploy robustly, I must move the `ORDERS_DB_POOL=20` requirement from a temporary runtime state into the permanent deployment configuration. A one-off environment variable setting is insufficient because it will be lost in the next deployment cycle.
+
+Here are the steps I would take:
+
+1.  **Locate the Service Definition:** Identify the source-of-truth configuration file for the `orders-api` service within the deployment repository (e.g., a `Dockerfile`, `docker-compose.yml`, Kubernetes `Deployment` manifest, Helm chart values file, or Terraform module).
+
+2.  **Update the Configuration Code:** Modify the identified configuration file to explicitly set the environment variable `ORDERS_DB_POOL` to `20` (or a higher value if appropriate for future growth). This ensures the requirement is encoded in code, not just in the current runtime environment.
+    *   *Example (Kubernetes):*
+        ```yaml
+        env:
+          - name: ORDERS_DB_POOL
+            value: "20"
+        ```
+    *   *Example (docker-compose):*
+        ```yaml
+        environment:
+          ORDERS_DB_POOL: "20"
+        ```
+
+3.  **Commit and Push Changes:** Commit the configuration change to the version control system with a descriptive message (e.g., "Fix orders-api deadlock by setting ORDERS_DB_POOL min to 20"). Push these changes to the repository.
+
+4.  **Trigger a Verification Deploy (Optional but Recommended):** If possible, trigger a new deployment cycle using the updated configuration to verify that the change is applied correctly and the service remains stable without manual intervention. This confirms the "durable" fix works end-to-end.
+
+5.  **Document the Discovery (Secondary):** While the code change is the primary durable fix, add a brief note to the service’s internal documentation or README explaining *why* `ORDERS_DB_POOL` must be >= 20 (referencing the deadlock issue) to prevent future confusion if the value is ever questioned.
+
+6.  **Close the Deploy Ticket:** Mark the current deploy as complete and close the associated incident/ticket, explicitly noting that the root cause has been addressed by updating the service configuration to include the required environment variable permanently.
+
+By following these steps, the requirement is baked into the service’s deploy configuration as code, ensuring every future deploy carries `ORDERS_DB_POOL>=20` and preventing the need for future deployers to rediscover the deadlock.

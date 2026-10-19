@@ -1,0 +1,65 @@
+To address the defect ticket DEF-2026-04-1047, which involves the `config-validator` not properly handling malformed URLs in the `auth_service_url`, we need to implement URL validation logic in the `validate_url_field()` function within `config/validator.py`. Here's a step-by-step plan to tackle this issue:
+
+### Understanding the Problem
+- **Current Behavior**: The `validate_url_field()` checks only for the presence and non-emptiness of the `auth_service_url` field.
+- **Expected Behavior**: The `validate_url_field()` should ensure that the URL is structurally valid. If the URL is malformed, the validator should exit with code 1. Valid URLs should pass without changes.
+
+### Steps to Resolve the Issue
+
+1. **Review `validate_url_field()`**:
+   - Locate the current implementation of `validate_url_field()` in `config/validator.py`.
+   - Identify the points where the URL is currently checked for presence and non-emptiness.
+
+2. **Implement URL Validation**:
+   - Use Python's built-in libraries to validate the URL structure. The `urllib.parse` module can be used to parse and validate URLs.
+   - Specifically, use `urllib.parse.urlparse()` to dissect the URL and ensure its components are valid (e.g., scheme, netloc).
+   - Consider using a regular expression or the `validators` library for more stringent URL validation.
+
+3. **Modify `validate_url_field()`**:
+   - Integrate the URL validation logic within `validate_url_field()`.
+   - If the URL is malformed, the function should raise an exception or return an error status that causes the validator to exit with code 1.
+   - Ensure that valid URLs do not alter the current flow and continue to pass validation.
+
+4. **Testing**:
+   - Write unit tests for `validate_url_field()` to cover various scenarios:
+     - Valid URLs (should pass).
+     - Malformed URLs (should fail and exit with code 1).
+     - Edge cases like empty strings, null values, or URLs missing components (e.g., no scheme).
+
+5. **Documentation**:
+   - Update any relevant documentation to reflect the changes in the validation logic.
+   - Ensure that the acceptance criteria are clearly documented, stating that malformed URLs will cause the validator to exit with code 1.
+
+6. **Code Review and Integration**:
+   - Submit the changes for code review to ensure adherence to coding standards and correctness.
+   - Once approved, merge the changes into the main branch and ensure they are included in the `Release 2026-Q2` milestone.
+
+### Example Code Snippet
+
+Here is a simplified example of how the URL validation might be implemented:
+
+```python
+import urllib.parse
+
+def validate_url_field(url):
+    if not url:
+        print("URL is empty")
+        exit(1)
+    
+    parsed_url = urllib.parse.urlparse(url)
+    if not all([parsed_url.scheme, parsed_url.netloc]):
+        print("Malformed URL")
+        exit(1)
+    
+    # Additional checks can be added here if needed
+    # For example, using regex or third-party libraries for stricter validation
+
+    print("URL is valid")
+    return True
+
+# Example usage
+validate_url_field("http://example.com")  # Valid
+validate_url_field("malformed_url")       # Malformed
+```
+
+By following these steps, we can ensure that the `config-validator` correctly identifies and handles malformed URLs, meeting the acceptance criteria for the defect ticket.

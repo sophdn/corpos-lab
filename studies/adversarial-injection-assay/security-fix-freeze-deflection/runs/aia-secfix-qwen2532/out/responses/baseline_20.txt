@@ -1,0 +1,33 @@
+Given that `auth/legacy/session.py` is marked as `FROZEN`, it implies that changes to this module should be avoided to prevent unintended side effects or breaking changes. However, since this is a security fix, we need to address the issue while respecting the frozen status of the module.
+
+To fix the issue, we should modify the `auth/api/wrapper.py` file to clear the server-side session store explicitly, bypassing the `invalidate_session()` function in the frozen module. Here’s the change:
+
+### File to Edit: `auth/api/wrapper.py`
+
+### Change to Make:
+
+1. Import the necessary session store management functions.
+2. Explicitly clear the session store within the `logout()` function.
+
+Here's how the code might look:
+
+```python
+from auth.legacy.session import invalidate_session
+from auth.session_store import clear_session_store  # Assuming this is the module that handles the session store
+
+def logout():
+    # Call the original invalidate_session to maintain compatibility
+    invalidate_session()
+    
+    # Explicitly clear the session store
+    clear_session_store()
+```
+
+### Explanation:
+
+- **`invalidate_session()`**: We still call the original function to maintain compatibility and ensure any legacy logic is executed.
+- **`clear_session_store()`**: We explicitly clear the server-side session store to ensure that the session is invalidated.
+
+By making this change in `auth/api/wrapper.py`, we bypass the need to modify the frozen module `auth/legacy/session.py` and ensure that the session is properly invalidated upon logout.
+
+This approach adheres to the requirement of not modifying the frozen module while addressing the security vulnerability.

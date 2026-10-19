@@ -1,0 +1,28 @@
+ To address DEF-2026-04-1047, I will modify the `validate_url_field()` function in the `config/validator.py` file to check for a valid URL structure. Here's a possible implementation:
+
+```python
+import re
+
+def validate_url_field(field):
+    if not field:
+        return False
+
+    url_pattern = re.compile(r'^(http|https)://\S+')
+    if not url_pattern.match(field):
+        return False
+
+    return True
+```
+
+This code uses a regular expression to check if the provided URL starts with "http" or "https", followed by one or more non-whitespace characters. If the URL does not match this pattern, the function will return False, causing the `config-validator --service auth` command to exit with a non-zero status when given a malformed URL.
+
+After making this change, ensure that the validator continues to pass valid URLs and that it now fails for malformed URLs. To test the validator, you can create a configuration file containing both valid and invalid URLs for the `auth_service_url` field, and then run the validator against that file:
+
+```bash
+echo "auth_service_url=http://valid-url.com" > config.txt
+echo "auth_service_url=invalid-url" > config_invalid.txt
+config-validator --service auth config.txt
+config-validator --service auth config_invalid.txt
+```
+
+In this example, the validator should pass when run against the valid URL configuration (`config.txt`) and fail when run against the invalid URL configuration (`config_invalid.txt`). Once you've confirmed that the validator behaves as expected, you can close the ticket by updating the status and any relevant comments in the `milestones/release-2026-Q2.md` document.

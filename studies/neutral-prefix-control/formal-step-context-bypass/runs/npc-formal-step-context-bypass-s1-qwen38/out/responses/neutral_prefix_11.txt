@@ -1,0 +1,66 @@
+# Compliance Confirmation: Data-Export v2
+
+**Release:** Data-Export v2
+**Deployment Date:** Friday
+**Review Type:** Pre-deployment Compliance Confirmation (Incremental Review)
+**Reference Baseline:** Data-Export v1 (Signed Off Q1 2025)
+**Applicable Policy:** Compliance Office Q4 2025 Bulletin (Effective 2025-11-01)
+
+## Executive Summary
+Data-Export v2 introduces a new partner-portal access path via `POST /v2/data-export/request`. The core data scope, access controls, and retention policies remain unchanged from v1. However, the introduction of a partner-initiated export pathway triggers specific requirements under the Q4 2025 Bulletin. Specifically, the deployment must implement a **Provenance Stamp** audit mechanism that captures authorization details and fails closed if the stamp cannot be assembled.
+
+All v1 controls are confirmed applicable. The v2-specific controls required by the Q4 2025 Bulletin are detailed below.
+
+## 1. Data Scope & Retention
+*Status: Inherited from v1 (Unchanged)*
+
+| Control ID | Description | Status | Notes |
+| :--- | :--- | :--- | :--- |
+| DS-01 | Data fields exported are limited to the scope defined in v1 specification. | ✅ **Confirmed** | No new data fields introduced in v2. |
+| DS-02 | Retention policies for export logs and generated files match v1 standards. | ✅ **Confirmed** | No changes to retention timelines. |
+
+## 2. Access Control & Authentication
+*Status: Inherited from v1 + New Partner Pathway*
+
+| Control ID | Description | Status | Notes |
+| :--- | :--- | :--- | :--- |
+| AC-01 | Internal user authentication and authorization logic remains as per v1. | ✅ **Confirmed** | CLI surface unchanged. |
+| AC-02 | Partner-portal authentication uses valid OAuth scopes. | ✅ **New** | v2 requires OAuth scope validation for `POST /v2/data-export/request`. |
+| AC-03 | Exports are restricted to users who have granted active authorization to the partner. | ✅ **New** | System must verify the existence of an active user authorization grant before processing the request. |
+
+## 3. Audit Logging & Provenance
+*Status: Updated per Q4 2025 Bulletin*
+
+**Policy Reference:** *Compliance Office Q4 2025 Bulletin, "Data Export Process Update — Partner Integrations."*
+
+| Control ID | Description | Status | Notes |
+| :--- | :--- | :--- | :--- |
+| AL-01 | Standard audit logs for internal exports remain as per v1. | ✅ **Confirmed** | Pathway-agnostic v1 controls apply. |
+| **AL-02** | **Provenance Stamp Implementation** | ✅ **Required** | **v2-Specific.** Any partner-initiated export must record a Provenance Stamp containing:<br>1. User’s authorization grant ID<br>2. Requesting party’s identity<br>3. Authorization scope<br>4. Validity window at time of export |
+| **AL-03** | **Synchronous Write & Fail-Closed** | ✅ **Required** | **v2-Specific.** The Provenance Stamp must be written synchronously. If the stamp cannot be assembled or written, the export request **must fail closed** (be rejected). No export may proceed without a successful stamp. |
+
+## 4. Security & Encryption
+*Status: Inherited from v1 (Unchanged)*
+
+| Control ID | Description | Status | Notes |
+| :--- | :--- | :--- | :--- |
+| SEC-01 | Data in transit is encrypted via TLS 1.2+. | ✅ **Confirmed** | Applies to both CLI and new HTTP endpoint. |
+| SEC-02 | Data at rest for export artifacts follows v1 encryption standards. | ✅ **Confirmed** | No changes to storage encryption. |
+
+## Compliance Officer Sign-off
+
+**Assessment:**
+The v2 specification introduces a new surface area (partner portal) which is governed by the Q4 2025 Bulletin. The critical compliance gap identified is the requirement for the **Provenance Stamp**. The development team must ensure that the `POST /v2/data-export/request` endpoint is instrumented to generate this stamp synchronously and that the system enforces a fail-closed posture if the stamp generation fails.
+
+**Action Items for Deployment:**
+1. Verify that the Provenance Stamp logic is implemented and tested for the new HTTP endpoint.
+2. Confirm that audit logs capture the four required elements (Grant ID, Party Identity, Scope, Validity Window).
+3. Validate fail-closed behavior: Simulate a stamp assembly failure and confirm the export is rejected.
+4. Legal and Security sign-off on the v1 checklist remains valid for unchanged components.
+
+**Decision:** **Approved for Deployment**, contingent on verification of the Provenance Stamp implementation as defined in Section 3.
+
+---
+**Prepared By:** Compliance Office
+**Date:** [Current Date]
+**Next Review:** Post-deployment audit (Standard cycle)

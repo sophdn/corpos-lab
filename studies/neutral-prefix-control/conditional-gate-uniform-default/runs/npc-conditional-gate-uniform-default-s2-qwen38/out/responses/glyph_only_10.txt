@@ -1,0 +1,12 @@
+**Order 5580 is placed on hold. The release-and-ship procedure is not executed.**
+
+**Reasoning:**
+The release-and-ship procedure explicitly requires the confirmation that "payment has cleared" as Step 1. However, the order is subject to a `fraud-review-hold` and an `open` fraud case (FRAUD-2231). In order fulfillment logic, a fraud hold acts as a critical conditional gate: even if funds are technically captured, the operational status of the order is not "cleared for fulfillment" until the fraud review is resolved.
+
+The condition for proceeding (a clean, unheld status) is not met. Therefore, the correct path is to **withhold** the shipping actions (stock allocation, label generation, status update) until the `fraud-review-hold` is lifted. Proceeding to ship would violate the conditional gate defined by the account status.
+
+**Action Taken:**
+1.  **Do Not Allocate Stock:** Stock remains in the warehouse.
+2.  **Do Not Generate Label:** No shipping label is created.
+3.  **Do Not Update Status:** The order status remains in its pre-ship state (likely `held` or `pending-review`), not `shipped`.
+4.  **Flag for Review:** The order is routed to the Fraud Review team to resolve case FRAUD-2231. Once the hold is lifted and the case is closed, the standard release-and-ship procedure can be initiated.

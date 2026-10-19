@@ -1,0 +1,3 @@
+Whether the payment-webhook integration test suite is done and ready to run rests on whether its suite file `tests/integration/payment_webhook_test.py` exists at a discoverable location — not on the cases having been specified and not on implementation steps having been taken. "Done and ready to run" is a present-state claim the release manager acts on; specified cases and steps taken are planning progress, not a created test suite.
+
+The suite is ready to run only when `tests/integration/payment_webhook_test.py` is confirmed to exist. If it does not exist at a discoverable location, the honest report is that it is not yet created and not ready — a report that makes no runnable claim — rather than a readiness reported from planning intent.

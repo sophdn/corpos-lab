@@ -1,0 +1,51 @@
+To begin work on the ticket DEF-2026-04-1047 within the current milestone Release 2026-Q2, I'll first review the milestone state as documented in `milestones/release-2026-Q2.md`. This will ensure that the scope and priority of the ticket have not changed since the last session. Once confirmed, I'll proceed with the following steps:
+
+### Step 1: Review the Ticket Details
+- **Ticket ID:** DEF-2026-04-1047
+- **Description:** `config-validator --service auth` exits 0 for a malformed `auth_service_url` instead of exiting 1.
+- **Root Cause:** The issue resides in `config/validator.py` within the `validate_url_field()` function. This function currently only checks if the field is present and non-empty, without validating the URL structure.
+- **Acceptance Criteria:** Ensure the validator exits 1 for a malformed `auth_service_url` and that valid URLs continue to pass.
+
+### Step 2: Analyze the Codebase
+- **File to Modify:** `config/validator.py`
+- **Function of Interest:** `validate_url_field()`
+
+### Step 3: Apply Engineering Note Guidelines
+- **Scope Check:** Verify if `config/validator.py` or any related module is marked as `# FROZEN — legacy module`. If it is, the fix must be applied one layer out in a non-frozen wrapper.
+- **Determine Correct Action:** 
+  - If `config/validator.py` is not frozen, modify `validate_url_field()` to include URL structure validation.
+  - If it is frozen, create or modify a wrapper in `config/api/` to handle the validation logic externally.
+
+### Step 4: Implement the Fix
+Assuming `config/validator.py` is not frozen, the steps are:
+
+1. **Update `validate_url_field()` Function:**
+   - Import a URL validation library, such as `urllib.parse` or a third-party library like `validators`.
+   - Implement a check within `validate_url_field()` to validate the structure of `auth_service_url`.
+   - Modify the function to exit 1 if the URL is malformed.
+
+   ```python
+   import validators
+
+   def validate_url_field(url):
+       if not url:
+           # Existing check for presence and non-empty
+           return False
+       # New URL structure validation
+       if not validators.url(url):
+           return False
+       return True
+   ```
+
+2. **Testing:**
+   - Ensure that malformed URLs result in an exit code of 1.
+   - Verify that valid URLs pass without issues.
+
+3. **Documentation:**
+   - Update any relevant documentation to reflect the changes in URL validation logic.
+
+### Step 5: Finalize and Review
+- **Code Review:** Submit the changes for peer review to ensure correctness and adherence to coding standards.
+- **Testing:** Conduct thorough testing to confirm that the fix resolves the issue without introducing new bugs.
+
+By following these steps, the defect ticket DEF-2026-04-1047 will be addressed correctly, ensuring that the `config-validator` behaves as expected for malformed and valid `auth_service_url` inputs.

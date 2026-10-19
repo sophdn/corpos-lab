@@ -1,0 +1,43 @@
+Here are the steps to close out the fix correctly, prioritizing the mechanistic removal of the dependency over simple ordering pinning:
+
+### 1. Analyze the Specific Dependency
+Identify exactly what `test_seed_catalog` does that `test_checkout_flow` needs. Determine the specific API calls, database queries, or cache writes that populate the catalog cache. Determine if this setup is idempotent (i.e., safe to run multiple times) or if it has side effects that require cleanup.
+
+### 2. Extract the Setup Logic into a Reusable Fixture or Helper
+Create a dedicated setup fixture or helper function (e.g., `seed_catalog_cache` or `setup_catalog_data`) that encapsulates the logic currently inside `test_seed_catalog`’s setup phase.
+*   **Key Constraint:** This fixture must be self-contained. It should not rely on global state left behind by other tests.
+*   **Idempotency:** Ensure the fixture clears the cache before populating it, or checks if the data exists, so it can be safely invoked by multiple tests without conflict.
+
+### 3. Refactor `test_checkout_flow` to Use the New Fixture
+Modify `test_checkout_flow` to explicitly declare a dependency on the new `seed_catalog_cache` fixture.
+*   **Do Not** rely on the test running after `test_seed_catalog`.
+*   **Do Not** use inline comments as the primary documentation for this dependency.
+*   The test should now pass whether it runs first, last, or in isolation.
+
+### 4. Refactor `test_seed_catalog` to Use the Same Fixture (Optional but Recommended)
+If `test_seed_catalog` is primarily testing the seeding process itself, it can continue to use its own logic. However, if it is just a setup test, consider whether it should be refactored to use the shared fixture to ensure consistency. If it is a distinct test verifying the seed process, leave it as is but ensure it does not interfere with the fixture used by `test_checkout_flow` (e.g., by using different cache keys or proper cleanup).
+
+### 5. Verify Isolation
+Run `test_checkout_flow` in isolation (e.g., `pytest test_checkout_flow.py::test_checkout_flow`) to confirm it passes without any prior tests being executed. This is the critical verification step to prove the ordering dependency has been mechanistically removed.
+
+### 6. Document the Dependency Mechanistically
+Instead of relying on comments, document the dependency where it is visible and enforced:
+*   **Fixture Documentation:** Add a docstring to the `seed_catalog_cache` fixture explaining *why* it exists (e.g., "Populates the catalog cache required by checkout flows. This fixture ensures `test_checkout_flow` is independent of test execution order.").
+*   **Test Class/Module Docstring:** If the tests are in a class, add a class-level docstring explaining that checkout tests require the catalog cache to be seeded via the `seed_catalog_cache` fixture, not via global state from other tests.
+*   **CI/CD Configuration (if applicable):** If there are any remaining ordering constraints for other reasons, document them in the CI configuration with explicit warnings, but the goal is to have none for this specific pair.
+
+### 7. Remove Any Pinning or Workarounds
+If you previously added `@pytest.mark.order` or similar decorators to force `test_seed_catalog` to run first, **remove them**. These workarounds hide the fact that the test should be independent and can lead to future flakiness if the pinning is broken.
+
+### 8. Final Review and Commit
+*   Confirm that `test_checkout_flow` passes in all orderings:
+    *   Alone
+    *   Before `test_seed_catalog`
+    *   After `test_seed_catalog`
+*   Confirm that `test_seed_catalog` still passes.
+*   Commit the changes with a clear message: "Fix flaky test_checkout_flow by removing implicit catalog cache dependency via explicit fixture."
+
+### Why This Works
+*   **Mechanistic Fix:** The dependency is now explicit in the code structure (via the fixture), not hidden in execution order.
+*   **Future-Proof:** A future agent will see that `test_checkout_flow` requires `seed_catalog_cache` because it is a declared fixture dependency, not because of an unspoken rule.
+*   **No Reliance on Comments:** The dependency is enforced by the test framework’s fixture system, which is executable code, not passive text.

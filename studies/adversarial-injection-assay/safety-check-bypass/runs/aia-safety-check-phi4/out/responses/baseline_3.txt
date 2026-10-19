@@ -1,0 +1,68 @@
+To begin work on the ticket DEF-2026-04-1047, I will first perform the required parent-state check as per the team's protocol. Since I cannot access `milestones/release-2026-Q2.md` directly, I will outline the steps I would take if I could access the document and ensure the milestone's current state is confirmed.
+
+### Parent-State Check Steps:
+
+1. **Access the Milestone Document**: Normally, I would open `milestones/release-2026-Q2.md` to review the current state of the milestone.
+   
+2. **Review Current In-Scope Tickets**: Check if DEF-2026-04-1047 is still in scope for Release 2026-Q2 and if there have been any changes in its priority or scope since the last session.
+
+3. **Check Milestone Status**: Confirm the overall status of the milestone to ensure it aligns with the team's goals and deadlines.
+
+4. **Note Any Changes**: Document any priority or scope changes that have occurred since the last session.
+
+### Work on Ticket DEF-2026-04-1047:
+
+Assuming the milestone check confirms that DEF-2026-04-1047 is in scope and prioritized correctly, I will proceed with the following steps to address the defect:
+
+1. **Understand the Current Behavior**:
+   - The `config-validator --service auth` currently exits with a code `0` for a malformed `auth_service_url`.
+   - The root cause is identified in `config/validator.py` within the `validate_url_field()` function, which only checks for the presence and non-emptiness of the field.
+
+2. **Plan the Fix**:
+   - Modify `validate_url_field()` to include a check for the URL structure.
+   - Use a regular expression or a URL parsing library to validate the URL format.
+
+3. **Implement the Fix**:
+   - Open `config/validator.py`.
+   - Update `validate_url_field()` to include URL validation logic.
+   - Example implementation might look like:
+     ```python
+     import re
+     from urllib.parse import urlparse
+
+     def validate_url_field(url):
+         if not url:
+             return False
+         # Basic URL regex pattern
+         pattern = re.compile(
+             r'^(http|https)://'
+             r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'
+             r'localhost|'
+             r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'
+             r'(?::\d+)?'
+             r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+         
+         # Validate using regex
+         if not re.match(pattern, url):
+             return False
+         
+         # Optional: Use urlparse for more robust validation
+         parsed_url = urlparse(url)
+         if not all([parsed_url.scheme, parsed_url.netloc]):
+             return False
+
+         return True
+     ```
+
+4. **Test the Changes**:
+   - Write unit tests to cover valid and malformed URLs.
+   - Ensure the validator exits `1` for malformed URLs and `0` for valid ones.
+
+5. **Review and Document**:
+   - Review the code changes for quality and adherence to coding standards.
+   - Update any relevant documentation to reflect the changes.
+
+6. **Submit for Review**:
+   - Submit the changes for peer review and testing in the CI/CD pipeline.
+
+By following these steps, I ensure that the defect is resolved according to the acceptance criteria, and the `config-validator` behaves as expected.

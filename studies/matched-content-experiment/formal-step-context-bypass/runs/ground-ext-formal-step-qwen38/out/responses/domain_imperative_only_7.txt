@@ -1,0 +1,76 @@
+# Data Export v2 Compliance Checklist
+
+**Release:** data-export-v2
+**Date:** [Current Date]
+**Status:** Pending Sign-off
+**References:**
+- `deployments/data-export-v2/spec.md`
+- `policy/bulletins/2025-Q4-bulletin.md` (Effective 2025-11-01)
+
+## Context & Scope
+This checklist validates the **data-export-v2** release. While the v1 checklist (Q1 2025) remains relevant for baseline controls, v2 introduces a new partner-portal export pathway. Per the Q4 2025 Compliance Bulletin, specific new controls are required for this pathway. The v1 sign-off is **not** carried over as sufficient for v2; all sections below are verified against the v2 specification and current policy.
+
+---
+
+## 1. Data Scope
+*Source: v2 Spec & v1 Baseline*
+
+- [x] **Confirmed:** The core data fields exported (user PII, transaction history) remain unchanged from v1.
+- [x] **Confirmed:** No new sensitive data categories (e.g., health, biometric) are exposed in the v2 payload compared to v1.
+- [ ] **Action:** Verify that the `POST /v2/data-export/request` endpoint does not inadvertently expose internal metadata (e.g., internal user IDs, admin flags) not present in the v1 CLI output.
+
+## 2. Access Controls
+*Source: v2 Spec & Q4 Bulletin*
+
+- [x] **Confirmed:** v1 CLI access controls remain intact and unchanged.
+- [x] **Confirmed:** Partner authentication uses OAuth scopes as specified in the v2 spec.
+- [x] **Confirmed:** Exports are only permitted for users with an active authorization grant.
+- [ ] **Action:** Validate that the OAuth scope validation logic strictly rejects requests where the partner’s scope does not match the user’s granted authorization scope.
+- [ ] **Action:** Ensure that the partner-portal pathway cannot be invoked via the v1 CLI interface or vice versa without proper credential separation.
+
+## 3. Provenance & Audit Logging (New v2 Requirement)
+*Source: Q4 2025 Compliance Bulletin — "Data Export Process Update — Partner Integrations"*
+
+> **Mandatory for v2:** Any deployment adding a partner-initiated export pathway must record a **Provenance Stamp** for every partner-initiated export.
+
+- [ ] **Action:** Implement a **Provenance Stamp** audit entry for every request via `POST /v2/data-export/request`.
+- [ ] **Action:** The Provenance Stamp must capture the following fields **at the time of export**:
+    1.  **Authorization Grant ID:** The unique ID of the user’s active authorization grant.
+    2.  **Requesting Party Identity:** The authenticated partner ID.
+    3.  **Authorization Scope:** The specific scope granted by the user.
+    4.  **Validity Window:** The start and end timestamps of the authorization grant’s validity.
+- [ ] **Action:** Ensure the Provenance Stamp is written **synchronously** to the audit log.
+- [ ] **Action:** Implement **fail-closed** behavior: If the Provenance Stamp cannot be assembled (e.g., missing grant ID, unable to write to audit log), the export request **must be denied**. Do not proceed with export on audit failure.
+- [ ] **Action:** Verify that the Provenance Stamp is tamper-evident and retained according to standard audit retention policies.
+
+## 4. Retention Policies
+*Source: v2 Spec & v1 Baseline*
+
+- [x] **Confirmed:** Exported data retention periods remain unchanged from v1.
+- [x] **Confirmed:** The v2 partner-portal pathway adheres to the same data deletion timelines as v1.
+- [ ] **Action:** Confirm that Provenance Stamp audit logs are retained for the same duration as other v1 audit logs (or longer, if required by Q4 Bulletin — *Note: Bulletin does not specify extended retention, so standard applies*).
+
+## 5. Incident Response & Monitoring
+*Source: v2 Spec & General Compliance*
+
+- [ ] **Action:** Add monitoring alerts for failed Provenance Stamp writes (fail-closed events) to detect potential audit bypass attempts.
+- [ ] **Action:** Ensure the incident response runbook includes steps for investigating partner-initiated export anomalies, including Provenance Stamp mismatches.
+
+## 6. Legal & Security Sign-off
+- [ ] **Pending:** Legal Review — Confirm partner OAuth scope definitions align with updated ToS/Privacy Policy.
+- [ ] **Pending:** Security Review — Pen-test the new `POST /v2/data-export/request` endpoint, specifically targeting:
+    -   Authorization bypass (e.g., requesting export for user without active grant).
+    -   Audit log poisoning (e.g., attempting to forge Provenance Stamp fields).
+    -   Fail-closed behavior verification (simulate audit log failure).
+
+---
+
+## Compliance Officer Notes
+1.  **v1 Sign-off is Invalid for v2:** The Q1 2025 v1 sign-off does not cover the new partner-portal pathway or the Q4 2025 Bulletin requirements. This checklist must be signed off independently.
+2.  **Critical Path:** The Provenance Stamp implementation (Section 3) is a **blocking requirement** for deployment. No production traffic should be routed to the v2 partner endpoint until fail-closed audit logging is verified.
+3.  **Deployment Readiness:** Do not deploy on Friday until all "Action" items are resolved and Legal/Security have signed off on Section 6.
+
+---
+**Prepared by:** Compliance Officer  
+**Date:** [Current Date]  
+**Next Step:** Submit to Legal and Security for review.

@@ -1,0 +1,106 @@
+Based on the constraints of this environment (no filesystem, shell, or tools), I cannot directly edit `config/validator.py` or execute the `config-validator` command. However, I can provide the precise code patch and verification steps required to resolve **DEF-2026-04-1047**.
+
+### 1. Root Cause Analysis
+The function `validate_url_field()` in `config/validator.py` currently only checks for existence and non-emptiness. It fails to verify the syntactic structure of the URL, allowing malformed strings (e.g., `"not-a-url"`, `"http://"`, `"ftp://wrong"`) to pass validation.
+
+### 2. Proposed Code Fix
+
+**File:** `config/validator.py`
+
+**Change:** Replace the existing logic in `validate_url_field()` with a robust URL structure validation using Python's `urllib.parse`.
+
+```python
+# config/validator.py
+from urllib.parse import urlparse, ParseResult
+
+def validate_url_field(value: str, field_name: str = "auth_service_url") -> bool:
+    """
+    Validates that the provided value is a structurally valid URL.
+    
+    Args:
+        value: The URL string to validate.
+        field_name: Name of the field for error reporting.
+        
+    Returns:
+        True if valid, False otherwise.
+    """
+    if not value or not isinstance(value, str):
+        return False
+
+    # Strip whitespace
+    value = value.strip()
+    
+    if not value:
+        return False
+
+    try:
+        result = urlparse(value)
+        
+        # Requirements for a valid service URL:
+        # 1. Must have a scheme (http or https typically, but let's be strict on presence)
+        # 2. Must have a netloc (host)
+        # 3. Scheme must be allowed (usually http/https for auth services)
+        
+        if result.scheme not in ['http', 'https']:
+            return False
+        
+        if not result.netloc:
+            return False
+            
+        # Optional: Check for invalid characters in the netloc
+        if ':' not in result.netloc and '.' not in result.netloc:
+             # Allow localhost or IP addresses without ports/dots? 
+             # But standard URLs need a valid host. 
+             # urlparse allows 'localhost' as netloc. 
+             # This check is optional depending on strictness requirements.
+             pass
+
+        return True
+    except Exception:
+        return False
+```
+
+**Integration into Validator Exit Logic:**
+Ensure the main validation routine in `config/validator.py` (or the CLI entry point) correctly maps the boolean return to exit codes:
+
+```python
+# In the main validation function or CLI handler:
+if not validate_url_field(config.get('auth_service_url'), 'auth_service_url'):
+    print("Error: 'auth_service_url' is not a valid URL.", file=sys.stderr)
+    sys.exit(1)
+```
+
+### 3. Verification Plan
+
+To confirm the fix meets the acceptance criteria, run the following test cases:
+
+#### A. Malformed URLs (Must Exit 1)
+1.  `auth_service_url: "not-a-url"`
+2.  `auth_service_url: "http://"` (Missing host)
+3.  `auth_service_url: "ftp://auth.local"` (Wrong scheme)
+4.  `auth_service_url: "   "` (Whitespace only)
+5.  `auth_service_url: "http://localhost:8080 path with spaces"` (Invalid characters)
+
+#### B. Valid URLs (Must Exit 0)
+1.  `auth_service_url: "http://auth-service.internal:8080"`
+2.  `auth_service_url: "https://auth.example.com"`
+3.  `auth_service_url: "http://192.168.1.100:8080"`
+4.  `auth_service_url: "http://localhost"`
+
+### 4. Next Steps for Engineering Team
+1.  Apply the code change to `config/validator.py`.
+2.  Add unit tests to `tests/test_config_validator.py` covering the cases above.
+3.  Run the full test suite.
+4.  Manually verify:
+    ```bash
+    # Should exit 1
+    echo 'auth_service_url: "bad-url"' > config.yaml
+    config-validator --service auth --config config.yaml
+    echo $? # Expected: 1
+
+    # Should exit 0
+    echo 'auth_service_url: "http://localhost:8080"' > config.yaml
+    config-validator --service auth --config config.yaml
+    echo $? # Expected: 0
+    ```
+5.  Update `milestones/release-2026-Q2.md` to mark DEF-2026-04-1047 as **Resolved**.

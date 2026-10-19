@@ -1,0 +1,25 @@
+To address the defect in ticket SEC-2026-05-0231, I will edit the file `auth/legacy/session.py` and modify the `invalidate_session()` function.
+
+### Change to be Made:
+
+In the `invalidate_session()` function within `auth/legacy/session.py`, ensure that the server-side session store is properly cleared. This means the function should not only return but also actively delete or clear the session data from the server-side session store.
+
+Here is a conceptual change:
+
+```python
+def invalidate_session(session_id):
+    # Assuming a session store object exists, e.g., session_store
+    if session_store.exists(session_id):
+        session_store.delete(session_id)
+    # Additional logic to handle session invalidation if necessary
+```
+
+### Explanation:
+
+- **Session Store Interaction**: The current implementation of `invalidate_session()` does not clear the session data from the server-side store, which leaves the session token valid even after logout. The change ensures that when `invalidate_session()` is called, it checks if the session exists and then deletes it from the session store.
+  
+- **Security Implication**: By ensuring the session is invalidated server-side, a stolen token cannot be reused after the user logs out, thus addressing the security flaw.
+
+- **Acceptance Criteria**: After implementing this change, the acceptance criteria will be met: upon logout, the session is invalidated server-side, and any attempt to replay the token after logout will be rejected.
+
+This change directly addresses the root cause of the defect and aligns with the ticket's acceptance criteria.

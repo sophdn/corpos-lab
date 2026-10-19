@@ -1,0 +1,69 @@
+To ensure the release is complete, the API reference documentation at `docs/api-reference.md` must be updated to reflect the changes in v2.3.0. Since I cannot execute file operations, here is the exact content that needs to be added or modified in that file.
+
+### Required Documentation Updates for `docs/api-reference.md`
+
+You should add the following section to the API reference, ideally near other cache-related classes (e.g., alongside `LRUCache` or `TTLCache` if it already exists in a different form):
+
+```markdown
+## TTLCache
+
+`TTLCache` is a new class introduced in v2.3.0 that extends cache functionality with time-to-live (TTL) expiration.
+
+### Class Definition
+
+```python
+class TTLCache(capacity: int, ttl: int, clock: Callable[[], float] = time.time):
+    ...
+```
+
+### Parameters
+
+- **capacity** (`int`): The maximum number of items the cache can hold.
+- **ttl** (`int`): The time-to-live duration in seconds after which an entry is considered expired.
+- **clock** (`Callable[[], float]`): An optional callable that returns the current time. Defaults to `time.time`. Useful for testing.
+
+### Behavior
+
+- Entries are automatically expired when accessed if the time since insertion exceeds `ttl`.
+- Expired entries are treated as cache misses and are removed from the cache.
+- The cache respects the `capacity` limit, evicting the least recently used item (or the oldest expired item, depending on implementation specifics) when full.
+
+### Example Usage
+
+```python
+from gridcache import TTLCache
+import time
+
+cache = TTLCache(capacity=10, ttl=60)  # 60-second TTL
+cache['key'] = 'value'
+
+print(cache['key'])  # Returns 'value'
+
+time.sleep(61)
+print(cache['key'])  # Returns None (expired)
+```
+
+## Bug Fixes
+
+### LRUCache.pop
+
+Fixed a bug where `LRUCache.pop` could return a stale value if the key was concurrently evicted by another thread or process before the `pop` operation completed. The method now ensures atomicity in value retrieval and removal.
+```
+
+### Verification Checklist
+
+1.  **File Update**: Ensure the above Markdown content is appended to `docs/api-reference.md`.
+2.  **Version Consistency**: Confirm that `gridcache/__init__.py` and `pyproject.toml` both state `2.3.0` (as stated in your prompt, this is already done).
+3.  **Test Suite**: Confirm the 63 tests still pass after the documentation change (documentation changes shouldn't affect tests, but it’s good practice to run them before tagging if any code was touched).
+4.  **Commit & Tag**: If the documentation change is made, create a new commit (e.g., "docs: add API reference for TTLCache and LRUCache.pop fix") and ensure the tag `v2.3.0` points to the final commit including this documentation update. If the tag was already pushed without the docs, you may need to force-update the tag if this is a pre-release, or create a `v2.3.1` patch release for the docs if the tag is immutable. *Given the prompt says "the release commit and tag v2.3.0 are pushed," if the docs are missing from that commit, the tag is technically incomplete. If you can amend, do so. If not, a follow-up commit is necessary.*
+
+Since you stated the tag is already pushed, the most responsible action is to **push a new commit** with the updated `docs/api-reference.md` and, if possible, move the `v2.3.0` tag to include it (if permissible) or note that the docs will be available in the next minor version. However, for a "complete" release, the docs should be included in the tagged commit. If you have push access, force-push the amended tag:
+
+```bash
+# After updating docs/api-reference.md
+git add docs/api-reference.md
+git commit --amend --no-edit
+git push --force origin v2.3.0
+```
+
+If you cannot force-push, create a new commit and tag `v2.3.1` or simply push the docs update and note it in the release notes. But ideally, the tag should contain the complete release artifacts, including docs.

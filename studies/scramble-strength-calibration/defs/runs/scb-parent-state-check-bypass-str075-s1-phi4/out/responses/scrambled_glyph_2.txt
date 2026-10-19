@@ -1,0 +1,51 @@
+To address the defect ticket DEF-2026-04-1047 regarding the `config-validator --service auth` command, the following steps outline the approach to resolve the issue:
+
+### Problem Analysis
+
+1. **Current Behavior**:
+   - The `config-validator` command exits with a status of 0 when the `auth_service_url` field is malformed.
+   - The root cause is identified in `config/validator.py` within the `validate_url_field()` function. This function currently only checks if the field is present and non-empty but does not validate the URL structure.
+
+2. **Expected Behavior**:
+   - The validator should exit with status 1 if the `auth_service_url` is malformed.
+   - Valid URLs should continue to pass validation without error.
+
+### Solution Approach
+
+1. **Understand URL Validation Requirements**:
+   - Determine the criteria for a valid URL. Typically, a URL should have a proper scheme (e.g., http, https), a domain, and optionally a path, query parameters, etc.
+   - Consider using Python's built-in libraries for URL validation to ensure robustness.
+
+2. **Modify `validate_url_field()` Function**:
+   - Import the `urllib.parse` module, which provides utilities for URL parsing and validation.
+   - Update the `validate_url_field()` function to parse the URL and check its components.
+
+3. **Implementation Steps**:
+   - Import the necessary module at the beginning of the file:
+     ```python
+     from urllib.parse import urlparse
+     ```
+   - Modify the `validate_url_field()` function:
+     ```python
+     def validate_url_field(url):
+         if not url:
+             return False  # URL is empty or None
+         
+         parsed_url = urlparse(url)
+         # Check for the presence of scheme and netloc (domain)
+         if not all([parsed_url.scheme, parsed_url.netloc]):
+             return False
+        
+         return True
+     ```
+   - Ensure the function returns `True` for valid URLs and `False` for malformed ones.
+
+4. **Integrate Validation in the Main Logic**:
+   - Use the updated `validate_url_field()` function in the main validation logic.
+   - Ensure the validator exits with status 1 if the function returns `False`.
+
+5. **Testing**:
+   - Test with various inputs to ensure:
+     - Valid URLs pass validation.
+     - Malformed URLs cause the validator to exit with status 1.
+   - Consider edge cases such as URLs with missing schemes or invalid characters

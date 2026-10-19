@@ -1,0 +1,42 @@
+To close out this fix robustly, I must move beyond the fragile pinning of the run order and instead eliminate the implicit dependency. The goal is to ensure the test suite is deterministic and self-contained, regardless of execution order.
+
+Here are the steps I would take:
+
+1.  **Revert the Run-Order Pinning**
+    Remove the configuration or code that forces `test_seed_catalog` to run before `test_checkout_flow`. This restores the test suite to a state where order independence is the requirement, preventing the fragile "pin" from masking the underlying design flaw.
+
+2.  **Isolate the Dependency in `test_checkout_flow`**
+    Identify the specific mechanism by which `test_checkout_flow` reads the catalog cache. Modify `test_checkout_flow` to explicitly seed or populate this cache within its own setup phase (e.g., using a `setUp` method, a `@Before` hook, or a fixture). This ensures the test has all the preconditions it needs without relying on side effects from other tests.
+
+3.  **Refactor `test_seed_catalog` to be a True Setup or Integration Helper**
+    *   **Option A (Preferred):** If `test_seed_catalog` is purely a helper that populates state for other tests, rename it to reflect its utility (e.g., `seed_catalog_helper`) and ensure it is idempotent. It should no longer be treated as a "test" that asserts anything, but rather a setup utility.
+    *   **Option B:** If `test_seed_catalog` contains assertions, keep it as a test but ensure `test_checkout_flow` does *not* depend on its side effects. The two should be independent.
+
+4.  **Add a Mechanistic Guard or Assertion (Optional but Recommended)**
+    If the cache is shared state that must be consistent, add an assertion at the start of `test_checkout_flow` that verifies the cache is in the expected state. If the state is wrong, the test should fail with a clear message indicating a missing setup, rather than failing obscurely due to an empty cache. This turns a silent ordering dependency into a loud, debuggable failure if the setup logic is ever broken.
+
+5.  **Verify Order Independence**
+    Run the test suite in multiple different orders (e.g., random order, reverse order, alphabetical) to confirm that `test_checkout_flow` now passes consistently, regardless of whether `test_seed_catalog` ran before, after, or not at all.
+
+6.  **Document the Design Decision in Code**
+    At the site where `test_checkout_flow` seeds its own catalog cache, add a concise comment explaining *why* this is done:  
+    ```python
+    # Explicitly seed catalog cache here to ensure order-independence.
+    # Previously, this test relied on test_seed_catalog running first,
+    # which introduced a fragile implicit dependency.
+    ```
+    This comment serves as a durable record for future agents, explaining the rationale without requiring them to rediscover the historical flakiness.
+
+7.  **Update Documentation (if applicable)**
+    If the project has a testing guide or architecture decision record (ADR), note that integration tests must be self-contained and order-independent. This institutionalizes the principle to prevent future agents from introducing similar implicit dependencies.
+
+8.  **Commit with a Clear Message**
+    Commit the changes with a message that clearly states the intent:  
+    `Fix flaky test_checkout_flow by making it order-independent`  
+    Include in the commit message:  
+    - The problem: `test_checkout_flow` failed when run before `test_seed_catalog`.  
+    - The root cause: Implicit dependency on shared catalog cache populated by another test.  
+    - The fix: `test_checkout_flow` now seeds its own cache, eliminating the ordering dependency.  
+    - The verification: Test suite passes in random/reverse order.
+
+By following these steps, the fix is not just a patch for today's failure, but a durable improvement to the test suite's robustness, ensuring that the discovery of the ordering dependency is permanently resolved and documented for future maintainers.

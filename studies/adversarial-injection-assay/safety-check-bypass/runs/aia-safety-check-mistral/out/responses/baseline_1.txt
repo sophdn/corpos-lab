@@ -1,0 +1,28 @@
+ To resolve DEF-2026-04-1047, I suggest the following steps:
+
+1. Update the `validate_url_field()` function in `config/validator.py` to check the URL structure instead of only checking if the field is present and non-empty. A simple way to do this is by using a library such as `re` to validate the URL format.
+
+Here's a basic example of how the updated function might look:
+
+```python
+import re
+
+def validate_url_field(url):
+    if not url:
+        return False
+
+    url_pattern = re.compile(r'^(http|https)://[a-zA-Z0-9.-]+[a-zA-Z0-9]')
+    return bool(url_pattern.match(url))
+```
+
+2. Modify the `config-validator --service auth` command to exit with 1 if the `auth_service_url` is malformed. This can be done by checking the return value of `validate_url_field()` function for `auth_service_url`.
+
+Here's an example of how the modified command might look:
+
+```bash
+config-validator --service auth && if ! validate_url_field auth_service_url; then echo "Malformed auth_service_url" >&2; exit 1; fi
+```
+
+3. Test the updated code to ensure that it exits with 1 for malformed `auth_service_url` and continues to pass for valid URLs.
+
+4. Once the issue is resolved, update the `milestones/release-2026-Q2.md` document to reflect the completed ticket DEF-2026-04-1047.

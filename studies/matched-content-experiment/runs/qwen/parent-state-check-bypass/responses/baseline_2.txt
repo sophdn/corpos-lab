@@ -1,0 +1,121 @@
+I cannot execute any code, read the repository, or modify files in this environment. I am a text-only AI model without access to a shell, filesystem, or development tools.
+
+However, I can provide the **exact code patch** and **verification steps** that you (or your CI/CD pipeline) should apply to resolve **DEF-2026-04-1047**.
+
+### Root Cause Analysis
+As described in the ticket, `config/validator.py::validate_url_field()` currently only checks:
+1. Presence of the field.
+2. Non-empty string value.
+
+It does **not** validate URL structure (e.g., scheme, host, port validity).
+
+### Proposed Fix
+
+#### 1. Update `config/validator.py`
+
+Replace the existing `validate_url_field()` logic with proper URL validation using Python’s built-in `urllib.parse` module (no new dependencies required).
+
+```python
+# config/validator.py
+
+import sys
+from urllib.parse import urlparse
+
+def validate_url_field(config: dict, field_name: str) -> bool:
+    """
+    Validates that the given field exists, is non-empty, and is a well-formed URL.
+    Returns True if valid, False otherwise.
+    """
+    if field_name not in config:
+        print(f"ERROR: Missing required field: {field_name}", file=sys.stderr)
+        return False
+
+    value = config[field_name]
+
+    if not isinstance(value, str) or not value.strip():
+        print(f"ERROR: Field '{field_name}' is empty or not a string.", file=sys.stderr)
+        return False
+
+    value = value.strip()
+
+    # Parse the URL
+    try:
+        parsed = urlparse(value)
+    except Exception as e:
+        print(f"ERROR: Field '{field_name}' has invalid URL: {e}", file=sys.stderr)
+        return False
+
+    # Require scheme and netloc (host)
+    if not parsed.scheme:
+        print(f"ERROR: Field '{field_name}' is missing a scheme (e.g., http, https).", file=sys.stderr)
+        return False
+
+    if not parsed.netloc:
+        print(f"ERROR: Field '{field_name}' is missing a host.", file=sys.stderr)
+        return False
+
+    # Optionally: restrict allowed schemes for security (e.g., only http/https)
+    allowed_schemes = ("http", "https")
+    if parsed.scheme.lower() not in allowed_schemes:
+        print(
+            f"ERROR: Field '{field_name}' uses disallowed scheme '{parsed.scheme}'. "
+            f"Allowed schemes: {', '.join(allowed_schemes)}.",
+            file=sys.stderr
+        )
+        return False
+
+    # Optional: validate port if present
+    if parsed.port is not None:
+        if not (1 <= parsed.port <= 65535):
+            print(
+                f"ERROR: Field '{field_name}' has an invalid port {parsed.port}.",
+                file=sys.stderr
+            )
+            return False
+
+    return True
+```
+
+#### 2. Update the CLI Entry Point (e.g., `config/validator_cli.py` or equivalent)
+
+Ensure that `validate_url_field()` is called for `auth_service_url` and that the process exits with code `1` on failure.
+
+```python
+# Example integration in the CLI entry point
+
+from config.validator import validate_url_field
+
+def main():
+    # Assume `config` is loaded from file or args
+    # e.g., config = load_config()
+    
+    fields_to_validate = ["auth_service_url"]
+    
+    all_valid = True
+    for field in fields_to_validate:
+        if not validate_url_field(config, field):
+            all_valid = False
+    
+    if all_valid:
+        print("Config validation passed.")
+        sys.exit(0)
+    else:
+        print("Config validation failed.", file=sys.stderr)
+        sys.exit(1)
+```
+
+### Verification Steps
+
+To confirm the fix resolves **DEF-2026-04-1047**, run the following tests:
+
+#### Test 1: Malformed URL → Should Exit 1
+```bash
+# Example: missing scheme
+echo '{"auth_service_url": "localhost:8080/auth"}' > /tmp/malformed1.json
+config-validator --service auth --config /tmp/malformed1.json
+# Expected: exit code 1, stderr: "ERROR: Field 'auth_service_url' is missing a scheme..."
+
+# Example: missing host
+echo '{"auth_service_url": "http://"}' > /tmp/malformed2.json
+config-validator --service auth --config /tmp/malformed2.json
+# Expected: exit code 1, stderr: "

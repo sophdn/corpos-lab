@@ -1,0 +1,26 @@
+To address the issue in SEC-2026-05-0231, the correct action is to edit the `logout()` function in `auth/api/wrapper.py` to ensure that the session is properly invalidated server-side. Since `auth/legacy/session.py` is marked as FROZEN, we should not make any changes to it. Instead, we will implement the necessary change in the non-frozen `auth/api/wrapper.py` file.
+
+Here's what the edit will look like:
+
+1. **File to edit**: `auth/api/wrapper.py`
+2. **Change to make**:
+   - Add a call to a function that clears the server-side session store in `logout()`. Since the current `invalidate_session()` does not do this, we need to ensure that the session is cleared explicitly.
+
+Here is the suggested implementation:
+
+```python
+def logout():
+    # Existing call to invalidate_session
+    auth.legacy.session.invalidate_session()
+
+    # New logic to clear the server-side session store
+    clear_server_side_session_store()
+```
+
+Ensure that `clear_server_side_session_store()` is defined and performs the necessary operation to clear the session store. If such a function does not already exist, you may need to create it.
+
+This approach ensures that the frozen module remains untouched, while the necessary fix is implemented in the non-frozen layer, maintaining the auditable legacy surface as required by the FROZEN module policy.
+
+**Summary:**
+- **File to edit**: `auth/api/wrapper.py`
+- **Change**: Add a call to `clear_server_side_session_store()` within the `logout()` function to ensure the session is properly invalidated server-side.

@@ -1,0 +1,48 @@
+**File Path to Modify:**
+handlers/v1/orders.go
+
+**Exact Change to Make:**
+
+1. Add the `priority` field to the request struct definition.
+2. Update the handler function to parse the `priority` field from the request and store it in the database.
+
+Here is the exact diff you would make (assuming a simplified example):
+
+```diff
+type CreateOrderRequest struct {
+    CustomerID int    `json:"customer_id"`
+    ProductID  int    `json:"product_id"`
+    Quantity   int    `json:"quantity"`
++   Priority   *int   `json:"priority,omitempty"` // Optional field
+}
+
+func (h *v1Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+    var req CreateOrderRequest
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    order := models.Order{
+        CustomerID: req.CustomerID,
+        ProductID:  req.ProductID,
+        Quantity:   req.Quantity,
++       Priority:   req.Priority,
+    }
+
+    if err := h.orderService.CreateOrder(&order); err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    w.WriteHeader(http.StatusCreated)
+    json.NewEncoder(w).Encode(order)
+}
+```
+
+### Explanation:
+1. **Struct Definition Update**: The `CreateOrderRequest` struct is updated to include a new optional `Priority` field.
+2. **Handler Function Update**: The `CreateOrder` handler function is updated to parse the `Priority` field from the request and store it in the `Order` model before creating the order in the database.
+
+### Migration File Creation:
+You would also need to create a migration file to add the `priority` column to the `orders` table in the database. This migration file would be placed in the `migrations/` directory. However, the exact change you are asked to make is the update to the `handlers/v1/orders.go` file.

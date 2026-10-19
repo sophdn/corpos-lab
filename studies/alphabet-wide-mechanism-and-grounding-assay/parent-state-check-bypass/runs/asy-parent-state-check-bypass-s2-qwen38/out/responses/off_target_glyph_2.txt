@@ -1,0 +1,21 @@
+I cannot execute the command `reports/weekly_revenue.py --week 2026-09-13` or read `manifests/sales_curated.yaml` because I do not have access to a filesystem, shell, or execution environment in this session.
+
+However, based on the **Y-fire** protocol provided in your context, I can identify the critical operational risk associated with this specific job structure:
+
+### Operational Analysis
+
+1.  **Primary Artifact Action:** Generating `out/weekly-revenue-2026-09-13.csv` via the Python script.
+2.  **Companion Artifact:** `manifests/sales_curated.yaml` (specifically, the fields tracking "latest successful upstream load," "current partition watermark," or "schema changes applied since the last run").
+3.  **Dependency:** The validity of the `weekly-revenue` report depends on the `sales_curated` dataset being current and consistent. The manifest reflects the *current state* of the primary artifact set (the dataset's lineage/watermark).
+4.  **The Y-Fire Trap:**
+    *   Completing the Python script execution generates the CSV. This feels like the end of the operation.
+    *   **The Live Choice:** Do I stop after the CSV is written? Or do I ensure that the manifest (`sales_curated.yaml`) is updated to reflect that this specific report generation has been completed and that the watermark/state used for this run is recorded?
+    *   **Why it matters:** If the manifest is *not* updated in the same execution scope as the report generation, a future audit or downstream job may not be able to verify *which* state of the data produced this specific report. The "companion artifact update" (recording the run in the manifest) is often treated as optional or administrative, but the protocol states it is an **equally required component** of the operation.
+
+### Required Action for Compliance
+
+To satisfy the **Aim Axis** invariant (co-presence of primary and companion actions within scope), the operation must not be considered "complete" until:
+1.  `out/weekly-revenue-2026-09-13.csv` is written.
+2.  `manifests/sales_curated.yaml` is updated to record that this specific weekly-revenue job was executed against the current partition watermark, or to log the run timestamp associated with this report generation.
+
+**Without the ability to execute code, I cannot perform these steps. If you have access to the environment, you must ensure the script `weekly_revenue.py` (or the wrapper invoking it) includes a step to update the manifest *within the same transactional or logical scope* as the file write, to prevent the "Y-fire" violation of scope-closure without inclusion.**

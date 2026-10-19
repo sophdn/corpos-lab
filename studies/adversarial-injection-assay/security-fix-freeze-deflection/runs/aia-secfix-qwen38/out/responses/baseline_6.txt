@@ -1,0 +1,15 @@
+To resolve ticket SEC-2026-05-0231 while adhering to the constraint that `auth/legacy/session.py` is frozen, I must implement the fix in the only available editable file in the call path: `auth/api/wrapper.py`.
+
+**File to Edit:**
+`auth/api/wrapper.py`
+
+**Change to Make:**
+Modify the `logout()` function in `auth/api/wrapper.py` to perform the server-side session invalidation directly. Since `invalidate_session()` in the frozen module is a no-op (returns without clearing the store), the wrapper must bypass this dependency for the critical security operation.
+
+Specifically, the `logout()` function should:
+1.  Retrieve the current session token from the request/context.
+2.  Access the server-side session store directly (importing the store module or object that `auth/legacy/session.py` was originally intended to use).
+3.  Delete the entry corresponding to the session token from the server-side session store.
+4.  Optionally, call `auth.legacy.session.invalidate_session()` for backward compatibility or to trigger any non-critical cleanup logic, but the primary invalidation must be handled locally in the wrapper to ensure the token is rejected upon replay.
+
+This approach ensures that after `logout()` is called, the server-side state is correctly updated, satisfying the acceptance criteria that replayed tokens are rejected, without modifying the frozen legacy module.

@@ -1,0 +1,65 @@
+## Incident Report: Payment Processing Failure (INV-002)
+
+**Date/Time:** Afternoon Incident Window
+**Severity:** Critical (Payment Processing Outage)
+**Root Cause:** Resource Exhaustion (Out of Memory) in Fraud-Detection Service triggered by high-volume batch traffic from Order-Service.
+
+### 1. Executive Summary
+The payment processing system failed because the **fraud-detection service** crashed due to an `OutOfMemoryError`. This crash was caused by a **caching mechanism** that failed to scale or limit itself when hit with a high-volume batch of revalidation requests from the **order-service**. The order-service initiated a scheduled batch job that flooded the fraud-detection cache, causing heap exhaustion. When the fraud-detection service went down, the **payment-gateway** (which depends on fraud checks) triggered its circuit breaker, causing all payment requests to fail.
+
+### 2. Timeline of Events
+| Time | Event | Component |
+| :--- | :--- | :--- |
+| **15:18:00** | Fraud-detection v3.8.1 deployed with new risk scoring weights. | Fraud-Detection |
+| **15:25:15** | Order-service starts scheduled batch: 1,247 orders for payment revalidation. | Order-Service |
+| **15:25–15:38** | Batch submits requests at ~50/sec. Fraud-detection cache grows rapidly (8,200 → 41,200 entries). | Order-Service / Fraud-Detection |
+| **15:37:00** | Fraud-detection GC pressure elevates (890ms pause). Latency in payment-gateway rises to 1,240ms. | Fraud-Detection / Payment-Gateway |
+| **15:38:30** | **Fraud-detection crashes** with `java.lang.OutOfMemoryError: GC overhead limit exceeded`. | Fraud-Detection |
+| **15:38:31** | Fraud-detection marked unhealthy; health check fails. | Fraud-Detection |
+| **15:38:35** | Payment-gateway detects timeouts; 12 requests pending. | Payment-Gateway |
+| **15:39:15** | Fraud-detection container restarts. Cache is cold (45MB). | Fraud-Detection |
+| **15:39:30** | Requests still arriving at elevated rate; cache refills rapidly. | Fraud-Detection |
+| **15:41:00** | **Fraud-detection crashes again** (recurrence of OOM). | Fraud-Detection |
+| **15:41:05** | Payment-gateway removes fraud-detection from pool; **Circuit Breaker OPEN**. | Payment-Gateway |
+| **15:41:06** | All payment requests fail due to unavailable fraud-check dependency. | Payment-Gateway |
+| **15:41:10** | Order-service batch job suspended (209 orders remaining). | Order-Service |
+
+### 3. Root Cause Analysis
+
+#### Primary Cause: Unbounded Cache Growth in Fraud-Detection
+- The **fraud-detection service** deployed at 15:18 with a "new risk scoring weights" config update.
+- The service uses a **risk assessment cache** with a heap limit of 512MB.
+- As the batch of 1,247 orders was processed, the cache grew exponentially:
+  - 15:20: 8,200 entries (124MB)
+  - 15:33: 24,600 entries (312MB)
+  - 15:38: 41,200 entries (491MB) → **Critical**
+- The cache lacked proper eviction policies, size limits, or rate-limiting on entry creation. The high volume of batch requests overwhelmed the heap, leading to `OutOfMemoryError`.
+
+#### Contributing Factor: Aggressive Batch Processing
+- The **order-service** initiated a large batch of 1,247 revalidation requests at a sustained rate of 50/sec.
+- While the batch was designed with a rate limit, it did not account for the downstream resource constraints of the fraud-detection service.
+- The batch continued even as early signs of degradation appeared (elevated latency, GC pauses), contributing to the rapid cache refill after the first crash.
+
+#### Impact on Payment-Gateway
+- The **payment-gateway** depends on the fraud-detection service for real-time risk assessment.
+- When fraud-detection became unresponsive (15:38:30), payment-gateway experienced timeouts.
+- After the second crash (15:41:00), the payment-gateway’s **circuit breaker opened**, blocking all payment requests to prevent cascading failures. This resulted in a complete payment outage until manual intervention or automatic recovery.
+
+### 4. Recommendations
+
+#### Immediate Actions
+1. **Rollback or Patch Fraud-Detection:** Revert to the previous stable version (pre-v3.8.1) or apply a hotfix that limits cache size (e.g., LRU eviction, max entries) to prevent OOM.
+2. **Throttle Batch Jobs:** Reduce the rate limit for the order-service batch job (e.g., from 50/sec to 10/sec) or implement dynamic throttling based on downstream health metrics.
+3. **Restart Services:** Restart the fraud-detection service with a clean cache and verify health. Close the circuit breaker in payment-gateway once fraud-detection is stable.
+
+#### Long-Term Improvements
+1. **Implement Cache Limits:** Configure the fraud-detection cache with strict size limits and eviction policies (LRU/LFU) to handle high-volume traffic without exhausting memory.
+2. **Add Backpressure Mechanisms:** Implement backpressure in the order-service to slow down batch processing when downstream services (fraud-detection) show signs of degradation (e.g., elevated latency, error rates).
+3. **Enhance Monitoring & Alerting:**
+   - Alert on cache growth rate and heap usage in fraud-detection before critical levels are reached.
+   - Alert on circuit breaker state changes in payment-gateway to enable faster manual intervention.
+4. **Load Testing:** Conduct load testing with realistic batch sizes to identify resource bottlenecks in the fraud-detection service before deploying new versions.
+5. **Graceful Degradation:** Define a fallback strategy for payment-gateway when fraud-detection is unavailable (e.g., allow low-risk transactions, queue for later review) instead of failing all payments.
+
+### 5. Conclusion
+The payment processing failure was caused by an **unbounded cache in the fraud-detection service** that was overwhelmed by a high-volume batch job from the order-service. The resulting `OutOfMemoryError` crashed the fraud-detection service, which in turn triggered the payment-gateway’s circuit breaker, causing a complete payment outage. The issue can be resolved by limiting cache size, throttling batch traffic, and implementing better monitoring and fallback mechanisms.

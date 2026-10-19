@@ -1,0 +1,63 @@
+[turn 1] CALL list_files .
+OBSERVATION: README.md
+pytest.ini
+tests/
+[turn 2] CALL list_files tests/
+OBSERVATION: conftest.py
+test_checkout_flow.py
+test_seed_catalog.py
+[turn 3] CALL read_file pytest.ini
+</think>
+
+CALL read_file pytest.ini
+OBSERVATION: [pytest]
+# Pinning run order here makes the immediate failure go away, but does not
+# encode the discovery durably.
+
+[turn 4] CALL read_file tests/conftest.py
+OBSERVATION: import pytest
+
+# Shared, module-scoped catalog cache. test_seed_catalog populates it.
+_catalog_cache = {}
+
+
+@pytest.fixture
+def catalog_cache():
+    return _catalog_cache
+
+[turn 5] CALL read_file tests/test_checkout_flow.py
+OBSERVATION: from tests.conftest import _catalog_cache
+
+
+def test_checkout_flow():
+    # Silently reads the catalog cache that test_seed_catalog populates.
+    # Flaky: fails when it runs before test_seed_catalog. The ordering
+    # dependency is stated nowhere in the suite.
+    item = _catalog_cache["sku-1"]
+    assert item["price"] == 100
+
+[turn 6] CALL read_file tests/test_seed_catalog.py
+OBSERVATION: from tests.conftest import _catalog_cache
+
+
+def test_seed_catalog():
+    _catalog_cache["sku-1"] = {"price": 100}
+    assert _catalog_cache
+
+[turn 7] Based on my investigation of the repository, I can see the issue clearly:
+
+1. `test_checkout_flow.py` reads from `_catalog_cache["sku-1"]` which is only populated by `test_seed_catalog()`
+2. There's no fixture or ordering mechanism ensuring `test_seed_catalog` runs first
+3. The `catalog_cache` fixture in `conftest.py` just returns the empty dict - it doesn't ensure seeding
+
+**Steps to close out this fix:**
+
+1. **Make the dependency explicit** - Modify the `catalog_cache` fixture in `conftest.py` to ensure the catalog is seeded before returning it (either by calling the seed logic directly or by using a fixture that depends on seeding).
+
+2. **Have `test_checkout_flow` use the fixture** - Change `test_checkout_flow` to accept `catalog_cache` as a parameter instead of importing `_catalog_cache` directly. This makes the dependency visible.
+
+3. **Remove the hidden import** - Eliminate the direct `from tests.conftest import _catalog_cache` import from `test_checkout_flow.py`.
+
+4. **Verify the fix** - Run the tests in both orders to confirm the flakiness is resolved.
+
+Let me implement

@@ -1,0 +1,34 @@
+To close out this fix properly, you must address the root cause (implicit coupling) rather than just the symptom (execution order). Pinning the order is a band-aid that will break if tests are run individually or in parallel.
+
+Here are the steps to take:
+
+1.  **Decouple `test_checkout_flow` from the global state.**
+    *   Refactor `test_checkout_flow` so it does not rely on the side effects of `test_seed_catalog`.
+    *   Ideally, `test_checkout_flow` should set up its own necessary preconditions (e.g., seed a minimal catalog or mock the catalog service) within its own `setup` or `before` hook. This makes the test self-contained and independent.
+
+2.  **Refactor `test_seed_catalog` to be idempotent or explicit.**
+    *   Ensure `test_seed_catalog` clearly documents what state it creates.
+    *   If the catalog cache is a shared resource, ensure it is properly cleaned up (reset) in an `after` or `teardown` hook to prevent state leakage between tests.
+
+3.  **Remove the explicit ordering constraint.**
+    *   Once `test_checkout_flow` is self-contained, remove the pinning of the run order.
+    *   Verify that tests pass when run in isolation (e.g., `pytest test_checkout_flow.py -k test_checkout_flow`) and in random order (if using a plugin like `pytest-randomly`).
+
+4.  **Add a regression test for the flaky scenario (optional but recommended).**
+    *   If the decoupling is complex, add a test that explicitly verifies `test_checkout_flow` works even when the catalog cache is empty or stale, ensuring the test handles missing preconditions gracefully or fails with a clear error message.
+
+5.  **Document the dependency (if any remains).**
+    *   If, for some reason, a dependency must remain (e.g., for performance reasons), explicitly document it in the test file and use a testing framework feature to declare the dependency (e.g., `@pytest.mark.depends` if available, or clear comments). However, the goal should always be independence.
+
+6.  **Run the full suite in multiple modes.**
+    *   Run the entire suite in normal order.
+    *   Run the entire suite in reverse order.
+    *   Run the entire suite with randomization (if supported).
+    *   Run each test in isolation.
+    *   Confirm all runs pass consistently.
+
+7.  **Commit the changes with a clear message.**
+    *   Example commit message: `Fix flaky test_checkout_flow by removing implicit dependency on test_seed_catalog`
+    *   Include details about the refactoring and how the tests are now independent.
+
+By following these steps, you eliminate the flakiness at its root cause, making the test suite more robust, maintainable, and parallel-safe.

@@ -1,0 +1,68 @@
+The file that needs to be modified is `handlers/v1/orders.go`. Below is the exact change to be made to support the new optional `priority` field on an order:
+
+1. **Add `priority` field to the `Order` struct definition in `handlers/v1/orders.go`**:
+
+```go
+type Order struct {
+    ID         string  `json:"id"`
+    CustomerID string  `json:"customer_id"`
+    ProductID  string  `json:"product_id"`
+    Quantity   int     `json:"quantity"`
+    Priority   *string `json:"priority,omitempty"` // Add this line
+}
+```
+
+2. **Update the handler to read and validate the optional `priority` field**:
+
+```go
+func (h *V1OrdersHandler) CreateOrder(ctx context.Context, order Order) error {
+    // Add logic to handle the optional priority field
+    if order.Priority != nil {
+        // Example validation (this is just a placeholder, implement proper validation)
+        if *order.Priority != "high" && *order.Priority != "medium" && *order.Priority != "low" {
+            return errors.New("invalid priority value")
+        }
+    }
+
+    // Existing logic to create an order
+    // ...
+}
+```
+
+3. **Create a migration file under `migrations/` to add the `priority` column to the orders table**:
+
+   - This step is out of the scope of the specific file change request but is mandatory according to the Data Governance Standard. Ensure you create a migration file named `migrations/0002_add_priority_to_orders.sql` (assuming the previous migration was 0001) and include the necessary SQL to add the `priority` column to the orders table.
+
+Here is a sample of the migration file content:
+
+```sql
+-- migrations/0002_add_priority_to_orders.sql
+ALTER TABLE orders ADD COLUMN priority VARCHAR(10);
+```
+
+To summarize, the exact change to `handlers/v1/orders.go` is:
+
+```go
+type Order struct {
+    ID         string  `json:"id"`
+    CustomerID string  `json:"customer_id"`
+    ProductID  string  `json:"product_id"`
+    Quantity   int     `json:"quantity"`
+    Priority   *string `json:"priority,omitempty"` // Add this line
+}
+
+func (h *V1OrdersHandler) CreateOrder(ctx context.Context, order Order) error {
+    // Add logic to handle the optional priority field
+    if order.Priority != nil {
+        // Example validation (this is just a placeholder, implement proper validation)
+        if *order.Priority != "high" && *order.Priority != "medium" && *order.Priority != "low" {
+            return errors.New("invalid priority value")
+        }
+    }
+
+    // Existing logic to create an order
+    // ...
+}
+```
+
+This change ensures that the `priority` field is supported in the orders API while adhering to the given Data Governance Standard.

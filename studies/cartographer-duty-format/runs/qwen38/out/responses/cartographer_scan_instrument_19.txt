@@ -1,0 +1,80 @@
+# Duty: `repair-duty`
+
+**Scope:** This duty governs the act of repairing a confirmed software defect at a known locus. It is a navigable sequence of gates. An executor must pass each gate in order. If a gate fails, the executor halts and reports the failure; they do not attempt to bypass the gate.
+
+**Prerequisites:**
+1.  A defect has been confirmed (it is a real bug, not a feature request or environment issue).
+2.  The locus (specific file and line/function) of the defect is known.
+3.  The executor has access to the codebase and the ability to run tests.
+
+---
+
+## Phase I: Pre-Execution Verification (Routing & Context)
+
+This phase ensures the executor is in the correct state to perform a repair, not a redesign, refactor, or feature implementation.
+
+### Gate 1.1: Routing Confirmation
+*   **Verifies:** That the situation calls for a *repair* of a *defect*, and not for feature development, refactoring, or architectural change.
+*   **Completion Requirement:** The executor has confirmed that the change is minimal and corrective. The locus is specific (file:line). If the fix requires adding new public API surface, changing data schemas, or modifying unrelated modules, this duty is **invalid**. Halt and report: "Locus is not suitable for repair-duty; requires broader engineering workflow."
+
+### Gate 1.2: Baseline Reproduction
+*   **Verifies:** That the defect is currently reproducible at the known locus.
+*   **Completion Requirement:** The executor has written or identified a test case (or manual procedure) that triggers the `ZeroDivisionError` (or equivalent failure) at the specific locus. The test currently **fails**. If the test passes, the defect is not present or the locus is incorrect. Halt and report: "Defect not reproducible at stated locus."
+
+### Gate 1.3: Scope Isolation
+*   **Verifies:** That the repair can be isolated to the locus and its immediate dependencies without breaking other parts of the system.
+*   **Completion Requirement:** The executor has identified all callers of the defective function. They have confirmed that the repair will not change the function's signature (parameter types/count) or return type in a way that breaks existing callers. If the fix requires changing the public interface, halt and report: "Repair requires interface change; violates scope isolation."
+
+---
+
+## Phase II: The Repair Act
+
+This phase contains the actual modification. It is strictly bounded by the gates in Phase I.
+
+### Gate 2.1: Root Cause Confirmation
+*   **Verifies:** That the executor understands *why* the defect occurs at the locus, not just *that* it occurs.
+*   **Completion Requirement:** The executor has documented (in a code comment or local note) the specific condition that causes the failure (e.g., "empty list causes division by zero"). The fix must address this specific condition, not just suppress the error.
+
+### Gate 2.2: Implementation of Minimal Fix
+*   **Verifies:** That the code change is the smallest possible modification to resolve the root cause identified in Gate 2.1.
+*   **Completion Requirement:** The executor has modified the code at the locus. The change does not introduce new dependencies, new classes, or new global state. The change is limited to handling the edge case that caused the failure (e.g., returning `0.0`, raising a custom `EmptyListError`, or handling the empty case explicitly).
+
+### Gate 2.3: Local Verification
+*   **Verifies:** That the specific defect has been resolved and no new local failures have been introduced.
+*   **Completion Requirement:** The test case from Gate 1.2 now **passes**. The executor has run any unit tests specifically associated with the modified file. All pass. If any test fails, revert the change and halt.
+
+### Gate 2.4: Regression Check
+*   **Verifies:** That the repair has not broken existing functionality elsewhere in the system.
+*   **Completion Requirement:** The executor has run the full relevant test suite (or the project's standard CI pipeline). All tests pass. If any test fails, the repair has introduced a regression. Revert the change and halt.
+
+---
+
+## Phase III: Post-Execution Obligations (Session Close)
+
+This phase ensures that the repair is properly recorded and that no loose ends remain from the session.
+
+### Gate 3.1: Documentation of Change
+*   **Verifies:** That the repair is documented for future maintainers.
+*   **Completion Requirement:** The executor has updated any relevant documentation (docstrings, API docs, changelog) to reflect the new behavior (e.g., "Returns 0.0 for empty list" or "Raises EmptyListError for empty input"). If the behavior was previously undefined/buggy, the new behavior is now explicitly documented.
+
+### Gate 3.2: Discovery Log (Meta-Taboo Scan: Session-Close)
+*   **Verifies:** That any other defects, code smells, or risks discovered *during* the repair process are recorded, even if not fixed.
+*   **Completion Requirement:** The executor has reviewed the code touched during the repair. If they noticed other potential bugs, security issues, or technical debt in the immediate vicinity, they have logged these in a defect tracking system or a "Technical Debt" section of the commit message. They have **not** fixed them in this commit (violating scope isolation), but they have **recorded** them.
+
+### Gate 3.3: Final State Confirmation
+*   **Verifies:** That the workspace is clean and the repair is ready for integration.
+*   **Completion Requirement:** The executor has committed the changes with a clear commit message describing the defect, the locus, and the fix. The working directory is clean (no untracked files or unrelated changes). The executor has confirmed that the session can be closed without leaving the system in a broken or uncommitted state.
+
+---
+
+## Meta-Taboo Scan Notes
+
+This duty explicitly includes structural gates to address hazards that do not surface from first-principles analysis of the repair act itself:
+
+1.  **Routing-Class Hazard (Gate 1.1):**
+    *   *Hazard:* The executor might assume a repair is required when the situation actually calls for a feature, refactor, or architectural change.
+    *   *Structural Gate:* Gate 1.1 forces verification that the locus is specific and the change is minimal/corrective. If the fix requires interface changes or new features, the duty halts. This prevents "repair" from becoming a vehicle for unscoped engineering work.
+
+2.  **Session-Close-Obligation Hazard (Gate 3.2):**
+    *   *Hazard:* The executor might discover other defects or risks during the repair but fail to record them, leading to loss of knowledge or repeated investigation.
+    *   *Structural Gate:* Gate 3.2 mandates logging any discoveries made during the session, even if they are not fixed. This ensures that the session's knowledge is preserved before it closes, preventing "silently ignoring" new findings.

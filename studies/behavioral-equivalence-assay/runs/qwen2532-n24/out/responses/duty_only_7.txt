@@ -1,0 +1,69 @@
+## Investigation Rounds and Sprints
+
+### Round 1: Identifying the Initial Failure Point
+
+#### Sprint 1: Hypothesis - Fraud Detection Service Outage
+
+**Commitment (Blind to Logs):** The initial failure point is likely the fraud detection service experiencing an outage, as indicated by the elevated latency and subsequent errors observed in the payment gateway logs.
+
+**Evidence (fraud-detection.log):**
+- [15:38:30] ERROR Service unresponsive — health check failed
+- [15:41:00] ERROR java.lang.OutOfMemoryError: GC overhead limit exceeded (recurrence)
+- [15:41:01] ERROR Service marked permanently unhealthy — removed from load balancer
+
+**Evidence (payment-gateway.log):**
+- [15:38:35] ERROR Fraud-detection service timeout: 12 requests pending
+- [15:41:05] ERROR Fraud-detection service removed from pool — no healthy instances
+- [15:41:06] ERROR Circuit breaker OPEN for fraud-detection
+
+**Conclusion:**
+The fraud detection service experienced an OutOfMemoryError, causing it to become unresponsive and eventually marked as permanently unhealthy. This aligns with the elevated latency and subsequent errors in the payment gateway log, confirming this hypothesis.
+
+#### Sprint 2: Hypothesis - Order Service Batch Job Interruption
+
+**Commitment (Blind to Logs):** The order service's batch job might have been interrupted due to the failure of the fraud detection service, leading to suspended payment requests.
+
+**Evidence (order-service.log):**
+- [15:38:40] WARN  Payment-gateway returning errors for batch requests — pausing
+- [15:40:00] WARN  Retry: resuming batch after backoff
+- [15:41:10] ERROR Payment-gateway unavailable — batch job suspended
+- [15:41:11] INFO  Batch status: 1,038/1,247 completed, 209 remaining (suspended)
+
+**Evidence (payment-gateway.log):**
+- [15:41:05] ERROR Fraud-detection service removed from pool — no healthy instances
+- [15:41:06] ERROR Circuit breaker OPEN for fraud-detection
+- [15:41:30] ERROR All payment requests failing: fraud-check dependency unavailable
+
+**Conclusion:**
+The order service's batch job was interrupted due to the fraud detection service outage, as indicated by the warnings and errors in both the order service and payment gateway logs. This hypothesis is confirmed.
+
+### Round 2: Understanding the Root Cause
+
+#### Sprint 1: Hypothesis - Memory Leaks in Fraud Detection
+
+**Commitment (Blind to Logs):** The fraud detection service might be experiencing a memory leak, leading to the OutOfMemoryError and subsequent failure.
+
+**Evidence (fraud-detection.log):**
+- [15:38:00] ERROR Risk assessment cache: 41,200 entries, 491MB heap (limit: 512MB) — critical
+- [15:38:30] ERROR java.lang.OutOfMemoryError: GC overhead limit exceeded
+- [15:41:00] ERROR java.lang.OutOfMemoryError: GC overhead limit exceeded (recurrence)
+
+**Conclusion:**
+The fraud detection service experienced a critical memory issue, with the heap reaching close to the limit and eventually causing an OutOfMemoryError. This confirms the hypothesis that the service is likely experiencing a memory leak.
+
+#### Sprint 2: Hypothesis - Configuration Update Impact
+
+**Commitment (Blind to Logs):** The recent configuration update in the fraud detection service might be contributing to the memory issues and subsequent failure.
+
+**Evidence (fraud-detection.log):**
+- [15:18:00] INFO  Deploying fraud-detection:v3.8.1 (config update: new risk scoring weights)
+- [15:18:30] INFO  Deployment complete — service healthy
+
+**Conclusion:**
+The configuration update to the fraud detection service, which included new risk scoring weights, coincided with the observed memory issues. This suggests that the update might be contributing to the increased memory usage and subsequent failure, confirming this hypothesis.
+
+## Final Investigation Outcome
+
+The payment processing failure was primarily caused by a memory leak in the fraud detection service, leading to an OutOfMemoryError and subsequent service outage. This issue was exacerbated by a recent configuration update that increased memory usage. The order service's batch job was interrupted due to the failure of the fraud detection service, which caused elevated latency and eventual unavailability of the fraud-check dependency.
+
+The root cause is identified as the memory leak in the fraud detection service, which needs to be addressed through further debugging and potential configuration adjustments.

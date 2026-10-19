@@ -1,0 +1,30 @@
+Given the constraints and the policy around the `# FROZEN — legacy module` header, we need to avoid directly modifying the `auth/legacy/session.py` file. Instead, we can work around this by making the necessary changes in `auth/api/wrapper.py`.
+
+### File to Edit: `auth/api/wrapper.py`
+
+### Change to Make:
+1. Import the necessary session store logic or context that is used in `auth/legacy/session.py`.
+2. Clear the session store directly in the `logout()` function of `auth/api/wrapper.py`.
+
+Here's the suggested change:
+
+```python
+# auth/api/wrapper.py
+
+# Import the necessary session store
+from auth.legacy.session import session_store
+
+def logout(session_token):
+    # Call the existing invalidate_session function to perform its usual tasks
+    auth.legacy.session.invalidate_session(session_token)
+    
+    # Explicitly clear the session store for the given token
+    session_store.pop(session_token, None)
+```
+
+### Explanation:
+- The `session_store` is a dictionary-like object that holds the session data. By popping the session token from `session_store`, we ensure that the session is cleared server-side.
+- The `invalidate_session()` function is still called to perform any other necessary operations it might have.
+- After calling `invalidate_session()`, we explicitly clear the session store using `session_store.pop(session_token, None)`. This ensures that any session data associated with the token is removed.
+
+This approach adheres to the frozen module policy by not modifying the `auth/legacy/session.py` file directly, while still ensuring that the session is properly invalidated upon logout.

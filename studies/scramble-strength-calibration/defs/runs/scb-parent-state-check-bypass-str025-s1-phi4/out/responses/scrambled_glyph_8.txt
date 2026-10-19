@@ -1,0 +1,62 @@
+To address the ticket DEF-2026-04-1047, we need to ensure that the `config-validator --service auth` exits with a status of 1 when a malformed `auth_service_url` is encountered. Currently, the `validate_url_field()` function in `config/validator.py` only checks for the presence and non-emptiness of the field, without verifying the URL's structure. Here's a step-by-step plan to implement the required changes:
+
+### Step 1: Import a URL Parsing Library
+
+To validate the URL structure, we can use Python's built-in `urllib.parse` module, which provides utilities for URL parsing and validation.
+
+```python
+from urllib.parse import urlparse
+```
+
+### Step 2: Update `validate_url_field()`
+
+We will modify the `validate_url_field()` function to include URL validation logic. The function should check if the URL is well-formed by using `urlparse` and ensuring that all necessary components (such as scheme and netloc) are present.
+
+```python
+def validate_url_field(url):
+    # Check if the URL is present and non-empty
+    if not url:
+        return False
+
+    # Parse the URL
+    parsed_url = urlparse(url)
+
+    # Validate URL structure
+    if not all([parsed_url.scheme, parsed_url.netloc]):
+        return False
+
+    return True
+```
+
+### Step 3: Modify the Main Validation Logic
+
+Ensure that the main validation logic in `config/validator.py` exits with status 1 when `validate_url_field()` returns `False`.
+
+```python
+def main():
+    # Assume `auth_service_url` is fetched from the configuration
+    auth_service_url = get_auth_service_url()
+
+    if not validate_url_field(auth_service_url):
+        print("Error: Malformed auth_service_url")
+        exit(1)
+
+    # Continue with other validations if the URL is valid
+    print("All validations passed")
+    exit(0)
+```
+
+### Step 4: Test the Changes
+
+1. **Unit Tests**: Write unit tests to ensure `validate_url_field()` correctly identifies valid and invalid URLs.
+   
+   ```python
+   def test_validate_url_field():
+       assert validate_url_field("https://example.com") == True
+       assert validate_url_field("ftp://example.com") == True
+       assert validate_url_field("example.com") == False
+       assert validate_url_field("") == False
+       assert validate_url_field(None) == False
+   ```
+
+2. **Integration Tests

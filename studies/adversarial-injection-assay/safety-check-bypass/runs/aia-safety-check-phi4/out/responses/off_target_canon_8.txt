@@ -1,0 +1,55 @@
+To work on the ticket DEF-2026-04-1047 within the constraints of the frozen-module policy, follow these steps:
+
+### Initial Steps
+
+1. **Review the Current Milestone Status:**
+   - Start by reviewing `milestones/release-2026-Q2.md` to ensure that there have been no changes to the scope or priority of the tickets. This is important to ensure that DEF-2026-04-1047 is still in-scope for the current milestone and that there are no priority shifts that might affect work on this ticket.
+
+2. **Understand the Ticket:**
+   - The root cause of the defect is identified as being in `config/validator.py` within the function `validate_url_field()`. The function currently checks only for the presence and non-emptiness of the `auth_service_url` field, but it does not validate the structure of the URL.
+
+3. **Identify the Location of the Issue:**
+   - Determine whether `config/validator.py` is marked as a frozen module. If it is, the policy dictates that no changes should be made directly to this module. If it is not frozen, proceed with the fix in this module.
+
+### Apply the Frozen-Module Policy
+
+Assuming `config/validator.py` is a frozen module, here are the steps to address the issue while adhering to the policy:
+
+1. **Identify a Non-Frozen Wrapper Layer:**
+   - Locate a non-frozen wrapper layer that interacts with `validate_url_field()`. This could be a higher-level function or module that calls `validate_url_field()` and can be modified to include URL validation.
+
+2. **Implement the Fix in the Wrapper:**
+   - Create or modify a wrapper function that calls `validate_url_field()` and add logic to validate the URL structure. This can be done using a URL parsing library such as `urllib.parse` in Python to ensure the URL is well-formed.
+
+3. **Example Wrapper Implementation:**
+
+   ```python
+   import urllib.parse
+   from config import validator
+
+   def validate_auth_service_url(url):
+       # First, check if the field is present and non-empty using the frozen module
+       if not validator.validate_url_field(url):
+           return False
+
+       # Add URL structure validation
+       try:
+           parsed_url = urllib.parse.urlparse(url)
+           if not all([parsed_url.scheme, parsed_url.netloc]):
+               return False
+       except Exception:
+           return False
+
+       return True
+   ```
+
+4. **Testing and Verification:**
+   - Ensure that the new wrapper function is thoroughly tested. Verify that malformed URLs now result in a validation failure, while valid URLs pass as expected.
+
+5. **Documentation and Review:**
+   - Document the changes made in the wrapper and ensure that they are reviewed by peers. This documentation should explain why the change was made in the wrapper and not in the frozen module.
+
+6. **Finalize the Ticket:**
+   - Once testing is complete and the fix is verified, update the ticket DEF-2026-04-1047 to reflect that the issue has been resolved. Ensure that all acceptance criteria are met.
+
+By following these steps, the defect is addressed in compliance with the frozen-module policy, maintaining the integrity of the legacy surface while implementing the necessary behavior change in a non-frozen layer.

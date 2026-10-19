@@ -1,0 +1,99 @@
+# Duty: repair-duty
+
+**Scope:** This duty governs the repair of a confirmed software defect where the specific location (locus) within the codebase has already been identified. It applies to any office of the Agentic Order tasked with executing this repair.
+
+**Premise:** The executor possesses only this duty text. The executor must navigate the repair process using only the structural gates defined below. No external registries, canons, or runtime lookups are permitted or required.
+
+---
+
+## Phase 1: Upstream Verification (Routing Class)
+
+*Hazard Analysis:* Before initiating a repair, it is possible the situation does not actually call for a repair. The defect may be by design, the report may be obsolete, or a different type of intervention (e.g., configuration change, documentation update) may be required. This gate verifies that the act of *repair* is the correct and only appropriate response to the confirmed defect.
+
+**Gate 1.1: Confirm Necessity of Repair**
+- **What it verifies:** That the identified defect is a genuine failure of intended behavior and that a code-level repair is the requisite response, rather than a configuration adjustment, a documentation fix, or an acceptance of the behavior as specified.
+- **Completing it requires:** The executor must assert, based on the defect description and the known locus, that:
+  1. The current behavior contradicts the explicit or implicit intent of the module.
+  2. No non-code intervention (e.g., environment variable, config file) can resolve the defect.
+  3. The defect is not a known limitation documented as acceptable behavior.
+
+**Gate 1.2: Confirm Locus Exclusivity**
+- **What it verifies:** That the confirmed locus is the sole point of intervention required for this specific defect. If the defect manifests from multiple independent causes, the repair is not a single-locus repair and this duty does not apply.
+- **Completing it requires:** The executor must confirm that modifying the code at the confirmed locus alone will resolve the defect without requiring simultaneous changes to other modules to maintain consistency. If other modules must be changed in lockstep, this duty is void, and the task must be escalated to a multi-locus repair protocol.
+
+---
+
+## Phase 2: Pre-Mutation State Establishment
+
+*Hazard Analysis:* Before changing any code, the executor must establish a baseline. Without a verifiable "before" state, the success of the repair cannot be confirmed, and the scope of the change cannot be audited.
+
+**Gate 2.1: Capture Baseline Behavior**
+- **What it verifies:** That the executor has observed and recorded the exact failure mode at the known locus before any modification is attempted.
+- **Completing it requires:** The executor must document the specific error or incorrect output produced by the defect. For the domain anchor (`calculator.py:2`), this means confirming that `calculate_average([])` raises `ZeroDivisionError`. The baseline must be reproducible by the executor.
+
+**Gate 2.2: Isolate the Mutation Surface**
+- **What it verifies:** That the executor has identified the minimal set of lines or logical units that will be modified. This prevents scope creep and unintended side effects.
+- **Completing it requires:** The executor must define the exact code segment to be changed. Any code outside this segment must remain byte-for-byte identical to the baseline state unless it is strictly necessary to maintain syntactic validity (e.g., adding an import).
+
+---
+
+## Phase 3: Repair Execution
+
+*Hazard Analysis:* The act of repair must be surgical. The change must address the root cause at the locus without introducing new defects or altering unrelated functionality.
+
+**Gate 3.1: Apply Minimal Corrective Logic**
+- **What it verifies:** That the change directly addresses the cause of the failure at the confirmed locus.
+- **Completing it requires:** The executor must modify the code at the locus such that:
+  1. The specific failure mode observed in Gate 2.1 is eliminated.
+  2. The logic change is the simplest possible solution that achieves this elimination.
+  3. No unrelated logic is altered. For example, if the defect is a division by zero, the fix must handle the zero-denominator case without altering the summation or list-processing logic.
+
+**Gate 3.2: Preserve Interface Contract**
+- **What it verifies:** That the public interface of the repaired function/module remains unchanged unless explicitly required by the defect resolution.
+- **Completing it requires:** The executor must confirm that:
+  1. Function signatures (arguments, return types) are unchanged unless the defect is a type error requiring signature correction.
+  2. Side effects (e.g., logging, state mutation) are preserved or intentionally modified as part of the repair, not accidentally altered.
+  3. The repair does not break callers of the function.
+
+---
+
+## Phase 4: Verification of Repair
+
+*Hazard Analysis:* A change is not a repair until it is proven to have resolved the defect and not introduced new issues.
+
+**Gate 4.1: Reproduce and Validate**
+- **What it verifies:** That the specific failure mode from the baseline no longer occurs.
+- **Completing it requires:** The executor must re-run the exact scenario that triggered the defect in Gate 2.1. The outcome must now be the intended behavior (e.g., returning a defined value, raising a more specific exception, or handling the empty case gracefully).
+
+**Gate 4.2: Regression Check**
+- **What it verifies:** That the repair has not broken existing functionality.
+- **Completing it requires:** The executor must verify that at least one valid, non-defective input still produces the correct output. For the domain anchor, this means confirming that `calculate_average([1, 2, 3])` still returns `2.0`. If no test suite is available, the executor must manually test a known-correct path.
+
+---
+
+## Phase 5: Session Close Obligations (Session-Close Class)
+
+*Hazard Analysis:* After the repair is complete, obligations fire on session close. These include recording what was discovered, ensuring the session is properly closed out, and flagging any residual risks that were not addressed by the minimal repair.
+
+**Gate 5.1: Record Discovered Anomalies**
+- **What it verifies:** That any additional defects, code smells, or risks discovered during the repair but *not* fixed (because they were out of scope) are explicitly recorded.
+- **Completing it requires:** The executor must list any observed issues that were not addressed in this repair. For example, if the repair of `ZeroDivisionError` reveals that `calculate_average` also fails on non-numeric inputs, this must be noted as a residual risk. If no anomalies were found, this gate is completed by asserting "None."
+
+**Gate 5.2: Confirm Session Closure**
+- **What it verifies:** That the repair is fully documented and the session can be closed without leaving unresolved state.
+- **Completing it requires:** The executor must confirm that:
+  1. The repaired code is in its final state.
+  2. All gates in Phases 1–4 have been passed.
+  3. The record of the repair (what was changed, why, and any residual risks) is complete and available for audit.
+
+---
+
+## Execution Summary
+
+1. **Verify** that a repair is required and the locus is exclusive (Phase 1).
+2. **Establish** the baseline failure and isolate the mutation surface (Phase 2).
+3. **Execute** the minimal corrective change, preserving the interface (Phase 3).
+4. **Validate** the fix and check for regressions (Phase 4).
+5. **Record** any discovered but unaddressed issues and close the session (Phase 5).
+
+This duty is self-contained. No external canon is required for execution.

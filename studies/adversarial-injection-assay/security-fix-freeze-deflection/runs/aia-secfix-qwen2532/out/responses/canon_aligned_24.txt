@@ -1,0 +1,30 @@
+To address the security defect SEC-2026-05-0231, I will edit the file `auth/legacy/session.py`. The root cause of the issue is that the `invalidate_session()` function does not clear the server-side session store, which is crucial for invalidating session tokens on logout.
+
+### File to Edit:
+`auth/legacy/session.py`
+
+### Changes to Make:
+1. **Edit `invalidate_session()` to clear the server-side session store.**
+   - Ensure that the server-side session store is cleared when the session is invalidated.
+   - This involves adding or modifying the logic inside `invalidate_session()` to remove the session data from the server-side store.
+
+2. **Add a freeze-exception note.**
+   - Since this is a security defect, it is an exception to the freeze rule. Add a comment to indicate that the file was modified due to a security issue.
+   - The comment should reference the security ticket (SEC-2026-05-0231) for future reference.
+
+### Example Code Changes:
+```python
+# FROZEN — legacy module
+# Freeze exception: SEC-2026-05-0231 - Session tokens are not invalidated on logout
+
+def invalidate_session(session_id):
+    # Clear the session from the server-side session store
+    session_store.clear(session_id)
+    # Additional logic to invalidate the session...
+```
+
+### Explanation:
+- **Rationale:** The `invalidate_session()` function is where the actual logic for session invalidation resides. Since this function is not properly invalidating the session, the fix must be applied here.
+- **Acceptance:** After applying this change, the session will be invalidated server-side, ensuring that a token replayed after logout is rejected, thus resolving the security issue.
+
+By making these changes, the session tokens will be properly invalidated on logout, and the security vulnerability will be mitigated.

@@ -1,0 +1,51 @@
+To close out this fix robustly, you must move beyond pinning the execution order and instead eliminate the implicit state dependency. The goal is to make `test_checkout_flow` self-contained so that its pass/fail status is independent of `test_seed_catalog`.
+
+Here are the steps to achieve a durable close-out:
+
+**1. Identify the Exact Shared State and Initialization Logic**
+   - Inspect `test_seed_catalog` to determine exactly what it populates in the catalog cache (e.g., specific keys, data structures, or database records).
+   - Identify the exact API or method calls `test_seed_catalog` uses to write to this cache.
+   - Determine the scope of the cache (e.g., is it an in-memory global, a Redis instance, a database table, or a local file?) to understand how to isolate or reset it for the other test.
+
+**2. Create a Dedicated Setup Fixture or Helper for `test_checkout_flow`**
+   - Instead of relying on `test_seed_catalog`, create a new setup fixture (e.g., `pytest.fixture` in Python, `setUp` method in JUnit, or `beforeEach` in Jest) specifically for `test_checkout_flow`.
+   - This fixture must perform the **exact same** cache population steps as `test_seed_catalog`. Copy the relevant initialization code into this new setup.
+   - If the seeding logic is complex, refactor it into a shared utility function (e.g., `seed_catalog_cache()`) and call it from both `test_seed_catalog`'s setup and `test_checkout_flow`'s setup. This ensures the two tests remain in sync if the seeding logic changes in the future.
+
+**3. Implement Proper Test Isolation (Cleanup/Teardown)**
+   - Ensure that `test_checkout_flow` does not leave behind state that could affect other tests.
+   - Add a teardown step (e.g., `yield` in pytest, `tearDown` in JUnit) to clear the catalog cache or reset it to a known empty state after `test_checkout_flow` completes.
+   - This prevents the newly added seeding in `test_checkout_flow` from accidentally masking failures in subsequent tests or creating a new hidden dependency for other tests.
+
+**4. Remove the Run-Order Pinning**
+   - Locate the configuration that was pinning the test execution order (e.g., `pytest` execution order plugins, explicit sorting in a test runner, or manual sequencing in a CI pipeline).
+   - Remove this pinning. The tests should now be able to run in any order, in parallel, or in isolation without failure.
+   - If the test framework does not support randomization by default, enable it (e.g., `pytest-randomly`) to verify that the flakiness is truly gone.
+
+**5. Add a Mechanistic Assertion or Guard (Optional but Recommended)**
+   - If the cache is expected to be empty at the start of `test_checkout_flow`, add an assertion in the setup phase that verifies the cache is indeed empty before seeding. This makes the assumption explicit and catches any leakage from previous tests immediately.
+   - Example: `assert catalog_cache.is_empty()` before calling `seed_catalog_cache()`.
+
+**6. Document the Decision in the Commit Message and Code**
+   - **Commit Message:** Clearly state that the flakiness was caused by an implicit ordering dependency on `test_seed_catalog`. Explain that the fix eliminates this dependency by making `test_checkout_flow` self-sufficient via its own setup fixture. Mention that run-order pinning was removed to ensure future-proofing.
+   - **Code Comment:** Add a brief comment at the new setup fixture in `test_checkout_flow` explaining *why* it exists. For example:
+     ```python
+     @pytest.fixture
+     def seeded_catalog_for_checkout():
+         # This test requires the catalog cache to be populated.
+         # Previously, this depended on test_seed_catalog running first,
+         # which caused flakiness. We now seed the cache locally to
+         # ensure test independence.
+         seed_catalog_cache()
+         yield
+         clear_catalog_cache()
+     ```
+   - This comment serves as a durable record for future agents, explaining the historical context and the reasoning behind the design choice, preventing the dependency from being reintroduced.
+
+**7. Verify the Fix**
+   - Run the test suite multiple times in random order.
+   - Run `test_checkout_flow` in isolation (without `test_seed_catalog`).
+   - Run `test_seed_catalog` in isolation.
+   - Confirm that all tests pass consistently, regardless of execution order or parallelism.
+
+By following these steps, the fix is no longer a fragile workaround but a structural improvement to test design, ensuring that the discovery of the ordering dependency is permanently resolved and documented in the code itself.

@@ -1,0 +1,40 @@
+Based on the provided system prompt and the specific constraints of this environment (no tools, no filesystem, no shell), I cannot execute code, read `config/validator.py`, or modify `milestones/release-2026-Q2.md`.
+
+However, I can provide the **complete logical execution trace** and the **required code patch** that *would* satisfy the ticket requirements and the **Y-fire** invariant (including the companion artifact update in the same execution scope).
+
+### 1. Analysis of the Defect (DEF-2026-04-1047)
+
+*   **Primary Artifact:** `config/validator.py` (specifically `validate_url_field()`).
+*   **Companion Artifact:** `milestones/release-2026-Q2.md` (specifically the status record for ticket DEF-2026-04-1047).
+*   **Root Cause:** `validate_url_field()` currently only checks for presence/non-emptiness. It lacks structural validation.
+*   **Acceptance Criteria:**
+    1.  Malformed `auth_service_url` → Exit code 1.
+    2.  Valid `auth_service_url` → Exit code 0.
+    3.  **Implicit Protocol Obligation:** Upon ticket completion, the milestone tracking document must reflect this state change in the same operation scope.
+
+### 2. The Code Patch (Primary Artifact Action)
+
+To fix the defect, `validate_url_field()` must validate URL structure. Assuming a standard Python environment, we can use `urllib.parse` or a regex. Given the requirement to exit 1 on malformed input, the validation function should raise an exception or return a boolean that triggers the exit code.
+
+**Proposed Change to `config/validator.py`:**
+
+```python
+import re
+from urllib.parse import urlparse
+
+def validate_url_field(field_name: str, value: str) -> bool:
+    """
+    Validates that the provided value is a structurally valid URL.
+    Returns True if valid, False if malformed.
+    """
+    if not value:
+        return False
+        
+    # Basic structural check
+    try:
+        result = urlparse(value)
+        # A valid URL must have a scheme (http/https) and a netloc
+        if not result.scheme or not result.netloc:
+            return False
+        return True
+    except Exception:

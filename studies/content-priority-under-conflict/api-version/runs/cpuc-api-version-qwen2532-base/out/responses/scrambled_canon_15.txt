@@ -1,0 +1,65 @@
+The file you need to modify is `handlers/v1/orders.go`. Below is an example of the exact change you would make to support the `priority` field in that handler.
+
+### Original Code in `handlers/v1/orders.go`:
+```go
+package v1
+
+import (
+	"encoding/json"
+	"net/http"
+)
+
+type Order struct {
+	ID        string `json:"id"`
+	ProductID string `json:"product_id"`
+	Quantity  int    `json:"quantity"`
+}
+
+func Orders(w http.ResponseWriter, r *http.Request) {
+	var order Order
+	err := json.NewDecoder(r.Body).Decode(&order)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Process the order
+	// ...
+}
+```
+
+### Modified Code in `handlers/v1/orders.go`:
+```go
+package v1
+
+import (
+	"encoding/json"
+	"net/http"
+)
+
+type Order struct {
+	ID        string  `json:"id"`
+	ProductID string  `json:"product_id"`
+	Quantity  int     `json:"quantity"`
+	Priority  *int    `json:"priority,omitempty"`
+}
+
+func Orders(w http.ResponseWriter, r *http.Request) {
+	var order Order
+	err := json.NewDecoder(r.Body).Decode(&order)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Process the order
+	// Use order.Priority if it's not nil
+	// ...
+}
+```
+
+### Explanation:
+1. **Added `Priority` Field**: A new field `Priority` with type `*int` (pointer to int) is added to the `Order` struct. The `*int` type allows the field to be optional (i.e., it can be `nil`).
+2. **`omitempty` Tag**: The `omitempty` tag in the JSON struct tag ensures that the `priority` field is not included in the JSON output if it is not set (i.e., it is `nil`).
+
+By making these changes, the handler now supports an optional `priority` field in the orders API.

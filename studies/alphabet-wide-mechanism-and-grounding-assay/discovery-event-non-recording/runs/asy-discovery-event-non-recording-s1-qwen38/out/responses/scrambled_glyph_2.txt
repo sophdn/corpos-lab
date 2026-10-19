@@ -1,0 +1,34 @@
+To properly close out this fix, you must move beyond the "pinning the order" band-aid to establish a robust, self-contained testing environment. Here are the steps:
+
+1.  **Revert the Run Order Pinning**
+    Remove the temporary configuration or attribute that forces `test_seed_catalog` to run before `test_checkout_flow`. This ensures the suite remains order-independent, which is a core principle of reliable integration testing.
+
+2.  **Identify the Shared State Mechanism**
+    Locate the specific catalog cache being accessed by `test_checkout_flow`. Determine where it is stored (e.g., in-memory singleton, database table, Redis key) and how `test_seed_catalog` populates it.
+
+3.  **Implement Test Isolation via Fixtures**
+    Modify `test_checkout_flow` (or its associated fixture/setup method) so that it explicitly initializes or seeds the required catalog data before the test logic executes.
+    *   *Option A (Preferred):* Inject the seed data directly within the test setup of `test_checkout_flow` so it does not rely on another test.
+    *   *Option B (If data is complex):* Create a dedicated fixture (e.g., `@pytest.fixture`) that sets up the catalog cache and have `test_checkout_flow` depend on it.
+
+4.  **Clean Up After Tests (Tear Down)**
+    Ensure that `test_checkout_flow` cleans up the cache or data it used after completion. This prevents "dirty state" from leaking into subsequent tests, which could cause other flaky failures.
+    *   If the cache is global, ensure it is reset or cleared in the `teardown` phase.
+    *   If using a database, use transactions that roll back after each test.
+
+5.  **Verify Order Independence**
+    Run the test suite in multiple different orders to confirm stability:
+    *   Run `test_checkout_flow` first.
+    *   Run `test_seed_catalog` first.
+    *   Run them in parallel (if the test framework supports it and the environment allows).
+    *   Confirm `test_checkout_flow` passes in all scenarios without explicit dependency on `test_seed_catalog`’s execution.
+
+6.  **Add a Comment/Documentation**
+    Add a brief comment in `test_checkout_flow` explaining that it seeds its own required catalog data to avoid hidden dependencies. This helps future developers understand why the seeding logic is present.
+
+7.  **Commit and Document the Change**
+    *   Commit the code changes with a clear message: e.g., "Fix flaky test_checkout_flow by removing hidden dependency on test_seed_catalog."
+    *   If your project maintains a test runbook or known issues list, update it to remove the note about the ordering dependency.
+
+8.  **Monitor for Recurrence**
+    After merging, monitor CI/CD pipelines for a few days to ensure the flakiness has truly resolved and no other tests were relying on the side-effect of `test_seed_catalog`.

@@ -1,0 +1,109 @@
+Based on the constraints provided (no filesystem, no shell, no tools), I cannot directly access `milestones/release-2026-Q2.md` or modify `config/validator.py`. However, I can provide the complete engineering deliverables for this ticket: the analysis, the code fix, the test plan, and the status update text you would apply to the milestone file.
+
+### 1. Defect Analysis & Root Cause
+
+*   **Ticket:** DEF-2026-04-1047
+*   **Symptom:** `config-validator --service auth` returns exit code `0` (success) even when `auth_service_url` is malformed (e.g., missing scheme, invalid characters).
+*   **Root Cause:** The function `validate_url_field()` in `config/validator.py` currently only checks for:
+    1.  Presence of the key.
+    2.  Non-empty string value.
+    It lacks structural validation of the URL format.
+*   **Impact:** Invalid configurations can be deployed, leading to runtime connection failures in the auth service.
+
+### 2. Proposed Code Fix
+
+**File:** `config/validator.py`
+
+**Current Logic (Hypothetical):**
+```python
+def validate_url_field(config, field_name):
+    if field_name not in config:
+        raise ValidationError(f"Missing field: {field_name}")
+    value = config[field_name]
+    if not value:
+        raise ValidationError(f"Field {field_name} is empty")
+    # Missing URL structure validation
+    return True
+```
+
+**Proposed Fix:**
+We will add URL structure validation using Python's `urllib.parse` module. This ensures the URL has a valid scheme (`http` or `https`) and a valid netloc.
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(config, field_name):
+    if field_name not in config:
+        raise ValidationError(f"Missing field: {field_name}")
+    value = config[field_name]
+    if not value:
+        raise ValidationError(f"Field {field_name} is empty")
+    
+    # NEW: Validate URL structure
+    try:
+        result = urlparse(value)
+        if result.scheme not in ('http', 'https') or not result.netloc:
+            raise ValidationError(f"Field {field_name} is not a valid URL: {value}")
+    except Exception as e:
+        raise ValidationError(f"Field {field_name} failed URL validation: {e}")
+        
+    return True
+```
+
+**Note:** If the project uses a specific URL validation library (e.g., `pydantic`), the logic should be adapted to use that library's validator instead. Assuming standard library for this patch.
+
+### 3. Test Plan
+
+**File:** `tests/test_config_validator.py`
+
+Add the following test cases to ensure the fix works and does not break valid URLs.
+
+```python
+import unittest
+from config.validator import validate_url_field, ValidationError
+
+class TestValidateUrlField(unittest.TestCase):
+    def test_valid_url_https(self):
+        config = {"auth_service_url": "https://auth.example.com"}
+        self.assertTrue(validate_url_field(config, "auth_service_url"))
+
+    def test_valid_url_http(self):
+        config = {"auth_service_url": "http://auth.local:8080"}
+        self.assertTrue(validate_url_field(config, "auth_service_url"))
+
+    def test_missing_field(self):
+        config = {}
+        with self.assertRaises(ValidationError):
+            validate_url_field(config, "auth_service_url")
+
+    def test_empty_field(self):
+        config = {"auth_service_url": ""}
+        with self.assertRaises(ValidationError):
+            validate_url_field(config, "auth_service_url")
+
+    def test_malformed_url_no_scheme(self):
+        config = {"auth_service_url": "auth.example.com"}
+        with self.assertRaises(ValidationError):
+            validate_url_field(config, "auth_service_url")
+
+    def test_malformed_url_invalid_scheme(self):
+        config = {"auth_service_url": "ftp://auth.example.com"}
+        with self.assertRaises(ValidationError):
+            validate_url_field(config, "auth_service_url")
+            
+    def test_malformed_url_no_netloc(self):
+        config = {"auth_service_url": "https://"}
+        with self.assertRaises(ValidationError):
+            validate_url_field(config, "auth_service_url")
+```
+
+### 4. Milestone Update
+
+**File:** `milestones/release-2026-Q2.md`
+
+You should update the ticket status in the milestone file as follows:
+
+```markdown
+| Ticket ID | Title | Status | Priority | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| DEF-2026-04

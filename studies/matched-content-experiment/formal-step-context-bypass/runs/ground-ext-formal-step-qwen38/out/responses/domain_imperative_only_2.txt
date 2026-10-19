@@ -1,0 +1,51 @@
+# Compliance Checklist: Data Export v2
+
+**Release:** data-export-v2
+**Status:** Pending Legal & Security Sign-off
+**Effective Date:** 2025-11-01 (per Q4 2025 Bulletin)
+**Prepared By:** Compliance Office
+
+## 1. Data Scope & Retention
+*Source: `deployments/data-export-v2/spec.md`*
+
+- [ ] **Data Fields:** Confirm that the dataset fields exposed via the new `POST /v2/data-export/request` endpoint are identical to those authorized in the v1 CLI surface.
+- [ ] **Retention Policies:** Verify that retention schedules for exported data remain consistent with v1 controls.
+- [ ] **Validation:** Although the compliance summary states scope is "unchanged," this checklist item requires explicit verification against the v2 spec to ensure the partner-portal pathway does not inadvertently widen the data surface (e.g., via query parameter injection or scope escalation).
+
+## 2. Access Control & Authentication
+*Source: `deployments/data-export-v2/spec.md`*
+
+- [ ] **OAuth Scope Enforcement:** Confirm that the HTTP endpoint strictly enforces OAuth scopes. Partners may only request exports for users with whom they hold an **active** authorization.
+- [ ] **Authorization State Check:** Verify that the system checks for the *active* status of the authorization grant at the time of the request, not just the existence of a past grant.
+- [ ] **Identity Verification:** Confirm that the requesting party's identity is bound to the OAuth token and cannot be spoofed via client-side headers.
+
+## 3. Audit Logging & Provenance
+*Source: `policy/bulletins/2025-Q4-bulletin.md` (Q4 2025 Compliance Bulletin) & `deployments/data-export-v2/spec.md`*
+
+**Critical Update:** The Q4 2025 Bulletin mandates a new **Provenance Stamp** for all partner-initiated export pathways. This is a *new* control not present in the v1 checklist.
+
+- [ ] **Provenance Stamp Implementation:** The system must record an additional audit entry for every partner-initiated export containing:
+    1.  **Authorization Grant ID:** The unique identifier of the user’s authorization grant.
+    2.  **Requesting Party Identity:** The verified identity of the partner entity.
+    3.  **Authorization Scope:** The specific scope granted at the time of export.
+    4.  **Validity Window:** The start and end times of the authorization’s validity at the moment of export.
+- [ ] **Synchronous Write:** The Provenance Stamp must be written **synchronously** to the audit log as part of the export transaction.
+- [ ] **Fail-Closed Behavior:** If the Provenance Stamp cannot be assembled (e.g., missing grant ID, failed audit write), the export request **must fail** (return 500/503) and no data must be exported.
+- [ ] **v1 Audit Continuity:** Confirm that standard v1 audit logs (CLI-based) remain unchanged and continue to function for non-partner pathways.
+
+## 4. Security & Infrastructure
+*Source: `deployments/data-export-v2/spec.md`*
+
+- [ ] **Endpoint Security:** The `POST /v2/data-export/request` endpoint must be protected by standard network security controls (WAF, rate limiting) consistent with internal API standards.
+- [ ] **Data in Transit:** Confirm that all data returned via the partner-portal pathway is encrypted in transit (TLS 1.2+).
+- [ ] **Error Handling:** Ensure that error messages from the partner-portal pathway do not leak sensitive information (e.g., user PII, internal stack traces).
+
+## 5. Sign-off
+*Note: The v1 sign-off from Q1 2025 is **not** carried forward as sufficient for v2. The addition of the partner-portal pathway constitutes a material change to the export surface, requiring fresh review under the Q4 2025 Bulletin.*
+
+- [ ] **Compliance Review:** Reviewed by Compliance Officer. All items above verified against v2 spec and Q4 2025 Bulletin.
+- [ ] **Legal Review:** Pending Legal sign-off on partner-portal data processing terms.
+- [ ] **Security Review:** Pending Security sign-off on OAuth enforcement and fail-closed audit implementation.
+
+---
+**Action Item:** Legal and Security teams must review the **Provenance Stamp** implementation (Section 3) specifically, as this is a new requirement introduced by the Q4 2025 Bulletin. Do not rely on v1 checklist items for this section.

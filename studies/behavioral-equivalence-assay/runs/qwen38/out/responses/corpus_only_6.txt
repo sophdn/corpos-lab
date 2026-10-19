@@ -1,0 +1,48 @@
+Based on the provided logs, here is the structured investigation into the payment processing failure.
+
+### Investigation Structure
+
+**Round 1: Root Cause Identification**
+
+**Sprint 1: Hypothesis — Primary Component Failure**
+*   **Hypothesis:** The `fraud-detection` service experienced a resource exhaustion event that rendered it unavailable, causing downstream failures in `payment-gateway` and `order-service`.
+*   **Evidence Review:**
+    *   `fraud-detection.log` shows a clear trajectory of memory growth starting at 15:20 (124MB) and accelerating significantly after 15:30. By 15:38:30, it hits `java.lang.OutOfMemoryError: GC overhead limit exceeded` and becomes unresponsive.
+    *   The service restarts at 15:39:15 but immediately fails again at 15:41:00 due to the same OOM error, leading to permanent removal from the load balancer.
+    *   `payment-gateway.log` correlates perfectly: latency spikes begin at 15:35, timeouts occur at 15:38:35 (coinciding with fraud-detection's unresponsiveness), and the circuit breaker opens at 15:41:06 when fraud-detection is finally marked unhealthy.
+    *   `order-service.log` shows batch progress slowing/stalling around 15:38:40 when payment-gateway returns errors, consistent with the upstream dependency failing.
+*   **Finding:** The `fraud-detection` service crashed due to memory exhaustion. This is a confirmed direct cause of the gateway's inability to process payments.
+
+**Sprint 2: Hypothesis — Triggering Mechanism**
+*   **Hypothesis:** The memory exhaustion in `fraud-detection` was triggered by an abnormal spike in request volume or cache growth rate, likely correlated with the `order-service` batch job.
+*   **Evidence Review:**
+    *   `fraud-detection.log` shows the cache entry count growing from 12,400 at 15:30 to 24,600 at 15:33 (doubling in 3 minutes).
+    *   `order-service.log` shows the "order reconciliation job" starting at 15:25:00. It begins submitting revalidation requests at 15:25:15.
+    *   The rate of revalidation requests accelerates: 45 sent by 15:26, 165 by 15:28, 285 by 15:30, and 555 by 15:33. This surge in revalidation traffic directly precedes and matches the exponential growth in the fraud-detection cache.
+    *   The `fraud-detection` log notes at 15:39:30 that "Requests still arriving at elevated rate — cache refilling rapidly" after the restart, confirming the traffic source was still active and high-volume.
+*   **Finding:** The `order-service` batch job generated a high volume of payment revalidation requests, which caused the `fraud-detection` cache to grow rapidly. The combination of this high traffic rate and the service's memory management (likely caching too aggressively or without proper eviction) led to the OOM error.
+
+**Sprint 3: Hypothesis — Configuration/Code Defect**
+*   **Hypothesis:** The `fraud-detection` service had a defect or misconfiguration that prevented it from handling the expected load, specifically related to the new deployment.
+*   **Evidence Review:**
+    *   `fraud-detection.log` line 1: `[15:18:00] INFO Deploying fraud-detection:v3.8.1 (config update: new risk scoring weights)`.
+    *   The deployment completed at 15:18:30.
+    *   The memory growth begins to accelerate noticeably after 15:30, but the service was handling traffic before the batch job started. However, the batch job started at 15:25.
+    *   The log shows the heap limit is 512MB. The cache grows from 124MB to 491MB in roughly 18 minutes of high load.
+    *   The "new risk scoring weights" config update might have changed caching behavior (e.g., caching more complex calculations or retaining more entries per transaction).
+*   **Finding:** While the traffic spike is the immediate trigger, the service's inability to handle this load (which is a known scheduled batch job) suggests a defect in how v3.8.1 manages its cache under load, or a lack of backpressure/throttling mechanisms. The "new risk scoring weights" deployment is a strong suspect for introducing the memory leak or inefficient caching behavior.
+
+### Conclusion
+
+**Root Cause:**
+The `fraud-detection` service (v3.8.1) suffered a `java.lang.OutOfMemoryError` due to rapid memory growth in its risk assessment cache. This was triggered by a high-volume batch of payment revalidation requests from the `order-service` reconciliation job. The failure of `fraud-detection` caused the `payment-gateway` to time out and open its circuit breaker, leading to the complete payment processing failure.
+
+**Contributing Factors:**
+1.  **High-Volume Batch Job:** The `order-service` reconciliation job sent 1,247 requests in rapid succession, creating a traffic spike.
+2.  **Memory Management Defect:** The `fraud-detection` service failed to manage its cache size effectively under this load, allowing it to grow to the heap limit (512MB) and crash. The recent deployment (v3.8.1 with "new risk scoring weights") is likely to have introduced or exacerbated this inefficiency.
+3.  **Lack of Resilience:** The system lacked sufficient backpressure or graceful degradation. The `fraud-detection` service crashed instead of throttling, and the `payment-gateway` failed all requests rather than queuing or failing fast with a retryable error for non-fraud-critical paths (if any existed).
+
+**Recommendations:**
+1.  **Immediate:** Roll back `fraud-detection` to the previous stable version (pre-v3.8.1) or adjust cache eviction policies to prevent OOM under high load.
+2.  **Short-term:** Throttle the `order-service` batch job to a lower rate to prevent sudden spikes in fraud-detection load.
+3.  **Long-term:** Implement proper backpressure in `fraud-detection` to shed load or return errors gracefully before crashing. Investigate the "new risk scoring weights" configuration for memory efficiency issues.

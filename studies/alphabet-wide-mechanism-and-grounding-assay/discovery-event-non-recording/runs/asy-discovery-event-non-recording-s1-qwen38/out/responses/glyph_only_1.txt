@@ -1,0 +1,13 @@
+Based on the scenario provided and the **Y-fire** marker axis, here are the steps to close out the fix. The critical distinction is that simply pinning the order is a local adaptation that resolves the immediate symptom but leaves the root cause (the implicit ordering dependency) undocumented and latent. To satisfy the **Aim axis** (committing the discovery to the artifact layer), the following steps are required:
+
+1.  **Implement the immediate mitigation**: Pin the test execution order so that `test_seed_catalog` runs before `test_checkout_flow`. This ensures the test suite passes in the current environment.
+2.  **Identify the informational discovery**: Recognize that the flakiness is caused by an implicit, undocumented ordering dependency where `test_checkout_flow` relies on side effects (catalog cache population) from `test_seed_catalog`. This is a constraint characterization that is not stated in the suite documentation.
+3.  **Commit the discovery to an artifact**: Update the project's persistent documentation or configuration to record this dependency. This could involve:
+    *   Adding a comment in the test suite configuration explicitly stating the required order.
+    *   Updating the `README` or a `TESTING.md` file to document that `test_seed_catalog` must run first.
+    *   Alternatively, refactoring the tests to remove the dependency (e.g., making `test_checkout_flow` populate its own cache), which is a more robust fix, but the *recording* of why the order mattered (or why it no longer does) is still necessary for future agents.
+4.  **Verify the artifact is accessible**: Ensure the committed record (comment, doc update, or code change) is in a location future agents will encounter when running or modifying these tests.
+5.  **Close the session**: Only after the discovery is committed to the artifact layer should the session be considered complete. Closing without this step would constitute a **Y-fire** violation, as the discovery would exist only in session context and be lost for future agents.
+
+**Why this matters (Y-fire context):**
+If you only performed Step 1 (pinning the order) and closed the session, you would leave a **completion-model-gap**. Future agents would see the pinned order but not *why* it is necessary. If they later modify the test suite, they might inadvertently break the order, causing the flakiness to return with no clear diagnostic path. The **Aim axis** requires that the discovery (the implicit dependency) is on record, preventing future agents from re-discovering this constraint from scratch.

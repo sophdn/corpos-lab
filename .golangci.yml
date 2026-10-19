@@ -1,0 +1,78 @@
+# corpos-lab lint config (inherited from corpos) (golangci-lint v2 format; the release is pinned by
+# golangci_version on the lint check in gate.yml). Dialed up from commit 1.
+#
+# v2 migration (the private toolkit service chain code-optimization-tooling-and-cleanup):
+# `golangci-lint migrate` output, comments restored. Behavior-equivalent to
+# the v1.62.2 config: v1's default exclusions are the four presets below, its
+# default skipped dirs are the exclusion paths, and staticcheck is held to the
+# SA checks (see its setting).
+version: "2"
+
+run:
+  tests: true
+
+linters:
+  default: none
+  enable:
+    - errcheck      # unchecked errors
+    - govet         # vet
+    - ineffassign   # unused assignments
+    - staticcheck   # staticcheck suite (SA checks; see settings)
+    - unused        # unused code
+    - misspell      # typos
+    - revive        # style + exported-doc discipline
+    - errorlint     # error wrapping correctness
+    - unconvert     # redundant conversions
+    - gocritic      # opinionated checks
+    - bodyclose     # unclosed http bodies
+    - nilerr        # returning nil after a non-nil err
+    - wastedassign  # wasted assignments
+    # Complexity, duplication and unused parameters (the private toolkit service chain
+    # code-optimization-tooling-and-cleanup task 5).
+    - dupl          # duplicated blocks (threshold: golangci default, 150 tokens)
+    - gocognit      # cognitive complexity (threshold: 30, see settings)
+    - unparam       # parameters / results that are unused or always the same
+
+  settings:
+    gocognit:
+      min-complexity: 30
+    revive:
+      rules:
+        - name: exported
+          disabled: false
+    staticcheck:
+      # v2's staticcheck absorbs v1's separate gosimple (S1) and stylecheck
+      # (ST1) linters and adds quickfix (QF) checks. v1 enabled staticcheck
+      # alone, which ran only the SA checks, so this keeps the same set. The
+      # wider set reported 17 findings on 2026-10-09; widening is a separate
+      # decision.
+      checks:
+        - SA*
+
+  exclusions:
+    generated: lax
+    # v1's default exclusions (issues.exclude-use-default), as v2 presets.
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      # v1's default skipped directories.
+      - third_party$
+      - builtin$
+      - examples$
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+# No formatters are enabled: the gate's `format` check runs the toolchain
+# `gofmt -s` as the single formatting authority.
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

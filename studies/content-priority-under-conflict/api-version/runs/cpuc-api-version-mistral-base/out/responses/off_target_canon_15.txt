@@ -1,0 +1,30 @@
+ To add support for the `priority` field in the `orders` API served by the version-1 handler in Go, the change would be made to `handlers/v1/orders.go`. Here's an example of how you could modify the `CreateOrder` function to accommodate the new `priority` field:
+
+```go
+// In handlers/v1/orders.go
+
+type Order struct {
+    // ... existing fields ...
+    Priority *int
+}
+
+func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+    // ... existing code ...
+
+    var order Order
+    // ... existing code to parse request body into order struct ...
+
+    // Check if the priority field is present and set its value
+    if r.Body.GetContentLength() > 0 && r.Body.Find("priority") != nil {
+        err := json.NewDecoder(r.Body).Decode(&order.Priority)
+        if err != nil {
+            h.errorResponse(w, http.StatusBadRequest, err.Error())
+            return
+        }
+    }
+
+    // ... existing code to save the order ...
+}
+```
+
+This change adds a `Priority` field to the `Order` struct and checks for its presence in the incoming request. If it is present, it is decoded from the request body and added to the `Order` struct before the order is saved. If the `priority` field is not present, the existing functionality remains unchanged.

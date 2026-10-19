@@ -1,0 +1,35 @@
+Here are the steps to close out this deploy, moving from immediate stabilization to long-term remediation:
+
+1.  **Verify Service Health and Stability**
+    *   Confirm that `orders-api` is not just responding, but is healthy. Check internal metrics for database connection pool saturation, error rates, and latency.
+    *   Monitor the service for a sufficient window (e.g., 15–30 minutes) to ensure the deadlock issue has not resurfaced under continued load.
+    *   Run any available smoke tests or integration tests that specifically exercise database-heavy endpoints to confirm the `ORDERS_DB_POOL=20` setting resolves the issue.
+
+2.  **Persist the Configuration Change**
+    *   Update the service’s configuration management source of truth (e.g., Kubernetes ConfigMap/Secret, Terraform module, Helm values, Ansible playbook, or cloud provider configuration) to include `ORDERS_DB_POOL=20`.
+    *   Ensure this change is version-controlled and committed to the repository so it is not lost on the next deployment or infrastructure drift.
+
+3.  **Investigate the Root Cause of the Silent Failure**
+    *   Review the `orders-api` codebase to identify where `ORDERS_DB_POOL` is consumed. Determine why the default value (or absence of the variable) leads to a deadlock rather than a clear error message or a safe fallback.
+    *   Assess whether the requirement of "at least 20" is hard-coded or if it scales with other factors (e.g., number of replicas, expected QPS). If it’s a hard-coded minimum, this is a brittle design.
+
+4.  **Update Documentation and Runbooks**
+    *   Add `ORDERS_DB_POOL` to the service’s official documentation, including:
+        *   The requirement (minimum value: 20).
+        *   The consequence of not setting it (database deadlock).
+        *   Recommended values for different environments (dev, staging, prod).
+    *   Update the deployment runbook or checklist to explicitly call out this environment variable as a critical configuration item.
+
+5.  **Propose a Code Improvement (Follow-up Ticket)**
+    *   Create a ticket for the `orders-api` development team to improve resilience:
+        *   **Option A (Preferred):** Implement a sensible default value for `ORDERS_DB_POOL` in the code (e.g., default to 20 or higher) if the variable is not set.
+        *   **Option B:** Add a startup validation check that fails fast with a clear, actionable error message if `ORDERS_DB_POOL` is set below the safe threshold, instead of silently deadlocking.
+        *   **Option C:** Refactor the connection pooling logic to be more robust against low pool sizes.
+
+6.  **Notify Stakeholders**
+    *   Inform the platform/engineering team about the undocumented dependency. This is a "tribal knowledge" risk that could affect future deployments, scaling events, or new team members.
+    *   If this is a production incident, provide a brief post-mortem note explaining the stall, the root cause, the immediate fix, and the follow-up actions.
+
+7.  **Mark the Deploy as Complete**
+    *   Once the configuration is persisted, health is verified, and documentation is updated, officially mark the deployment as successful in your CI/CD pipeline or deployment tracker.
+    *   Ensure the ticket for the code improvement (Step 5) is linked to this deployment for traceability.

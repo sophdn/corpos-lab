@@ -1,0 +1,122 @@
+# Duty: Repair-Duty
+
+**Scope:** This duty governs the repair of a single, confirmed software defect where the locus (the specific file and line causing the failure) is already identified.
+
+**Objective:** Transform the code at the confirmed locus from a failing state to a correct state, ensuring that the fix resolves the specific defect without introducing new failures or altering unrelated behavior.
+
+**Context:** The executor holds the text of this duty, the source code repository, and the specific defect report (including the locus). The executor does not hold the project’s history, style guides, or "canon." The gates below are derived from the mechanics of software repair and must be followed in order.
+
+---
+
+## Phase I: Establish the Failure Baseline
+
+Before any code is modified, the executor must prove that the defect exists and isolate it. This phase prevents fixing a non-existent problem or fixing the wrong problem.
+
+### Gate 1.1: Reproduce the Failure
+**Verifies:** That the reported defect is real, current, and reproducible in the local environment.
+**Requires:**
+1.  Identify the specific input or condition that triggers the defect (e.g., `calculate_average([])`).
+2.  Execute the code path containing the defect using that input.
+3.  Observe the specific error or incorrect behavior (e.g., `ZeroDivisionError`).
+4.  Record the exact error message or output.
+5.  **Pass Condition:** The error occurs exactly as described in the defect report. If the error does not occur, the duty halts; the locus may be incorrect or the defect already resolved.
+
+### Gate 1.2: Isolate the Locus
+**Verifies:** That the confirmed locus (file and line) is the sole cause of the observed failure.
+**Requires:**
+1.  Analyze the stack trace or execution flow leading to the error.
+2.  Confirm that the error originates at the confirmed locus.
+3.  Verify that no other code paths in the same function or module are required to trigger this specific error.
+4.  **Pass Condition:** The error is directly attributable to the logic at the confirmed locus. If the error is caused by upstream data corruption or downstream handling, the duty halts; the locus is incorrect.
+
+---
+
+## Phase II: Define the Correct State
+
+Before changing the code, the executor must define what "correct" looks like for the specific failure mode. This phase prevents arbitrary fixes that mask symptoms rather than addressing causes.
+
+### Gate 2.1: Identify the Failure Mode
+**Verifies:** That the root cause of the defect is understood as a specific logical or computational flaw.
+**Requires:**
+1.  Describe the failure mode in technical terms (e.g., "division by zero due to empty collection," "null reference due to missing check").
+2.  Determine why the current logic fails for the specific input identified in Gate 1.1.
+3.  **Pass Condition:** The executor can articulate in one sentence why the code at the locus fails for the specific input.
+
+### Gate 2.2: Specify the Expected Behavior
+**Verifies:** That the post-repair behavior is defined and consistent with the function’s purpose.
+**Requires:**
+1.  Define what the function should return or do when given the failing input.
+    *   *Option A:* Raise a specific, meaningful exception (e.g., `ValueError` with a clear message).
+    *   *Option B:* Return a neutral value (e.g., `0`, `None`) if appropriate for the domain.
+    *   *Option C:* Handle the edge case gracefully (e.g., return `0.0` for an empty list average).
+2.  Choose the expected behavior that aligns with the function’s documented or intended purpose.
+3.  **Pass Condition:** A concrete, testable expectation is defined for the previously failing input.
+
+---
+
+## Phase III: Implement the Minimal Repair
+
+This phase involves the actual code change. The principle of minimal change applies: only the logic necessary to resolve the defect should be altered.
+
+### Gate 3.1: Apply the Localized Fix
+**Verifies:** That the code at the locus is modified to handle the specific failure mode identified in Phase II.
+**Requires:**
+1.  Modify the code at the confirmed locus to implement the expected behavior defined in Gate 2.2.
+2.  Ensure the fix is contained within the function or scope of the locus. Do not refactor unrelated code.
+3.  Add any necessary guard clauses (e.g., `if not values:`) or error handling.
+4.  **Pass Condition:** The code at the locus is changed. No other lines in the file are modified unless strictly necessary for syntax correctness.
+
+### Gate 3.2: Verify Syntactic Validity
+**Verifies:** That the modified code is syntactically correct and does not introduce parse errors.
+**Requires:**
+1.  Run a syntax check or linter on the modified file.
+2.  Ensure the code compiles or parses without errors.
+3.  **Pass Condition:** The code is syntactically valid. If syntax errors exist, return to Gate 3.1.
+
+---
+
+## Phase IV: Confirm the Repair and Guard Against Regression
+
+This phase proves that the fix works for the defect and that it did not break other valid cases.
+
+### Gate 4.1: Verify the Defect Resolution
+**Verifies:** That the specific failing input now produces the expected behavior.
+**Requires:**
+1.  Re-execute the code path using the input from Gate 1.1.
+2.  Observe the output or behavior.
+3.  Compare the result to the expected behavior defined in Gate 2.2.
+4.  **Pass Condition:** The specific error no longer occurs, and the output matches the defined expectation.
+
+### Gate 4.2: Verify Non-Regression
+**Verifies:** That the repair did not alter the behavior for valid, non-failing inputs.
+**Requires:**
+1.  Identify at least one valid input that previously worked correctly (e.g., `calculate_average([1, 2, 3])`).
+2.  Execute the code path using this valid input.
+3.  Confirm that the output remains unchanged and correct.
+4.  **Pass Condition:** The valid input produces the same result as before the repair. If the result changes, the repair introduced a regression; return to Gate 3.1.
+
+---
+
+## Phase V: Close Out the Repair
+
+This phase ensures the repair is complete, documented, and ready for acceptance.
+
+### Gate 5.1: Document the Change
+**Verifies:** That the reason for the change and its effect are recorded.
+**Requires:**
+1.  Write a brief comment or commit message describing:
+    *   The defect fixed (e.g., "Fixed ZeroDivisionError for empty list").
+    *   The change made (e.g., "Added guard clause to return 0.0 for empty input").
+    *   The expected behavior change (e.g., "Empty list now returns 0.0 instead of raising error").
+2.  **Pass Condition:** The documentation is clear and accurate.
+
+### Gate 5.2: Final State Confirmation
+**Verifies:** That the duty is fully discharged.
+**Requires:**
+1.  Confirm all gates in Phases I through V have passed.
+2.  Confirm the code is saved and the environment is clean.
+3.  **Pass Condition:** The repair is complete. The duty is closed.
+
+---
+
+**End of Duty**

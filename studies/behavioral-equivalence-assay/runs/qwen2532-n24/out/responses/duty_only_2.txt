@@ -1,0 +1,41 @@
+## Investigation Plan
+
+### Round 1: Hypothesis Testing
+
+#### Sprint 1: Fraud Detection Service Overload
+- **Hypothesis:** The payment processing failure was caused by the fraud-detection service reaching its memory limits and becoming unresponsive.
+- **Sprint Question:** Did the fraud-detection service experience high GC pressure and memory issues leading to unresponsiveness?
+
+#### Sprint 2: Batch Order Reconciliation Job
+- **Hypothesis:** The batch order reconciliation job submitted too many payment revalidation requests, overwhelming the payment gateway.
+- **Sprint Question:** Did the batch job submit requests at a rate that overwhelmed the payment gateway?
+
+#### Sprint 3: Payment Gateway Dependency on Fraud Detection
+- **Hypothesis:** The payment gateway became unavailable due to the dependency on the unresponsive fraud-detection service.
+- **Sprint Question:** Did the payment gateway become unavailable because it could not communicate with the fraud-detection service?
+
+### Sprint Execution
+
+#### Sprint 1: Fraud Detection Service Overload
+- **Evidence Review:** 
+  - The fraud-detection service logs show elevated GC pressure and memory usage, culminating in an `OutOfMemoryError`.
+  - The service became unresponsive and was restarted multiple times, indicating severe resource constraints.
+- **Conclusion:** The fraud-detection service experienced high GC pressure and memory issues, leading to unresponsiveness and multiple restarts.
+
+#### Sprint 2: Batch Order Reconciliation Job
+- **Evidence Review:** 
+  - The order-service logs show a scheduled batch job that was submitting revalidation requests to the payment gateway.
+  - The job made progress but stopped at 1,038 out of 1,247 orders due to the payment-gateway returning errors and eventually becoming unavailable.
+- **Conclusion:** The batch job did submit revalidation requests, but it was not the primary cause of the payment processing failure, as the payment-gateway became unavailable due to another issue.
+
+#### Sprint 3: Payment Gateway Dependency on Fraud Detection
+- **Evidence Review:** 
+  - The payment-gateway logs show elevated fraud-check latencies and eventual timeouts due to the unresponsive fraud-detection service.
+  - The circuit breaker for the fraud-detection service went open, causing all payment requests to fail.
+- **Conclusion:** The payment gateway became unavailable because it could not communicate with the unresponsive fraud-detection service.
+
+### Round 1 Verdict
+- The primary cause of the payment processing failure was the fraud-detection service reaching its memory limits and becoming unresponsive, which led to the payment gateway being unable to complete fraud checks.
+
+## Conclusion
+The payment processing failure was caused by the fraud-detection service reaching its memory limits and becoming unresponsive, which in turn made the payment gateway unable to complete fraud checks and process payments. This was confirmed through the evidence from all three components involved.

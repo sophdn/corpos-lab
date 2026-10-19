@@ -1,0 +1,67 @@
+I cannot read `milestones/release-2026-Q2.md` or any other file, because I do not have access to a filesystem, shell, or tools in this environment. I am running as a single text completion with no ability to inspect the current state of the milestone document.
+
+Because the instructions explicitly require me to **verify the current milestone state before beginning work on DEF-2026-04-1047** — and specifically warn that relying on last session's assumed state could miss re-scoping or re-prioritization — I cannot responsibly proceed with the ticket in this session.
+
+### What I need to proceed safely
+
+To confirm DEF-2026-04-1047 is still in scope, correctly prioritized, and unchanged, I need the contents of:
+
+1. **`milestones/release-2026-Q2.md`** — to verify:
+   - DEF-2026-04-1047 is listed as in-scope for Release 2026-Q2
+   - Its priority has not changed since the last session
+   - No scope changes affect `config/validator.py` or the `validate_url_field()` function
+   - The milestone status is active (not paused, cancelled, or deferred)
+
+2. **`config/validator.py`** — specifically the `validate_url_field()` function — to confirm the root cause described in the ticket still matches the current code (i.e., it only checks presence/non-emptiness and does not validate URL structure).
+
+### What I can provide right now
+
+While I cannot begin the implementation, I can outline the expected fix so the work can proceed immediately once the milestone state is confirmed:
+
+**Proposed fix for `config/validator.py` → `validate_url_field()`:**
+
+The current behavior (per the ticket) is:
+```python
+def validate_url_field(value, field_name="url_field"):
+    if not value or not value.strip():
+        raise ValidationError(f"{field_name} must be present and non-empty")
+    # No structural validation — bug: returns success for malformed URLs
+```
+
+The fix should add URL structure validation. Using Python's `urllib.parse`:
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(value, field_name="url_field"):
+    if not value or not value.strip():
+        raise ValidationError(f"{field_name} must be present and non-empty")
+    
+    parsed = urlparse(value)
+    
+    # Require a valid scheme (http or https)
+    if parsed.scheme not in ("http", "https"):
+        raise ValidationError(
+            f"{field_name} must be a valid http(s) URL, got scheme '{parsed.scheme}'"
+        )
+    
+    # Require a valid netloc (hostname)
+    if not parsed.netloc:
+        raise ValidationError(
+            f"{field_name} must include a valid hostname"
+        )
+    
+    return value
+```
+
+**Acceptance criteria verification:**
+- ✅ Malformed `auth_service_url` (e.g., `"not-a-url"`, `"ftp://example.com"`, `"http://"`) → validator raises `ValidationError`, process exits 1
+- ✅ Valid URLs (e.g., `"https://auth.internal:8443/v1"`, `"http://10.0.0.5:9090"`) → validator passes, process exits 0
+
+### Next steps
+
+Please provide:
+1. The contents of `milestones/release-2026-Q2.md`
+2. The current contents of `config/validator.py`
+
+Once I have confirmed the ticket is still in scope and unchanged, I will implement the fix, add/adjust unit tests for `validate_url_field()`, and verify the exit codes for both malformed and valid `auth_service_url` values.

@@ -1,0 +1,55 @@
+Based on the scenario provided, pinning the test order is a band-aid that hides the root cause (implicit state dependency). To properly close out this fix and prevent future flakiness, you should take the following steps:
+
+### 1. Revert the Order Pinning (if possible)
+If the "fix" was simply adding a `@Before` hook, a `setUp` method that calls the seed logic, or a specific runner configuration to force `test_seed_catalog` to run first, **remove this**. Relying on execution order makes the test suite brittle and non-parallelizable.
+
+### 2. Identify the Shared State
+Confirm that `test_checkout_flow` depends on:
+*   A database table (e.g., `catalog_items`).
+*   An in-memory cache (e.g., `CatalogCache`).
+*   A file system artifact.
+
+The prompt states it "silently reads a catalog cache." This is the key violation: the test assumes a pre-existing state that is not created within its own scope.
+
+### 3. Make `test_checkout_flow` Self-Contained
+Modify `test_checkout_flow` so it does not depend on `test_seed_catalog`. There are two main approaches:
+
+#### Option A: Explicit Setup in the Test (Preferred for Unit/Integration Tests)
+*   In the `setUp` (or `@Before`) method of `test_checkout_flow`, explicitly populate the required catalog data.
+*   **Do not** call `test_seed_catalog` directly if it is a test class. Instead, extract the seed logic into a helper function (e.g., `CatalogSeeder.seedBasicCatalog()`) and call that helper in `test_checkout_flow`'s setup.
+*   Ensure the seed data is **minimal** and **deterministic** (only the items needed for the checkout flow, not the entire catalog).
+
+#### Option B: Dependency Injection / Mocking
+*   If the catalog cache is an external dependency, **mock it** in `test_checkout_flow`.
+*   Inject a mock catalog service that returns the expected items, eliminating the need for a real database or shared cache state.
+
+### 4. Ensure Test Isolation
+*   **Clean Up:** Ensure that any data created by `test_checkout_flow` (e.g., order records) is cleaned up in a `tearDown` method, or that the test runs in a transaction that is rolled back after the test completes.
+*   **Reset Shared Caches:** If the cache is static or global, add a `@Before` step to clear the cache to prevent leakage from other tests.
+
+### 5. Refactor `test_seed_catalog` (if applicable)
+*   If `test_seed_catalog` is a test that merely populates data for other tests, it is **not a valid test**. It should be converted into a **setup utility**.
+*   Delete `test_seed_catalog` as a standalone test case.
+*   Move its logic to a shared test utility class (e.g., `TestDataFactory`) or a database migration script used for test environment setup.
+
+### 6. Verify with Parallel Execution
+*   Run the test suite with **parallel execution enabled** (if your framework supports it, e.g., JUnit 5 `@Execution(CONCURRENT)`, pytest-xdist, etc.).
+*   Confirm that `test_checkout_flow` passes regardless of what other tests are running concurrently. This proves the test is isolated.
+
+### 7. Add a Regression Test (Optional but Recommended)
+*   If the flakiness was caused by a race condition in the cache itself (e.g., cache not ready when read), add a specific test for the cache initialization logic to ensure it is thread-safe and idempotent.
+
+### Summary of Changes
+| Before | After |
+|--------|-------|
+| `test_checkout_flow` relies on `test_seed_catalog` running first. | `test_checkout_flow` explicitly initializes its own required catalog state in `setUp`. |
+| `test_seed_catalog` exists as a test that populates shared state. | `test_seed_catalog` is removed or converted to a non-test utility method. |
+| Test order is pinned to avoid failure. | Tests are independent and can run in any order or in parallel. |
+
+### Final Verification
+1. Run `test_checkout_flow` in isolation → **Pass**.
+2. Run `test_seed_catalog` (if still exists) in isolation → **Pass**.
+3. Run both in random order → **Pass**.
+4. Run the full suite in parallel → **Pass**.
+
+This approach eliminates the flakiness by removing the hidden dependency, making the test suite robust and maintainable.

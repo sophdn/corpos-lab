@@ -1,0 +1,39 @@
+ In this scenario, I will provide a Python function that adds URL validation to the `config/validator.py` file to address DEF-2026-04-1047.
+
+First, I'll create a new function `validate_url` to validate a given URL string:
+
+```python
+import re
+
+def validate_url(url):
+    regex = re.compile(r'^(http|https)://(www\.)?[a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)' )
+    return bool(regex.match(url))
+```
+
+Next, I'll update the `validate_url_field()` function to validate the URL structure:
+
+```python
+def validate_url_field(field):
+    if not field:
+        return False
+
+    if not validate_url(field):
+        return False
+
+    return True
+```
+
+Finally, I'll update the main function `validate_config()` to call the new `validate_url_field()` function for the `auth_service_url` field:
+
+```python
+def validate_config(config):
+    # ... existing code ...
+
+    if not validate_url_field(config['auth_service_url']):
+        print(f"Malformed auth_service_url: {config['auth_service_url']}")
+        return False
+
+    # ... existing code ...
+```
+
+With these changes, the `config-validator --service auth` command will now exit 1 for a malformed `auth_service_url`, and valid URLs will continue to pass.

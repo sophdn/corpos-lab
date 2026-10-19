@@ -1,0 +1,151 @@
+# repair-duty
+
+## Preamble
+
+**Scope:** This duty governs the lifecycle of repairing a confirmed software defect where the location (locus) of the failure is known.
+**Executor:** The "Repairing Office," an agent or subsystem tasked with executing this sequence.
+**Input:** A defect record containing:
+1.  **Description:** The observed failure (e.g., `ZeroDivisionError`).
+2.  **Locus:** The specific file and line number where the defect resides (e.g., `calculator.py:2`).
+3.  **Context:** The surrounding code or function signature.
+
+**Objective:** Produce a verified, minimal code change that resolves the defect without introducing new failures, accompanied by a regression test that prevents recurrence.
+
+---
+
+## Gates
+
+The Repairing Office must pass through the following gates in strict order. If a gate cannot be passed, the duty halts and escalates to a human supervisor with the specific gate failure reason.
+
+### Gate 1: Locus Verification
+
+**Purpose:** Ensure the stated locus matches the actual code state to prevent repairing the wrong line or a stale version of the file.
+
+**Verification:**
+1.  Load the file specified in the defect record.
+2.  Inspect the line specified in the `Locus`.
+3.  Confirm that the code at this line is consistent with the defect description.
+    *   *Example:* If the defect is `ZeroDivisionError`, the line must contain a division operation.
+    *   *Example:* If the defect is `TypeError`, the line must involve a type-sensitive operation.
+
+**Completion Requirement:**
+*   The code at the locus is present and matches the expected pattern for the defect type.
+*   If the line does not match (e.g., the file has already been refactored, or the line number is off), the gate **fails**. The Office must output: `GATE 1 FAILED: Locus mismatch. Current content at [file:line] is '[content]', expected pattern for [defect type].`
+
+### Gate 2: Root Cause Isolation
+
+**Purpose:** Confirm that the defect is purely a logic error at the locus and not a symptom of an upstream data corruption or downstream misinterpretation.
+
+**Verification:**
+1.  Trace the data flow into the function containing the locus.
+2.  Identify the input condition that triggers the defect.
+    *   *Example:* For `calculator.py:2`, the triggering input is an empty list `[]`.
+3.  Confirm that the function signature or documentation implies this input is valid (i.e., the function *should* handle it) or that the defect is a missing guard clause.
+
+**Completion Requirement:**
+*   A clear statement of the "Triggering Input" is produced.
+*   A determination is made: Is the fix a **Guard Clause** (rejecting invalid input) or a **Logic Correction** (handling the edge case correctly)?
+*   *Example:* For `calculate_average`, the decision must be: "Guard Clause: Return 0.0 or raise a specific exception if `values` is empty." (Note: The choice of behavior must align with project standards; if no standard exists, raising a descriptive `ValueError` is preferred over silently returning 0 unless specified).
+
+### Gate 3: Minimal Patch Synthesis
+
+**Purpose:** Generate the smallest possible code change that addresses the root cause identified in Gate 2.
+
+**Verification:**
+1.  Draft the code change.
+2.  Apply the **Principle of Least Surprise**:
+    *   Do not refactor surrounding code.
+    *   Do not add new dependencies.
+    *   Do not change the public API unless the defect makes the current API impossible to fulfill.
+3.  Ensure the patch is self-contained within the function or immediate scope.
+
+**Completion Requirement:**
+*   A unified diff or explicit before/after code block is produced.
+*   The patch includes a comment explaining *why* the change is made, referencing the defect ID.
+*   *Example Patch:*
+    ```python
+    def calculate_average(values: list) -> float:
+        if not values:
+            raise ValueError("Cannot calculate average of an empty list")
+        return sum(values) / len(values)
+    ```
+
+### Gate 4: Regression Test Generation
+
+**Purpose:** Create a test that would have caught the defect and will verify the fix.
+
+**Verification:**
+1.  Identify the test framework in use (e.g., `pytest`, `unittest`).
+2.  Draft a test case that:
+    *   Invokes the function with the **Triggering Input** identified in Gate 2.
+    *   Asserts the **Expected Behavior** defined in Gate 2 (e.g., `pytest.raises(ValueError)`).
+3.  Ensure the test name is descriptive (e.g., `test_calculate_average_empty_list`).
+
+**Completion Requirement:**
+*   A valid test function is produced.
+*   The test is isolated (does not depend on external state).
+*   *Example Test:*
+    ```python
+    def test_calculate_average_empty_list():
+        with pytest.raises(ValueError):
+            calculate_average([])
+    ```
+
+### Gate 5: Logical Soundness Check
+
+**Purpose:** Perform a static reasoning pass to ensure the patch does not introduce new defects.
+
+**Verification:**
+1.  **Null/Empty Safety:** Does the patch handle all edge cases? (e.g., if `values` is `None` instead of `[]`, does the guard still work? If yes, refine the guard. If no, note it.)
+2.  **Side Effects:** Does the patch alter any global state or shared resources?
+3.  **Type Consistency:** Does the return type remain consistent with the function signature?
+    *   *Example:* If the function returns `float`, does the guard raise an exception (correct) or return `None` (incorrect, unless signature allows)?
+
+**Completion Requirement:**
+*   A checklist confirming:
+    *   [ ] No new side effects.
+    *   [ ] Return type consistent.
+    *   [ ] Edge cases (None, empty, single item) addressed or explicitly out of scope.
+*   If a new edge case is discovered that is *not* part of the original defect, it must be noted in the "Follow-up" section but not fixed in this duty (to maintain minimality).
+
+### Gate 6: Final Assembly & Handoff
+
+**Purpose:** Package the repair for implementation.
+
+**Verification:**
+1.  Combine the **Patch** (Gate 3) and **Test** (Gate 4).
+2.  Write a **Repair Note** summarizing:
+    *   Defect ID
+    *   Locus
+    *   Root Cause
+    *   Chosen Fix Strategy (Guard vs. Logic)
+    *   Follow-up items (if any)
+
+**Completion Requirement:**
+*   The final output is a single structured block containing:
+    1.  The code change.
+    2.  The test case.
+    3.  The Repair Note.
+*   The Office declares: `REPAIR DUTY COMPLETE`.
+
+---
+
+## Failure Handling
+
+If any gate fails, the Office must not proceed. It must output a **Failure Report** containing:
+1.  The failed Gate number.
+2.  The specific reason for failure.
+3.  The state of the analysis up to that point.
+4.  A recommendation for next steps (e.g., "Re-verify locus," "Escalate to architect for API change decision").
+
+## Example Execution (Domain Anchor)
+
+**Defect:** `ZeroDivisionError` in `calculator.py:2`
+**Locus:** `calculator.py:2`
+
+**Gate 1:** Line 2 is `return sum(values) / len(values)`. Division present. Pass.
+**Gate 2:** Triggering input: `values = []`. `len([])` is 0. Division by zero. Strategy: Guard Clause. Pass.
+**Gate 3:** Patch: Add `if not values: raise ValueError(...)`. Pass.
+**Gate 4:** Test: `test_calculate_average_empty_list` using `pytest.raises`. Pass.
+**Gate 5:** Check `None` input. `if not None` is True, so `None` is also handled by the guard. No new side effects. Pass.
+**Gate 6:** Assemble. Complete.

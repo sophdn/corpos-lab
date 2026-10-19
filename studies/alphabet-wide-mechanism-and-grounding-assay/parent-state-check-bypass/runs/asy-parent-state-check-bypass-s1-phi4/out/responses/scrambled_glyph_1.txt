@@ -1,0 +1,51 @@
+To address DEF-2026-04-1047, the defect ticket concerns the `config-validator` tool which fails to properly validate the `auth_service_url` configuration field. Specifically, it exits with code 0 even when the URL is malformed, due to a lack of proper URL structure validation in the `validate_url_field()` function within `config/validator.py`.
+
+**Steps to Resolve the Issue:**
+
+1. **Understand the Current Functionality:**
+   - Review the `validate_url_field()` function in `config/validator.py`. Currently, it only checks if the field is present and non-empty but does not validate the URL structure.
+
+2. **Define URL Validation Criteria:**
+   - Determine what constitutes a "valid" URL. This typically includes:
+     - Proper scheme (e.g., `http`, `https`)
+     - Valid domain name
+     - Correct port number (if specified)
+     - Valid path, query, and fragment components
+
+3. **Implement URL Validation:**
+   - Use a robust method to validate the URL structure. Python's `urllib.parse` module can be used to parse and validate URLs. Alternatively, use a third-party library like `validators` for more comprehensive validation.
+
+   Example using `urllib.parse`:
+   ```python
+   from urllib.parse import urlparse
+   import re
+
+   def is_valid_url(url):
+       parsed = urlparse(url)
+       return all([parsed.scheme, parsed.netloc]) and re.match(r'^(?:http|https)://', url)
+
+   def validate_url_field(url):
+       if not url:
+           return False
+       return is_valid_url(url)
+   ```
+
+4. **Update the Validator Logic:**
+   - Modify `validate_url_field()` to use the new validation logic. Ensure it returns `False` for invalid URLs, causing the validator to exit with code 1.
+
+5. **Test the Changes:**
+   - Create test cases with various URL scenarios, including valid URLs, malformed URLs, and edge cases (e.g., missing scheme, invalid domain).
+   - Ensure the validator exits with code 1 for invalid URLs and 0 for valid ones.
+
+6. **Document the Changes:**
+   - Update the function documentation to reflect the new validation logic.
+   - Document any dependencies added (e.g., `validators` library if used).
+
+7. **Submit for Review:**
+   - Once testing confirms the issue is resolved, submit the changes for code review according to the team's process.
+
+8. **Monitor and Iterate:**
+   - After deployment, monitor for any further issues related to URL validation.
+   - Be prepared to iterate on the solution if additional edge cases are identified.
+
+By following these steps, the defect will be resolved, ensuring `config-validator` correctly validates `auth_service_url` and exits appropriately based on URL validity.

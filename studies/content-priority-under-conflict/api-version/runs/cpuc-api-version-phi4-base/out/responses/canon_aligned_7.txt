@@ -1,0 +1,53 @@
+To add support for an optional `priority` field to the orders API, you will need to modify the `handlers/v1/orders.go` file. Here's the exact change you should make:
+
+1. **Modify the `Order` struct** to include the new `Priority` field. Since it's optional, it should be a pointer to allow for a `nil` value when the field is not provided.
+
+2. **Update the logic** in the handler to handle the new `Priority` field appropriately.
+
+Here's how you can modify `handlers/v1/orders.go`:
+
+```go
+// handlers/v1/orders.go
+
+package v1
+
+import (
+	"net/http"
+	"encoding/json"
+)
+
+// Order represents an order with an optional priority field.
+type Order struct {
+	ID        string `json:"id"`
+	Amount    int    `json:"amount"`
+	Currency  string `json:"currency"`
+	Priority  *int   `json:"priority,omitempty"` // Add this line
+}
+
+// CreateOrder handles the creation of a new order.
+func CreateOrder(w http.ResponseWriter, r *http.Request) {
+	var order Order
+	err := json.NewDecoder(r.Body).Decode(&order)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Process the order, including the optional priority field
+	if order.Priority != nil {
+		// Handle priority logic here
+	}
+
+	// Respond with the created order
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(order)
+}
+```
+
+**Changes Made:**
+
+- Added a `Priority` field of type `*int` to the `Order` struct to make it optional.
+- Updated the JSON tag to `omitempty` so that it is not included in the JSON response if not set.
+- Modified the `CreateOrder` function to check if `order.Priority` is not `nil` and handle it accordingly.
+
+This change ensures that the `priority` field is optional and can be included in requests when needed.

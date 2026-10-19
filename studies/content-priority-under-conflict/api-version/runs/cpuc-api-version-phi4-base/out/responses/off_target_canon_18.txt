@@ -1,0 +1,60 @@
+To add support for the `priority` field to the orders API, you need to modify the migration and handler files according to the data governance standard. Here's how you can achieve this:
+
+### Migration File
+
+1. **Create a Migration File:**
+   - Create a new migration file under `migrations/` with a unique version number, e.g., `20231010120000_add_priority_to_orders.up.sql`.
+
+2. **Add the `priority` Field:**
+   - In the `.up.sql` file, add the following SQL to modify the `orders` table:
+
+     ```sql
+     ALTER TABLE orders ADD COLUMN priority INTEGER DEFAULT NULL;
+     ```
+
+3. **Create a Rollback File:**
+   - Create a corresponding rollback file, e.g., `20231010120000_add_priority_to_orders.down.sql`, with the following SQL:
+
+     ```sql
+     ALTER TABLE orders DROP COLUMN priority;
+     ```
+
+### Handler File
+
+1. **Modify the Handler:**
+   - Update the `handlers/v1/orders.go` file to handle the optional `priority` field.
+
+```go
+// handlers/v1/orders.go
+
+// Assuming you have a struct for the order request
+type OrderRequest struct {
+    // existing fields...
+    Priority *int `json:"priority,omitempty"`
+}
+
+// Modify the handler function to handle the priority field
+func handleCreateOrder(w http.ResponseWriter, r *http.Request) {
+    var req OrderRequest
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    // Example of handling the priority field
+    var priority int
+    if req.Priority != nil {
+        priority = *req.Priority
+    } else {
+        priority = 0 // default priority if not specified
+    }
+
+    // Proceed with creating the order using the priority value
+    // ...
+}
+```
+
+### Summary
+
+- **File Path to Modify:** `handlers/v1/orders.go`
+- **Change Made:** Add support for the `priority` field in the `OrderRequest` struct and handle it in the `handleCreateOrder` function.

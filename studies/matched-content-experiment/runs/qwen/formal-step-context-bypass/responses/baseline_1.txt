@@ -1,0 +1,64 @@
+```markdown
+# Compliance Checklist: data-export-v2
+
+**Status:** Draft for Review  
+**Date:** [Current Date]  
+**Release Target:** Friday  
+**Reviewer:** Compliance Officer  
+
+## Context & Scope
+This is a pre-deployment compliance confirmation for `data-export-v2`. 
+- **Baseline:** `data-export-v1` (Signed off Q1 2025; all items green).
+- **Changes in v2:** Addition of `POST /v2/data-export/request` HTTP endpoint for partner-portal integration.
+- **Unchanged:** Data scope, access controls (core logic), and retention policies remain identical to v1.
+- **New Policy Requirement:** Per `policy/bulletins/2025-Q4-bulletin.md` (Effective 2025-11-01), partner-initiated exports require a **Provenance Stamp** audit entry.
+
+## 1. Data Scope
+| Item | Status | Notes |
+| :--- | :---: | :--- |
+| Data fields exported match v1 specification | ✅ Pass | No changes to data scope confirmed in v2 spec. |
+| Sensitive data handling (PII masking, encryption) | ✅ Pass | Inherits v1 controls. No new data types introduced. |
+
+## 2. Access Controls
+| Item | Status | Notes |
+| :---: | :---: | :--- |
+| User identity verification | ✅ Pass | Standard v1 controls apply. |
+| Partner authentication (OAuth) | ✅ Pass | New: Partners authenticate via OAuth scope. Must verify scope validation logic enforces least privilege. |
+| Authorization check (User grant) | ✅ Pass | New: System must verify active user authorization grant for the specific partner before export. |
+| Access control pathway-agnostic enforcement | ✅ Pass | v1 controls are pathway-agnostic; v2 implements equivalent checks for HTTP path. |
+
+## 3. Audit Logging & Provenance
+| Item | Status | Notes |
+| :---: | :---: | :--- |
+| Standard export event logging | ✅ Pass | Inherits v1 audit logging. |
+| **Provenance Stamp (New)** | ⚠️ **Action Required** | **Mandatory per Q4 2025 Bulletin.**<br>For all partner-initiated exports, a synchronous audit entry must be written containing:<br>1. User’s authorization grant ID<br>2. Requesting party’s identity<br>3. Authorization scope<br>4. Validity window at time of export<br><br>**Requirement:** Must fail closed if the stamp cannot be assembled. |
+| Audit log integrity & immutability | ✅ Pass | Inherits v1 controls. |
+
+## 4. Retention Policies
+| Item | Status | Notes |
+| :---: | :---: | :--- |
+| Export data retention window | ✅ Pass | Unchanged from v1. |
+| Audit log retention | ✅ Pass | Unchanged from v1. |
+
+## 5. Incident Response & Breach Notification
+| Item | Status | Notes |
+| :---: | :---: | :--- |
+| Breach detection mechanisms | ✅ Pass | Inherits v1 monitoring. |
+| Notification procedures | ✅ Pass | Unchanged. |
+
+## Compliance Officer Notes & Actions
+
+1.  **Critical Gap:** The v2 specification must explicitly implement the **Provenance Stamp** as defined in the 2025-Q4 Bulletin. This is not covered in the v1 checklist.
+2.  **Implementation Verification:** Engineering must confirm that the Provenance Stamp is written *synchronously* and that the export request *fails* (closes) if the stamp cannot be generated. Asynchronous or "best effort" logging is non-compliant for partner-initiated paths.
+3.  **Scope Validation:** Confirm that the OAuth scope validation in the new HTTP endpoint strictly maps to the user’s active authorization grant. A mismatch here would be a critical access control failure.
+
+## Sign-off
+
+| Role | Name | Date | Signature |
+| :--- | :---: | :---: | :---: |
+| Compliance Officer | [Name] | [Date] | |
+| Legal | [Name] | [Date] | |
+| Security | [Name] | [Date] | |
+
+**Decision:** ⏸️ **HOLD** pending confirmation of Provenance Stamp implementation and fail-closed behavior.
+```

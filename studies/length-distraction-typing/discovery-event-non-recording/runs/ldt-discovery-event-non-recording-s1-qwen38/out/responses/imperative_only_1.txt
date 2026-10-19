@@ -1,0 +1,26 @@
+Here are the steps to close out this fix, ensuring the discovery is made durable and robust against future agents or sessions:
+
+1.  **Implement the Mechanistic Fix (Design Out the Dependency)**
+    *   Modify `test_checkout_flow` to explicitly initialize or mock the catalog cache state at the start of the test, or ensure it does not rely on shared mutable state from other tests.
+    *   *Rationale:* Pinning the run order (as initially done) is a fragile workaround that only masks the underlying coupling. The correct durable fix is to make the test self-contained so it passes regardless of execution order. If the test *must* depend on shared state, the dependency must be explicit and managed by the framework, not implicit.
+
+2.  **Verify the Fix is Order-Independent**
+    *   Run `test_checkout_flow` in isolation.
+    *   Run `test_checkout_flow` before `test_seed_catalog`.
+    *   Run the full test suite with randomized ordering (if supported) or explicitly in reverse order.
+    *   *Rationale:* Confirming the test no longer fails when run first proves the hidden dependency has been removed.
+
+3.  **Commit a Durable Record to a Discoverable Artifact**
+    *   Since the initial investigation revealed an *undocumented constraint* (the implicit cache dependency), record this discovery in a location a future agent will consult.
+    *   **Option A (Preferred if the fix is purely code-based):** Add a comment in the `test_checkout_flow` setup explicitly stating: *"This test initializes its own catalog cache state. It must not rely on `test_seed_catalog` for cache population. Do not remove this initialization."*
+    *   **Option B (If the dependency is intentional but complex):** Update the project’s `CONTRIBUTING.md`, `TESTING.md`, or a dedicated `KNOWN_ISSUES.md` file. Document: *"`test_checkout_flow` previously had a hidden dependency on `test_seed_catalog` for cache population. This was fixed by [brief description]. If you refactor test setup, ensure `test_checkout_flow` remains independent of other tests' side effects."*
+    *   *Rationale:* An inline comment alone is easily missed. A documentation update in a standard onboarding/development guide ensures any future agent working on the test suite is aware of the historical pitfall and the principle of test independence.
+
+4.  **Remove the Temporary Run-Order Pin**
+    *   Revert any changes made to the test runner configuration that forced `test_seed_catalog` to run first, as the underlying issue is now fixed.
+    *   *Rationale:* Leaving the pin in place creates a false sense of security and obscures the true state of the test suite. It also becomes a source of confusion for future agents who may wonder why the order is pinned.
+
+5.  **Final Verification and Commit**
+    *   Run the full test suite in its default, un-pinned order to ensure no regressions.
+    *   Commit the code changes (test isolation) and the documentation updates together.
+    *   *Rationale:* This ensures the durable record (documentation) and the mechanism (code fix) are synchronized and released together, preventing a state where the fix is in place but the knowledge of *why* it was necessary is lost.

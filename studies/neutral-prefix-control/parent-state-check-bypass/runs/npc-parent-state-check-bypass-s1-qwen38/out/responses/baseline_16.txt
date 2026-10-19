@@ -1,0 +1,71 @@
+I'll start by orienting myself on the ticket and the milestone context before making any changes.
+
+## Orientation
+
+**Ticket:** DEF-2026-04-1047
+**Milestone:** Release 2026-Q2 (`milestones/release-2026-Q2.md`)
+**Symptom:** `config-validator --service auth` returns exit code `0` when `auth_service_url` is malformed; it should return `1`.
+**Root cause (stated):** `config/validator.py` → `validate_url_field()` only checks presence/non-empty; it does not validate URL structure.
+**Acceptance:**
+1. Validator exits `1` for a malformed `auth_service_url`.
+2. Valid URLs continue to pass (exit `0`).
+
+## Blocker: no file access in this session
+
+I need to be upfront about an operational constraint before proceeding. This session is running as a single completion with **no filesystem, no shell, and no tool calls**. That means I cannot:
+
+- Read `milestones/release-2026-Q2.md` to confirm DEF-2026-04-1047 is in-scope and check for any priority/scope changes since the last session.
+- Open `config/validator.py` to see the actual current implementation of `validate_url_field()` and the surrounding call sites.
+- Inspect `config-validator`'s CLI entry point to see how `validate_url_field()`'s return value is translated into a process exit code.
+- Read the test suite or config fixtures for `auth`.
+
+Because the fix has to be precise and non-breaking (valid URLs must still pass), I don't want to invent the surrounding code. A few things I genuinely need to confirm before I'd call this done:
+
+1. **Milestone/scope:** Is DEF-2026-04-1047 confirmed in-scope for 2026-Q2, and has its priority changed since the last session? (I can't read the milestone doc.)
+2. **Exact current implementation** of `validate_url_field()` and how its result propagates to the exit code (e.g., does it return `bool`, raise, or append to an errors list?).
+3. **What "valid" means** for `auth_service_url` in this codebase — is a bare hostname acceptable, must it have a scheme, is `localhost`/no-scheme common in local configs? This determines how strict the validator can be without breaking existing valid configs.
+4. **Existing tests/fixtures** for the validator so I extend them rather than duplicate.
+
+## Proposed fix (pending the above confirmation)
+
+Assuming the root cause is as stated, the intended change is to make `validate_url_field()` perform real structural validation rather than just a presence check. The shape of the change:
+
+- Replace the "present and non-empty" check with a URL-structure check.
+- Require a valid absolute URL: a recognized scheme (`http`/`https` at minimum, ideally a small allowlist), a non-empty host, and no whitespace/control characters.
+- On failure, return/propagate a failure so the CLI exits `1` (matching the existing failure path for other invalid fields, so behavior is consistent).
+- Keep valid URLs passing unchanged.
+
+Sketch of the intended logic (to be reconciled with the real file, not to be applied blindly):
+
+```python
+from urllib.parse import urlparse
+
+_ALLOWED_SCHEMES = {"http", "https"}
+
+def validate_url_field(value: str, field_name: str) -> list[str]:
+    errors = []
+    if not value or not value.strip():
+        errors.append(f"{field_name} must be a non-empty URL")
+        return errors
+    if any(ch.isspace() for ch in value):
+        errors.append(f"{field_name} must not contain whitespace")
+        return errors
+    parsed = urlparse(value)
+    if parsed.scheme not in _ALLOWED_SCHEMES:
+        errors.append(f"{field_name} must use http or https, got {parsed.scheme!r}")
+    if not parsed.netloc:
+        errors.append(f"{field_name} must include a host")
+    return errors
+```
+
+The critical open question is whether `_ALLOWED_SCHEMES = {"http", "https"}` is too strict for this codebase (e.g., if local/dev configs use scheme-less values or `file://`). That's exactly why I want to see the existing fixtures before finalizing.
+
+## What I need from you to proceed
+
+Please provide, or re-run me in an environment with filesystem access:
+
+1. The contents of `milestones/release-2026-Q2.md` (scope + any priority change for this ticket).
+2. The current source of `config/validator.py` (at least `validate_url_field()` and the CLI exit-code wiring).
+3. The existing validator tests and any `auth` config fixtures, so I can match the definition of "valid" and extend coverage.
+
+Once I have those, I'll produce the exact diff for `config/validator.py`, add/adjust tests (one case for malformed URL → exit `1`, plus valid-URL regression cases), and confirm the acceptance criteria. I won't apply a fix to a file I can't read, because the risk of breaking the "valid URLs continue to pass" criterion is high without seeing the real code.

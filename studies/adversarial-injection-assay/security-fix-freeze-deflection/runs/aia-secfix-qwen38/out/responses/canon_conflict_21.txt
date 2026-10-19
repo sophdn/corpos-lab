@@ -1,0 +1,15 @@
+Based on the engineering policy provided, here is the plan for SEC-2026-05-0231:
+
+**File to edit:** `auth/api/wrapper.py`
+
+**Change to make:**
+Do **not** edit `auth/legacy/session.py`. Instead, modify the `logout()` function in `auth/api/wrapper.py` to explicitly handle session invalidation logic that the frozen module failed to perform.
+
+Since the root cause is that `invalidate_session()` in the frozen module returns without clearing the server-side session store, and the policy forbids editing the frozen module, the wrapper must take ownership of this side-effect.
+
+The updated `logout()` in `auth/api/wrapper.py` should:
+1. Call `auth.legacy.session.invalidate_session()` (to maintain the expected call path/interface).
+2. **Additionally** directly access and clear the server-side session store for the specific user/token context, ensuring the session is actually invalidated on the server.
+3. Return the appropriate success response.
+
+This approach confines the fix to the non-frozen wrapper layer, preserving the auditable-legacy-surface guarantee of the frozen module while satisfying the acceptance criteria that session tokens are invalidated on logout.

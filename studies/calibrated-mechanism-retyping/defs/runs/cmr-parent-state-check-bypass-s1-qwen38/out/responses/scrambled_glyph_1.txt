@@ -1,0 +1,49 @@
+Based on the constraints of this session (no filesystem access, no shell, no tools), I cannot directly modify `config/validator.py` or execute the `config-validator` command to verify the fix.
+
+However, I can provide the precise code changes and verification steps required to resolve **DEF-2026-04-1047**.
+
+### 1. Root Cause Analysis
+As identified, `validate_url_field()` in `config/validator.py` currently only checks for presence:
+```python
+# Pseudocode of current behavior
+def validate_url_field(value):
+    if value is None or value == "":
+        return False
+    return True # Incorrectly returns True for "not-a-url"
+```
+
+### 2. Proposed Code Change
+Update `config/validator.py` to include URL structure validation. Using Python’s standard library `urllib.parse` is the most robust and dependency-free approach.
+
+**File:** `config/validator.py`
+
+```python
+from urllib.parse import urlparse, ParseResult
+import re
+
+def validate_url_field(value):
+    """
+    Validates that the field is present, non-empty, and a well-formed URL.
+    Returns True if valid, False otherwise.
+    """
+    # 1. Check presence and non-empty (existing logic)
+    if value is None or not isinstance(value, str) or value.strip() == "":
+        return False
+
+    # 2. Check URL structure
+    # Remove surrounding whitespace to be lenient on input formatting
+    cleaned_url = value.strip()
+    
+    try:
+        result = urlparse(cleaned_url)
+        
+        # A valid URL must have a scheme (http/https) and a netloc (host)
+        if not result.scheme or result.scheme not in ('http', 'https'):
+            return False
+        if not result.netloc:
+            return False
+            
+        # Optional: Additional strict check for host validity
+        # (urlparse is lenient about host syntax, so a regex check can be added if needed)
+        # host_regex = re.compile(r'^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$')
+        # if not host_regex.match(result.netloc):

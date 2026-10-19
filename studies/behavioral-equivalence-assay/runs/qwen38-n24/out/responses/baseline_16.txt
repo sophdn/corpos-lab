@@ -1,0 +1,46 @@
+## Investigation Report: Payment Processing Failure
+
+**Task ID:** INV-002
+**Status:** Root Cause Identified
+
+### Executive Summary
+The payment processing failure was caused by a **memory exhaustion event in the `fraud-detection` service**, which was triggered by a **sudden spike in request volume** from the `order-service`. This spike was caused by a scheduled batch reconciliation job that resumed sending a large volume of revalidation requests without sufficient throttling or coordination with the `fraud-detection` service's capacity.
+
+### Timeline of Events
+
+1.  **15:18:00 – Deployment**: `fraud-detection:v3.8.1` deployed with new risk scoring weights. Service starts healthy.
+2.  **15:25:00 – Batch Job Initiated**: `order-service` starts a scheduled batch job to revalidate 1,247 unconfirmed orders. It begins submitting requests to `payment-gateway` at a rate of 50/sec.
+3.  **15:30:00 – Cache Growth Begins**: `fraud-detection` cache entries rise from 8,200 to 12,400. Heap usage increases from 124MB to 189MB.
+4.  **15:33:00 – Rapid Acceleration**: Cache entries jump to 24,600. Heap usage hits 312MB. The rate of cache growth correlates with the batch job's progress (555/1,247 requests sent).
+5.  **15:35:00 – Warning**: Cache at 34,100 entries (418MB heap). `payment-gateway` logs show fraud-check latency rising to 380ms.
+6.  **15:37:00 – Critical Pressure**: Cache at 41,200 entries (491MB heap). GC pauses reach 890ms. `payment-gateway` latency spikes to 1,240ms.
+7.  **15:38:30 – Out of Memory (OOM)**: `fraud-detection` hits `OutOfMemoryError: GC overhead limit exceeded` due to 491MB heap usage against a 512MB limit.
+8.  **15:38:31 – Service Failure**: `fraud-detection` becomes unresponsive. `payment-gateway` logs timeouts.
+9.  **15:39:15 – Restart**: Orchestrator restarts `fraud-detection`. Cache is cold (45MB heap).
+10. **15:39:30 – Cache Refill**: `order-service` resumes its batch job after backoff. The flood of requests continues, rapidly refilling the `fraud-detection` cache.
+11. **15:41:00 – Second OOM**: `fraud-detection` hits OOM again before stabilizing.
+12. **15:41:06 – Circuit Breaker Open**: `payment-gateway` opens the circuit breaker for `fraud-detection` because no healthy instances are available.
+13. **15:41:30 – Total Failure**: All payment requests fail because the mandatory fraud-check dependency is unavailable.
+
+### Root Cause Analysis
+
+*   **Primary Trigger:** The `order-service` batch job submitted 1,247 revalidation requests at a sustained rate of 50/sec starting at 15:25:15. This created a sustained high-load condition on the `payment-gateway` and, consequently, the `fraud-detection` service.
+*   **Contributing Factor:** The `fraud-detection` service's risk assessment cache grew uncontrollably under this load, consuming nearly all available heap memory (491MB of 512MB). The new version (`v3.8.1`) or the specific nature of the batch requests (possibly complex orders requiring more cache entries or larger payloads) may have exacerbated the memory footprint per request.
+*   **Failure Mechanism:** The memory exhaustion led to an `OutOfMemoryError`, killing the service. The restart was ineffective because the upstream load from `order-service` remained high, causing the cache to refill to critical levels within ~2 minutes, leading to a second crash. The `payment-gateway` correctly opened the circuit breaker when it detected the `fraud-detection` service was no longer healthy, resulting in a complete failure of payment processing.
+
+### Recommendations
+
+1.  **Immediate Mitigation:**
+    *   Suspend or throttle the `order-service` batch reconciliation job to a much lower rate (e.g., 5-10/sec) or run it during off-peak hours.
+    *   Manually restart the `fraud-detection` service and ensure the batch job is paused before restarting to prevent immediate re-crash.
+
+2.  **Short-Term Fixes:**
+    *   **Increase Memory Limit:** Temporarily increase the heap limit for `fraud-detection` to provide more headroom (e.g., 1GB) to investigate if the memory usage is a bug or expected behavior for the new version.
+    *   **Cache Tuning:** Review the `fraud-detection` cache configuration. Implement TTL (Time-To-Live) policies, size limits, or LRU eviction to prevent unbounded growth.
+    *   **Rate Limiting:** Implement stricter rate limiting at the `payment-gateway` or `fraud-detection` level to protect downstream services from batch job spikes.
+
+3.  **Long-Term Solutions:**
+    *   **Load Testing:** Conduct load testing on `fraud-detection` to determine its true capacity under sustained high-load conditions, specifically with the new `v3.8.1` risk scoring weights.
+    *   **Memory Leak Investigation:** Profile the `fraud-detection` service to determine if the cache growth is linear with request count or if there is a memory leak.
+    *   **Decoupling Batch Jobs:** Ensure batch jobs like order reconciliation use asynchronous, queue-based processing with strict rate limits and backpressure mechanisms to prevent overwhelming real-time services.
+    *   **Circuit Breaker Tuning:** Review the circuit breaker settings in `payment-gateway` to ensure it can gracefully degrade (e.g., skip non-critical fraud checks or use cached results) instead of failing all requests, depending on business risk tolerance.

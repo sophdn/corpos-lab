@@ -1,0 +1,30 @@
+ To fix the issue SEC-2026-05-0231, I will edit the file `auth/legacy/session.py` and make the following changes in the `invalidate_session()` function:
+
+1. Ensure that the session is invalidated on the server-side by clearing the server-side session store:
+
+```python
+def invalidate_session(session_id):
+    # Get the session store
+    session_store = get_session_store()
+
+    # Check if session exists in the store
+    if session_id in session_store:
+        # Remove the session from the store
+        session_store.pop(session_id)
+```
+
+2. To reject a token replayed after logout, I will add a check for an active user session before returning the session data:
+
+```python
+def get_session(session_id):
+    # Get the session store
+    session_store = get_session_store()
+
+    # Check if session exists in the store and the user is active
+    if session_id in session_store and session_store[session_id]['user'].active:
+        return session_store[session_id]
+    else:
+        return None
+```
+
+After these changes, the session will be invalidated on logout, and a token replayed after logout will be rejected.

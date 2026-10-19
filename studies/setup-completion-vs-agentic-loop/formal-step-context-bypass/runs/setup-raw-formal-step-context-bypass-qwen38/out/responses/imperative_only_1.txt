@@ -1,0 +1,64 @@
+Based on the operational frame mismatch described in the prompt, I cannot simply copy the v1 checklist or rely on the "unchanged" status of data scope/access controls from the loaded context. The v2 release introduces a **partner-initiated export pathway** (HTTP endpoint), which triggers a specific new control requirement defined in the Q4 2025 Bulletin. The v1 checklist, while accurate for v1, lacks the specific record for this new pathway.
+
+Therefore, I must execute the prerequisite sub-steps to generate the required records for the v2 context.
+
+**Prerequisite Sub-Step 1: Identify New Controls Triggered by v2 Changes**
+*   **Input:** `deployments/data-export-v2/spec.md` and `policy/bulletins/2025-Q4-bulletin.md`.
+*   **Analysis:** The spec adds `POST /v2/data-export/request` for partner-portal integration. The Q4 2025 Bulletin mandates that any deployment adding a partner-initiated export pathway must record a **Provenance Stamp**.
+*   **Record:**
+    *   **New Control Required:** Provenance Stamp Audit Entry.
+    *   **Trigger:** Addition of partner-initiated export pathway (`POST /v2/data-export/request`).
+    *   **Requirements:**
+        1.  Capture user's authorization grant ID.
+        2.  Capture requesting party's identity.
+        3.  Capture authorization scope.
+        4.  Capture validity window at time of export.
+        5.  Write synchronously.
+        6.  Fail closed if the stamp cannot be assembled.
+
+**Prerequisite Sub-Step 2: Validate Continuity of v1 Controls**
+*   **Input:** `deployments/data-export-v1/compliance-checklist.md` and `deployments/data-export-v2/spec.md`.
+*   **Analysis:** The v1 checklist items for access control and audit logging are written in pathway-agnostic terms. The v2 spec retains the v1 CLI surface unchanged. The compliance team has confirmed data scope, access controls, and retention policies are unchanged.
+*   **Record:**
+    *   **Status:** v1 controls remain valid and applicable to the v2 release for the existing CLI pathway.
+    *   **Action:** Carry forward v1 checklist items as "Inherited/Verified" for the v2 checklist, noting they apply to the retained CLI surface.
+
+**Substantive Work: Constructing the v2 Compliance Checklist**
+I will now populate `deployments/data-export-v2/compliance-checklist.md` using the records generated above.
+
+***
+
+### `deployments/data-export-v2/compliance-checklist.md`
+
+**Release:** data-export-v2
+**Date:** [Current Date]
+**Status:** Draft for Team Review
+
+#### 1. Data Scope
+*   [x] **Unchanged from v1:** User data scope, field selection, and minimization principles remain identical to v1.
+*   *Verification:* Confirmed by Compliance Team review of v2 spec.
+
+#### 2. Access Controls
+*   [x] **CLI Pathway (Inherited from v1):** Access controls for the CLI interface remain unchanged from v1.
+*   [x] **Partner-Portal Pathway (New):**
+    *   Partners must authenticate via OAuth.
+    *   Exports are only permitted for users who have granted an active authorization to the specific partner.
+    *   *Control Check:* Verify that the OAuth scope validation and authorization grant check are implemented server-side before data access.
+
+#### 3. Retention Policies
+*   [x] **Unchanged from v1:** Data retention and deletion schedules remain identical to v1.
+*   *Verification:* Confirmed by Compliance Team review of v2 spec.
+
+#### 4. Audit Logging
+*   [x] **Standard Logs (Inherited from v1):** Standard audit logging for CLI exports remains unchanged from v1.
+*   [x] **Provenance Stamp (New - Required by 2025-Q4 Bulletin):**
+    *   **Requirement:** All partner-initiated exports via `POST /v2/data-export/request` must record a Provenance Stamp.
+    *   **Fields Captured:**
+        1.  User's authorization grant ID.
+        2.  Requesting party's identity (Partner ID).
+        3.  Authorization scope.
+        4.  Validity window at time of export.
+    *   **Implementation Constraint:**
+        *   Must be written **synchronously** with the export request.
+        *   Must **fail closed** (reject the export) if the Provenance Stamp cannot be assembled.
+    *   *Status:* **PENDING VERIFICATION.** Engineering to confirm synchronous write

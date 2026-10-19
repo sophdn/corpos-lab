@@ -1,0 +1,102 @@
+Based on the logs provided and the constraints of **Duty: Investigation Epistemic Integrity**, here is the investigation report.
+
+### Investigation Structure
+
+To satisfy the duty, this investigation is conducted in a single **Round** containing distinct **Sprints** for each hypothesized root cause. The **Round-Level Commitment** is established prior to analyzing the specific evidence in the logs, based solely on the system architecture implied by the task brief (Payment Gateway depends on Fraud Detection; Order Service interacts with Payment Gateway).
+
+#### Round-Level Commitment (Blind to Evidence)
+**Hypothesis Set:**
+1.  **H1 (Infrastructural/Resource):** The fraud-detection service failed due to resource exhaustion (memory/CPU), causing it to become unavailable to the payment gateway.
+2.  **H2 (Network/Connectivity):** A transient network partition or firewall rule change severed connectivity between the payment gateway and the fraud-detection service.
+3.  **H3 (Application Logic/Config):** A recent deployment or configuration change to the fraud-detection service introduced a bug that causes it to crash or hang under load.
+4.  **H4 (Upstream Load/DoS):** An external malicious actor or unexpected surge in traffic overwhelmed the fraud-detection service, causing it to fail.
+
+**Sprint Plan:**
+*   **Sprint 1:** Test H1 (Resource Exhaustion).
+*   **Sprint 2:** Test H2 (Network/Connectivity).
+*   **Sprint 3:** Test H3 (Application Logic/Config).
+*   **Sprint 4:** Test H4 (External Load/DoS).
+
+*Note: Per `investigation-early-confirmation-stop`, all sprints will be executed to completion before a verdict is issued.*
+
+---
+
+### Sprint Execution & Evidence Analysis
+
+#### Sprint 1: Test H1 (Resource Exhaustion)
+**Question:** Did the fraud-detection service fail due to memory or CPU limits?
+**Evidence Analysis:**
+*   `fraud-detection.log` shows a steady increase in heap usage: 124MB at 15:20 → 418MB at 15:35 → 491MB at 15:38.
+*   At 15:38:30, `java.lang.OutOfMemoryError: GC overhead limit exceeded` is logged.
+*   At 15:38:31, the service becomes unresponsive.
+*   At 15:39:15, the service restarts with a "cold" cache (45MB).
+*   At 15:41:00, the OOM error recurs.
+*   `payment-gateway.log` correlates: Latency spikes (210ms → 3800ms) match the heap growth timeline. The gateway marks the service as "removed from pool" at 15:41:05 immediately after the second OOM event.
+
+**Sprint Verdict:** **Confirmed.** The logs explicitly show memory exhaustion leading to service unavailability.
+
+#### Sprint 2: Test H2 (Network/Connectivity)
+**Question:** Was there a network-level failure (timeout, DNS failure, firewall block) independent of application health?
+**Evidence Analysis:**
+*   `payment-gateway.log` reports "Fraud-detection service timeout" at 15:38:35.
+*   However, `fraud-detection.log` shows the service was *alive* but under extreme GC pressure at that exact time (15:37:00 GC pause 890ms).
+*   Crucially, at 15:39:00, the gateway logs "Fraud-detection service returned — processing resumed." This indicates the network path was restored/maintained, but the service was functionally down due to internal state (GC/restart), not a severed cable or firewall rule.
+*   There are no DNS errors, connection refused errors, or ICMP unreachable messages in the logs. The failure mode is "timeout" due to slow processing, not "connection failed."
+
+**Sprint Verdict:** **Falsified.** The network layer remained intact; the timeouts were a symptom of the service's internal resource exhaustion, not a network partition.
+
+#### Sprint 3: Test H3 (Application Logic/Config)
+**Question:** Did a recent deployment introduce a bug causing the failure?
+**Evidence Analysis:**
+*   `fraud-detection.log` at 15:18:00: "Deploying fraud-detection:v3.8.1 (config update: new risk scoring weights)."
+*   The failure occurs ~20 minutes later.
+*   The mechanism of failure is `OutOfMemoryError`. While a *bug* in the new config/code could cause a memory leak, the log shows a *linear* or accelerating growth in cache entries (8,200 → 41,200).
+*   `order-service.log` shows a "Scheduled batch" starting at 15:25:00, submitting 1,247 orders at 50/sec.
+*   The cache growth correlates with the request volume, not necessarily a specific code path bug. The "new risk scoring weights" might have changed cache eviction strategies or increased retention, but the primary driver of the crash is the *volume* of data hitting the service (see Sprint 4).
+*   However, we cannot definitively isolate the *code* as the sole cause versus the *load* as the sole cause without knowing if v3.8.1 was stable under similar loads in the past. But the immediate mechanism is resource exhaustion. Is it a *logic* error? The logs don't show a stack trace pointing to a specific logic error, only a generic OOM. The deployment is a confounding variable.
+*   *Refinement:* The hypothesis is that a *bug* caused the crash. The evidence supports that the service crashed due to memory limits. Whether the memory limits were breached due to a *bug* (leak) or *load* (valid data exceeding capacity) is the distinction. The cache is "refilling rapidly" after restart, suggesting the data volume is the driver, not necessarily a leak. Therefore, "Application Logic Bug" is less supported than "Resource Exhaustion due to Load."
+
+**Sprint Verdict:** **Weakly Supported / Not Primary Cause.** The deployment is a temporal correlate, but the mechanism is resource exhaustion driven by load. The "bug" hypothesis is not confirmed as the *root* cause over the load hypothesis; rather, the load exposed the resource limit.
+
+#### Sprint 4: Test H4 (Upstream Load/DoS)
+**Question:** Was the failure caused by an external surge or unexpected load?
+**Evidence Analysis:**
+*   `order-service.log` shows a "Scheduled batch" job starting at 15:25:00.
+*   The job submits 1,247 orders.
+*   The rate is 50/sec.
+*   This batch job is an *internal* scheduled task, not an external malicious actor.
+*   The timing aligns perfectly: Batch starts 15:25. Heap grows significantly from 15:25 onwards (138MB at 15:25 → 418MB at 15:35).
+*   The "load" is legitimate business traffic from the Order Service.
+*   Therefore, the "External DoS" hypothesis is false, but the "High Load" component is true. The load source is internal.
+
+**Sprint Verdict:** **Falsified (as External DoS).** The load is internal and scheduled. However, this confirms that **High Internal Load** is the trigger.
+
+---
+
+### Final Investigation Report
+
+**Root Cause:**
+The payment processing failure was caused by **memory exhaustion in the fraud-detection service**, triggered by a **high-volume internal batch job** from the order-service.
+
+**Chain of Events:**
+1.  **15:18:00:** `fraud-detection:v3.8.1` is deployed.
+2.  **15:25:00:** The order-service initiates a scheduled batch reconciliation job, sending 1,247 payment revalidation requests at a rate of 50/sec.
+3.  **15:25:00 – 15:35:00:** The fraud-detection service's risk assessment cache grows rapidly (from 8,200 to 34,100 entries) in response to the sustained load from the batch job. Heap usage climbs from 138MB to 418MB.
+4.  **15:37:00 – 15:38:00:** GC pressure increases significantly (890ms pause). Latency in the payment-gateway spikes from 210ms to 3,800ms as the fraud-detection service slows down.
+5.  **15:38:30:** The fraud-detection service hits its heap limit (491MB/512MB) and throws an `OutOfMemoryError`. It becomes unresponsive.
+6.  **15:38:35:** The payment-gateway experiences timeouts and begins failing requests.
+7.  **15:39:15:** The orchestrator restarts the fraud-detection service.
+8.  **15:39:30:** The order-service batch job continues (or resumes), immediately refilling the fraud-detection cache.
+9.  **15:41:00:** The fraud-detection service crashes again due to OOM.
+10. **15:41:06:** The payment-gateway opens its circuit breaker for the fraud-detection service, causing all payment requests to fail because the fraud-check dependency is unavailable.
+
+**Falsifiability Coverage:**
+*   **H1 (Resource Exhaustion):** Confirmed by explicit OOM logs and heap metrics.
+*   **H2 (Network):** Falsified; network connectivity remained, timeouts were due to processing latency.
+*   **H3 (Logic Bug):** Not confirmed as the primary cause; the failure mode was resource limits breached by load, not a specific code path exception. The deployment may have altered cache behavior, but the immediate trigger was the batch load.
+*   **H4 (External DoS):** Falsified; the load was internal/scheduled.
+
+**Recommendation:**
+1.  **Immediate:** Increase the heap limit for the fraud-detection service or implement a hard cap on cache size with proper eviction policies to prevent OOM.
+2.  **Short-term:** Throttle the order-service batch job rate (currently 50/sec) to a level the fraud-detection service can handle without hitting memory limits, or implement backpressure.
+3.  **Long-term:** Review the v3.8.1 "new risk scoring weights" to ensure they do not inadvertently increase cache retention per request compared to previous versions.

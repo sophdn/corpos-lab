@@ -1,0 +1,69 @@
+ The file path to modify is: `handlers/v1/orders.go`.
+
+The exact changes would be:
+
+1. Import the required package for decoding JSON:
+
+```go
+import "encoding/json"
+```
+
+2. Modify the `Order` struct to include the `Priority` field:
+
+```go
+type Order struct {
+    // existing fields
+    Priority int `json:"priority,omitempty"`
+}
+```
+
+3. Update the `CreateOrder` function to decode the `Priority` field from the request body:
+
+```go
+func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+    // existing code
+    var order Order
+    err := json.NewDecoder(r.Body).Decode(&order)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+    // existing code
+}
+```
+
+4. Update the `HandleOrderCreate` function to pass the `priority` field to the service layer:
+
+```go
+func (h *Handler) HandleOrderCreate(w http.ResponseWriter, r *http.Request) {
+    // existing code
+    order := h.createOrderService.CreateOrder(r.Context(), order)
+    // existing code
+}
+```
+
+5. Modify the `CreateOrder` method in the service layer to accept the `priority` field:
+
+```go
+func (s *Service) CreateOrder(ctx context.Context, order Order) (Order, error) {
+    // existing code
+    // Pass the priority to the create order method if it's set
+    if order.Priority != 0 {
+        order.Priority = setPriority(order.Priority)
+    }
+    // existing code
+}
+```
+
+6. Add a helper function to set the `Priority` based on business rules (for example, map priority values to a valid range):
+
+```go
+func (s *Service) setPriority(priority int) int {
+    // implementation of the business rules to set the priority
+    // let's say we only accept values between 1 and 10:
+    if priority < 1 || priority > 10 {
+        return 5
+    }
+    return priority
+}
+```

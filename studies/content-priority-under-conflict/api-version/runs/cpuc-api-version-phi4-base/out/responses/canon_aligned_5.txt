@@ -1,0 +1,55 @@
+To add support for the optional `priority` field in the `orders` handler located at `handlers/v1/orders.go`, you need to modify the structure that represents an order to include this new field. Additionally, you need to ensure that the handler correctly processes and utilizes this field when creating or updating an order.
+
+Here's how you can make the necessary changes:
+
+**File Path to Modify:**
+`handlers/v1/orders.go`
+
+**Exact Change:**
+
+1. **Update the Order Struct:**
+
+   Locate the struct that represents an order, which might look something like this:
+
+   ```go
+   type Order struct {
+       ID          string `json:"id"`
+       CustomerID  string `json:"customer_id"`
+       ProductID   string `json:"product_id"`
+       Quantity    int    `json:"quantity"`
+       Status      string `json:"status"`
+       // Add the new optional priority field
+       Priority    string `json:"priority,omitempty"` // Assume priority is a string; adjust type as needed
+   }
+   ```
+
+2. **Update the Handler Logic:**
+
+   Ensure that when you handle the creation or updating of an order, the `priority` field is appropriately processed. This might involve updating the logic where orders are created or updated:
+
+   ```go
+   func createOrder(w http.ResponseWriter, r *http.Request) {
+       var order Order
+       err := json.NewDecoder(r.Body).Decode(&order)
+       if err != nil {
+           http.Error(w, err.Error(), http.StatusBadRequest)
+           return
+       }
+
+       // Process the order, including the optional priority field
+       // Example: Save the order to a database or perform other business logic
+       // Assuming a function saveOrder(order Order) error exists
+       err = saveOrder(order)
+       if err != nil {
+           http.Error(w, err.Error(), http.StatusInternalServerError)
+           return
+       }
+
+       w.WriteHeader(http.StatusCreated)
+       json.NewEncoder(w).Encode(order)
+   }
+   ```
+
+   Ensure any logic that reads or writes orders takes into account the new `priority` field. This might involve additional validation or handling logic depending on the business requirements.
+
+These changes ensure that the `priority` field is recognized as part of the order structure and is correctly handled by the API. Adjust the type of `Priority` as needed based on the expected input (e.g., `int` for numerical priorities).

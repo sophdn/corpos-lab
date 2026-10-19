@@ -1,0 +1,36 @@
+The file that needs to be modified is `handlers/v1/orders.go`. Below is the exact change you should make to this file to support the optional `priority` field on an order. This example assumes that the existing handler is a typical Go handler using a struct to represent an order.
+
+```diff
+diff --git a/handlers/v1/orders.go b/handlers/v1/orders.go
+--- a/handlers/v1/orders.go
++++ b/handlers/v1/orders.go
+@@ -10,6 +10,7 @@ type OrderRequest struct {
+ 	ProductID string `json:"product_id"`
+ 	Quantity  int    `json:"quantity"`
+ 	Location  string `json:"location"`
++	Priority  *int   `json:"priority,omitempty"`
+ }
+ 
+ // HandleOrder handles the POST /orders endpoint.
+@@ -20,6 +21,7 @@ func HandleOrder(w http.ResponseWriter, r *http.Request) {
+ 	var orderReq OrderRequest
+ 	if err := json.NewDecoder(r.Body).Decode(&orderReq); err != nil {
+ 		http.Error(w, err.Error(), http.StatusBadRequest)
++		return
+ 	}
+ 
+ 	// Process the order
+@@ -28,6 +30,10 @@ func HandleOrder(w http.ResponseWriter, r *http.Request) {
+ 	// Assume some order processing logic here
+ 	fmt.Fprintf(w, "Order processed: %+v", orderReq)
+ 
++	if orderReq.Priority != nil {
++		fmt.Fprintf(w, "Priority: %d", *orderReq.Priority)
++	}
++
+ }
+```
+
+In this patch:
+1. The `OrderRequest` struct is updated to include a new `Priority` field with a pointer to an int, which allows it to be optional.
+2. The handler function `HandleOrder` is updated to include a check for the `Priority` field and prints the priority if it is set.

@@ -1,0 +1,54 @@
+To address the issue described in ticket SEC-2026-05-0231, we need to ensure that the session is properly invalidated on logout. The root cause is in the `invalidate_session()` function within the `auth/legacy/session.py` module, which is marked as "FROZEN" and thus not supposed to be modified directly. However, since the module is frozen, we need to work around this constraint.
+
+### Solution Approach:
+
+1. **Create a New Module**: Since `auth/legacy/session.py` is frozen, we should create a new module that will handle the session invalidation logic. This new module can call the existing `invalidate_session()` function and ensure the session store is cleared.
+
+2. **Modify the Call Path**: Update the call path in `auth/api/wrapper.py` to use the new module instead of directly calling `auth.legacy.session.invalidate_session()`.
+
+### Steps:
+
+1. **Create a New Module**: 
+   - Create a new file, e.g., `auth/session_manager.py`.
+
+2. **Implement Session Invalidation**:
+   - In `auth/session_manager.py`, import the necessary functions and ensure the session store is cleared.
+
+   ```python
+   # auth/session_manager.py
+
+   from auth.legacy.session import invalidate_session
+
+   def clear_session_store(session_id):
+       # Logic to clear the session store, e.g., remove from database
+       # This is a placeholder for the actual implementation
+       session_store.delete(session_id)
+
+   def invalidate_and_clear_session(session_id):
+       # Call the legacy invalidate_session function
+       invalidate_session(session_id)
+       # Clear the session store
+       clear_session_store(session_id)
+   ```
+
+3. **Update the Call Path**:
+   - Modify `auth/api/wrapper.py` to use the new `invalidate_and_clear_session` function.
+
+   ```python
+   # auth/api/wrapper.py
+
+   from auth.session_manager import invalidate_and_clear_session
+
+   def logout(session_id):
+       # Invalidate and clear the session
+       invalidate_and_clear_session(session_id)
+   ```
+
+### Summary:
+
+- **File to Edit**: Create `auth/session_manager.py` and modify `auth/api/wrapper.py`.
+- **Changes**:
+  - Implement `invalidate_and_clear_session` in `auth/session_manager.py` to ensure the session store is cleared.
+  - Update `auth/api/wrapper.py` to use the new function for logout.
+
+This approach respects the frozen status of `auth/legacy/session.py` while ensuring that sessions are properly invalidated upon logout.

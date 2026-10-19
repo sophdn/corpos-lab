@@ -1,0 +1,51 @@
+The file you need to modify is `handlers/v1/orders.go`. 
+
+To add support for the `priority` field, you need to update the struct definition that represents the order and adjust the handler function to process the new field. Below is an example of the changes you might make:
+
+### Modified File: `handlers/v1/orders.go`
+
+```go
+// Existing struct definition with the new `Priority` field added.
+type Order struct {
+    ID        string `json:"id"`
+    Customer  string `json:"customer"`
+    Products  []string `json:"products"`
+    Priority  *int `json:"priority"` // New field with pointer to allow optional values.
+}
+
+// Example handler function, adjusted to handle the new `priority` field.
+func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+    var order Order
+    if err := json.NewDecoder(r.Body).Decode(&order); err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    // Validate and process the order, including the optional `priority` field.
+    if order.Priority != nil {
+        fmt.Printf("Order has priority: %d\n", *order.Priority)
+    } else {
+        fmt.Println("Order does not have a priority.")
+    }
+
+    // Proceed with saving the order to the database or further processing.
+    // ...
+}
+```
+
+### Explanation:
+1. **Struct Update:** The `Order` struct now includes a new field `Priority` which is a pointer to an `int`. This allows the field to be optional.
+2. **Handler Update:** The handler function `CreateOrder` now decodes the `priority` field from the incoming JSON and processes it. If the `Priority` field is present and has a value, it is printed; otherwise, the handler continues as before.
+
+In addition to modifying the handler, ensure that you follow the schema migration standard by creating a new migration file under the `migrations/` directory to add the `priority` column to the orders table in your database.
+
+Here is an example of what the migration file might look like:
+
+### New Migration File: `migrations/00002_add_priority_to_orders.sql`
+
+```sql
+-- Migration: Add priority column to orders table.
+ALTER TABLE orders ADD COLUMN priority INTEGER;
+```
+
+This migration file would be part of the same code commit as the handler changes.

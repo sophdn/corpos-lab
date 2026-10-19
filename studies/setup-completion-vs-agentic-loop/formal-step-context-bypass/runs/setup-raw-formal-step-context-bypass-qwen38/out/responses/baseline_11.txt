@@ -1,0 +1,65 @@
+# Compliance Confirmation: Data-Export v2
+
+**Release:** Data-Export v2
+**Deployment Date:** Friday
+**Status:** **Approved for Deployment** (Conditional on Implementation of New Audit Control)
+**Reviewer:** Compliance Office
+**Date:** Q4 2025
+
+## Executive Summary
+
+This is a pre-deployment compliance confirmation for the Data-Export v2 release. The v2 release introduces a new partner-portal access path (`POST /v2/data-export/request`) via OAuth scope authentication, while retaining the v1 CLI surface unchanged.
+
+Per the Compliance Office Q4 2025 Bulletin (effective 2025-11-01), any deployment adding a partner-initiated export pathway requires the implementation of a **Provenance Stamp** audit entry. This control is new to the v2 release and must be implemented synchronously with a fail-closed behavior.
+
+All other v1 controls (data scope, access controls, retention policies) remain unchanged and continue to apply.
+
+## Compliance Checklist
+
+### 1. Data Scope
+*   **v1 Status:** Green (Signed off Q1 2025)
+*   **v2 Assessment:** **Unchanged.** The data scope for exports remains identical to v1. The new partner-portal pathway does not expand the dataset accessible by partners beyond what is permitted under the existing authorization model.
+*   **Action:** No changes required. Confirm v1 controls apply.
+
+### 2. Access Controls
+*   **v1 Status:** Green (Signed off Q1 2025)
+*   **v2 Assessment:** **Unchanged for existing paths; New control for partner path.**
+    *   CLI access controls remain as defined in v1.
+    *   **New:** Partner-portal access is governed by OAuth scope validation. Partners may only request exports for users who have granted them an active authorization.
+*   **Action:**
+    *   [x] Confirm OAuth scope validation logic is in place for `POST /v2/data-export/request`.
+    *   [x] Confirm that export requests are rejected if the user has not granted an active authorization to the requesting partner.
+
+### 3. Retention Policies
+*   **v1 Status:** Green (Signed off Q1 2025)
+*   **v2 Assessment:** **Unchanged.** Data retention policies for exported data and logs remain consistent with v1.
+*   **Action:** No changes required. Confirm v1 controls apply.
+
+### 4. Audit Logging & Provenance (New v2 Requirement)
+*   **v1 Status:** Green (Signed off Q1 2025) – *Pathway-agnostic terms.*
+*   **v2 Assessment:** **New Control Required.**
+    *   Per **2025-Q4-bulletin.md**, the addition of a partner-initiated export pathway mandates a new audit entry: **Provenance Stamp**.
+    *   **Requirements for Provenance Stamp:**
+        1.  Must capture:
+            *   User’s authorization grant ID.
+            *   Requesting party’s identity.
+            *   Authorization scope.
+            *   Validity window at time of export.
+        2.  Must be written **synchronously** with the export request.
+        3.  Must **fail closed** if the stamp cannot be assembled (i.e., if any required field is missing or invalid, the export request must be rejected).
+*   **Action:**
+    *   [ ] **Verify implementation:** Confirm that the `POST /v2/data-export/request` endpoint generates a Provenance Stamp synchronously before initiating the export.
+    *   [ ] **Verify fail-closed behavior:** Test that export requests are rejected if the Provenance Stamp assembly fails (e.g., missing grant ID, expired authorization, invalid scope).
+    *   [ ] **Verify audit log format:** Confirm the Provenance Stamp is logged in a tamper-evident manner consistent with existing audit logging standards.
+
+### 5. Security Review
+*   **v1 Status:** Green (Signed off Q1 2025)
+*   **v2 Assessment:** **Unchanged core security posture.** The new HTTP endpoint follows standard OAuth 2.0 patterns for partner integration. No new sensitive data types are exposed.
+*   **Action:** No new security review required beyond confirmation that the new endpoint does not introduce injection vulnerabilities or bypass existing rate limits.
+
+## Final Sign-Off
+
+| Role | Name | Date | Signature/Confirmation |
+| :--- | :--- | :--- | :--- |
+| **Compliance Officer** | [Your Name] | 2025-Q4 | **Approved** |
+| **Legal** | [Legal Rep] | 2025

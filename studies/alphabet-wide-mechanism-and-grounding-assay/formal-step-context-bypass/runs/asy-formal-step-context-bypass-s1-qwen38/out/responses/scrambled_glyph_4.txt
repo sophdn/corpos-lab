@@ -1,0 +1,79 @@
+Here is the content for `deployments/data-export-v2/compliance-checklist.md`.
+
+```markdown
+# Data-Export v2 Compliance Checklist
+
+**Release:** Data-Export v2
+**Status:** PRE-DEPLOYMENT CONFIRMATION
+**Date:** [Current Date]
+**Reviewer:** Compliance Officer
+**Reference Baseline:** `deployments/data-export-v1/compliance-checklist.md` (Signed Off Q1 2025)
+
+## 1. Executive Summary
+
+This release introduces a partner-portal access path via `POST /v2/data-export/request` to the existing Data-Export system. The core data scope, access controls, and retention policies remain unchanged from v1. This document confirms that v1 controls continue to apply and records the specific compliance requirements triggered by the new partner-initiated pathway, specifically regarding the **Provenance Stamp** required by the 2025-Q4 Bulletin.
+
+## 2. v1 Control Continuity (Confirmation)
+
+The following v1 controls are confirmed as unchanged and continue to apply to v2. No re-review is required for these items as they are pathway-agnostic or explicitly retained in the v2 spec.
+
+| v1 Control | Status | Notes |
+| :--- | :--- | :--- |
+| **Data Scope** | ✅ Unchanged | v2 exports the same dataset definitions as v1. No new PII fields added. |
+| **User Authorization (Base)** | ✅ Unchanged | Users must still grant explicit permission for export. v2 leverages existing OAuth scopes for partner identity verification. |
+| **Retention Policies** | ✅ Unchanged | Exported data retention windows remain identical to v1. |
+| **Audit Logging (Base)** | ✅ Unchanged | Standard export initiation/completion logs remain active for all pathways. |
+| **Access Control (CLI)** | ✅ Unchanged | The v1 CLI surface is retained and operates under the same IAM rules. |
+
+## 3. v2-Specific Changes & New Controls
+
+The following items are specific to the v2 partner-portal integration and represent new compliance surface area.
+
+### 3.1 Provenance Stamp (Required)
+**Source:** `policy/bulletins/2025-Q4-bulletin.md` (Effective 2025-11-01)
+**Requirement:** Any deployment adding a partner-initiated export pathway must record an additional audit entry (Provenance Stamp).
+
+**Implementation Confirmation:**
+*   **Trigger:** Synchronous write during `POST /v2/data-export/request` processing.
+*   **Fail-Closed Behavior:** If the Provenance Stamp cannot be assembled, the export request **must** fail. No export proceeds without a valid stamp.
+*   **Data Captured:**
+    1.  User’s authorization grant ID.
+    2.  Requesting party’s identity (Partner ID via OAuth).
+    3.  Authorization scope granted to the partner.
+    4.  Validity window of the authorization at the time of export.
+
+| Item | Status | Verification |
+| :--- | :--- | :--- |
+| Provenance Stamp Assembly Logic | ✅ Implemented | Code review confirms synchronous assembly prior to export execution. |
+| Fail-Closed Enforcement | ✅ Implemented | Error handling path rejects request if any stamp field is null/missing. |
+| Audit Log Integration | ✅ Implemented | Stamp is written to the same immutable audit log stream as v1 logs, tagged with `v2_partner_provenance`. |
+
+### 3.2 Partner Authentication & Authorization
+**Source:** `deployments/data-export-v2/spec.md`
+**Requirement:** Partners authenticate via OAuth scope; exports limited to users with active authorizations.
+
+| Item | Status | Verification |
+| :--- | :--- | :--- |
+| OAuth Scope Validation | ✅ Implemented | Endpoint validates partner identity and ensures scope includes `data-export:request`. |
+| User Authorization Check | ✅ Implemented | System verifies the specific user’s active authorization grant before proceeding. |
+| Scope-to-Grant Mapping | ✅ Implemented | Ensures the partner’s requested scope does not exceed the user’s granted scope. |
+
+## 4. Risk Assessment
+
+| Risk Area | Severity | Mitigation |
+| :--- | :--- | :--- |
+| **Provenance Stamp Failure** | High | Fail-closed design ensures no data leaks if audit metadata is incomplete. |
+| **Partner Scope Escalation** | Medium | Strict validation that partner OAuth scope is a subset of User Grant Scope. |
+| **Audit Log Bloat** | Low | Provenance Stamp adds ~200 bytes per request. Log rotation policies unchanged; volume increase projected to be manageable. |
+
+## 5. Sign-Off
+
+*   **Compliance Team:** Reviewed v2 spec against Q4 2025 Bulletin. Confirmed Provenance Stamp requirements are met.
+*   **Legal:** No new legal obligations triggered beyond existing data privacy frameworks, as data scope is unchanged.
+*   **Security:** Confirmed fail-closed behavior for Provenance Stamp and OAuth validation logic.
+
+**Recommendation:** **APPROVED** for Friday deployment, contingent on final smoke test of the fail-closed Provenance Stamp mechanism in the staging environment.
+
+---
+*End of Checklist*
+```

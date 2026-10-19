@@ -1,0 +1,87 @@
+# Compliance Confirmation: Data-Export v2
+
+**To:** Data-Export Engineering Team
+**From:** Compliance Office
+**Date:** [Current Date]
+**Subject:** Pre-Deployment Compliance Checklist — Data-Export v2
+
+## Summary
+The v2 release introduces a new partner-portal export pathway (`POST /v2/data-export/request`). While the core data scope, access controls, and retention policies remain unchanged from v1, the addition of this new pathway triggers specific requirements under the **Q4 2025 Compliance Bulletin**.
+
+The v1 sign-off does **not** carry over to v2. A fresh checklist has been generated based on the v2 specification and current policy. **One critical control is missing from the current implementation plan and must be addressed before Friday’s deployment.**
+
+---
+
+## v2 Compliance Checklist
+
+### 1. Data Scope & Retention
+*Status: ✅ Confirmed*
+- **Input:** v2 Spec §2 (Data Scope), v1 Checklist §1
+- **Assessment:** No changes to data fields, retention periods, or deletion policies compared to v1.
+- **Action:** None. v1 controls remain valid.
+
+### 2. Access Control & Authentication
+*Status: ⚠️ New Requirement Identified*
+- **Input:** v2 Spec §3 (Partner Portal Integration), Q4 2025 Bulletin §1
+- **Assessment:**
+  - v1 CLI authentication remains unchanged.
+  - **New:** Partner-portal integration uses OAuth scopes. Partners request exports for users who have granted them active authorization.
+  - **Critical Gap:** The Q4 2025 Bulletin requires a **Provenance Stamp** for *any* deployment adding a partner-initiated export pathway. This control is absent in the current v2 spec and implementation plan.
+- **Required Action:**
+  - Implement a **Provenance Stamp** audit entry for every partner-initiated export request.
+  - The stamp must capture:
+    1. User’s authorization grant ID
+    2. Requesting party’s identity (Partner ID)
+    3. Authorization scope
+    4. Validity window at time of export
+  - The stamp must be **written synchronously** to the audit log.
+  - The export request must **fail closed** if the Provenance Stamp cannot be assembled.
+
+### 3. Audit Logging
+*Status: ⚠️ New Requirement Identified*
+- **Input:** Q4 2025 Bulletin §1, v1 Checklist §3
+- **Assessment:**
+  - v1 audit logging (CLI exports) remains unchanged.
+  - **New:** Partner-portal exports require the **Provenance Stamp** as defined in Section 2.
+- **Required Action:**
+  - Extend the audit logging service to support synchronous, fail-closed writing of Provenance Stamps for partner-initiated exports.
+  - Ensure the audit log schema includes the four required fields: `grant_id`, `requesting_party_id`, `scope`, `validity_window`.
+
+### 4. Partner-Portal Specific Controls
+*Status: ⚠️ New Section Required*
+- **Input:** v2 Spec §3, Q4 2025 Bulletin §1
+- **Assessment:**
+  - New HTTP endpoint `POST /v2/data-export/request` is exposed to partners.
+  - Partners authenticate via OAuth.
+- **Required Action:**
+  - Confirm OAuth token validation is strictly scoped to the requested user’s authorization.
+  - Ensure the endpoint rejects requests if the authorization grant is expired or revoked at the time of the request.
+  - Implement the **Provenance Stamp** as a mandatory pre-export step (see Sections 2 & 3).
+
+### 5. Infrastructure & Deployment
+*Status: ✅ Confirmed*
+- **Input:** v2 Spec §5, v1 Checklist §5
+- **Assessment:** No changes to infrastructure, network policies, or deployment procedures.
+- **Action:** None.
+
+---
+
+## Blocking Issues
+
+| Issue | Severity | Resolution Required |
+|-------|----------|---------------------|
+| Missing Provenance Stamp for partner-initiated exports | **Critical** | Implement synchronous, fail-closed Provenance Stamp logging as per Q4 2025 Bulletin. |
+
+## Conclusion
+
+**Deployment Status: BLOCKED**
+
+The v2 release cannot proceed to Friday’s deployment until the **Provenance Stamp** control is implemented, tested, and verified in the partner-portal export pathway. Once implemented, the team must provide evidence of:
+1. Synchronous write of the Provenance Stamp to the audit log.
+2. Fail-closed behavior when the stamp cannot be assembled.
+3. Successful capture of all four required fields (`grant_id`, `requesting_party_id`, `scope`, `validity_window`).
+
+Please re-submit the updated implementation plan for review.
+
+**Signed,**
+Compliance Officer
