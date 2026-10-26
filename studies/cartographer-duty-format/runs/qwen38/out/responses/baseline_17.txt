@@ -1,0 +1,74 @@
+# repair-duty
+
+## Scope and Authority
+This duty governs the remediation of a confirmed software defect with a known locus. It applies to any office of the Agentic Order. The defect in question is a `ZeroDivisionError` raised by `calculate_average([])` in `calculator.py` at line 2. The locus is fixed; the duty does not authorize investigation of other defects, refactoring, or feature addition.
+
+## Definitions
+- **Locus**: The specific line and file where the defect manifests (`calculator.py:2`).
+- **Reproducer**: A minimal, executable test case that triggers the defect.
+- **Fix**: The minimal code change that resolves the defect at the locus without introducing new defects.
+- **Verification**: The execution of the Reproducer and the regression suite to confirm the fix.
+
+## Gates
+
+### Gate 1: Locus Confirmation
+**Verifies**: That the defect is reproducible at the stated locus and that no other lines are involved in the immediate failure path.
+**Requirements**:
+1. Identify the exact function and line responsible for the `ZeroDivisionError`.
+2. Confirm that `calculate_average([])` triggers the error specifically at the division operation on line 2.
+3. Do not modify code. Do not investigate unrelated functions.
+
+### Gate 2: Reproduction
+**Verifies**: That a deterministic, isolated test case exists that fails with the expected error before the fix is applied.
+**Requirements**:
+1. Write a minimal test case (e.g., `test_empty_list`) that calls `calculate_average([])`.
+2. Assert that this call raises `ZeroDivisionError`.
+3. Execute the test to confirm it fails as expected.
+4. If the test does not fail, stop. Re-examine the locus. The duty assumes the defect is confirmed; if it is not, this duty is inapplicable.
+
+### Gate 3: Fix Design
+**Verifies**: That a minimal, safe fix is identified that addresses the root cause at the locus.
+**Requirements**:
+1. Determine the correct behavior for an empty list. Standard convention for averages is `0.0`, `None`, or raising a specific error. Given the function returns `float`, `0.0` is a valid default, but `None` or a `ValueError` may be more semantically accurate. **Select one convention.** For this duty, assume the requirement is to return `0.0` for an empty list to maintain type consistency, unless otherwise specified by the calling context. *Note: If the specification requires `None`, adjust accordingly. This duty assumes `0.0` for minimal disruption.*
+2. Design a guard clause or conditional check at the locus to prevent division by zero.
+3. Ensure the fix does not alter behavior for non-empty lists.
+4. Do not refactor the function signature, add new dependencies, or change logging.
+
+### Gate 4: Implementation
+**Verifies**: That the fix is applied at the locus with minimal diff.
+**Requirements**:
+1. Modify `calculator.py` at line 2 (or immediately preceding it) to handle the empty list case.
+   - Example fix:
+     ```python
+     def calculate_average(values: list) -> float:
+         if not values:
+             return 0.0
+         return sum(values) / len(values)
+     ```
+2. Ensure the diff is limited to the necessary lines.
+3. Preserve code style and indentation.
+
+### Gate 5: Verification
+**Verifies**: That the fix resolves the defect and does not introduce regressions.
+**Requirements**:
+1. Re-execute the Reproducer from Gate 2. It must now pass (i.e., no `ZeroDivisionError` is raised).
+2. Execute the existing regression suite (if available) to ensure no other tests fail.
+3. Manually verify that `calculate_average([1, 2, 3])` still returns `2.0`.
+4. If any test fails, revert the fix and return to Gate 3.
+
+### Gate 6: Documentation and Handoff
+**Verifies**: That the repair is documented and the locus is closed.
+**Requirements**:
+1. Record the fix in the change log or commit message, referencing the defect and locus.
+2. Mark the defect as "Repaired" in the tracking system.
+3. Notify the supervising office that the duty is complete.
+
+## Termination Conditions
+- **Success**: All gates passed. Defect resolved at locus.
+- **Failure**: If the fix cannot be implemented without altering behavior beyond the scope of the defect, or if verification fails after three attempts, escalate to the supervising office. Do not proceed with unauthorized changes.
+
+## Constraints
+- No changes to `calculator.py` beyond the fix.
+- No changes to other files unless required for testing.
+- No introduction of new dependencies.
+- The fix must be minimal and targeted at the locus.

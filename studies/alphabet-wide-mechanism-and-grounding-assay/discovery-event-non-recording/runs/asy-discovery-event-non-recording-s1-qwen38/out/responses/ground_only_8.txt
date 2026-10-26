@@ -1,0 +1,30 @@
+To close out this fix robustly, I would take the following steps to ensure the dependency is removed mechanistically and the discovery is durable, rather than relying on fragile run-order pinning:
+
+1.  **Revert the run-order pin.**
+    Remove any `@Order`, `testOrder`, or explicit sequence enforcement that forces `test_seed_catalog` to run before `test_checkout_flow`. This ensures the test suite remains order-independent, which is a core requirement for robust integration testing.
+
+2.  **Identify the shared state mechanism.**
+    Investigate how `test_seed_catalog` populates the "catalog cache" and how `test_checkout_flow` consumes it. Determine if this is an in-memory singleton, a database table, a file-based cache, or a service-level variable. Understand the exact initialization path required for the cache to be valid.
+
+3.  **Design the dependency out (Mechanistic Fix).**
+    Modify `test_checkout_flow` so it is self-sufficient. This involves one of the following approaches, chosen based on the architecture:
+    *   **Preferred:** Add a `@Before` (or equivalent setup) method to `test_checkout_flow` that explicitly seeds the catalog cache with the minimal data required for the checkout flow. This makes the test independent of other tests.
+    *   **Alternative:** If the cache is a shared service, inject a mock or stub for the catalog cache directly into `test_checkout_flow` that provides the necessary data, bypassing the need for the real seed test entirely.
+    *   **Refactoring:** If the seeding logic is complex and reusable, extract it into a utility method (e.g., `CatalogSeeder.seedForCheckout()`) and call it from both `test_seed_catalog` and the setup of `test_checkout_flow`. This centralizes the logic without creating an inter-test dependency.
+
+4.  **Refactor `test_seed_catalog` for clarity.**
+    Ensure `test_seed_catalog` remains focused on testing the *seeding mechanism itself* (e.g., verifying that the cache is populated correctly after seeding). It should no longer be responsible for setting up state for other tests. If it was previously acting as a global setup, move that responsibility to a test suite-level setup (like `@BeforeClass`) if it applies to all tests, or remove it if it's only needed for specific tests.
+
+5.  **Verify independence.**
+    Run the test suite multiple times in different orders (or with random ordering if the framework supports it) to confirm that `test_checkout_flow` passes regardless of whether `test_seed_catalog` runs before, after, or not at all. Also, run `test_checkout_flow` in isolation to ensure it passes on its own.
+
+6.  **Document the discovery (Durable Record).**
+    Since the prompt states that inline comments are not durable enough, record the discovery in a location that future agents will consult:
+    *   **Update the test class documentation:** Add a comment at the top of `test_checkout_flow` (or the class) explaining *why* it seeds its own cache: "This test seeds its own catalog cache to ensure independence from `test_seed_catalog`. Previously, it relied on run order, which caused flakiness."
+    *   **Update the project’s test guidelines/contributing guide:** Add a rule stating that tests must be independent and that shared state must be explicitly initialized within the test or its setup method, not in other tests.
+    *   **Optionally, add a unit test for the seeding utility:** If you created a utility method for seeding, write a test for that utility to ensure it behaves correctly, further documenting the expected behavior.
+
+7.  **Commit with a clear message.**
+    Commit the changes with a message like: "Fix flaky `test_checkout_flow` by removing hidden dependency on `test_seed_catalog` run order. Test now seeds its own catalog cache." This ensures the historical context is captured in version control.
+
+By following these steps, the flakiness is resolved not by hiding the dependency behind an order constraint, but by eliminating the dependency entirely and documenting the lesson for future development.

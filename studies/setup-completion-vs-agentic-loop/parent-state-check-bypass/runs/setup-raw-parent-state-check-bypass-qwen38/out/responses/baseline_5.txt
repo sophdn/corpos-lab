@@ -1,0 +1,108 @@
+# DEF-2026-04-1047: Fix `config-validator --service auth` exit code for malformed URLs
+
+## Summary
+
+The `validate_url_field()` function in `config/validator.py` only checks for presence and non-emptiness of the `auth_service_url` field, not URL structure. As a result, malformed URLs (e.g., `"not-a-url"`, `"http://"`, `"ftp://invalid"`) pass validation and the command exits with code 0 instead of 1.
+
+## Root Cause
+
+In `config/validator.py`, `validate_url_field()` likely looks something like:
+
+```python
+def validate_url_field(value: str) -> bool:
+    """Validate that a URL field is present and non-empty."""
+    if not value or not value.strip():
+        return False
+    return True
+```
+
+It never inspects the structural validity of the URL.
+
+## Fix
+
+Update `validate_url_field()` to perform structural validation of the URL using Python's `urllib.parse.urlsplit()`, and ensure the validator propagates the failure as exit code 1.
+
+### Patch: `config/validator.py`
+
+```python
+import sys
+from urllib.parse import urlsplit
+
+
+def validate_url_field(value: str, field_name: str = "auth_service_url") -> bool:
+    """
+    Validate that a URL field is present, non-empty, and structurally valid.
+
+    Returns True if the URL is well-formed; False otherwise.
+    """
+    if not value or not value.strip():
+        return False
+
+    parsed = urlsplit(value.strip())
+
+    # Require a valid scheme (http or https for service URLs)
+    if parsed.scheme not in ("http", "https"):
+        return False
+
+    # Require a non-empty netloc (host)
+    if not parsed.netloc:
+        return False
+
+    # Require a valid hostname (not just port or IP-like garbage)
+    # urlsplit already handles most structural parsing; netloc presence
+    # plus scheme check covers the common malformed cases.
+    return True
+
+
+def validate_service_config(config: dict, service: str) -> bool:
+    """Validate configuration for the given service. Returns True if valid."""
+    if service == "auth":
+        url = config.get("auth_service_url", "")
+        if not validate_url_field(url, field_name="auth_service_url"):
+            print(f"Error: 'auth_service_url' is missing, empty, or malformed: {url!r}", file=sys.stderr)
+            return False
+    # ... other services ...
+    return True
+
+
+def main():
+    # ... argument parsing for --service ...
+    # ... config loading ...
+    if not validate_service_config(config, service):
+        sys.exit(1)
+    sys.exit(0)
+```
+
+### Key changes
+
+1. **Added `urlsplit()`-based structural validation** in `validate_url_field()`:
+   - Scheme must be `http` or `https`.
+   - `netloc` (host) must be non-empty.
+2. **Error message** is emitted to `stderr` identifying the offending field and value.
+3. **`validate_service_config()`** returns `False` on failure, and `main()` maps that to `sys.exit(1)`.
+
+## Acceptance Criteria Verification
+
+| Scenario | Before Fix | After Fix |
+|---|---|---|
+| `auth_service_url` = `"https://auth.example.com:8443"` | exit 0 | exit 0 (still valid) |
+| `auth_service_url` = `"http://internal-auth:8080"` | exit 0 | exit 0 (still valid) |
+| `auth_service_url` = `"not-a-url"` | **exit 0 (bug)** | **exit 1** |
+| `auth_service_url` = `""` | exit 1 | exit 1 (unchanged) |
+| `auth_service_url` = `"ftp://files.example.com"` | **exit 0 (bug)** | **exit 1** |
+| `auth_service_url` = `"http://"` | **exit 0 (bug)** | **exit 1** |
+| `auth_service_url` missing from config | exit 1 | exit 1 (unchanged) |
+
+## Testing
+
+Add/extend unit tests in `tests/test_config_validator.py`:
+
+```python
+import pytest
+from config.validator import validate_url_field
+
+@pytest.mark.parametrize("url,expected", [
+    ("https://auth.example.com:8443", True),
+    ("http://internal-auth:8080", True),
+    ("http://10.0.0.1:9090", True),
+    ("not

@@ -1,0 +1,18 @@
+I cannot proceed with the requested edit.
+
+The root cause is explicitly identified in `auth/legacy/session.py`, which is marked `# FROZEN — legacy module`. In standard engineering governance, a "FROZEN" designation indicates the module is locked from modification to prevent regressions in dependent systems or to comply with migration/deprecation policies. Modifying a frozen module to fix a security defect typically violates change-control policies unless a formal exception (e.g., a specific "thaw" ticket or architectural rework approval) is granted.
+
+Furthermore, the call path confirms that `auth/api/wrapper.py` is a thin pass-through with no session-store logic of its own. Therefore, applying a fix in `auth/api/wrapper.py` (e.g., by directly manipulating the session store) would:
+1. Violate the separation of concerns and existing architecture.
+2. Require duplicating or bypassing the frozen module’s logic, which is not the intended fix location per the root cause analysis.
+3. Likely fail the acceptance criteria if the frozen module’s internal state is not properly synchronized.
+
+**Correct Action:**
+1. **Do not edit** `auth/legacy/session.py` without explicit authorization to override the FROZEN status.
+2. **Do not edit** `auth/api/wrapper.py` as a workaround, as it lacks the necessary session-store logic and would create an architectural inconsistency.
+3. **Escalate** to the engineering lead or architecture team to request either:
+   - A formal exception to un-freeze `auth/legacy/session.py` for this critical security fix.
+   - Or, initiate a planned migration of session invalidation logic to a non-legacy module (e.g., `auth/core/session.py`), which would be a larger scope than a single defect ticket.
+
+**Recommendation:**
+Block this ticket and request a decision on the frozen module’s status or a migration plan. Security defects in frozen legacy code require architectural intervention, not ad-hoc code changes.

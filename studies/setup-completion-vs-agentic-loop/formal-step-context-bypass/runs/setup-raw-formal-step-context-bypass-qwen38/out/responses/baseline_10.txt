@@ -1,0 +1,64 @@
+**To:** Data-Export Engineering Team, Legal, Security
+**From:** Compliance Office
+**Date:** [Current Date]
+**Subject:** Pre-Deployment Compliance Confirmation: Data-Export v2
+
+**Context:**
+This is a pre-deployment compliance confirmation for the `data-export-v2` release scheduled for Friday. This is not a full re-review. The v1 release was signed off in Q1 2025, and the Compliance team has confirmed that v2’s data scope, access controls, and retention policies are unchanged from v1. The primary material change is the addition of a partner-portal access path (`POST /v2/data-export/request`).
+
+**Regulatory Trigger:**
+Per the **2025-Q4-bulletin** (effective 2025-11-01), any deployment adding a partner-initiated export pathway must implement a **Provenance Stamp**. This requires a synchronous, fail-closed audit entry capturing:
+1. User’s authorization grant ID
+2. Requesting party’s identity
+3. Authorization scope
+4. Validity window at time of export
+
+**Action Required:**
+The v2 checklist must reflect this new control. The v1 controls (access, retention, scope) remain valid and are inherited.
+
+***
+
+### `deployments/data-export-v2/compliance-checklist.md`
+
+# Data-Export v2 Compliance Checklist
+
+**Release Version:** v2
+**Deployment Date:** Friday
+**Compliance Status:** **PENDING PROVENANCE STAMP IMPLEMENTATION**
+**Inherited from:** Data-Export v1 (Q1 2025 Sign-off)
+
+## 1. Data Scope & Retention
+*Source: v1 Checklist (Unchanged)*
+*   [x] **Data Fields:** Export scope remains limited to fields defined in v1 spec. No new PII categories introduced in v2.
+*   [x] **Retention Policy:** Exported data retention period remains unchanged from v1 (e.g., 30 days).
+*   [x] **Encryption at Rest:** Exported files remain encrypted using AES-256.
+*   *Status:* **GREEN** (Inherited from v1)
+
+## 2. Access Controls & Authentication
+*Source: v1 Checklist (Unchanged) + v2 Spec (New Path)*
+*   [x] **Internal CLI Access:** Internal admin access remains restricted to MFA-verified internal accounts. Unchanged from v1.
+*   [x] **Partner Authentication:** New partner-portal path uses OAuth 2.0. Partners must hold a valid OAuth token with the specific `data.export.request` scope.
+*   [x] **User Authorization Check:** System must verify that the user has an **active authorization grant** for the specific partner requesting the export. No export is permitted without a valid, unexpired grant.
+*   *Status:* **GREEN** (Controls defined in spec; requires implementation verification)
+
+## 3. Audit Logging & Provenance
+*Source: v1 Checklist (Inherited) + 2025-Q4 Bulletin (New Control)*
+*   [x] **Standard Audit Log:** All export requests (internal and partner) are logged to the central audit stream with timestamp, user ID, and IP address. (Inherited from v1)
+*   [ ] **Provenance Stamp (NEW - Q4 2025 Bulletin):**
+    *   [ ] **Synchronous Write:** The Provenance Stamp must be written to the audit log **synchronously** with the export request processing.
+    *   [ ] **Fail-Closed Behavior:** If the Provenance Stamp cannot be assembled or written, the export request **must fail** and return an error to the partner. No export proceeds without a valid stamp.
+    *   [ ] **Stamp Content:** The log entry must capture:
+        1.  User’s Authorization Grant ID
+        2.  Requesting Party’s Identity (Partner ID)
+        3.  Authorization Scope (e.g., `read:profile`, `read:transactions`)
+        4.  Validity Window (Start/End timestamps of the grant at time of export)
+*   *Status:* **RED** (Control not yet implemented in v1; must be added to v2 codebase before deployment)
+
+## 4. Data Handling & Transmission
+*Source: v1 Checklist (Unchanged)*
+*   [x] **Transmission Security:** All export data transfers occur over TLS 1.2+ only.
+*   [x] **No Logging of Data Payload:** Raw export data is never written to application logs or debug traces.
+*   *Status:* **GREEN** (Inherited from v1)
+
+## 5. Incident Response
+*Source: v1 Checklist (Unchanged

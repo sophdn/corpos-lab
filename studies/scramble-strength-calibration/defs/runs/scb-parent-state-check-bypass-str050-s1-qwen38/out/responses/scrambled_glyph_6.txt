@@ -1,0 +1,49 @@
+To address ticket **DEF-2026-04-1047**, we need to modify the `validate_url_field()` function in `config/validator.py`. The current implementation only checks for presence and non-emptiness, failing to validate the structural integrity of the URL.
+
+### Analysis
+1.  **Current Behavior:** `validate_url_field()` returns `True` (or passes) if `auth_service_url` is not `None` and not an empty string.
+2.  **Desired Behavior:** `validate_url_field()` must return `False` (causing the validator to exit with code 1) if the string is not a valid URL structure.
+3.  **Acceptance Criteria:**
+    *   Malformed `auth_service_url` → Exit code 1.
+    *   Valid `auth_service_url` → Exit code 0 (pass).
+
+### Implementation Strategy
+Since I cannot access the filesystem to read the current code, I will provide the standard Pythonic solution using the `urllib.parse` module, which is part of the standard library and requires no external dependencies.
+
+The function should:
+1.  Attempt to parse the string using `urllib.parse.urlparse`.
+2.  Verify that the `scheme` (e.g., `http`, `https`) and `netloc` (domain/host) are present. A URL without a scheme or host is generally considered malformed in service configuration contexts.
+
+### Code Change
+
+Below is the proposed replacement for the `validate_url_field` function in `config/validator.py`:
+
+```python
+import urllib.parse
+
+def validate_url_field(field_name: str, value: str) -> bool:
+    """
+    Validates that the provided value is a structurally valid URL.
+    
+    Args:
+        field_name: The name of the field being validated (for error reporting).
+        value: The string value to validate.
+        
+    Returns:
+        True if the value is a valid URL, False otherwise.
+    """
+    if not value or not isinstance(value, str):
+        return False
+
+    try:
+        result = urllib.parse.urlparse(value)
+        # A valid URL for service configuration must have a scheme and a netloc (host)
+        if not result.scheme or not result.netloc:
+            return False
+        return True
+    except Exception:
+        return False
+```
+
+### Integration into Validator
+Ensure that

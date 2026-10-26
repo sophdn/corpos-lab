@@ -1,0 +1,47 @@
+Based on the constraints provided (single completion, no tools, no filesystem access), I cannot execute code, read `config/validator.py`, or modify files. However, I can provide the precise implementation logic and the specific code changes required to resolve defect **DEF-2026-04-1047** so that it can be applied directly.
+
+### Analysis of the Defect
+*   **Current Behavior:** `config/validator.py` → `validate_url_field()` only checks for presence and non-emptiness (`if not value: return False`). It returns `True` for any non-empty string, including malformed URLs.
+*   **Expected Behavior:** The validator must exit with code `1` (indicating failure) if `auth_service_url` is malformed. It must exit with code `0` (success) if the URL is valid.
+*   **Root Cause:** Lack of structural validation for the URL.
+
+### Recommended Solution
+
+The fix involves updating `validate_url_field()` in `config/validator.py` to perform URL structure validation. Python’s standard library `urllib.parse` is the appropriate tool for this, as it does not require external dependencies.
+
+#### 1. Code Change in `config/validator.py`
+
+Locate the function `validate_url_field()`. Replace the current logic with the following:
+
+```python
+from urllib.parse import urlparse
+import re
+
+def validate_url_field(value: str) -> bool:
+    """
+    Validates that the provided string is a well-formed URL.
+    Returns True if valid, False otherwise.
+    """
+    if not value:
+        return False
+
+    try:
+        result = urlparse(value)
+        
+        # Check for scheme (http/https) and netloc (host)
+        if not all([result.scheme, result.netloc]):
+            return False
+        
+        # Optional: Restrict to http/https only if required by security policy.
+        # For general config validation, ensuring it's a valid URI structure is key.
+        # If 'http' or 'https' is strictly required:
+        # if result.scheme not in ('http', 'https'):
+        #     return False
+        
+        return True
+    except Exception:
+        # urlparse rarely throws for strings, but safe to catch unexpected issues
+        return False
+```
+
+*Note: `urllib.parse.urlparse` is permissive. If stricter validation is required (e.g.,

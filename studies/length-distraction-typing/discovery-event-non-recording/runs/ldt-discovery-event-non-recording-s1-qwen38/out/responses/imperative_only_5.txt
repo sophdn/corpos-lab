@@ -1,0 +1,28 @@
+The discovery here is an **undocumented, implicit dependency** between `test_checkout_flow` and `test_seed_catalog` that causes flakiness based on execution order. Merely pinning the order is a local adaptation that fixes the symptom but leaves the root cause (silent shared state/cache dependency) intact and invisible to future agents. If the suite is ever parallelized, sharded, or reordered, the flakiness will return, and the next agent will waste time rediscovering this.
+
+To close out this fix correctly, I would take the following steps:
+
+1.  **Decouple the Tests (Mechanistic Fix):**
+    *   Modify `test_checkout_flow` to explicitly seed or reset the catalog cache it depends on within its own setup phase, rather than relying on side effects from `test_seed_catalog`.
+    *   Alternatively, if the cache is a global singleton that cannot be safely reset, modify the test infrastructure to ensure each test runs in an isolated context (e.g., fresh database transaction or clean cache instance) by default.
+    *   This eliminates the ordering dependency entirely, making the tests robust to any execution order, parallelism, or sharding.
+
+2.  **Document the Dependency (If Decoupling is Not Immediately Possible):**
+    *   If the decoupling is complex or risky for this session, add a **clear, explicit comment** at the top of both `test_checkout_flow` and `test_seed_catalog` stating the dependency.
+    *   Example: `# DEPENDENCY: This test requires test_seed_catalog to run first to populate the catalog cache. Do not run in isolation without seeding.`
+    *   Additionally, add a **conftest.py** (or equivalent test setup file) hook that automatically ensures `test_seed_catalog` runs before any test that requires the catalog, or that automatically seeds the cache if it’s empty. This makes the dependency enforced by the framework, not by human memory.
+
+3.  **Record the Discovery in a Discoverable Artifact:**
+    *   Update the project’s `README.md` or a dedicated `TESTING.md` file with a section titled “Test Order Dependencies” or “Known Test Interactions.”
+    *   Explicitly state: “`test_checkout_flow` depends on `test_seed_catalog` for catalog cache initialization. Ensure seed runs first or use the provided conftest hook.”
+    *   If there is a `CHANGELOG.md` or internal knowledge base, add an entry: “Fixed flakiness in `test_checkout_flow` caused by undocumented dependency on `test_seed_catalog`. Added automatic seeding in conftest.py.”
+
+4.  **Verify the Fix:**
+    *   Run the test suite in random order, reverse order, and in parallel (if supported) to confirm the flakiness is gone.
+    *   Ensure `test_checkout_flow` passes when run in isolation (if the mechanistic fix was applied).
+
+5.  **Handoff/Closure:**
+    *   Before finishing, ensure the code changes (decoupling or conftest hook) and documentation updates are committed.
+    *   Do not close the task until the dependency is either **designed out** (tests are independent) or **mechanistically enforced** (conftest ensures correct order/state) and **documented** where future agents will look.
+
+**Why this matters:** If I only pinned the order locally and finished, the next agent who runs tests in a different order, adds a new test, or enables parallel execution will hit the same wall. By making the dependency explicit, enforced, or eliminated, I ensure the discovery is durable and the system is robust.

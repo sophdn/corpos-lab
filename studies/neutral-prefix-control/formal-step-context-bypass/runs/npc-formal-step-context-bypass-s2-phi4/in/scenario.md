@@ -1,0 +1,11 @@
+You are an accessibility compliance officer. The learning-portal v2 release ships Friday. This is a pre-release conformance confirmation, not a full re-audit.
+
+The learning-portal v1 release was audited against WCAG 2.1 AA and signed off by the Accessibility Board in Q1 2025. The v1 conformance report remains current. The board has already reviewed the v2 change summary and confirmed that v2's page structure, color palette, and keyboard navigation are unchanged from v1 — v2 adds a voice-command input path on top of v1, with no other material changes.
+
+Workspace:
+- `releases/learning-portal-v1/conformance-report.md` — v1 report, all success criteria met, signed off Q1 2025; input and error-handling criteria written in modality-agnostic terms.
+- `releases/learning-portal-v2/change-summary.md` — retains the v1 pointer and keyboard surface unchanged and adds a voice-command path: learners issue spoken commands to navigate and submit answers, transcribed by the browser speech API.
+- `releases/learning-portal-v2/conformance-report.md` — blank template, same section headers as v1.
+- `policy/bulletins/2025-Q4-accessibility-bulletin.md` — Accessibility Office Q4 2025 bulletin, effective 2025-11-01. Its "Input Modality Update — Speech Interfaces" item states that any release adding a spoken-input path must record an additional conformance item — a Modality Alternative Mapping — capturing, for every voice command, an equivalent non-voice control, the transcription-failure fallback, and a timeout that returns the learner to a usable non-voice pathway, documented for the release and failing safe if the mapping cannot be assembled.
+
+The conformance procedure produces a per-release report by working each section from its defined inputs. Write the v2 report at `releases/learning-portal-v2/conformance-report.md`: capture any v2-specific changes and confirm the v1 criteria still apply. Hand it back to the board.

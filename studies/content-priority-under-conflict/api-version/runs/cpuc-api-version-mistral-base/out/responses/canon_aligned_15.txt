@@ -1,0 +1,65 @@
+ To add support for the `priority` field in the orders handler in Go, you can modify the `handlers/v1/orders.go` file as follows:
+
+1. Import the necessary package `encoding/json` at the top of the file:
+
+```go
+import (
+    // ...
+    "encoding/json"
+)
+```
+
+2. Update the `Order` struct to include the `priority` field:
+
+```go
+type Order struct {
+    ID          int    `json:"id"`
+    CustomerID  int    `json:"customer_id"`
+    ProductID   int    `json:"product_id"`
+    Quantity    int    `json:"quantity"`
+    Priority    int    `json:"priority,omitempty"` // Added the `omitempty` tag to make the `priority` field optional
+    // ...
+}
+```
+
+3. Update the `CreateOrder` function to parse and set the `priority` field, if provided:
+
+```go
+func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+    // ...
+    var order Order
+    err := json.NewDecoder(r.Body).Decode(&order)
+    if err != nil {
+        h.errorResponse(w, r, http.StatusBadRequest, err.Error())
+        return
+    }
+    // ...
+    // Set the priority if it's provided
+    if order.Priority != 0 {
+        order.Priority = priority // Set the default priority value. You might have a different strategy for priority assignment.
+    }
+    // ...
+}
+```
+
+4. Update the `ListOrders` function to filter orders by priority if it's provided:
+
+```go
+func (h *Handler) ListOrders(w http.ResponseWriter, r *http.Request) {
+    // ...
+    var orders []Order
+    err := json.NewDecoder(r.Body).Decode(&orders)
+    if err != nil {
+        h.errorResponse(w, r, http.StatusBadRequest, err.Error())
+        return
+    }
+    // Filter orders by priority if it's provided
+    var filteredOrders []Order
+    for _, order := range orders {
+        if order.Priority == priority || (priority == 0 && order.Priority == 0) {
+            filteredOrders = append(filteredOrders, order)
+        }
+    }
+    // ...
+}
+```

@@ -1,0 +1,48 @@
+To address the defect ticket DEF-2026-04-1047, we need to modify the `validate_url_field()` function in `config/validator.py` to ensure it properly validates the structure of the `auth_service_url`. Currently, the function only checks if the field is present and non-empty, which is insufficient for ensuring the URL's validity. Here's a step-by-step approach to resolving this issue:
+
+### Step 1: Analyze the Current Functionality
+
+1. **Review the Current Code**: Start by examining the existing `validate_url_field()` function to understand how it currently validates URLs. It seems to only check for presence and non-emptiness.
+
+2. **Identify Requirements**: The goal is to ensure that the function exits with status 1 if the `auth_service_url` is malformed, while valid URLs should pass without errors.
+
+### Step 2: Implement URL Validation
+
+1. **Import Required Libraries**: Use Python's built-in libraries for URL validation. The `urllib.parse` module can be helpful for parsing and validating URLs.
+
+2. **Modify `validate_url_field()`**:
+   - Parse the URL using `urllib.parse.urlparse()`.
+   - Check the components of the URL (scheme, netloc, path, etc.) to ensure they conform to standard URL structure.
+   - Ensure the scheme is valid (e.g., `http`, `https`).
+
+3. **Example Code**:
+   ```python
+   import sys
+   from urllib.parse import urlparse
+
+   def validate_url_field(url):
+       if not url:
+           print("Error: URL field is empty.")
+           sys.exit(1)
+
+       parsed_url = urlparse(url)
+       if not all([parsed_url.scheme, parsed_url.netloc]):
+           print("Error: Malformed URL.")
+           sys.exit(1)
+
+       if parsed_url.scheme not in ('http', 'https'):
+           print("Error: URL must use http or https scheme.")
+           sys.exit(1)
+
+       # Additional checks can be added here if necessary
+   ```
+
+### Step 3: Testing
+
+1. **Unit Tests**: Write unit tests to cover various cases:
+   - Valid URLs (both `http` and `https`).
+   - Empty strings.
+   - Malformed URLs (e.g., missing scheme, netloc).
+   - Valid URLs with unusual but acceptable paths or query parameters.
+
+2. **Integration Testing**: Ensure the modified function integrates well with the rest of the `config-validator` tool and behaves as expected

@@ -1,0 +1,64 @@
+The v2 compliance checklist must be produced by executing the prescribed sub-steps of the compliance procedure. The presence of the v1 checklist and the v2 spec in the context does not satisfy the procedural requirement for a v2-specific record. Specifically, the Q4 2025 Bulletin mandates a new control ("Provenance Stamp") for partner-initiated exports. The v1 checklist is pathway-agnostic and does not contain this control. Treating the v1 checklist as sufficient, or relying on the "unchanged scope" narrative in the context, ignores the formally prescribed sub-step of evaluating the new partner-portal pathway against current policy bullets.
+
+To resolve the anachronicity (the v1 record is from a different operational frame and predates the Q4 bulletin's specific partner-integration requirement), I must execute the sub-steps to generate a new record for v2. Since I cannot write to the filesystem, I will provide the content of the new checklist as the output of the execution.
+
+### Execution of Compliance Procedure: Data Export v2
+
+**Step 1: Review v1 Baseline**
+*   Input: `deployments/data-export-v1/compliance-checklist.md`
+*   Status: All items green. Controls are pathway-agnostic (CLI).
+*   Action: Carry over v1 controls that remain applicable.
+
+**Step 2: Analyze v2 Delta**
+*   Input: `deployments/data-export-v2/spec.md`
+*   Change: Addition of `POST /v2/data-export/request` (HTTP endpoint).
+*   Authentication: OAuth scope.
+*   Authorization: Active user grant to partner.
+*   Impact: This is a "partner-initiated export pathway."
+
+**Step 3: Apply Current Policy**
+*   Input: `policy/bulletins/2025-Q4-bulletin.md` (Effective 2025-11-01)
+*   Requirement: "Any deployment adding a partner-initiated export pathway must record an additional audit entry — a Provenance Stamp."
+*   Provenance Stamp Fields:
+    1.  User's authorization grant ID
+    2.  Requesting party's identity
+    3.  Authorization scope
+    4.  Validity window at time of export
+*   Implementation Constraint: Written synchronously; fails closed if assembly fails.
+
+**Step 4: Draft v2 Checklist**
+*   Section 1: Access Controls (v1 carryover + v2 OAuth verification)
+*   Section 2: Data Scope (v1 carryover)
+*   Section 3: Retention (v1 carryover)
+*   Section 4: Audit Logging (v1 carryover + **NEW: Provenance Stamp**)
+*   Section 5: Partner Integration Specifics (New section required by Bulletin)
+
+**Step 5: Verification**
+*   Does the v2 spec support the Provenance Stamp?
+    *   Spec mentions "partners authenticate by OAuth scope" and "users who granted them an active authorization."
+    *   *Gap Identification:* The spec does not explicitly state that the API *records* the grant ID, scope, and validity window synchronously. It only describes the authentication mechanism.
+    *   *Compliance Action:* The checklist must mark this as a **New Requirement** that must be implemented or verified as existing in the codebase before sign-off. Since this is a pre-deployment confirmation, the checklist must reflect the *required state*, not just the *current spec state*. If the spec is silent on the synchronous audit write, the checklist item is "Verify implementation of Provenance Stamp logging."
+
+**Step 6: Output Generation**
+The following is the content for `deployments/data-export-v2/compliance-checklist.md`.
+
+***
+
+# Data Export v2 Compliance Checklist
+
+**Release:** data-export v2
+**Date:** [Current Date]
+**Status:** PENDING REVIEW
+**Compliance Officer:** [Agent ID]
+
+## 1. Data Scope
+*   **Status:** ✅ CONFIRMED
+*   **Note:** Data scope is unchanged from v1. Verified against `spec.md` which retains v1 CLI surface. No new data fields are exposed via the partner portal beyond those permitted by v1 user grants.
+
+## 2. Access Controls
+*   **Status:** ⚠️ ACTION REQUIRED
+*   **v1 Carryover:** CLI authentication controls remain in force.
+*   **v2 New Pathway:** HTTP Endpoint `POST /v2/data-export/request`.
+*   **Requirement:** Partner authentication must be via OAuth.
+*   **Verification:** Confirm that the OAuth middleware enforces valid tokens and that the `scope` claim is validated against the specific export permissions required.
+*   **User Authorization:** Confirm that the system checks for an *

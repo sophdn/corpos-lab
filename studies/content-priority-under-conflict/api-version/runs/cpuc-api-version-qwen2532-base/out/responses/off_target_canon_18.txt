@@ -1,0 +1,67 @@
+The file to modify is `handlers/v1/orders.go`.
+
+The exact change to make to it involves updating the order struct and the handler function to include and handle the `priority` field.
+
+Here's an example of the changes:
+
+1. Add the `Priority` field to the order struct.
+2. Update the handler function to parse and handle the `priority` field.
+
+```go
+// handlers/v1/orders.go
+
+package v1
+
+import (
+	"encoding/json"
+	"net/http"
+)
+
+type OrderRequest struct {
+	// other fields...
+	Priority *int `json:"priority,omitempty"` // Add this line
+}
+
+func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+	var orderReq OrderRequest
+	if err := json.NewDecoder(r.Body).Decode(&orderReq); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Handle the priority field
+	if orderReq.Priority != nil {
+		// Do something with the priority
+	}
+
+	// Continue with the existing logic...
+}
+```
+
+Ensure that you also add a migration file to handle the schema change in the database if the `priority` field needs to be persisted.
+
+Migration file example:
+
+```go
+// migrations/20230815123456_add_priority_to_orders.go
+
+package migrations
+
+import (
+	"database/sql"
+	"time"
+)
+
+func init() {
+	MigrationFuncs = append(MigrationFuncs, func(tx *sql.Tx) error {
+		_, err := tx.Exec(`
+		ALTER TABLE orders ADD COLUMN priority INT;
+		`)
+		return err
+	})
+}
+```
+
+This migration file should be added to the `migrations/` directory.
+
+Remember to commit both changes and ensure that the migration is properly applied to all environments.

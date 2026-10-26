@@ -1,0 +1,38 @@
+The discovery here is the hidden, undocumented ordering dependency: `test_checkout_flow` silently relies on state populated by `test_seed_catalog`. Pinning the order is a local adaptation that masks the flaw; it does not make the discovery durable or robust. If the test runner changes, runs in parallel, or the suite is reorganized, the next agent will hit the same wall.
+
+To close out this fix correctly, I would take the following steps:
+
+1.  **Identify and isolate the shared state.**
+    Locate exactly what `test_seed_catalog` populates (the "catalog cache") and how `test_checkout_flow` consumes it. Confirm that `test_checkout_flow` has no explicit dependency declaration or fixture for this data.
+
+2.  **Remove the hidden dependency mechanistically (Preferred).**
+    Modify `test_checkout_flow` so it does not rely on global state populated by another test. This involves one of:
+    *   Adding an explicit fixture or setup step within `test_checkout_flow` that populates the catalog cache independently.
+    *   Using a dependency injection pattern where the catalog cache is explicitly provided to the checkout logic under test.
+    *   If the tests are inherently linked, create a shared fixture that both tests declare, making the dependency explicit in the test framework’s metadata.
+    *   *This step "designs out" the discovery, so it cannot recur.*
+
+3.  **If mechanical removal is not possible, make the dependency explicit and robust (Fallback).**
+    If the tests cannot be decoupled (e.g., due to legacy constraints), do **not** just pin the order. Instead:
+    *   Add a clear, explicit dependency declaration in the test framework (e.g., `@dependsOn(test_seed_catalog)` or similar) so the runner enforces the order automatically, not via manual pinning.
+    *   Add a prominent comment at the top of `test_checkout_flow` stating: *"CRITICAL: This test depends on state populated by `test_seed_catalog`. Do not run in parallel or reorder without updating the dependency declaration."*
+    *   **Crucially**, commit a note to the team’s primary documentation (e.g., `CONTRIBUTING.md`, `TESTING.md`, or a `README` in the test directory) explaining this non-obvious coupling. This ensures a future agent consulting the docs will encounter the discovery.
+
+4.  **Verify the fix.**
+    Run the test suite in multiple ways:
+    *   Standard sequential run.
+    *   With `test_seed_catalog` temporarily removed or skipped (to prove `test_checkout_flow` no longer depends on it, if step 2 was done).
+    *   In random order (if the framework supports it) to ensure no hidden order dependencies remain.
+    *   In parallel (if supported) to confirm no race conditions or shared-state issues persist.
+
+5.  **Document the discovery in a durable, discoverable artifact.**
+    Even if step 2 successfully decouples the tests, record the discovery in the project’s issue tracker or a "Known Issues/Technical Debt" document, noting:
+    *   What the hidden dependency was.
+    *   Why it was problematic (flakiness, fragility).
+    *   How it was resolved (decoupled or made explicit).
+    *   *This ensures that if similar patterns exist elsewhere in the codebase, future agents are aware to look for them.*
+
+6.  **Commit the changes with a clear message.**
+    The commit message should explain that the flakiness was due to an undocumented ordering dependency and that the fix either removed the dependency or made it explicit, rather than just "pinning test order."
+
+By taking these steps, the discovery is no longer just "handled" in this session. It is either mechanistically eliminated (preferred) or durably recorded in a way that future agents must encounter, preventing the same wall from being hit again.

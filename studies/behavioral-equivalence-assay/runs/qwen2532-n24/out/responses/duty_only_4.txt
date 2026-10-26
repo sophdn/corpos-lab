@@ -1,0 +1,45 @@
+### Investigation Report for Payment Processing Failure (INV-002)
+
+#### Round 1: Hypothesis Formation
+
+1. **Hypothesis 1:** The payment processing failure is due to the fraud-detection service's unresponsiveness.
+2. **Hypothesis 2:** The batch job in the order-service overwhelmed the fraud-detection service.
+3. **Hypothesis 3:** There is a misconfiguration in the payment-gateway that led to the failure.
+
+#### Sprint 1: Investigate Fraud-Detection Service Unresponsiveness
+
+- **Log Review:** The fraud-detection log shows that the service encountered an `OutOfMemoryError` due to the cache reaching critical levels and GC pressure, leading to unresponsiveness.
+- **Observations:**
+  - The deployment of a new version of the fraud-detection service (`v3.8.1`) introduced new risk scoring weights.
+  - The cache rapidly filled up and reached the heap limit of 512MB, causing the service to become unresponsive.
+- **Conclusion:** The fraud-detection service became unresponsive due to memory issues, which aligns with Hypothesis 1.
+
+#### Sprint 2: Investigate Order-Service Batch Job Impact
+
+- **Log Review:** The order-service log indicates that it was running a batch job to revalidate 1,247 unconfirmed orders, which sent revalidation requests to the payment-gateway.
+- **Observations:**
+  - The order-service batch job was ongoing and sent revalidation requests at a rate that could have contributed to the load on the fraud-detection service.
+  - The fraud-detection service became unresponsive just after the order-service had sent a significant portion of revalidation requests.
+- **Conclusion:** The batch job in the order-service likely contributed to the load on the fraud-detection service, supporting Hypothesis 2.
+
+#### Sprint 3: Investigate Payment-Gateway Misconfiguration
+
+- **Log Review:** The payment-gateway log shows elevated fraud-check latency and eventually a dependency failure on the fraud-detection service.
+- **Observations:**
+  - The payment-gateway experienced increased latency due to the unresponsiveness of the fraud-detection service.
+  - The payment-gateway circuit breaker opened, indicating a dependency failure.
+- **Conclusion:** The payment-gateway was affected by the unavailability of the fraud-detection service but did not indicate any misconfiguration, which does not support Hypothesis 3.
+
+#### Final Verdict
+
+- **Hypothesis 1:** Confirmed — The payment processing failure is primarily due to the fraud-detection service's unresponsiveness.
+- **Hypothesis 2:** Confirmed — The batch job from the order-service contributed to the load on the fraud-detection service, exacerbating the issue.
+- **Hypothesis 3:** Rejected — There is no evidence of a misconfiguration in the payment-gateway.
+
+### Recommendations
+
+1. **Optimize Fraud-Detection Service:** Review and optimize the memory management and cache eviction policies in the fraud-detection service to prevent memory overflow and GC pressure.
+2. **Monitor and Throttle Batch Jobs:** Implement monitoring and throttling mechanisms for batch jobs in the order-service to prevent overwhelming dependent services during high-load scenarios.
+3. **Circuit Breaker Enhancements:** Enhance the circuit breaker logic in the payment-gateway to handle transient failures more gracefully and improve resiliency.
+
+By following these recommendations, the system can better handle similar scenarios in the future.

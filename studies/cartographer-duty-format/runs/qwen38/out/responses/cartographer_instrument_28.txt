@@ -1,0 +1,134 @@
+# repair-duty
+
+**Status:** Active
+**Applicability:** Any office executing a repair act on a confirmed software defect with a known locus.
+**Prerequisite:** The defect is confirmed to exist. The locus (file, line, or symbol) is identified and accepted as the starting point.
+
+## Phase I: Locus Verification & Baseline Establishment
+
+The executor must confirm the starting point is accurate and capture the state before any change. This phase ensures the repair targets the actual defect and preserves the context of the failure.
+
+### Gate 1.1: Locus Integrity Check
+**Verification:** The declared locus points to the exact line or code construct responsible for the defect behavior.
+**Completion Requirement:**
+1. Open the file specified in the locus.
+2. Visually inspect the line(s) at the specified coordinate.
+3. Confirm that the code at this location performs the operation described in the defect report (e.g., if the defect is a division error, the code at the locus must contain a division operation).
+4. If the code at the locus does not match the defect description, **halt**. The locus is incorrect. Do not proceed. The defect report must be revised.
+
+### Gate 1.2: Reproducibility Baseline
+**Verification:** The defect can be triggered by a minimal input, establishing a "red" state.
+**Completion Requirement:**
+1. Construct a minimal test case or execution command that invokes the function or code path at the locus with the specific input that triggers the defect (e.g., an empty list for a division-by-zero error).
+2. Execute this case against the current code.
+3. Record the exact error message, stack trace, or incorrect output produced.
+4. Save this output as the **Baseline Failure Signature**.
+5. If the code does *not* produce the expected defect behavior, **halt**. The defect is not reproducible at the current locus. Do not proceed.
+
+## Phase II: Root Cause Analysis & Strategy Selection
+
+Before changing code, the executor must understand *why* the locus fails and determine the correct class of fix. This phase prevents superficial patches that mask symptoms or introduce new risks.
+
+### Gate 2.1: Mechanism Analysis
+**Verification:** The executor has identified the specific logical flaw at the locus.
+**Completion Requirement:**
+1. Analyze the code at the locus in the context of the Baseline Failure Signature.
+2. State explicitly why the current code fails for the given input. (e.g., "The function divides by the length of the list without checking if the list is empty, resulting in a division by zero.")
+3. Identify the pre-condition that is violated. (e.g., "The function assumes `len(values) > 0`.")
+4. If the cause is unclear or depends on external state not visible in the locus, **halt**. The locus may be too narrow. Widen the analysis to the caller or dependent modules.
+
+### Gate 2.2: Repair Strategy Selection
+**Verification:** A specific, minimal repair strategy is chosen that addresses the root cause without altering intended behavior for valid inputs.
+**Completion Requirement:**
+1. Select one of the following strategies, justifying the choice:
+   - **Guard Clause:** Add an explicit check for the invalid state before the operation.
+   - **Default Value:** Return a neutral or safe value for the invalid state.
+   - **Error Propagation:** Raise a specific, descriptive exception if the invalid state is unrecoverable.
+   - **Input Validation:** Reject the invalid input at the boundary.
+2. Define the **Expected Post-Repair Behavior** for the failing input. (e.g., "Return 0.0", "Return None", "Raise ValueError with message 'Empty list'").
+3. Define the **Invariant Constraint**: The repair must not change the behavior for any valid input that previously worked correctly.
+4. If multiple valid strategies exist, select the one that best aligns with the existing code style and API contract of the module.
+
+## Phase III: Implementation of the Repair
+
+The executor modifies the code at the locus to implement the selected strategy. This phase ensures the change is syntactically correct and locally consistent.
+
+### Gate 3.1: Code Modification
+**Verification:** The code at the locus has been modified to implement the selected strategy.
+**Completion Requirement:**
+1. Edit the file at the locus.
+2. Implement the logic defined in Gate 2.2.
+3. Ensure the modification is syntactically valid (no missing brackets, correct indentation, valid keywords).
+4. Ensure the modification does not introduce new undefined variables or break existing variable scopes.
+5. Do not modify code outside the necessary scope of the repair unless required for type consistency or import statements.
+
+### Gate 3.2: Local Consistency Check
+**Verification:** The modified code integrates correctly with its immediate surroundings.
+**Completion Requirement:**
+1. Review the modified block in the context of the surrounding function.
+2. Verify that any new return types or exceptions are compatible with the function signature and docstring.
+3. Verify that no existing comments or type hints are rendered incorrect or misleading by the change.
+4. If the change requires a new import, add it at the correct location in the file header.
+
+## Phase IV: Verification & Regression Guard
+
+The executor must prove the repair works and that nothing else broke. This phase is the core safety gate.
+
+### Gate 4.1: Defect Resolution Check
+**Verification:** The Baseline Failure Signature is no longer produced.
+**Completion Requirement:**
+1. Re-execute the minimal test case from Gate 1.2 against the modified code.
+2. Compare the output to the **Expected Post-Repair Behavior** defined in Gate 2.2.
+3. If the output matches the expected behavior, record **PASS**.
+4. If the output does not match, **halt**. Return to Gate 3.1. The implementation is incorrect.
+
+### Gate 4.2: Regression Guard
+**Verification:** Valid inputs continue to produce correct results.
+**Completion Requirement:**
+1. Identify at least two valid test cases that represent normal, expected usage of the function (e.g., a list with one element, a list with multiple elements).
+2. Execute these cases against the modified code.
+3. Compare the output to the known-correct output from before the repair (or the mathematically/logically correct result).
+4. If any valid case fails, **halt**. The repair has broken existing functionality. Return to Gate 2.2 to reassess strategy.
+5. If all valid cases pass, record **PASS**.
+
+### Gate 4.3: Edge Case Probing
+**Verification:** The repair handles other potential edge cases near the locus safely.
+**Completion Requirement:**
+1. Identify one additional edge case related to the locus that was not the original defect but is nearby (e.g., if the defect was empty list, test a list with `None` elements, or a very large list, or a list with mixed types if applicable).
+2. Execute this case.
+3. Ensure the behavior is stable and does not crash with an unexpected error unrelated to the original defect.
+4. If the behavior is undefined or crashes unexpectedly, document it. If it is a critical flaw, expand the repair to address it. If it is out of scope, note it for future review.
+5. Record **PASS** or **NOTED**.
+
+## Phase V: Closure & Documentation
+
+The executor finalizes the repair and records the action for the next office.
+
+### Gate 5.1: Cleanup
+**Verification:** No temporary code, debug prints, or commented-out original code remains.
+**Completion Requirement:**
+1. Remove all debug statements, `print` calls, or temporary test code introduced during verification.
+2. Ensure the code block is clean and follows the project’s style guidelines.
+3. Verify that no commented-out original lines are left unless explicitly required for historical context by policy (default: remove them).
+
+### Gate 5.2: Repair Record
+**Verification:** A complete record of the repair is generated.
+**Completion Requirement:**
+1. Compose a summary containing:
+   - **Locus:** File and line number.
+   - **Defect:** Brief description of the original failure.
+   - **Strategy:** The repair method chosen (e.g., Guard Clause).
+   - **Change:** Brief description of the code change.
+   - **Verification:** Confirmation that the defect is resolved and regression tests passed.
+2. Append this record to the office log or commit message as per standard procedure.
+
+### Gate 5.3: Final Sign-Off
+**Verification:** The executor confirms the duty is complete.
+**Completion Requirement:**
+1. Review all gates from Phase I through Phase V.
+2. Confirm all **PASS** statuses are recorded.
+3. Mark the repair as **COMPLETE**.
+
+---
+
+**Executor Note:** If at any gate the completion requirement cannot be met, do not skip the gate. Halt the process. The duty is not complete until all gates are passed.

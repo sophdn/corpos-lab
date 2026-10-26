@@ -1,0 +1,62 @@
+To address the defect ticket DEF-2026-04-1047, we need to modify the `validate_url_field()` function in `config/validator.py` to ensure it properly validates the structure of the `auth_service_url`. Currently, the function only checks if the field is present and non-empty, which is insufficient for ensuring the URL's validity. Here's a step-by-step approach to resolving this issue:
+
+### Step 1: Analyze the Current Function
+
+First, let's understand the current implementation of `validate_url_field()`. It likely checks for the presence and non-emptiness of the URL field:
+
+```python
+def validate_url_field(url):
+    if not url:
+        print("URL field is missing or empty.")
+        return False
+    return True
+```
+
+### Step 2: Define URL Validation Requirements
+
+To ensure the `auth_service_url` is valid, we need to:
+
+1. Check if the URL is well-formed.
+2. Ensure it uses a valid scheme (e.g., `http`, `https`).
+3. Optionally, verify domain validity and path structure.
+
+### Step 3: Implement URL Validation
+
+We'll use Python's `urllib.parse` module to parse and validate the URL. This module provides utilities to break down URLs into components and check their validity.
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(url):
+    if not url:
+        print("URL field is missing or empty.")
+        return False
+
+    parsed_url = urlparse(url)
+    
+    # Check if scheme and netloc (domain) are present
+    if not parsed_url.scheme or not parsed_url.netloc:
+        print("URL is malformed: missing scheme or domain.")
+        return False
+
+    # Optionally, check for allowed schemes
+    allowed_schemes = ['http', 'https']
+    if parsed_url.scheme not in allowed_schemes:
+        print(f"URL scheme '{parsed_url.scheme}' is not allowed. Only {allowed_schemes} are permitted.")
+        return False
+
+    # If additional checks are needed (e.g., TLD, path), implement them here
+
+    return True
+```
+
+### Step 4: Update the Main Validation Logic
+
+Modify the main validation logic to use the updated `validate_url_field()` function and ensure it exits with the correct status:
+
+```python
+def main():
+    auth_service_url = "config_value"  # This should be replaced with actual config retrieval logic
+
+    if not validate_url_field(auth_service_url):
+        exit(

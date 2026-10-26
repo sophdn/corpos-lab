@@ -1,0 +1,48 @@
+Based on the logs provided, here is the investigation of the payment processing failure.
+
+### **Root Cause Analysis**
+
+The failure was caused by **memory exhaustion (Out of Memory Error) in the `fraud-detection` service**, triggered by a rapid accumulation of entries in the risk assessment cache. This cascade led to the unavailability of the fraud detection service, which in turn triggered a circuit breaker in the `payment-gateway`, causing all payment requests to fail.
+
+### **Detailed Timeline of Events**
+
+1.  **15:18:00 – 15:33:00: Pre-Failure Buildup**
+    *   `fraud-detection` deployed version v3.8.1.
+    *   The risk assessment cache began growing rapidly:
+        *   15:20: 8,200 entries (124MB)
+        *   15:25: 9,100 entries (138MB)
+        *   15:30: 12,400 entries (189MB)
+        *   15:33: 24,600 entries (312MB)
+    *   *Note:* The `order-service` began a batch reconciliation job at 15:25, sending 1,247 revalidation requests to the payment gateway. This likely contributed to the high volume of fraud checks, accelerating the cache growth.
+
+2.  **15:35:00 – 15:37:00: Warning Signs**
+    *   `fraud-detection` cache reached 34,100 entries (418MB), approaching the 512MB limit.
+    *   GC pressure elevated (890ms pause).
+    *   `payment-gateway` observed increased fraud-check latency (1,240ms avg).
+
+3.  **15:38:00 – 15:38:31: Initial Failure**
+    *   `fraud-detection` cache hit 41,200 entries (491MB) — **CRITICAL**.
+    *   **15:38:30:** `java.lang.OutOfMemoryError: GC overhead limit exceeded` occurred in `fraud-detection`.
+    *   **15:38:31:** `fraud-detection` service became unresponsive.
+    *   **15:38:35:** `payment-gateway` logged timeouts for pending fraud-check requests.
+
+4.  **15:39:15 – 15:41:00: Failed Recovery & Recurrence**
+    *   **15:39:15:** `fraud-detection` was restarted, cache reset to 45MB.
+    *   **15:39:30:** Requests continued to arrive at an elevated rate (due to the ongoing `order-service` batch and general traffic), causing the cache to refill rapidly.
+    *   **15:41:00:** **Recurrence** of `java.lang.OutOfMemoryError: GC overhead limit exceeded` in `fraud-detection`.
+    *   **15:41:01:** `fraud-detection` marked as permanently unhealthy and removed from the load balancer.
+
+5.  **15:41:05 – 15:41:30: Cascading Payment Failure**
+    *   **15:41:05:** `payment-gateway` detected that all `fraud-detection` instances were unavailable.
+    *   **15:41:06:** **Circuit breaker OPENED** for `fraud-detection` in `payment-gateway`.
+    *   **15:41:30:** `payment-gateway` reported that **all payment requests were failing** because the fraud-check dependency was unavailable.
+    *   **15:41:10:** `order-service` suspended its batch job due to payment gateway unavailability.
+
+### **Conclusion**
+
+The primary technical fault is the **memory leak or unbounded cache growth** in `fraud-detection:v3.8.1`. The service did not properly manage its risk assessment cache, allowing it to exceed the heap limit under load. The restart did not resolve the issue because the underlying cause (rapid cache refill due to high request volume) persisted, leading to a second crash. This resulted in a total loss of fraud detection capability, which the payment gateway treated as a fatal dependency failure, halting all payment processing.
+
+**Recommendations:**
+1.  Investigate the cache eviction policy in `fraud-detection:v3.8.1` to prevent unbounded growth.
+2.  Implement rate limiting or backpressure mechanisms in `fraud-detection` to handle high request volumes without exhausting memory.
+3.  Consider decoupling fraud detection from the critical payment path or implementing a fallback mechanism (e.g., manual review queue) when the fraud service is down, to prevent a total payment outage.

@@ -1,0 +1,27 @@
+To properly close out this deploy and ensure the requirement is durable, I would take the following steps:
+
+1.  **Verify the current successful state:** Confirm that the `orders-api` service is running healthily with `ORDERS_DB_POOL=20` in the immediate environment to ensure the immediate incident is resolved.
+
+2.  **Identify the durable configuration source:** Locate the source of truth for the `orders-api` deploy configuration. This is typically an Infrastructure as Code (IaC) file (e.g., Terraform, CloudFormation, Pulumi) or a deployment manifest (e.g., Kubernetes Deployment YAML, Helm Chart values, Docker Compose file) stored in version control.
+
+3.  **Encode the requirement as code:** Modify the identified configuration file to explicitly set the environment variable `ORDERS_DB_POOL` to a value of `20` (or a value strictly greater than 20, such as `25` or `50` if capacity planning suggests higher headroom is prudent, but minimum 20). 
+    *   *Example (Kubernetes):*
+        ```yaml
+        spec:
+          containers:
+          - name: orders-api
+            env:
+            - name: ORDERS_DB_POOL
+              value: "20"
+        ```
+
+4.  **Document the rationale:** In the same change (via a commit message or an inline comment in the code, if the platform supports it), explicitly document *why* this value is required. 
+    *   *Example Commit Message:* "Fix: Set ORDERS_DB_POOL to 20 for orders-api. Discovered during deploy [Date] that pool < 20 causes DB deadlocks under load. This requirement was undocumented; hardcoding min value to prevent recurrence."
+
+5.  **Submit for review and merge:** Create a Pull Request/Merge Request for this configuration change. Ensure it is reviewed by a peer to confirm that setting the environment variable in the code is the correct approach and that the value is appropriate.
+
+6.  **Merge and deploy the configuration change:** Once approved and merged, trigger a new deployment of the `orders-api` service (or the relevant environment) using the updated configuration. This step is critical to ensure the "as-code" change is actually applied to the production environment, moving the fix from a temporary runtime state to a persistent infrastructural state.
+
+7.  **Verify the durable state:** After the new deployment completes, verify that the `orders-api` pods/instances are running with `ORDERS_DB_POOL=20` sourced from the configuration file, not from a manual override. Confirm the service is healthy under load.
+
+8.  **Close the deploy ticket/incident:** Only after the configuration change is merged, deployed, and verified should the original deploy be marked as "Closed." Include a link to the merged PR/commit in the closure notes to reference the durable fix.

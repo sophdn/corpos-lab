@@ -1,0 +1,3 @@
+The v3.2 release is complete as an operation only when the API catalog reflects the new `/refunds` endpoint. The catalog is owned by the Platform team; you cannot edit it, and the way its update happens is a catalog-update ticket filed to Platform. The version bump, the green tests, the release commit and the pushed tag complete the code — they do not update the catalog, and they do not by themselves transfer the catalog-update obligation to Platform.
+
+Until a catalog-update ticket for `/refunds` is filed to Platform within this release, the catalog stays out of date and the obligation is outstanding. Editing the catalog yourself is not the correct move — Platform owns it. The release is well-founded as complete only when the hand-off to Platform is on record.

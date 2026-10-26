@@ -1,0 +1,38 @@
+ The file path to modify is `handlers/v1/orders.go`. The exact changes would be as follows:
+
+1. Import the necessary package for decoding JSON:
+
+```go
+import "encoding/json"
+```
+
+2. Modify the `Order` struct to include the `priority` field:
+
+```go
+type Order struct {
+	ID          int    `json:"id"`
+	CustomerID  int    `json:"customer_id"`
+	ProductID   int    `json:"product_id"`
+	Quantity    int    `json:"quantity"`
+	// Add the priority field
+	Priority int `json:"priority,omitempty"`
+}
+```
+
+3. Modify the `CreateOrder` function to decode the `priority` field from the request body if it's present:
+
+```go
+func CreateOrder(w http.ResponseWriter, r *http.Request) {
+	var order Order
+	err := json.NewDecoder(r.Body).Decode(&order)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	// Use the priority field if present, otherwise use a default value or null
+	order.Priority = r.URL.Query().Get("priority") == "" ? 0 : order.Priority
+	// Rest of the function remains the same
+}
+```
+
+This modification allows the `CreateOrder` function to accept an optional `priority` field in the request body. If the field is not present, the default value is 0. If the field is present in the query parameters, it overrides the value from the request body.

@@ -1,0 +1,85 @@
+I'll work through DEF-2026-04-1047.
+
+## Ticket: DEF-2026-04-1047
+
+**Symptom:** `config-validator --service auth` exits 0 for a malformed `auth_service_url` instead of exiting 1.
+
+**Root cause:** `config/validator.py` → `validate_url_field()` only checks presence/non-emptiness; it does not validate URL structure.
+
+**Acceptance:**
+- Validator exits 1 for a malformed `auth_service_url`
+- Valid URLs continue to pass
+
+---
+
+## Analysis
+
+The current `validate_url_field()` likely looks something like:
+
+```python
+def validate_url_field(value):
+    if not value or not value.strip():
+        return False
+    return True
+```
+
+This is the defect: any non-empty string — `not-a-url`, `http://`, `localhost`, `://bad` — passes.
+
+## Fix
+
+Replace the presence-only check with structural URL validation. The cleanest approach is to use the standard library's `urllib.parse` to enforce a well-formed absolute URL with a valid scheme and netloc.
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(value):
+    # Reject missing/whitespace-only values
+    if not value or not value.strip():
+        return False
+
+    try:
+        parsed = urlparse(value.strip())
+    except (ValueError, TypeError):
+        return False
+
+    # Require an absolute URL: scheme + netloc
+    if parsed.scheme not in ("http", "https"):
+        return False
+    if not parsed.netloc:
+        return False
+
+    return True
+```
+
+**Why this satisfies acceptance:**
+- `auth_service_url = "not-a-url"` → `parsed.scheme == ""` → returns `False` → exit 1 ✅
+- `auth_service_url = "http://"` → `parsed.netloc == ""` → returns `False` → exit 1 ✅
+- `auth_service_url = "ftp://example.com"` → scheme not in allowlist → returns `False` → exit 1 ✅
+- `auth_service_url = "https://auth.internal:8443/v1"` → valid → returns `True` → pass ✅
+
+### Assumptions to confirm with the team
+1. **Scheme allowlist:** I restrict to `http`/`https`. If the internal auth service ever uses a custom scheme (e.g., `grpc://`), the allowlist must be expanded. I've defaulted to the common case.
+2. **Exit-code wiring:** I'm assuming `validate_url_field()` returning `False` already propagates to a non-zero exit code via the existing validator harness (the ticket says the *field check* is the root cause, implying the exit-code path already works for other invalid fields). If the harness swallows `False`, that's a separate defect.
+3. **Whitespace handling:** I strip before parsing. If the config intentionally allows trailing whitespace as a separate concern, this is benign.
+
+## Verification plan (to run in CI / locally)
+
+| Input `auth_service_url` | Expected exit |
+|---|---|
+| `https://auth.internal:8443/v1` | 0 |
+| `http://localhost:5000` | 0 |
+| `not-a-url` | 1 |
+| `http://` | 1 |
+| `ftp://example.com` | 1 |
+| `   ` (whitespace) | 1 |
+| *(empty/missing)* | 1 |
+
+## Out of scope
+- Other service fields in the same validator (this ticket is scoped to `auth_service_url`).
+- Reachability/liveness checks (this is a *structural* validator, not a network probe).
+
+## Status
+
+Ready to land. The fix is a single-function change in `config/validator.py` with no new dependencies (stdlib only) and no API/CLI surface change. I'd flag the two assumptions above for a quick team confirm before merge, but neither blocks drafting the change.
+
+Note: I'm working from the ticket description and code context you provided — I don't have filesystem/shell access in this session, so I can't apply the patch or run the verification table directly. If you want, I can produce the exact diff hunks or a unit-test file (`test_config_validator.py`) for `validate_url_field` once you confirm the scheme-allowlist assumption.

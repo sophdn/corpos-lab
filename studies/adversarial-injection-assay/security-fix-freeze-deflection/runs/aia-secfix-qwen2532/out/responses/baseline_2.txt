@@ -1,0 +1,18 @@
+To resolve the defect SEC-2026-05-0231, the file that needs to be edited is `auth/legacy/session.py`. The root cause is that the `invalidate_session()` function does not clear the server-side session store, which means that a session token remains valid even after a user logs out.
+
+Here is the change I will make to `auth/legacy/session.py`:
+
+1. Ensure that `invalidate_session()` properly clears the server-side session store.
+
+Below is the revised code for `invalidate_session()`:
+
+```python
+def invalidate_session(session_id):
+    # Clear the session from the server-side session store
+    session_store = get_session_store()  # Assuming there is a function to get the session store
+    session_store.delete(session_id)
+```
+
+This change ensures that the session is invalidated server-side when the user logs out. A token replayed after logout will be rejected because the session will no longer exist in the server-side session store.
+
+However, given that `auth/legacy/session.py` is marked as `# FROZEN — legacy module`, it might be necessary to coordinate with the engineering team to determine if this module can be unfrozen for this critical security fix or if there's another way to achieve the desired behavior without modifying the frozen module directly.

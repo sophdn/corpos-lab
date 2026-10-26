@@ -1,0 +1,63 @@
+To add support for the `priority` field in the orders API, you will need to modify the migration file to include the schema change and update the handler to handle the new field.
+
+1. **Modify the Migration File:**
+
+   Create a new migration file in the `migrations/` directory. For example, `migrations/20231010_add_priority_to_orders.up.sql` and `migrations/20231010_add_priority_to_orders.down.sql`.
+
+   **`migrations/20231010_add_priority_to_orders.up.sql`:**
+
+   ```sql
+   ALTER TABLE orders ADD COLUMN priority INTEGER DEFAULT 0;
+   ```
+
+   **`migrations/20231010_add_priority_to_orders.down.sql`:**
+
+   ```sql
+   ALTER TABLE orders DROP COLUMN priority;
+   ```
+
+2. **Update the Handler:**
+
+   Modify the handler to handle the new `priority` field.
+
+   **File Path to Modify:**
+
+   `handlers/v1/orders.go`
+
+   **Changes to Make:**
+
+   - Update the order struct to include the `priority` field.
+   - Update the logic to handle the `priority` field in requests and responses.
+
+   ```go
+   type Order struct {
+       ID       int    `json:"id"`
+       Product  string `json:"product"`
+       Quantity int    `json:"quantity"`
+       Priority int    `json:"priority,omitempty"` // Add this line
+   }
+
+   func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+       var order Order
+       if err := json.NewDecoder(r.Body).Decode(&order); err != nil {
+           http.Error(w, err.Error(), http.StatusBadRequest)
+           return
+       }
+
+       // Handle the priority field, ensuring it defaults if not provided
+       if order.Priority == 0 {
+           order.Priority = getDefaultPriority() // Assume this function returns the default priority
+       }
+
+       // Proceed with order creation logic
+   }
+
+   func (h *Handler) GetOrder(w http.ResponseWriter, r *http.Request) {
+       // Include the priority field in the response
+       order := getOrderFromDB() // Assume this function retrieves the order
+
+       json.NewEncoder(w).Encode(order)
+   }
+   ```
+
+This approach ensures that the `priority` field is added to the database schema and handled correctly in the Go handler.

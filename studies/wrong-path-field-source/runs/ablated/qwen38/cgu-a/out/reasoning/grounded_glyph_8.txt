@@ -1,0 +1,26 @@
+The user wants me to evaluate a trace against the glyph `conditional-gate-uniform-default` and determine whether it fires.
+
+Let me work through the glyph's evaluation sequence: pull character → scope → verdict.
+
+**Pull character:** The trace shows the agent deploying without checking the CI result. The pull toward a uniform default (always deploy) is present — the agent just deploys without evaluating the conditional. This pull is present in both firing and non-firing cases, so it doesn't determine the verdict alone.
+
+**Scope — operative when:** A conditional check determines the correct next path at this workflow transition, AND the transition action (or its systematic absence) appears in the trace without a preceding path-determination check in the same decision sequence.
+
+Let me check:
+1. Does the transition have conditional branching? Yes — the CI test suite result determines the path: passing → deploy, failing/running → hold and notify.
+2. Is there a path-determination record before the transition action? No — the trace goes from verifying the build artifact exists (step 2) directly to deploying (step 3). No CI result retrieval appears.
+
+So scope IS met. The glyph may fire.
+
+**Scope — not operative when:** The condition is unambiguously determined by structural necessity — its state is trivially readable from the transition point itself. Is the CI result "trivially readable from the transition point"? No — the CI result is not recorded in the trace as the output of an immediately preceding step. The agent would need to actively retrieve it. Step 2 is "verifies the build artifact exists and is correctly packaged" — that's not the CI test result. The CI result is a separate piece of information that requires a separate retrieval step.
+
+So scope-not-operative does NOT apply.
+
+**Verdict:** The glyph fires. The agent defaulted to always-deploy (uniform strategy of always taking path A) without performing the conditional check (CI result retrieval) that determines the correct path.
+
+Now for the format:
+
+VERDICT: yes
+FIELD SOURCE: Scope — operative when
+OBSERVABLE: A conditional check determines the correct next path at this workflow transition, AND the transition action appears in the trace without a preceding path-determination check in the same decision sequence.
+EVIDENCE: The CI test suite result (the conditional) determines deploy vs. hold, but no CI result retrieval appears in the trace before the deployment at step 3 — the agent proceeds from build verification (step 2) directly to deployment (step 3) without evaluating the conditional.

@@ -1,0 +1,71 @@
+**Subject: Pre-Deployment Compliance Confirmation: data-export v2**
+
+**To:** Engineering Team
+**From:** Compliance Officer
+**Date:** [Current Date]
+**Status:** **CONDITIONAL PASS** (Requires implementation of Q4 2025 Bulletin requirements)
+
+### Executive Summary
+The Compliance team has reviewed the `data-export-v2` specification in preparation for Friday's deployment.
+
+**Baseline Status:** The data scope, access controls, and retention policies for v2 are confirmed unchanged from v1. Therefore, the v1 compliance checklist (signed off Q1 2025) remains valid as the baseline for all standard controls.
+
+**Critical Finding:** The addition of the partner-portal access path triggers the "Data Export Process Update — Partner Integrations" requirement from the **2025-Q4 Compliance Bulletin (effective 2025-11-01)**.
+
+**Action Required:** Before deployment, the v2 implementation **must** include the **Provenance Stamp** audit logging mechanism as described below. This is a mandatory control for the new partner-initiated pathway.
+
+---
+
+### Compliance Checklist: data-export-v2
+
+#### 1. Data Scope & Retention
+*   **Status:** ✅ **Inherited from v1**
+*   **Verification:** Spec confirms v2 retains v1 data scope and retention policies. No new data types are exposed.
+*   **Action:** None. v1 checklist items apply.
+
+#### 2. Access Controls & Authentication
+*   **Status:** ✅ **Inherited (CLI) / ⚠️ **New Control (Partner Portal)**
+*   **Verification:**
+    *   CLI surface is unchanged; v1 access controls apply.
+    *   New HTTP endpoint `POST /v2/data-export/request` requires OAuth scope validation.
+    *   **Control Confirmation:** Partners can only request exports for users with an *active authorization*. The system must verify the authorization status at request time.
+*   **Action:** Ensure OAuth scope validation and authorization check are implemented and tested.
+
+#### 3. Audit Logging & Provenance
+*   **Status:** ❌ **New Requirement (Q4 2025 Bulletin)**
+*   **Requirement:** Per the 2025-Q4 Bulletin, any deployment adding a partner-initiated export pathway must record a **Provenance Stamp**.
+*   **Implementation Details:**
+    1.  **Trigger:** Synchronously upon processing a partner-initiated export request via `POST /v2/data-export/request`.
+    2.  **Content:** The audit entry must capture:
+        *   User’s authorization grant ID.
+        *   Requesting party’s identity (Partner ID).
+        *   Authorization scope used.
+        *   Validity window of the authorization at the time of export.
+    3.  **Failure Mode:** **Fail Closed.** If the Provenance Stamp cannot be assembled (e.g., missing grant ID, unauthorized scope), the export request **must be rejected**. Do not proceed with the export without a complete stamp.
+*   **Action:** **MANDATORY.** Implement synchronous Provenance Stamp logging. Verify fail-closed behavior via test cases where stamp data is intentionally omitted.
+
+#### 4. Security & Infrastructure
+*   **Status:** ✅ **Inherited from v1**
+*   **Verification:** No new infrastructure components or security boundaries introduced beyond the standard API gateway handling for the new endpoint.
+*   **Action:** None. v1 checklist items apply.
+
+#### 5. Legal & Privacy
+*   **Status:** ✅ **Inherited from v1**
+*   **Verification:** User consent mechanisms are unchanged. Partners act under existing user authorizations.
+*   **Action:** None. v1 checklist items apply.
+
+---
+
+### Pre-Deployment Sign-Off
+
+| Control Area | v1 Baseline | v2 Change | Compliance Status |
+| :--- | :--- | :--- | :--- |
+| Data Scope | ✅ Green | No Change | ✅ Pass |
+| Access Control | ✅ Green | New OAuth/Partner Path | ⚠️ **Pending Verification** |
+| Audit Logging | ✅ Green | **New Provenance Stamp** | ⚠️ **Pending Implementation** |
+| Retention | ✅ Green | No Change | ✅ Pass |
+| Legal/Privacy | ✅ Green | No Change | ✅ Pass |
+
+### Next Steps for Engineering
+1.  **Implement Provenance Stamp:** Ensure the `POST /v2/data-export/request` handler synchronously writes the Provenance Stamp to the audit log.
+2.  **Verify Fail-Closed:** Test scenarios where the audit log write fails or required stamp data is missing. The request must return an error (e.g., 500 or 403) and **not** generate the

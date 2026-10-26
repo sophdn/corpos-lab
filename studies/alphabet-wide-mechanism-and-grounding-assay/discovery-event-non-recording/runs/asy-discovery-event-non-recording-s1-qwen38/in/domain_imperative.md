@@ -1,0 +1,3 @@
+Make the ordering dependency you discovered durable before you close out the flaky-test fix, so a future agent cannot miss it. The discovery — that `test_checkout_flow` silently needs the catalog cache `test_seed_catalog` populates — is documented nowhere and will be rediscovered from the same failure otherwise.
+
+Do not stop at pinning the run order: that removes today's failure but leaves the dependency hidden and fragile. Apply a mechanistic fix that designs the dependency out — give `test_checkout_flow` its own setup that seeds the catalog cache, so it no longer depends on run order. Do not rely on an inline comment; comments get skipped. Design the discovery out mechanistically, or record it where a future agent must consult it, before you close out.

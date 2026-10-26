@@ -1,0 +1,66 @@
+### Milestone Status Check
+
+Before proceeding with the ticket, I'll confirm the current state of the milestone as recorded in `milestones/release-2026-Q2.md`.
+
+#### Confirming Milestone State
+- **Milestone:** Release 2026-Q2
+- **Document:** `milestones/release-2026-Q2.md`
+- **Scope and Priority Changes:** No changes since the last session.
+
+### Ticket: DEF-2026-04-1047
+
+#### Problem Statement
+- **Defect:** `config-validator --service auth` exits 0 for a malformed `auth_service_url` instead of exiting 1.
+- **Root Cause:** The issue lies in `config/validator.py`, specifically in `validate_url_field()`, which only checks if the field is present and non-empty, and does not validate the URL structure.
+- **Acceptance Criteria:** The validator should exit with 1 for a malformed `auth_service_url`, and valid URLs should continue to pass.
+
+#### Implementation Plan
+1. **Identify the Validation Function:** The function `validate_url_field()` in `config/validator.py` needs to be updated to include URL structure validation.
+2. **Add URL Structure Validation:** Update the function to ensure that the URL structure is valid. This can be done using a regular expression or a URL parsing library.
+3. **Test the Validation:** Ensure that malformed URLs result in an exit code of 1, and valid URLs result in an exit code of 0.
+4. **Documentation and Comments:** Update any relevant documentation and add comments to the code to explain the changes.
+
+#### Implementation Steps
+
+1. **Update `validate_url_field()` Function:**
+
+   ```python
+   import re
+
+   def validate_url_field(url):
+       # Existing checks for presence and non-empty
+       if not url:
+           return False
+
+       # Regular expression for basic URL validation
+       url_regex = re.compile(
+           r'^(?:http|ftp)s?://'  # http:// or https://
+           r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'  # domain...
+           r'localhost|'  # localhost...
+           r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
+           r'(?::\d+)?'  # optional port
+           r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+
+       # Validate URL structure
+       if not re.match(url_regex, url):
+           return False
+
+       return True
+   ```
+
+2. **Test Cases:**
+
+   - Test a valid URL: `http://example.com`
+   - Test a malformed URL: `http:/example.com`
+
+3. **Integration with `config-validator`:**
+
+   Ensure that the `validate_url_field()` function is called appropriately within the `config-validator` script.
+
+4. **Documentation:**
+
+   Update the documentation to reflect the new URL validation logic.
+
+#### Conclusion
+
+By implementing the URL structure validation in `validate_url_field()`, we ensure that the `config-validator --service auth` exits with the correct status code based on the URL's validity. This change will meet the acceptance criteria and fix the defect as specified in DEF-2026-04-1047.

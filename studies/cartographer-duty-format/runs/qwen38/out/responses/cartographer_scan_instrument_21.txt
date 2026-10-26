@@ -1,0 +1,80 @@
+# Duty: repair-duty
+
+**Purpose:** This duty governs the repair of a confirmed software defect with a known locus. It is written for an executor who possesses only this text. The executor must follow the gates sequentially. Each gate is a checkable step. The executor does not consult any external registry, canon, or taboo list at runtime.
+
+## Phase 0: Routing Verification (Upstream Gate)
+
+This phase sits upstream of the repair act. The executor must verify that the situation calls for a repair, and not some other form of work (such as feature development, refactoring, or investigation of unknown causes).
+
+**Gate 0.1: Confirm the Work Type**
+*   **Verifies:** That the task is explicitly a repair of a *confirmed* defect, not an exploration, feature request, or architectural change.
+*   **Completes when:** The executor has explicitly stated that the input is a "confirmed software defect" and that the goal is to restore correct behavior, not to alter functionality or design. If the defect is not confirmed or the locus is not known, this duty does not apply; the executor must stop and escalate.
+
+## Phase 1: Locus Confirmation and Baseline
+
+This phase ensures the executor is working on the correct code and understands the current broken state before making any changes.
+
+**Gate 1.1: Locate the Locus**
+*   **Verifies:** That the specific file and line number (or function) identified as the locus exist in the current codebase.
+*   **Completes when:** The executor has opened the file at the specified locus and visually confirmed the code matches the description of the defect (e.g., the division operation in `calculator.py:2`).
+
+**Gate 1.2: Establish the Failure Baseline**
+*   **Verifies:** That the defect is reproducible in the current state.
+*   **Completes when:** The executor has executed the failing case (e.g., `calculate_average([])`) and observed the exact error described (e.g., `ZeroDivisionError`). If the error does not reproduce, the executor must stop and re-verify the locus.
+
+**Gate 1.3: Identify the Contract**
+*   **Verifies:** That the intended behavior of the function is known.
+*   **Completes when:** The executor has explicitly stated what the function *should* return for the failing input. For a defect like `calculate_average([])`, the executor must decide on the correct semantic outcome (e.g., return `0.0`, raise a specific custom exception, or return `None`) based on the function’s signature and docstring. *Note: The duty requires the executor to make this decision explicitly before coding.*
+
+## Phase 2: Repair Execution
+
+This phase contains the actual code change.
+
+**Gate 2.1: Implement the Minimal Fix**
+*   **Verifies:** That the change addresses the specific failure mode identified in Gate 1.2 without altering unrelated logic.
+*   **Completes when:** The executor has modified the code at the locus to handle the edge case. For example, adding a guard clause to check `if not values: return ...`. The change must be minimal and focused on the defect.
+
+**Gate 2.2: Preserve Signature and Side-Effects**
+*   **Verifies:** That the function’s public interface (name, parameters, return type) and any side effects remain unchanged unless explicitly required by the contract in Gate 1.3.
+*   **Completes when:** The executor has confirmed that the function still accepts `list` and returns `float` (or the agreed-upon type) and that no other behavior has been inadvertently altered.
+
+## Phase 3: Verification
+
+This phase confirms the repair works and has not broken existing functionality.
+
+**Gate 3.1: Verify the Fix**
+*   **Verifies:** That the previously failing case now behaves according to the contract established in Gate 1.3.
+*   **Completes when:** The executor has re-run the failing case (e.g., `calculate_average([])`) and observed the expected outcome (e.g., `0.0` or the chosen exception).
+
+**Gate 3.2: Regression Check**
+*   **Verifies:** That previously working cases still work.
+*   **Completes when:** The executor has run a sample of existing valid inputs (e.g., `calculate_average([1, 2, 3])`) and confirmed they produce the correct results. The executor must explicitly state that no regressions were detected.
+
+## Phase 4: Session Close-Down (Downstream Gate)
+
+This phase sits downstream of the repair act. It addresses obligations that fire on session close, specifically the recording of discoveries made during the repair that were not part of the original defect report.
+
+**Gate 4.1: Disclose New Findings**
+*   **Verifies:** That any new defects, ambiguities, or architectural issues discovered during the repair are explicitly documented.
+*   **Completes when:** The executor has listed any "incidental findings" (e.g., "I noticed `values` is not type-checked for non-numeric items"). If no new findings exist, the executor must explicitly state "No new findings."
+
+**Gate 4.2: Confirm Closure**
+*   **Verifies:** That all gates in Phases 0–3 have been passed and the session can be closed.
+*   **Completes when:** The executor has produced a final summary stating:
+    1.  The locus was confirmed.
+    2.  The fix was implemented minimally.
+    3.  The fix was verified against the contract.
+    4.  No regressions were found.
+    5.  All incidental findings were disclosed.
+
+## Meta-Taboo Scan Notes
+
+This duty was constructed by scanning for two classes of hazards that do not surface from first-principles analysis of the repair act alone:
+
+1.  **Routing-Class Hazards (Upstream):**
+    *   *Hazard:* An executor might begin repairing a bug that is actually a feature request, or a bug that is not yet confirmed, or a bug located in the wrong file.
+    *   *Structural Gate:* **Gate 0.1** forces the executor to explicitly confirm the work type is a "repair of a confirmed defect" before proceeding. This prevents misrouted work.
+
+2.  **Session-Close-Obligation Hazards (Downstream):**
+    *   *Hazard:* An executor might fix the immediate bug but fail to record that they discovered a related, unreported bug, or that the fix requires a change in documentation or API contract that was not part of the original scope. This creates a "silent divergence" where the system is changed but the record of change is incomplete.
+    *   *Structural Gate:* **Gate 4.1** forces the executor to explicitly disclose any new findings or ambiguities discovered during the repair. This ensures that the session close does not obscure new knowledge.

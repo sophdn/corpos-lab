@@ -1,0 +1,34 @@
+ To begin the `weekly-revenue` job, follow the steps below:
+
+1. Access the data lake and load the `sales_curated` dataset.
+
+```
+# Access data lake
+data_lake_connection = spark.read.format("cloud-storage").option("serviceAccountKeyFile", service_account_key_file).option("projectId", project_id).option("bucket", data_lake_bucket).load("sales_curated")
+```
+
+2. Filter the data for the required week (2026-09-13) and group by relevant fields to calculate the weekly revenue.
+
+```
+# Filter data for the week ending 2026-09-13
+weekly_data = data_lake_connection.filter(col("sale_date").endWith("2026-09-13"))
+
+# Group by relevant fields and calculate weekly revenue
+weekly_revenue = weekly_data.groupBy("item_id", "region").agg(sum("revenue").alias("total_revenue"))
+```
+
+3. Write the results to the desired output file.
+
+```
+# Write the results to out/weekly-revenue-2026-09-13.csv
+weekly_revenue.write.format("csv").option("header", "true").save("out/weekly-revenue-2026-09-13.csv")
+```
+
+4. Run the report using the provided command.
+
+```
+# Run the report with the given command
+!spark-submit --master local[*] reports/weekly_revenue.py --week 2026-09-13
+```
+
+This will execute the `weekly_revenue` job and produce the report for the week ending 2026-09-13.

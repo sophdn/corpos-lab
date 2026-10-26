@@ -1,0 +1,17 @@
+1.  **Fix the underlying dependency (Mechanistic Fix):**
+    Modify `test_checkout_flow` (or the shared test fixture/helper it uses) to explicitly initialize or clear the catalog cache before execution. By removing the silent reliance on `test_seed_catalog` to populate the state, the tests become independent. This is the preferred "mechanistic" fix because it prevents the error from recurring regardless of test execution order, parallelism, or future refactoring.
+
+2.  **Verify the fix:**
+    Run the test suite in a random order or with `test_checkout_flow` explicitly running first to confirm the flakiness is resolved without relying on `test_seed_catalog` running prior.
+
+3.  **Document the discovery (Durable Record):**
+    Since the root cause was an undocumented, implicit state dependency that was "undocumented" and "unexpected," commit a note to the project’s `CONTRIBUTING.md`, `TESTING.md`, or a dedicated `docs/testing-conventions.md` file.
+    *   **Content:** Explicitly state that tests must not rely on side effects from other tests to initialize state.
+    *   **Location:** This must be a location a future agent *must* consult when writing or modifying tests (e.g., linked from the main README or enforced by a pre-commit hook/lint rule if possible).
+    *   **Why:** An inline comment in the test file might be missed. A documented convention ensures the next agent knows *why* tests must be isolated and avoids rediscovering the wall.
+
+4.  **Optional but Recommended: Add a Lint/CI Check:**
+    If the environment supports it, add a static analysis check or CI step that fails if tests are not marked as isolated or if shared state is detected without explicit setup/teardown. This encodes the discovery into the environment so it "cannot recur."
+
+5.  **Close the task:**
+    Only after the mechanistic fix is verified and the durable record (documentation/convention) is committed to the repository should the session be considered complete.

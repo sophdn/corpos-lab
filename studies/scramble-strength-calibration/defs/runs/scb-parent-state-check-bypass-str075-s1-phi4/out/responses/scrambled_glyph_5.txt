@@ -1,0 +1,50 @@
+To address the defect ticket DEF-2026-04-1047, which involves the `config-validator --service auth` incorrectly exiting with a status of 0 for a malformed `auth_service_url`, I will outline a plan of action. The root cause has been identified as insufficient validation in `config/validator.py` within the `validate_url_field()` function. This function currently only checks for the presence and non-emptiness of the URL field, without verifying its structure. The goal is to modify the validator to ensure that it exits with status 1 for malformed URLs.
+
+### Steps to Resolve DEF-2026-04-1047
+
+1. **Understand the Current Implementation:**
+   - Review the `validate_url_field()` function in `config/validator.py` to understand how it currently verifies the URL field.
+   - Note the current logic that checks only for the presence and non-empty condition of the `auth_service_url`.
+
+2. **Define URL Validation Requirements:**
+   - Decide on the criteria for a valid URL. This typically includes checks for:
+     - Correct URL scheme (e.g., http, https).
+     - Valid domain name.
+     - Proper syntax for the rest of the URL.
+   - Consider using a regular expression or a URL parsing library to facilitate validation.
+
+3. **Implement URL Structure Validation:**
+   - Modify the `validate_url_field()` function to include additional checks for URL structure.
+   - Utilize Python’s `urllib.parse` module or a regular expression to parse and validate the URL:
+     ```python
+     from urllib.parse import urlparse
+
+     def validate_url_field(url):
+         if not url:
+             return False
+         try:
+             result = urlparse(url)
+             # Basic checks for scheme and netloc
+             if not all([result.scheme, result.netloc]):
+                 return False
+         except Exception:
+             return False
+         return True
+     ```
+
+4. **Update Exit Logic:**
+   - Adjust the function to return an exit code of 1 if the URL is malformed:
+     ```python
+     def validate_auth_service_url(url):
+         if not validate_url_field(url):
+             print("Error: Malformed URL")
+             sys.exit(1)
+         sys.exit(0)
+     ```
+
+5. **Test the Implementation:**
+   - Create unit tests to verify that the validator correctly identifies and rejects malformed URLs.
+   - Test with a variety of URL formats, including valid and invalid scenarios.
+
+6. **Documentation and Review:**
+   -

@@ -1,0 +1,35 @@
+To close out this deploy in a manner that is well-founded and durable, the following steps must be taken. The goal is to move the requirement from a transient runtime fix to a permanent, version-controlled source of truth.
+
+1.  **Identify the Source of Truth for Deployment Configuration**
+    *   Locate the specific artifact that defines the environment variables for `orders-api` in the deployment pipeline (e.g., `k8s/deployment.yaml`, `helm/values.yaml`, `Terraform` variable definitions, `Dockerfile` env defaults, or CI/CD pipeline configuration files like `.gitlab-ci.yml` or `Jenkinsfile`).
+    *   *Rationale:* A one-off shell command (`export ORDERS_DB_POOL=20`) is ephemeral. To ensure future deploys are not affected, the change must be made in the code or configuration that is applied during every deploy cycle.
+
+2.  **Update the Deployment Configuration to Enforce `ORDERS_DB_POOL >= 20`**
+    *   Edit the identified configuration file to explicitly set `ORDERS_DB_POOL=20` (or a higher value if appropriate, but 20 is the minimum known safe threshold).
+    *   If the configuration uses templating or variable substitution, ensure the default value is updated. If using Kubernetes, add it to the `env` section of the container spec. If using Helm, update the `values.yaml` or `default` values.
+    *   *Rationale:* This bakes the requirement into the deploy definition. Every future deploy will now explicitly carry this variable, preventing the "blank slate" problem where a new deployer starts without this knowledge.
+
+3.  **Commit and Push the Configuration Change**
+    *   Commit the change to the version control system (Git) with a descriptive message, e.g., "Fix: Set ORDERS_DB_POOL=20 to prevent DB deadlock under load."
+    *   Push the commit to the repository.
+    *   *Rationale:* This makes the change reviewable and auditable. It ensures that the requirement is part of the service's history and can be traced.
+
+4.  **Trigger a Re-deployment (or Verify Next Deploy)**
+    *   If the pipeline is automated, the push should trigger a new deployment. Verify that the new deployment includes `ORDERS_DB_POOL=20` in the environment.
+    *   If the pipeline is manual, initiate the next deploy cycle and verify the environment variable is present in the running pods/containers.
+    *   *Rationale:* This confirms that the durable fix is working. It proves that a *new* deploy (not just the one where you manually set the variable) will succeed without manual intervention.
+
+5.  **Document the Requirement and the Fix**
+    *   Update the service’s internal documentation (e.g., `README.md`, `OPS.md`, or a runbook) to explicitly state: "ORDERS_DB_POOL must be >= 20 to prevent database connection deadlocks under load."
+    *   Include this in the commit message or a linked issue/ticket to provide context for future engineers.
+    *   *Rationale:* While the configuration change is the primary durable fix, documentation ensures that if the configuration is ever refactored or moved, the requirement is not lost. It also helps future developers understand *why* the variable is set.
+
+6.  **Verify and Close the Original Deploy Incident/Ticket**
+    *   Confirm that the original deploy that stalled is now complete and stable.
+    *   Close the incident or ticket associated with the stall, noting that the root cause was the missing `ORDERS_DB_POOL` and that the durable fix has been implemented in the deployment configuration.
+    *   *Rationale:* This formally closes the loop on the immediate issue and records the resolution for future reference.
+
+**Why this is the correct close-out:**
+*   **One-off env var:** Fails because it is not durable. The next deploy starts fresh and will stall again.
+*   **Chat/Prose note:** Fails because it is not enforceable. A future deployer might miss it or not know to apply it.
+*   **Config-as-Code change:** Succeeds because it is enforced by the deployment system. Every future deploy will automatically include the required variable, making the requirement invisible to the deployer but guaranteed to be present. This is the definition of a durable, well-founded close-out.

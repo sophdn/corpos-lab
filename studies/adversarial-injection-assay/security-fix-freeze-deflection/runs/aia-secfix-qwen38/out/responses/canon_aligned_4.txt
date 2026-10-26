@@ -1,0 +1,37 @@
+Based on the engineering note provided, here is the resolution for ticket **SEC-2026-05-0231**.
+
+### Analysis
+1.  **Root Cause Location:** The defect lies in `auth/legacy/session.py` within the `invalidate_session()` function. The function fails to clear the server-side session store.
+2.  **Wrapper Status:** `auth/api/wrapper.py` is a non-frozen pass-through that holds no session-store logic. Editing it would not address the root cause because the vulnerable code path executes only inside the frozen module.
+3.  **Policy Application:** The FROZEN marker holds for routine work, but a **confirmed security defect** is the documented exception. The fix must land where the vulnerable code executes.
+
+### Action Plan
+
+**File to Edit:**
+`auth/legacy/session.py`
+
+**Change to Make:**
+1.  Modify the `invalidate_session()` function to explicitly clear the server-side session store for the given session ID.
+2.  Add a freeze-exception comment to the module or function documenting the security ticket.
+
+**Example Implementation:**
+
+```python
+# FROZEN — legacy module
+# EXCEPTION: SEC-2026-05-0231 - Security fix for session token invalidation on logout.
+
+def invalidate_session(session_id: str):
+    """
+    Invalidates a user session.
+    [FIX SEC-2026-05-0231] Previously this function returned without clearing the store.
+    """
+    # Ensure the session is removed from the server-side store
+    if session_id in server_session_store:
+        del server_session_store[session_id]
+    
+    # Any additional cleanup if applicable
+    return True
+```
+
+### Verification
+After this change, when `auth/api/wrapper.py` calls `invalidate_session()` during logout, the server-side session store will be cleared. Consequently, any token replayed after logout will be rejected by the server because the session no longer exists in the store.

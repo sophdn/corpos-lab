@@ -1,0 +1,51 @@
+### Investigation Report: Payment Processing Failure
+
+#### Summary
+The payment processing failure occurred between 15:38 and 15:41, during which the `fraud-detection` service encountered an OutOfMemoryError, leading to service unresponsiveness and ultimately being removed from the load balancer. This failure propagated to the `order-service` and `payment-gateway`, both of which experienced errors due to the unavailability of the `fraud-detection` service.
+
+#### Hypotheses
+1. The deployment of `fraud-detection:v3.8.1` introduced a memory leak or increased memory usage.
+2. The elevated request rate overwhelmed the `fraud-detection` service, causing memory pressure.
+3. The `order-service` batch job exacerbated the issue by sending a large number of requests to the `payment-gateway`, which in turn sent many requests to the `fraud-detection` service.
+
+#### Sprint 1: Deployment Impact
+
+**Hypothesis**: The deployment of `fraud-detection:v3.8.1` introduced a memory leak or increased memory usage.
+
+**Investigation**:
+- At `[15:18:00]`, the `fraud-detection` service deployed version `v3.8.1` with a new risk scoring weight configuration.
+- The memory usage of the service increased steadily from `[15:20:00]` to `[15:38:00]` when it hit the heap limit and the service became unresponsive.
+
+**Conclusion**:
+- The memory usage increased significantly after the deployment, suggesting that the new configuration or the updated version might have contributed to the memory pressure. However, this does not definitively prove a memory leak or increased memory usage due to the configuration change alone.
+
+#### Sprint 2: Elevated Request Rate
+
+**Hypothesis**: The elevated request rate overwhelmed the `fraud-detection` service, causing memory pressure.
+
+**Investigation**:
+- The `order-service` log shows that a large batch of 1,247 orders was being processed starting from `[15:25:00]`.
+- The `fraud-detection` service log indicates that the heap usage increased significantly between `[15:30:00]` and `[15:38:00]`, coinciding with the batch processing.
+
+**Conclusion**:
+- The elevated request rate from the `order-service` batch job likely contributed to the increased memory pressure on the `fraud-detection` service, leading to the eventual OutOfMemoryError.
+
+#### Sprint 3: Batch Job Contribution
+
+**Hypothesis**: The `order-service` batch job exacerbated the issue by sending a large number of requests to the `payment-gateway`, which in turn sent many requests to the `fraud-detection` service.
+
+**Investigation**:
+- The `order-service` log shows that the batch job was processing requests at a rate of 50 per second, which is a significant load.
+- The `payment-gateway` log indicates that the fraud-check latency increased from `[15:35:00]` to `[15:41:05]`, with the fraud-detection service eventually becoming unavailable.
+
+**Conclusion**:
+- The batch job from the `order-service` contributed to the increased load on the `fraud-detection` service, exacerbating the memory pressure and leading to service unresponsiveness.
+
+#### Final Hypothesis and Root Cause
+
+- **Root Cause**: The elevated request rate from the `order-service` batch job, combined with the memory pressure on the `fraud-detection` service after the deployment of `fraud-detection:v3.8.1`, caused the `fraud-detection` service to become unresponsive and eventually fail with an OutOfMemoryError. This failure cascaded to the `payment-gateway`, making it unavailable for processing payments.
+
+### Recommendations
+1. **Memory Profiling**: Conduct a memory profiling analysis of the `fraud-detection` service to identify any memory leaks or inefficiencies introduced by the new risk scoring weights.
+2. **Load Management**: Implement better load management and throttling mechanisms for batch jobs in the `order-service` to prevent overwhelming dependent services like `fraud-detection`.
+3. **Monitoring and Alerts**: Enhance monitoring and alerting on heap usage and request rates to proactively detect and mitigate such issues in the future.

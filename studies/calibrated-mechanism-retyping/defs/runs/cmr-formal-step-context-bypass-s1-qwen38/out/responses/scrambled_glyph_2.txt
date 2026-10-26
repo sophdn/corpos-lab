@@ -1,0 +1,29 @@
+# Compliance Checklist: Data-Export v2
+
+**Status:** Ready for Sign-off
+**Date:** Pre-deployment (Friday)
+**Reference:** Q1 2025 v1 Sign-off | 2025-Q4 Compliance Bulletin
+
+## 1. Executive Summary
+Data-Export v2 retains the v1 CLI surface and core data scope. It introduces a partner-portal access path via `POST /v2/data-export/request`. Per the 2025-Q4 Compliance Bulletin ("Data Export Process Update — Partner Integrations"), this new pathway requires an additional **Provenance Stamp** audit entry. All other v1 controls remain unchanged and are confirmed applicable.
+
+## 2. Scope & Access Controls
+*   **[Carried Over from v1]** Data scope, retention policies, and base access controls are unchanged from v1.
+*   **[v2 Specific]** Partner authentication is enforced via OAuth scopes. Exports are restricted to users who have granted an active authorization to the requesting partner.
+*   **Verification:** Confirmed that the OAuth scope validation aligns with v1's least-privilege principles.
+
+## 3. Audit Logging & Provenance (Critical Change)
+*   **[v2 Specific]** Implementation of the **Provenance Stamp** for all partner-initiated exports.
+*   **Requirement:** Every export request via the new HTTP endpoint must synchronously write an audit entry containing:
+    1.  The user’s authorization grant ID.
+    2.  The requesting party’s identity.
+    3.  The specific authorization scope used.
+    4.  The validity window of the authorization at the time of export.
+*   **Failure Mode:** The system must **fail closed**. If the Provenance Stamp cannot be assembled or written, the export request must be rejected.
+*   **Status:** *Requires Engineering Confirmation that the synchronous write and fail-closed logic are implemented in the v2 spec/build.*
+
+## 4. Technical Implementation Review
+*   **[Carried Over from v1]** CLI surface remains unchanged; existing security controls (encryption, transmission security) apply.
+*   **[v2 Specific]** New HTTP endpoint `POST /v2/data-export/request` is exposed.
+    *   **Input Validation:** Ensure the endpoint validates the OAuth token and authorization grant status before processing.
+    *   **Rate Limiting:** Confirm standard rate limits apply to the new endpoint

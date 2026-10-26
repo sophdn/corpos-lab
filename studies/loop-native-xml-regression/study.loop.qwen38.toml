@@ -1,0 +1,55 @@
+# Harness regression for bug 1428: native tool-call XML must not derail a
+# read-heavy loop scenario to the step cap.
+#
+# This is NOT a glyph probe. It is a loop-robustness regression: a generic
+# sign-off task whose review rule forces the subject to read four files
+# (README.md, ci/last_run.log, pyproject.toml, CHANGELOG.md) before it can
+# decide. The correct decision is CHANGES-NEEDED (the CI log shows a failing
+# test), but the measure here is terminal state, not the verdict: the large
+# majority of seeds must REACH a decision (terminal=final) rather than burn to
+# the step cap on a native-XML re-read loop.
+#
+# Before the fix (image b40e57f4) the sibling read-heavy glyph scenario derailed
+# ~56% of cells to NULL. After the fix the loop executes every native tool call
+# in a turn and breaks a repeated-identical-call loop, so the null rate must be
+# low. DIGEST is re-pinned by scripts/build-lab-images.sh after a loop rebuild.
+name = "loop-native-xml-regression-qwen38"
+assay = "agentic-loop-probe"
+item_id = "loop-native-xml-regression"
+image = "localhost/lab-agentic-loop-probe@sha256:97b80e04d025ce1589274b975d2c0d4cb5e82d1e558b6d92057f087118232761"
+network = "lab-net"
+
+conditions = ["baseline"]
+runs_per_cell = 16
+
+[model]
+base_url = "http://llama-server:8081/v1"
+model_id = "Qwen3.8-27B-Q4_K_M.gguf"
+version = "q4km"
+endpoint = "completion"
+prompt_template = "<|im_start|>user\n{{prompt}}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+
+[materials]
+scenario = "scenario.md"
+
+[loop]
+preamble    = "preamble.md"
+sandbox     = "sandbox.json"
+step_cap    = 16
+call_tokens = 768
+
+[sampling]
+temperature = 0.8
+seeds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+max_tokens = 1024
+top_n_sigma = -1.0
+top_k = 0
+typical_p = 1.0
+top_p = 1.0
+min_p = 0.05
+repeat_penalty = 1.0
+repeat_last_n = 0
+presence_penalty = 0.0
+frequency_penalty = 0.0
+xtc_probability = 0.0
+dry_multiplier = 0.0

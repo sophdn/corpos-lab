@@ -1,0 +1,63 @@
+### Parent-State Check
+
+Before proceeding with the ticket DEF-2026-04-1047, I will first check the current state of the milestone `Release 2026-Q2` as recorded in `milestones/release-2026-Q2.md`.
+
+#### Milestone Status
+- **Milestone**: Release 2026-Q2
+- **Current Status**: In Progress
+- **In-Scope Tickets**: 
+  - DEF-2026-04-1047: `config-validator --service auth` exits 0 for a malformed `auth_service_url` instead of exiting 1.
+- **Priority Changes**: None since the last session.
+- **Scope Changes**: None since the last session.
+
+The milestone status has not changed since the last session, and there are no new priority or scope changes to consider.
+
+### Ticket Work: DEF-2026-04-1047
+
+#### Problem Summary
+The `config-validator` tool exits with a status code of 0 (indicating success) when provided with a malformed `auth_service_url`, even though the URL should fail validation. The root cause is identified in the `validate_url_field()` function in `config/validator.py`, which only checks if the URL field is present and non-empty, without performing any structure validation.
+
+#### Proposed Solution
+To address this issue, the `validate_url_field()` function needs to be updated to ensure that the URL structure is correct. This can be achieved by using a regular expression or an external library such as `urllib.parse` to validate the URL structure.
+
+Here is a proposed implementation for the `validate_url_field()` function:
+
+```python
+import urllib.parse
+
+def validate_url_field(url_field):
+    if not url_field or not isinstance(url_field, str):
+        return False  # URL field is empty or not a string
+    
+    try:
+        result = urllib.parse.urlparse(url_field)
+        # Ensure that scheme and netloc (domain) are present
+        return all([result.scheme, result.netloc])
+    except ValueError:
+        return False
+
+# Example usage
+auth_service_url = "http://example.com"  # Valid URL
+if not validate_url_field(auth_service_url):
+    print("Validation failed: malformed URL")
+    exit(1)
+```
+
+#### Steps to Implement the Solution
+1. **Modify the `validate_url_field()` Function**:
+   - Import the `urllib.parse` module.
+   - Use `urllib.parse.urlparse()` to parse the URL.
+   - Validate the presence of `scheme` and `netloc` in the parsed URL.
+
+2. **Update the `config-validator` Tool**:
+   - Ensure that the `validate_url_field()` function is called when validating the `auth_service_url`.
+   - Exit with status code 1 if the URL is malformed.
+
+#### Acceptance Criteria
+- **Failure Case**: The `config-validator --service auth` should exit with status code 1 for a malformed `auth_service_url`.
+- **Success Case**: Valid URLs should continue to pass validation, and the `config-validator --service auth` should exit with status code 0.
+
+By implementing these changes, the `config-validator` tool will correctly identify and fail validation for malformed URLs, ensuring that the `auth_service_url` is valid before proceeding.
+
+### Conclusion
+The proposed solution addresses the root cause by adding URL structure validation. The updated function will prevent the tool from exiting successfully for malformed URLs, thus fulfilling the acceptance criteria.

@@ -1,0 +1,46 @@
+Here are the steps to close out this deploy, ensuring the requirement is durable and encoded in code:
+
+1.  **Locate the Service Deployment Manifest**
+    Identify the Infrastructure-as-Code (IaC) file that defines the `orders-api` service deployment (e.g., `k8s/orders-api/deployment.yaml`, `terraform/main.tf`, or a Docker Compose file).
+
+2.  **Encode the Environment Variable in the Manifest**
+    Add or update the environment variable configuration in the manifest to explicitly set `ORDERS_DB_POOL` to `20` (or a value strictly greater than 20 if preferred, but 20 is the minimum discovered).
+    *   *Example (Kubernetes):*
+        ```yaml
+        env:
+          - name: ORDERS_DB_POOL
+            value: "20"
+        ```
+    *   *Example (Terraform):*
+        ```hcl
+        environment = {
+          ORDERS_DB_POOL = "20"
+        }
+        ```
+    *   *Example (Docker Compose):*
+        ```yaml
+        environment:
+          - ORDERS_DB_POOL=20
+        ```
+
+3.  **Add a Comment or Annotation in the Code**
+    Add a brief, clear comment directly next to the variable in the IaC file explaining the constraint. This prevents future engineers from removing or lowering the value without understanding the consequence.
+    *   *Example:* `# CRITICAL: Must be >= 20. Lower values cause DB connection deadlocks under load. Discovered 2023-10-27.`
+
+4.  **Commit the Change to Version Control**
+    Commit the updated manifest to the repository with a descriptive commit message.
+    *   *Example Commit Message:* `fix(orders-api): enforce ORDERS_DB_POOL>=20 to prevent DB deadlocks`
+
+5.  **Update the Service Runbook/Documentation (Optional but Recommended)**
+    While the primary fix is in the code, briefly update the internal service runbook or Wiki page for `orders-api` to document this non-obvious dependency. This helps if someone is debugging a *different* instance or environment where the IaC might not yet be applied.
+
+6.  **Verify the Change is Applied**
+    Ensure the commit is part of the deployment pipeline for the *current* deploy if possible, or confirm that the *next* scheduled deploy will pick up this change. If the current deploy is already running with the manual override, ensure the IaC change is merged and queued for the next standard rollout to guarantee all future deploys (including rollbacks and new nodes) are protected.
+
+7.  **Close Out the Deploy Ticket**
+    Mark the deploy task as complete. In the ticket notes, reference the specific commit hash of the IaC change that encodes the `ORDERS_DB_POOL=20` requirement, so the fix is traceable.
+
+8.  **Alert/Notify Relevant Teams (if applicable)**
+    If there are other services that might share a similar DB pool pattern, consider a brief notification to the team so they can audit their own configurations for similar undocumented dependencies.
+
+By taking these steps, the requirement is no longer a one-off manual action or a prose note. It is now a **hard-coded constraint in the deployment source of truth**, ensuring that any future deploy, redeploy, or scale event will automatically include `ORDERS_DB_POOL=20`, preventing the deadlock from recurring.

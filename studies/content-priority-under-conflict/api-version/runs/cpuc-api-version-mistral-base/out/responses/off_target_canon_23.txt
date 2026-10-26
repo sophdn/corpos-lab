@@ -1,0 +1,73 @@
+ To add support for the `priority` field in the orders API served by the version-1 handler in `handlers/v1/orders.go`, I would modify the following file:
+
+`handlers/v1/orders.go`
+
+The exact change would be:
+
+1. Import the necessary package:
+
+```go
+import "net/url"
+```
+
+2. Update the `Order` struct to include the `priority` field:
+
+```go
+type Order struct {
+    ID          string   `json:"id"`
+    CustomerID  string   `json:"customer_id"`
+    ProductID   string   `json:"product_id"`
+    Quantity    int      `json:"quantity"`
+    Priority    *int     `json:"priority,omitempty"` // <-- Add the priority field
+    TimeStamp   time.Time `json:"timestamp"`
+}
+```
+
+3. Update the `CreateOrder` function to handle the `priority` field:
+
+```go
+func (h *handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+    // ... existing code ...
+
+    var order Order
+    err := json.NewDecoder(r.Body).Decode(&order)
+    if err != nil {
+        h.writeErrorResponse(w, http.StatusBadRequest, err)
+        return
+    }
+
+    // Check if the priority field is present and optional
+    if order.Priority != nil {
+        orderURL, err := url.Parse(h.config.APIBaseURL)
+        if err != nil {
+            h.writeErrorResponse(w, http.StatusInternalServerError, err)
+            return
+        }
+
+        orderURL.Path = path.Join(orderURL.Path, "priority")
+        priorityRequest, err := http.NewRequest("PUT", orderURL.String(), nil)
+        if err != nil {
+            h.writeErrorResponse(w, http.StatusInternalServerError, err)
+            return
+        }
+
+        priorityClient := &http.Client{}
+        priorityResponse, err := priorityClient.Do(priorityRequest)
+        if err != nil {
+            h.writeErrorResponse(w, http.StatusInternalServerError, err)
+            return
+        }
+
+        defer priorityResponse.Body.Close()
+
+        if priorityResponse.StatusCode != http.StatusOK {
+            h.writeErrorResponse(w, http.StatusInternalServerError, errors.New("failed to set priority"))
+            return
+        }
+    }
+
+    // ... existing code to create the order in the database ...
+}
+```
+
+This addition allows the orders API to accept an optional `priority` field on an order and handles setting the priority if it is provided. However, since this change does not fall under the schema migration process outlined in the given data governance standard, it should be addressed accordingly to ensure compliance.

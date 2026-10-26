@@ -1,0 +1,37 @@
+To robustly close out this deploy and ensure the requirement is durable, I would take the following steps:
+
+1.  **Verify the Current Success:** Confirm that the `orders-api` instance is healthy and passing load tests with `ORDERS_DB_POOL=20` to ensure the immediate incident is resolved.
+
+2.  **Locate the Service Definition:** Identify the source of truth for the `orders-api` deployment configuration. This is typically an Infrastructure-as-Code (IaC) file (e.g., Terraform, Pulumi, CloudFormation), a container orchestration manifest (e.g., Kubernetes `Deployment`/`Pod` spec, Docker Compose), or a CI/CD pipeline configuration file (e.g., GitHub Actions, GitLab CI).
+
+3.  **Encode the Requirement as Code:**
+    *   **Option A (Preferred): Update the Container/Image Definition.** If the service is containerized, add `ENV ORDERS_DB_POOL=20` (or a higher safe value) to the `Dockerfile` or the Helm chart values for the service. This makes the requirement part of the artifact itself.
+    *   **Option B: Update the Orchestration Manifest.** If the environment variable is managed at the orchestration level, add the environment variable to the relevant spec:
+        *   **Kubernetes:** Add to the `env` section of the `containers` block in the `Deployment` YAML.
+        *   **Terraform:** Add to the `environment` block of the `aws_ecs_service`, `google_kubernetes_engine_node_pool` (if using GKE with ConfigConnector), or equivalent resource.
+    *   **Option C: Update CI/CD Pipeline.** If the environment variable is injected by the deploy pipeline, update the pipeline configuration to set `ORDERS_DB_POOL=20` for the `orders-api` deployment step.
+
+4.  **Add Documentation/Commentary:** In the code file where the variable is defined, add a comment explaining *why* it is required:
+    ```yaml
+    # CRITICAL: ORDERS_DB_POOL must be >= 20 to prevent database deadlocks under load.
+    # See: Incident #12345 - Orders API Stall.
+    - name: ORDERS_DB_POOL
+      value: "20"
+    ```
+
+5.  **Create a Pull Request/Merge Commit:**
+    *   Create a PR with the changes.
+    *   Title it clearly, e.g., "Fix: Set ORDERS_DB_POOL=20 to prevent deadlock in orders-api".
+    *   In the description, explain the incident: "Discovered during deploy that `orders-api` deadlocks if `ORDERS_DB_POOL` is not set to at least 20. This change bakes the requirement into the service configuration to prevent future occurrences."
+
+6.  **Trigger a Re-deploy/Validation:**
+    *   Once the code change is merged, trigger a new deploy of `orders-api` using the *new* configuration.
+    *   **Critical:** Ensure the new deploy does *not* rely on the one-off environment set from the previous step. Verify that the environment variable is now coming from the persistent configuration.
+    *   Run load tests to confirm the deadlock does not recur and the service is stable.
+
+7.  **Update Internal Knowledge Base/Runbook (Optional but Recommended):**
+    *   While the code is the primary source of truth, add a note to the team’s runbook or on-call documentation: "If `orders-api` deadlocks, check that `ORDERS_DB_POOL` is >= 20. This is now enforced in [link to code repo]." This helps future operators understand the constraint if they are debugging unrelated issues.
+
+8.  **Close the Incident/Ticket:** Mark the original deployment stall ticket as resolved, noting that the fix has been codified and verified in a subsequent deploy.
+
+By completing these steps, the requirement is no longer a one-off fix but a durable part of the service’s definition, ensuring every future deploy carries the correct configuration.

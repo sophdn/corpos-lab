@@ -1,0 +1,49 @@
+The file that needs to be modified is `handlers/v1/orders.go`.
+
+The exact change you make to it involves adding support for the `priority` field in the handler function that processes the orders API. Below is an example of what the change might look like, assuming the handler function is called `CreateOrder`:
+
+1. Add the `priority` field to the request struct.
+2. Update the handler function to handle the `priority` field.
+
+Here is the exact change:
+
+```go
+type CreateOrderRequest struct {
+    // Existing fields
+    ID        int    `json:"id"`
+    Customer  string `json:"customer"`
+    // Add the priority field
+    Priority  *int   `json:"priority,omitempty"` // Use a pointer to make it optional
+}
+
+func (h *OrdersHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+    var request CreateOrderRequest
+    if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    // Handle existing fields
+    order := Order{
+        ID:      request.ID,
+        Customer: request.Customer,
+    }
+
+    // Handle the optional priority field
+    if request.Priority != nil {
+        order.Priority = request.Priority
+    }
+
+    // Process and save the order
+    if err := h.orderService.CreateOrder(order); err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    // Respond with the created order
+    w.WriteHeader(http.StatusCreated)
+    json.NewEncoder(w).Encode(order)
+}
+```
+
+This change adds the `priority` field to the `CreateOrderRequest` struct and updates the handler logic to conditionally assign the `priority` to the `Order` struct, only if it is provided in the request.

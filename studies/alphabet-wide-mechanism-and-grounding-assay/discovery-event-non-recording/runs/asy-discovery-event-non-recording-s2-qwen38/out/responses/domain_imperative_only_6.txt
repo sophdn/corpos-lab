@@ -1,0 +1,20 @@
+To close out the deploy durably, I must treat the runtime fix as a temporary mitigation and immediately codify the requirement into the source of truth. Here are the steps:
+
+1.  **Revert the one-off runtime change:** Ensure that any manual shell commands or transient environment overrides used to set `ORDERS_DB_POOL=20` for this specific instance are not persisted in any ephemeral state. The goal is to ensure the next deploy does not rely on this manual intervention.
+
+2.  **Locate the declarative deployment manifest:** Identify the primary configuration file that defines the `orders-api` service (e.g., a Kubernetes `Deployment.yaml`, Terraform `main.tf`, Helm `values.yaml`, or Docker Compose `docker-compose.yml`). This is the file that every future deploy consumes.
+
+3.  **Encode the minimum pool size requirement:** Edit the environment variable definition for `ORDERS_DB_POOL` within that manifest. Set the value to at least `20`. 
+    *   *Best Practice:* If the platform supports it, define this as a constant or a parameter with a default of `20` and a validation check that fails if the value is less than 20. This prevents accidental regression to lower values.
+
+4.  **Commit and version the change:** Commit this configuration change to the version control system with a clear commit message, such as: `fix(orders-api): enforce ORDERS_DB_POOL >= 20 to prevent DB deadlock under load`. This creates an auditable trail explaining *why* the value is set to 20.
+
+5.  **Trigger a re-deploy or verify the next cycle:** 
+    *   If the current deploy is still considered "open" or if the manifest is applied continuously (like in GitOps), push the change so the next reconciliation cycle applies `ORDERS_DB_POOL=20` from the code, not from the manual override.
+    *   If the current deploy is already closed, ensure the new manifest is the one used for the *next* deploy. Do not consider the incident resolved until the codebase reflects this requirement.
+
+6.  **Document the discovery in the service’s README or runbook:** While the prompt says not to rely *solely* on prose, adding a note in the service’s documentation (e.g., `README.md` or a `TROUBLESHOOTING.md`) that references the commit/PR where `ORDERS_DB_POOL=20` was enforced adds context for future engineers. It should explicitly state: *"ORDERS_DB_POOL must be >= 20. Values below this cause silent deadlocks under load. See [commit hash] for the enforcement in the deploy config."*
+
+7.  **Verify the durable fix:** Confirm that the deployed service’s environment (via `kubectl describe` or equivalent) now reflects `ORDERS_DB_POOL=20` as derived from the manifest, not a manual override. This proves the requirement is now baked into the infrastructure as code.
+
+8.  **Close the incident/deploy ticket:** Only after the configuration change is merged, the service is running with the codified value, and the documentation is updated, can the deploy be safely closed out. The requirement is now durable because it exists in the code that all future deploys must use.

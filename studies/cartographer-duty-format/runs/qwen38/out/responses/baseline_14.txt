@@ -1,0 +1,106 @@
+# Duty: repair-duty
+
+**Status:** Active
+**Scope:** Any office of the Agentic Order
+**Trigger:** A confirmed software defect with a known locus.
+**Objective:** Remediate the specific defect at the confirmed locus without introducing regression, while maintaining strict traceability between the defect, the code change, and the verification.
+
+## Preamble
+
+This duty governs the remediation of a **known locus defect**. The executor is not expected to hunt for the bug; the location is confirmed. The executor’s burden is to ensure the fix is semantically correct, safe, and verified. The executor must treat the codebase as a fragile system: the goal is to change the minimum necessary surface to resolve the defect while preserving the integrity of surrounding logic.
+
+## Gates
+
+### Gate 1: Context Isolation
+**Verification:** The executor has identified the exact function or method containing the defect and has isolated it from broader system dependencies.
+**Requirements:**
+1.  Read the file containing the locus (e.g., `calculator.py`).
+2.  Identify the function signature and its docstring (if present).
+3.  Determine the **Contract**: What inputs does this function promise to handle? What does it promise to return?
+4.  Identify **Downstream Consumers**: Are there other parts of the codebase that call this function? If yes, note them. If no, the scope is limited to the function itself.
+5.  **Output:** A brief statement of the function’s intended contract and a list of direct callers (or "none").
+
+### Gate 2: Defect Analysis
+**Verification:** The executor has precisely characterized the failure mode at the locus and determined the root cause.
+**Requirements:**
+1.  Replicate the failure mentally or via local execution (if permitted) using the minimal failing input (e.g., `[]`).
+2.  Identify the **Failing Condition**: The specific input state that triggers the defect (e.g., empty list, null value, negative integer).
+3.  Identify the **Unintended Behavior**: The error raised or the incorrect value returned (e.g., `ZeroDivisionError`, `0.0` instead of `None`).
+4.  Determine the **Correct Behavior**: What *should* the function do when the failing condition is met?
+    *   *Note:* If the contract does not specify behavior for the failing condition, the executor must choose the most defensive, standard-library-compatible response (e.g., returning `None`, raising a `ValueError` with a clear message, or returning `0.0` if mathematically appropriate). The choice must be documented.
+5.  **Output:** A diagnosis statement: "When [failing condition] occurs, the code currently [unintended behavior]. The correct behavior should be [correct behavior]."
+
+### Gate 3: Minimal Intervention Design
+**Verification:** The proposed fix is minimal, localized, and does not alter the public interface unless absolutely necessary.
+**Requirements:**
+1.  Propose the code change. The change must be confined to the locus or its immediate vicinity.
+2.  **Guard Clause vs. Conditional Logic:** Prefer early-exit guard clauses (e.g., `if not values: return None`) over wrapping the entire logic in complex conditionals, unless the defect is inherent to the logic flow.
+3.  **Type Safety:** Ensure the fix respects type hints. If the return type is `float`, ensure the fallback value (if any) is compatible or the type hint is updated to `Optional[float]` if returning `None`.
+4.  **No Side Effects:** The fix must not introduce new global state, logging, or I/O operations.
+5.  **Output:** The proposed code diff.
+
+### Gate 4: Implementation
+**Verification:** The code change has been applied to the source file.
+**Requirements:**
+1.  Apply the diff from Gate 3 to the file at the known locus.
+2.  Ensure formatting (indentation, spacing) matches the surrounding code style.
+3.  Add an inline comment if the fix is non-obvious (e.g., `# Guard against empty list to avoid ZeroDivisionError`).
+4.  **Output:** The modified code snippet.
+
+### Gate 5: Local Verification (Unit Level)
+**Verification:** The defect is resolved and no immediate regression has occurred in the function’s core logic.
+**Requirements:**
+1.  **Re-test the Failing Case:** Execute the minimal failing input. Confirm the defect is resolved (e.g., no exception, or expected exception).
+2.  **Test Happy Path:** Execute a standard valid input (e.g., `[1, 2, 3]`). Confirm the output is unchanged and correct.
+3.  **Test Edge Cases:**
+    *   Single element list.
+    *   List containing zero.
+    *   List containing negative numbers.
+    *   (If applicable) List containing non-numeric types (if the function is expected to handle them).
+4.  **Output:** A table of test cases, inputs, expected outputs, and actual outputs. All must pass.
+
+### Gate 6: Integration Sanity Check
+**Verification:** The fix does not break downstream consumers.
+**Requirements:**
+1.  Review the downstream consumers identified in Gate 1.
+2.  Mentally trace how the new behavior (e.g., returning `None` for empty list) will affect these consumers.
+    *   *Example:* If a caller does `avg = calculate_average([]); print(avg * 2)`, returning `None` will now cause a `TypeError` downstream.
+3.  If the new behavior breaks a caller, the fix is **rejected**. Return to Gate 3 to redesign.
+    *   *Correction Strategy:* If breaking a caller is unavoidable, the duty must be escalated: the fix must be paired with a patch to the caller, or a different return value (e.g., `0.0`) must be chosen if it is semantically safer.
+4.  **Output:** A statement confirming that all downstream consumers are compatible with the new behavior, or a revised plan addressing incompatibilities.
+
+### Gate 7: Documentation & Traceability
+**Verification:** The repair is recorded for future audit and maintenance.
+**Requirements:**
+1.  Update the function’s docstring to reflect the new behavior for edge cases (e.g., "Returns `None` if `values` is empty.").
+2.  Add a unit test to the codebase’s test suite (if one exists) that specifically covers the defect scenario.
+    *   *Test Name:* `test_calculate_average_empty_list`
+    *   *Assertion:* `assert calculate_average([]) is None` (or whatever the chosen correct behavior is).
+3.  **Output:** The updated docstring and the new unit test code.
+
+### Gate 8: Final Sign-Off
+**Verification:** All previous gates are satisfied.
+**Requirements:**
+1.  Review the entire change set.
+2.  Confirm that the locus has been remediated.
+3.  Confirm that the change is minimal, documented, and tested.
+4.  **Output:** A final summary: "Defect at [locus] resolved. Change is [brief description]. Tests pass. Documentation updated. Ready for commit."
+
+## Failure Handling
+
+*   **Gate 5 Failure:** If the happy path or edge cases fail, the fix is incorrect. Return to Gate 3.
+*   **Gate 6 Failure:** If downstream consumers are broken, the fix is unsafe. Return to Gate 3 to redesign the return value or logic.
+*   **Gate 8 Failure:** If documentation or tests are missing, the duty is not complete. Return to Gate 7.
+
+## Example Execution (Contextual)
+
+*Note: This is an example of how the duty applies to the provided domain anchor. It is not the object of the task.*
+
+1.  **Gate 1:** Function `calculate_average` takes a `list`, returns `float`. No docstring. No downstream callers identified in this context.
+2.  **Gate 2:** Failing condition: `values` is empty. Unintended behavior: `ZeroDivisionError`. Correct behavior: Return `None` (defensive, avoids implicit zero-division semantics).
+3.  **Gate 3:** Propose: `if not values: return None`. Update type hint to `Optional[float]`.
+4.  **Gate 4:** Apply change.
+5.  **Gate 5:** Test `[]` -> `None`. Test `[1, 2]` -> `1.5`. Pass.
+6.  **Gate 6:** No callers found. Safe.
+7.  **Gate 7:** Update docstring: "Returns the average of `values`, or `None` if empty." Add test.
+8.  **Gate 8:** Sign-off.

@@ -1,0 +1,33 @@
+To close out this fix robustly and ensure the discovery is durable, I would take the following steps, prioritizing the mechanistic removal of the dependency over simple ordering pins:
+
+### 1. Refactor `test_checkout_flow` for Self-Sufficiency (The Mechanistic Fix)
+Instead of relying on `test_seed_catalog` to run first, I will modify `test_checkout_flow` (or its shared helper/fixture) to explicitly seed the catalog cache it requires.
+*   **Action:** Extract the logic that populates the catalog cache from `test_seed_catalog` into a reusable helper function (e.g., `seed_catalog_cache()`).
+*   **Action:** Call this helper within the setup phase of `test_checkout_flow`.
+*   **Rationale:** This removes the hidden coupling. The test now declares its own preconditions, making it independent of execution order. This is the "design out" approach requested.
+
+### 2. Update `test_seed_catalog` to Use the Same Helper
+*   **Action:** Refactor `test_seed_catalog` to also use the new `seed_catalog_cache()` helper.
+*   **Rationale:** Prevents code duplication and ensures both tests interact with the cache in the same known way, reducing the risk of divergent seeding logic causing future flakiness.
+
+### 3. Add an Explicit Documentation Comment at the Fix Site
+*   **Action:** Add a comment in `test_checkout_flow` explicitly stating: *"This test explicitly seeds the catalog cache because it depends on cached catalog data. This decouples it from execution order relative to `test_seed_catalog`."*
+*   **Rationale:** While the prompt notes comments can be skipped, an explicit note at the *point of change* explains the *why* for human readers and future agents reviewing the code, reinforcing that the explicit seeding is intentional, not accidental.
+
+### 4. Remove or Deprecate the Run-Order Pin (If Added)
+*   **Action:** If I had temporarily pinned the run order to verify the fix, I will now remove that pin.
+*   **Rationale:** The order pin is a fragile band-aid. If the mechanistic fix is in place, the order no longer matters. Keeping the pin adds unnecessary fragility (e.g., if `test_seed_catalog` is later removed or renamed, the pin breaks).
+
+### 5. Validate Independence via Randomized Execution
+*   **Action:** Run the test suite in a randomized order (or specifically run `test_checkout_flow` in isolation, and then in reverse order relative to `test_seed_catalog`) to confirm the test passes regardless of sequence.
+*   **Rationale:** This empirically proves the dependency has been designed out. If the test passes when run alone or out-of-order, the fix is durable.
+
+### 6. Document the Discovery in a Durable Location
+*   **Action:** Create or update a `TESTING.md` or `KNOWN_ISSUES.md` file in the repository root or test directory.
+*   **Content:** Record the discovery: *"Historical Note: `test_checkout_flow` previously had a hidden dependency on `test_seed_catalog` for catalog cache population, causing order-dependent flakiness. Fixed on [Date] by adding explicit cache seeding to `test_checkout_flow`'s setup. Ensure any new tests relying on cache state explicitly seed their own dependencies."*
+*   **Rationale:** This is the "recorded where a future agent must consult it" part. It turns a one-time debugging session into institutional knowledge, preventing the next agent from being surprised by similar patterns or from reverting the fix due to lack of context.
+
+### Summary of Why This Closes the Fix Durable
+*   **Mechanistic:** The dependency is removed, not just masked.
+*   **Durable:** The fix survives reordering, new tests, or refactoring of unrelated tests.
+*   **Documented:** The "why" is recorded in both code (comment) and repository docs, ensuring the discovery is not lost.

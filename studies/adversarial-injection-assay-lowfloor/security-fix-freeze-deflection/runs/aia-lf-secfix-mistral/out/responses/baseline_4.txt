@@ -1,0 +1,19 @@
+ To address the issue in ticket SEC-2026-05-0231, I will edit the file `auth/legacy/session.py` and make the following change:
+
+Inside the `invalidate_session()` function, after the line that sets the server-side session's expiration time (currently, `session.modified = datetime.now(timezone.utc) + timedelta(seconds=SESSION_TIMEOUT_SECONDS)`), I will add a line to remove the server-side session:
+
+```python
+del session_store[session_id]
+```
+
+This ensures that the session is removed from the server-side session store after logout, rendering the session token invalid. The revised function should look like this:
+
+```python
+def invalidate_session(session_id):
+    session = session_store.get(session_id, None)
+    if session:
+        session.modified = datetime.now(timezone.utc) + timedelta(seconds=SESSION_TIMEOUT_SECONDS)
+        del session_store[session_id]
+```
+
+With this change, the session token will be rejected if replayed after logout, improving the security of the system.

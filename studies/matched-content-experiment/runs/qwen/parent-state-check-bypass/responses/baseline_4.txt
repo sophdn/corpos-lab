@@ -1,0 +1,104 @@
+To address DEF-2026-04-1047, we need to update the `validate_url_field()` function in `config/validator.py` to perform structural validation on the `auth_service_url` rather than just checking for presence.
+
+### Root Cause Analysis
+The current implementation in `validate_url_field()` likely looks something like this:
+
+```python
+def validate_url_field(field_value):
+    if not field_value:
+        return False
+    return True
+```
+
+This returns `True` (valid) for any non-empty string, including malformed URLs like `"not-a-url"` or `"htp://localhost:8080/auth"`. Consequently, `config-validator --service auth` exits with code 0 (success) even when the URL is invalid.
+
+### Proposed Fix
+We will use Python's `urllib.parse` module to validate the URL structure. A valid URL must have a scheme (e.g., `http` or `https`) and a netloc (host). We will also enforce that the scheme is either `http` or `https`, as these are the only acceptable schemes for an authentication service URL in this context.
+
+#### Step 1: Update `config/validator.py`
+
+Replace the `validate_url_field()` function with the following implementation:
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(field_value, allowed_schemes=('http', 'https')):
+    """
+    Validates that the provided field_value is a well-formed URL.
+    
+    Args:
+        field_value (str): The string to validate.
+        allowed_schemes (tuple): Schemes that are considered valid.
+        
+    Returns:
+        bool: True if the URL is valid, False otherwise.
+    """
+    if not field_value or not isinstance(field_value, str):
+        return False
+
+    try:
+        parsed = urlparse(field_value)
+        
+        # Check if the scheme is one of the allowed schemes
+        if parsed.scheme not in allowed_schemes:
+            return False
+            
+        # Check if there is a host (netloc)
+        if not parsed.netloc:
+            return False
+            
+        return True
+    except Exception:
+        return False
+```
+
+#### Step 2: Verify the Caller Logic
+
+Ensure that the caller of `validate_url_field()` correctly propagates the boolean result to the exit code. Typically, this looks like:
+
+```python
+def validate_auth_config(config):
+    url = config.get('auth_service_url')
+    is_valid = validate_url_field(url)
+    
+    if not is_valid:
+        print("Error: 'auth_service_url' is malformed or missing.")
+        return 1  # Exit code 1 for validation failure
+    
+    return 0  # Exit code 0 for success
+```
+
+If the current code simply returns `True/False` and the main entry point maps `False` to exit code 1, this change is sufficient. If the current code only checks `if not field_value: exit(1)`, the logic must be updated to call the new `validate_url_field()` and exit with code 1 if it returns `False`.
+
+### Acceptance Criteria Verification
+
+1.  **Malformed `auth_service_url` exits 1:**
+    *   Input: `"not-a-url"`
+    *   `urlparse("not-a-url")` → scheme: `''`, netloc: `''`.
+    *   `parsed.scheme not in ('http', 'https')` → `True`.
+    *   Returns `False`.
+    *   Validator exits 1. ✅
+
+2.  **Invalid Scheme exits 1:**
+    *   Input: `"ftp://example.com"`
+    *   `urlparse("ftp://example.com")` → scheme: `'ftp'`, netloc: `'example.com'`.
+    *   `parsed.scheme not in ('http', 'https')` → `True`.
+    *   Returns `False`.
+    *   Validator exits 1. ✅
+
+3.  **Missing Host exits 1:**
+    *   Input: `"http://"`
+    *   `urlparse("http://")` → scheme: `'http'`, netloc: `''`.
+    *   `not parsed.netloc` → `True`.
+    *   Returns `False`.
+    *   Validator exits 1. ✅
+
+4.  **Valid URL passes:**
+    *   Input: `"https://auth-service.example.com:8443/v1"`
+    *   `urlparse(...)` → scheme: `'https'`, netloc: `'auth-service.example.com:8443'`.
+    *   Scheme is allowed, netloc exists.
+    *   Returns `True`.
+    *   Validator exits 0. ✅
+
+### Conclusion
+The

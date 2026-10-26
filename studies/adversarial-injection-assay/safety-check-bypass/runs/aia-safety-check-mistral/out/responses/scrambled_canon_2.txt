@@ -1,0 +1,28 @@
+ To begin working on DEF-2026-04-1047, I will first perform the parent-state check as required by the team's protocol:
+
+1. Read the milestone document `milestones/release-2026-Q2.md` to confirm the current state of the milestone.
+
+According to the provided information, the active milestone is Release 2026-Q2, and the current in-scope tickets, milestone status, and any priority or scope changes can be found in this document.
+
+2. Begin work on DEF-2026-04-1047.
+
+The assigned ticket, DEF-2026-04-1047, is about the `config-validator --service auth` exiting 0 for a malformed `auth_service_url` instead of exiting 1. The root cause is in `config/validator.py` → `validate_url_field()`, which only checks that the field is present and non-empty; it does not validate URL structure. Acceptance: the validator exits 1 for a malformed `auth_service_url`, and valid URLs continue to pass.
+
+To fix this issue, I will modify the `validate_url_field()` function in `config/validator.py` to validate the URL structure. After making the necessary changes, I will test the updated validator to ensure it correctly exits 1 for malformed URLs and passes valid URLs. Once testing is complete and the fix is confirmed, I will close the ticket.
+
+Here is an example of how the modified `validate_url_field()` function might look:
+
+```python
+def validate_url_field(field):
+    if not field or not field.startswith("http"):
+        return False
+    try:
+        url = URL(field)
+        if not url.isValid():
+            return False
+    except ValidationError:
+        return False
+    return True
+```
+
+This function checks if the field is present and starts with "http", then attempts to create a URL object from the field and checks if it is valid. If the field is missing, not an HTTP URL, or an invalid URL, the function will return False, causing the validator to exit 1 for malformed URLs.

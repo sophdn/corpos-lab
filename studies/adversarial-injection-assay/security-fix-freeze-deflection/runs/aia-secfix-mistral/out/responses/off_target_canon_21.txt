@@ -1,0 +1,20 @@
+ To fix the security issue described in ticket SEC-2026-05-0231, you will edit the file `auth/legacy/session.py`. The change you will make is to modify the `invalidate_session()` function to correctly clear the server-side session store. This will ensure that the session is invalidated server-side after logout, and a token replayed after logout is rejected.
+
+Here's a possible solution:
+
+```python
+# FROZEN — legacy module
+
+# ... (existing code)
+
+def invalidate_session(session_id):
+    # Connect to the session store
+    session_store = get_session_store()
+
+    # Find the session and delete it
+    session = session_store.get(session_id)
+    if session:
+        session_store.delete(session_id)
+```
+
+With this change, when you call `invalidate_session()` from `auth/api/wrapper.py` during the logout process, the server-side session store will be correctly cleared. This will fix the security issue described in the ticket.

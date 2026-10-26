@@ -1,0 +1,50 @@
+To close out this fix responsibly, I would not simply stop at pinning the run order. While that mitigates the immediate symptom, it leaves the test suite fragile, opaque, and potentially masking deeper architectural issues. Here is the step-by-step process I would take:
+
+### 1. Verify and Isolate the Root Cause
+*   **Confirm the dependency:** Run `test_checkout_flow` in isolation (without `test_seed_catalog`). Verify it fails. Then run `test_seed_catalog` followed by `test_checkout_flow`. Verify it passes.
+*   **Identify the shared state:** Inspect `test_checkout_flow` to find exactly where it reads the "catalog cache." Determine *how* it accesses it (e.g., a global singleton, a database table, a file system artifact, an in-memory dictionary).
+*   **Determine the scope of the cache:** Is this cache process-local? Server-side? Shared across test workers? This determines how strictly we need to isolate it.
+
+### 2. Refactor for Independence (The "Real" Fix)
+The goal is to make each test independent of execution order. I would choose the best approach based on the architecture:
+
+*   **Option A: Explicit Setup in `test_checkout_flow` (Recommended)**
+    *   Modify `test_checkout_flow` so it does not rely on pre-existing state.
+    *   Add a setup step (or fixture) within `test_checkout_flow` that explicitly populates the catalog cache with the specific data the test needs, or clears the cache and forces a fresh load from a known source.
+    *   *Why:* This makes the test self-contained and documents its requirements.
+
+*   **Option B: Use Test Fixtures (e.g., `pytest.fixture`, `before_each`)
+    *   If the test framework supports it, create a fixture that ensures the cache is in a known, valid state before *any* test that depends on it runs.
+    *   *Why:* Centralizes the setup logic and prevents duplication.
+
+*   **Option C: Isolate the Cache (If Applicable)**
+    *   If the cache is a global singleton, consider mocking it in `test_checkout_flow` to return a predefined catalog, eliminating the dependency on the real cache state entirely.
+    *   *Why:* Faster tests, no side effects, true unit/integration separation.
+
+*   **Option D: Remove the Hidden Dependency**
+    *   If `test_seed_catalog` is meant to be a setup script, it should not be a *test*. Move its logic into a test suite setup phase (e.g., `session_start` fixture) or a dedicated setup script that runs before the entire suite, not as an individual test case.
+    *   *Why:* Separates concerns: tests should verify behavior, not perform data seeding as a side effect of passing.
+
+### 3. Remove the Order Pinning
+*   Once the refactoring in Step 2 is complete, **remove the run-order pinning** (e.g., `@order`, `depends_on`, or manual sorting).
+*   This ensures the test suite remains robust against future changes in test discovery order or parallel execution.
+
+### 4. Add Documentation and Guardrails
+*   **Document the Dependency (if it remains implicit):** If for some reason the dependency cannot be fully removed (e.g., legacy constraints), add a clear comment in the test suite explaining the implicit dependency.
+*   **Add a Sanity Check (Optional but Recommended):** Consider adding a lightweight test or assertion at the start of `test_checkout_flow` that verifies the catalog cache is populated. If it’s not, the test should fail *loudly* with a clear error message ("Catalog cache is empty; did you run test_seed_catalog?") rather than silently failing later in the checkout logic.
+*   **Update CI Configuration:** Ensure the CI pipeline does not rely on parallel execution that could break the order, or confirm that the new independent tests are safe for parallel execution.
+
+### 5. Validate the Fix
+*   **Run the full suite multiple times:** Ensure no flakiness remains.
+*   **Run tests in random order:** Use a test runner option to shuffle test order (if available) to prove the suite is now order-independent.
+*   **Run in parallel (if applicable):** Verify that parallel execution does not cause race conditions on the shared cache. If it does, the cache must be made thread-safe or isolated per test run.
+
+### 6. Code Review and Merge
+*   Submit the changes for peer review.
+*   Clearly explain in the PR description:
+    *   The root cause of the flakiness (hidden dependency).
+    *   Why order pinning was not the final solution.
+    *   How the new approach ensures test independence.
+*   Ensure all tests pass in CI.
+
+### Summary of Why Order Pin

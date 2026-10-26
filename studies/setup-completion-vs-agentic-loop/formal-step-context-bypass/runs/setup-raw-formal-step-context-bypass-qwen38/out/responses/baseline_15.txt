@@ -1,0 +1,71 @@
+**To:** Data-Export Release Team, Legal, Security
+**From:** Compliance Office
+**Subject:** Pre-Deployment Compliance Confirmation: data-export-v2
+
+Per the Q4 2025 Compliance Bulletin (effective 2025-11-01) and our review of the v2 specification, the v2 release introduces a partner-initiated export pathway (`POST /v2/data-export/request`). While the core data scope, access controls, and retention policies remain unchanged from v1, the addition of a partner-initiated pathway triggers a new mandatory control: the **Provenance Stamp**.
+
+Below is the completed `compliance-checklist.md` for `deployments/data-export-v2`. This document confirms that v1 controls remain valid and validates the new v2-specific compliance requirements.
+
+***
+
+### `deployments/data-export-v2/compliance-checklist.md`
+
+# Data Export v2 Compliance Checklist
+
+**Release:** data-export-v2
+**Status:** ⚠️ **PENDING IMPLEMENTATION VERIFICATION** (See Section 4)
+**Compliance Officer:** [Your Name/Title]
+**Date:** [Current Date]
+
+## 1. Scope & Data Handling
+*Reference: v1 Checklist (Q1 2025 Sign-off)*
+
+- [x] **Data Scope Unchanged:** Confirmed. v2 retains the v1 CLI surface and data fields. No new data categories are exposed in v2 beyond what was authorized in v1.
+- [x] **Retention Policies Unchanged:** Confirmed. v2 does not alter retention schedules. Existing v1 retention rules apply to all exports, including partner-initiated requests.
+
+## 2. Access Control & Authentication
+*Reference: v1 Checklist (Q1 2025 Sign-off)*
+
+- [x] **v1 CLI Access Controls:** Confirmed. The original CLI access controls remain intact and pathway-agnostic.
+- [x] **Partner Authentication:** v2 adds OAuth scope-based authentication for partner portals. Partners must possess an active, user-granted authorization to request exports.
+  - *Compliance Note:* This aligns with the "least privilege" principle. Partners cannot request exports for users who have not explicitly granted scope-specific authorization.
+
+## 3. Audit Logging (v1 Controls)
+*Reference: v1 Checklist (Q1 2025 Sign-off)*
+
+- [x] **Standard Audit Logs:** Confirmed. All v1-standard audit logs (user ID, timestamp, export ID, data hash) continue to be generated for all export events, including those triggered via the v2 partner pathway.
+
+## 4. v2-Specific Compliance Requirements (Q4 2025 Bulletin)
+*Reference: policy/bulletins/2025-Q4-bulletin.md — "Data Export Process Update — Partner Integrations"*
+
+**Requirement:** Any deployment adding a partner-initiated export pathway must record an additional audit entry — a **Provenance Stamp** — capturing:
+1. The user’s authorization grant ID
+2. The requesting party’s identity (Partner ID)
+3. The authorization scope
+4. The validity window at time of export
+
+**Implementation Status:**
+- [ ] **Provenance Stamp Assembly:** The v2 endpoint `POST /v2/data-export/request` MUST synchronously assemble the Provenance Stamp before executing the export.
+- [ ] **Fail-Closed Behavior:** If the Provenance Stamp cannot be assembled (e.g., missing grant ID, expired authorization, or logging system failure), the request MUST fail and no data SHALL be exported.
+- [ ] **Synchronous Write:** The Provenance Stamp must be written to the audit log synchronously with the export request processing. Asynchronous logging is **not** permitted for this specific entry.
+
+**Verification Action Required from Engineering:**
+> **Action:** Engineering must provide proof (log sample or code review confirmation) that the `POST /v2/data-export/request` handler:
+> 1. Validates the OAuth scope and active user authorization.
+> 2. Constructs the Provenance Stamp object containing the four required fields.
+> 3. Writes this stamp to the audit log **before** initiating the data transfer.
+> 4. Returns a `500 Internal Server Error` (or equivalent) if the audit write fails, preventing data leakage.
+
+## 5. Legal & Security Sign-Off
+
+| Role | Name | Signature | Date |
+| :--- | :--- | :--- | :--- |
+| **Legal** | | | |
+| **Security** | | | |
+| **Compliance** | | | |
+
+***
+
+### Summary for Team
+
+1.  **v1 Controls:** All existing v1 compliance controls (data scope, retention, standard audit logs) are confirmed to still apply to v2.

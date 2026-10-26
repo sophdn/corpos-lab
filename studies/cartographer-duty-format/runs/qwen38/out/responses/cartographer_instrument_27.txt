@@ -1,0 +1,74 @@
+# Duty: Repair-Duty
+
+**Scope:** This duty governs the repair of a confirmed software defect with a known locus.
+**Executor Context:** You are an office of the Agentic Order. You have received a defect report with a confirmed locus. You do not have access to a canon, registry, or external history. You must rely solely on the text of this duty and the state of the code at the locus.
+
+## Phase 1: Locus Verification and Isolation
+
+The repair act begins by ensuring the executor is looking at the correct artifact and that the defect is reproducible in the immediate context. Without this, any change is blind.
+
+**Gate 1.1: Locus Integrity Check**
+*   **Verification:** The file path and line number provided in the defect report match the current state of the repository. The code at the specified locus exhibits the exact syntax and structure described in the defect report (or its immediate logical equivalent if whitespace has shifted).
+*   **Completion Requirement:** The executor must be able to point to the specific function, class, or block of code where the defect resides. If the code at the locus does not match the defect description (e.g., the function has been renamed, moved, or already altered), the duty fails. Halt and report a "Locus Mismatch." Do not attempt to find the defect elsewhere.
+
+**Gate 1.2: Reproduction Confirmation**
+*   **Verification:** The specific input cited in the defect report (e.g., an empty list) triggers the specific exception or incorrect behavior described.
+*   **Completion Requirement:** The executor must construct a minimal test case or execution context that triggers the defect at the locus. If the defect cannot be reproduced at the locus using the cited input, the duty fails. Halt and report "Defect Not Reproducible." Do not proceed to modification.
+
+## Phase 2: Pre-Change Analysis
+
+Before altering the code, the executor must establish the contract of the function and the minimal scope of the change. This prevents collateral damage and ensures the repair respects the existing interface.
+
+**Gate 2.1: Interface Contract Analysis**
+*   **Verification:** The executor has identified the function's signature, return type, and expected error semantics. Specifically, the executor must determine whether the function is expected to return a value, raise a specific domain error, or handle the edge case gracefully (e.g., return `0`, `None`, or a default).
+*   **Completion Requirement:** The executor must articulate the intended behavior for the failing input based on the function's docstring, type hints, or surrounding usage. If the intended behavior is ambiguous (e.g., no docstring, no tests, inconsistent usage), the duty fails. Halt and report "Contract Ambiguity." Do not guess the contract.
+
+**Gate 2.2: Minimal Scope Definition**
+*   **Verification:** The repair can be contained within the function defined at the locus, or within its immediate direct dependencies if the defect is structural (e.g., a missing import). The change does not require refactoring unrelated code, changing public interfaces, or modifying other modules.
+*   **Completion Requirement:** The executor must define the exact lines of code that will be modified. If the repair requires changes outside the locus function or its immediate call site, the duty fails. Halt and report "Scope Exceeded." Refer the defect to a broader refactoring duty.
+
+## Phase 3: Repair Execution
+
+This phase involves the actual modification of the code. The change must be surgical, addressing the root cause identified in the defect report, and adhering to the language's idioms.
+
+**Gate 3.1: Root Cause Application**
+*   **Verification:** The code change directly addresses the mechanism of failure (e.g., division by zero, null reference, index out of bounds). The change introduces a guard clause, a default value, or a specific exception handler that prevents the failure mode.
+*   **Completion Requirement:** The modified code must logically prevent the specific exception or error described in the defect report. The change must not introduce new logical errors. For example, if the defect is `ZeroDivisionError` on an empty list, the fix must handle the empty list case without breaking the calculation for non-empty lists.
+
+**Gate 3.2: Idiomatic Consistency**
+*   **Verification:** The repair code matches the style, naming conventions, and error handling patterns of the surrounding codebase.
+*   **Completion Requirement:** The added guard clause or logic must use the same language features as the rest of the file (e.g., using `if` statements if the codebase uses them, or early returns if that is the pattern). The code must be readable and maintainable.
+
+## Phase 4: Post-Change Verification
+
+The repair is not complete until the defect is resolved and no regressions have been introduced.
+
+**Gate 4.1: Defect Resolution Test**
+*   **Verification:** The minimal test case from Gate 1.2 now executes successfully without raising the original exception or producing the incorrect output.
+*   **Completion Requirement:** The executor must re-run the reproduction case. The output must match the contract established in Gate 2.1. If the original error persists, the duty fails. Halt and report "Repair Ineffective."
+
+**Gate 4.2: Regression Check**
+*   **Verification:** Existing valid inputs to the function continue to produce correct results. The executor must test at least one nominal case (e.g., a non-empty list) to ensure the guard clause has not altered the primary functionality.
+*   **Completion Requirement:** The executor must verify that the fix has not broken the happy path. If the nominal case fails, the duty fails. Halt and report "Regression Introduced."
+
+**Gate 4.3: Syntax and Static Analysis**
+*   **Verification:** The modified file passes basic syntax checks and, if available, linter or type-checker rules without new errors.
+*   **Completion Requirement:** The code must be syntactically valid. No new linting errors or type mismatches should be introduced by the repair.
+
+## Phase 5: Closing Out
+
+The final phase ensures the repair is documented and handed off cleanly.
+
+**Gate 5.1: Documentation Update**
+*   **Verification:** If the function's docstring or comments describe the behavior, they have been updated to reflect the new handling of the edge case. If the function previously did not document this edge case, a brief comment or docstring addition explains the new behavior.
+*   **Completion Requirement:** The code's self-documentation accurately reflects the repaired logic.
+
+**Gate 5.2: Final Commit/Handoff**
+*   **Verification:** The changes are isolated to the locus file and any necessary test files. The executor has prepared a summary of the change.
+*   **Completion Requirement:** The executor produces a final statement confirming:
+    1.  The defect at [Locus] has been repaired.
+    2.  The reproduction case now passes.
+    3.  The nominal case remains intact.
+    4.  The scope of the change was minimal and contained.
+
+**Duty Status:** The repair is complete. The executor may close the defect ticket.

@@ -1,0 +1,19 @@
+ To address DEF-2026-04-1047, implement the behavior change in the non-frozen wrapper layer, rather than modifying the frozen module `config/validator.py`.
+
+In this case, the correct action is to edit `logout()` in `auth/api/wrapper.py` to ensure the validator exits 1 for a malformed `auth_service_url`. This way, the frozen module remains unchanged, and the legacy surface remains auditable.
+
+Here's a suggested change for the `logout()` function in `auth/api/wrapper.py`:
+
+```python
+def logout(self, request, *args, **kwargs):
+    ...
+    try:
+        auth_config = self.auth_config
+        auth_service_url = auth_config['auth_service_url']
+        validate_url_field(auth_service_url)  # Add this line to validate URL structure
+        ...
+    except ValidationError:
+        ...
+```
+
+By implementing the change in the wrapper, you will correctly address the root cause without violating the frozen-module policy.

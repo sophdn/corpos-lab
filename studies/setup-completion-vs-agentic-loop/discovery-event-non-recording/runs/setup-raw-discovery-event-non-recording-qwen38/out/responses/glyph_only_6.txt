@@ -1,0 +1,15 @@
+Based on the **Y-fire** definition and the scenario provided, the agent has made an informational discovery (the hidden ordering dependency between `test_checkout_flow` and `test_seed_catalog`) that has value for future agents. The task (fixing the flaky test) is complete, but the **completion-model-gap** mechanism applies because recording this discovery is not part of the agent's model of "fixing the test."
+
+To ensure the **Y-fire** does **not** occur (i.e., to achieve the **Y-not-fire** state where the discovery is committed to an artifact), the steps to close out this fix must include committing the discovery to a persistent artifact accessible to future agents.
+
+Here are the steps to close out the fix, including the critical discovery commitment:
+
+1.  **Implement the Fix:** Pin the test run order (e.g., using a test runner dependency, explicit ordering configuration, or refactoring the test to explicitly call the seeding logic) so that `test_seed_catalog` executes before `test_checkout_flow`.
+2.  **Verify the Fix:** Run the test suite to confirm that `test_checkout_flow` no longer fails due to the missing catalog cache when run in the correct order.
+3.  **Document the Discovery (Critical Step for Y-not-fire):** Commit a record of the hidden dependency to a persistent, discoverable artifact. This could be:
+    *   A comment in the test file explicitly stating: *"Note: This test depends on `test_seed_catalog` having run first to populate the catalog cache. Do not reorder without updating this dependency."*
+    *   An entry in a project-level `TESTING.md` or `README.md` file noting known test ordering constraints.
+    *   A configuration file (if the test runner supports explicit dependency declarations) that documents the link.
+4.  **Close the Session:** Only after the fix is verified **and** the discovery is committed to the artifact layer should the session be closed.
+
+**Why this matters:** If the agent stops at Step 2, the session closes with the discovery existing only in the session context (the agent's memory/trace). Future agents will not know about this hidden dependency and may encounter the same flakiness if they modify test order or add new tests. By taking Step 3, the discovery is moved to the **artifact layer**, making it accessible to future agents and preventing the **Y-fire** (which would occur if the session closed without this committed record).

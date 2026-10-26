@@ -1,0 +1,109 @@
+# Repair Duty
+
+**Status:** Active
+**Scope:** Any office of the Agentic Order
+**Trigger:** A confirmed software defect with a known locus.
+**Objective:** Eliminate the defect at its locus while preserving the intended behavior of the function for all valid inputs.
+
+## Preamble
+
+This duty governs the repair of a confirmed defect. The executor is assumed to have access to the codebase, the defect report, and the known locus (file and line number). The executor must not fix the defect through refactoring, deletion, or workaround; the repair must occur at the locus.
+
+## Gates
+
+The executor must pass through the following gates in strict sequence. Failure at any gate halts the duty and requires escalation.
+
+### Gate 1: Locus Verification
+**Verify:**
+- The defect report specifies a locus (file path and line number).
+- The code at the specified locus is accessible and matches the context described in the defect report.
+- The defect is reproducible or logically deducible from the code at the locus.
+
+**Requirement:**
+- Confirm that the line of code at the locus is the direct cause of the reported failure mode.
+- If the locus is incorrect or the defect cannot be traced to this line, halt and escalate with a revised locus proposal.
+
+### Gate 2: Intent Preservation Analysis
+**Verify:**
+- The intended behavior of the function for all valid inputs is understood.
+- The defect is isolated to invalid or edge-case inputs (e.g., empty list, null, negative numbers) without affecting valid cases.
+- No side effects of the proposed repair will alter the return value or exception type for valid inputs.
+
+**Requirement:**
+- Document the expected behavior for valid inputs.
+- Identify the specific edge case(s) that trigger the defect.
+- If the repair would alter behavior for valid inputs, halt and escalate with a design query.
+
+### Gate 3: Minimal Repair Formulation
+**Verify:**
+- A minimal code change is identified that addresses the root cause at the locus.
+- The repair does not introduce new dependencies, external calls, or complex logic unless strictly necessary.
+- The repair is localized to the locus or immediate surrounding context (e.g., same function block).
+
+**Requirement:**
+- Draft the exact code change.
+- Ensure the change is syntactically correct.
+- If the repair requires changes outside the locus (e.g., type hints, docstrings), document these as secondary adjustments.
+
+### Gate 4: Edge Case Coverage
+**Verify:**
+- The repair handles the specific defect case (e.g., empty list).
+- The repair handles related edge cases that may be present (e.g., None, single-element list).
+- The repair does not mask other potential defects (e.g., catching all exceptions).
+
+**Requirement:**
+- List all edge cases considered.
+- Define the expected outcome for each edge case (e.g., return 0.0, raise ValueError, return None).
+- Ensure the repair explicitly handles the defect case with a clear, intentional response (not a silent fail).
+
+### Gate 5: Implementation
+**Verify:**
+- The code change is applied exactly as drafted in Gate 3.
+- No unintended lines are modified.
+- The code compiles/parses without syntax errors.
+
+**Requirement:**
+- Apply the change at the locus.
+- Run a syntax check or linter if available.
+- If the change cannot be applied cleanly (e.g., merge conflict, permission error), halt and escalate.
+
+### Gate 6: Verification
+**Verify:**
+- The defect case no longer fails (e.g., `calculate_average([])` does not raise `ZeroDivisionError`).
+- Valid input cases still produce the correct result (e.g., `calculate_average([1, 2, 3])` returns `2.0`).
+- No new exceptions are raised for inputs that previously worked.
+
+**Requirement:**
+- Execute the defect case and confirm the expected outcome.
+- Execute at least two valid input cases and confirm correct behavior.
+- If automated tests are available, run them. If not, manually verify.
+- If verification fails, return to Gate 3 with the failure details.
+
+### Gate 7: Documentation and Closure
+**Verify:**
+- The repair is documented in the change log or commit message.
+- The defect report is marked as resolved.
+- Any secondary adjustments (e.g., docstring updates) are noted.
+
+**Requirement:**
+- Record the change, the reason for it, and the verification results.
+- Close the defect ticket.
+- If no further action is required, the duty is complete.
+
+## Failure Modes
+
+- **Locus Mismatch:** If the defect cannot be traced to the specified locus, the executor must propose a new locus and restart the duty.
+- **Behavioral Conflict:** If the repair cannot be made without altering valid-input behavior, the executor must escalate to a design authority.
+- **Verification Failure:** If the repair does not resolve the defect or breaks valid cases, the executor must revert the change and return to Gate 3.
+
+## Example Application (Context Only)
+
+*Note: This is an illustration of how the gates apply to the provided domain anchor. The executor must not use this as a pre-authorized solution.*
+
+- **Gate 1:** Locus is `calculator.py:2`. Code is `return sum(values) / len(values)`. Defect is `ZeroDivisionError` when `values` is empty. Locus is correct.
+- **Gate 2:** Intended behavior is to return the arithmetic mean of a non-empty list. Valid inputs are non-empty lists of numbers. Defect is triggered by empty list.
+- **Gate 3:** Minimal repair: Add a check for `len(values) == 0` before division. Example: `if not values: return 0.0` (or raise `ValueError`).
+- **Gate 4:** Edge cases: `[]` (defect), `[1]` (valid), `[1, 2, 3]` (valid). Expected outcome for `[]`: Return `0.0` or raise `ValueError` (must be decided based on project standards).
+- **Gate 5:** Apply the `if` check at `calculator.py:2`.
+- **Gate 6:** Test `calculate_average([])` and `calculate_average([1, 2, 3])`.
+- **Gate 7:** Document and close.

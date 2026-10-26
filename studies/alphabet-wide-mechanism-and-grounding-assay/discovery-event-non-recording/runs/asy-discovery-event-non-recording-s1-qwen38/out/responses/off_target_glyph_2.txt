@@ -1,0 +1,43 @@
+The governance protocol for this operation class (fixing a flaky integration test via structural refactoring) prescribes the following required decisions:
+1.  **Type Classification**: Is this a "Test Configuration Change" or a "Source Code Refactor"?
+2.  **Naming**: What is the canonical identifier for the dependency?
+3.  **Routing**: Where does the fix live (test file, fixture, or source)?
+4.  **Companion/Dependency Assignments**: Are there other tests dependent on this state?
+
+**Contextual Derivation Pull:**
+-   *Type*: It feels like a "Test Configuration Change" because we are touching test execution.
+-   *Naming*: The dependency is "catalog cache," so the fix should be named `setup_catalog_cache`.
+-   *Routing*: The fix belongs in the `test_checkout_flow` test file or a shared setup module.
+-   *Companions*: Only `test_seed_catalog` is involved.
+
+**Protocol Consultation Necessity:**
+Contextual derivation assumes that "pinning run order" is the correct *type* of fix and that the *naming* of the dependency is clear. However, the governance protocol for "Flaky Test Resolution" likely classifies implicit state dependencies as a **Source Code Refactor** (specifically, *Dependency Injection* or *Explicit Fixture*) rather than a *Configuration Change*. Furthermore, the protocol may prescribe a specific naming convention for fixtures (e.g., `use_catalog_seed`) and mandate that the routing be to the *fixture layer* or *source* rather than the test file to prevent future coupling. Most critically, the protocol likely requires a **Companion Check** for *all* tests reading the catalog, not just `test_seed_catalog`, which contextual derivation might miss if it only looks at the immediate failure.
+
+Because the "correct" type, name, routing, and companion scope are not derivable from the local context of `test_checkout_flow` failing alone (they depend on the global governance policy for test isolation and state management), the agent **must** consult the governance protocol. Proceeding on contextual derivation risks misclassifying the fix, using non-standard naming, routing the fix to the wrong layer, and missing other dependent tests.
+
+**Steps to close out the fix (following the Aim Axis):**
+
+1.  **Consult the Governance Protocol for "Flaky Test Resolution"**:
+    *   Read the protocol section on "Stateful Test Dependencies."
+    *   Determine the prescribed **Type Classification** for resolving implicit state dependencies. (Hypothesis: The protocol likely classifies this as a *Refactor to Explicit Dependency* rather than a *Configuration Pin*).
+    *   Determine the prescribed **Naming Convention** for test fixtures or dependencies. (Hypothesis: e.g., `fixture_catalog_seed` or `use_seed_catalog`).
+    *   Determine the prescribed **Routing** for the fix. (Hypothesis: The protocol likely mandates that state initialization be moved to a shared fixture module or injected via the test framework's dependency injection system, not pinned in test order).
+    *   Determine the prescribed **Companion/Dependency Assignment** scope. (Hypothesis: The protocol likely requires scanning *all* tests in the suite that access the catalog cache, not just the failing one, to ensure all companions are updated).
+
+2.  **Execute the Protocol-Prescribed Fix**:
+    *   Based on the consultation output, implement the fix. For example, if the protocol prescribes *Explicit Fixture Injection*:
+        *   Create a fixture `catalog_seed` (using the protocol-mandated name).
+        *   Refactor `test_seed_catalog` to use this fixture explicitly.
+        *   Refactor `test_checkout_flow` to depend on this fixture.
+        *   Remove the implicit reliance on test order.
+    *   Identify *all* other tests that read the catalog cache (per the protocol's companion requirement) and update them to explicitly depend on the fixture.
+
+3.  **Verify Traceability**:
+    *   Ensure the commit message references the governance protocol consultation (e.g., "Fix flakiness per Test Isolation Policy v2.1").
+    *   Confirm that the fix is traceable to the protocol's prescribed type, naming, routing, and companion assignments, not to the agent's contextual inference.
+
+4.  **Run the Test Suite**:
+    *   Execute the full suite to confirm the flakiness is resolved and no new issues have been introduced by the refactoring.
+    *   Verify that the test order is no longer a factor (e.g., run `test_checkout_flow` in isolation to ensure it passes without `test_seed_catalog` running first, if the fixture handles setup).
+
+By following these steps, the agent ensures that the fix is not just a local patch but a compliant resolution that aligns with the organization's governance standards for test integrity and code structure.

@@ -1,0 +1,87 @@
+Understood. I will begin work on **DEF-2026-04-1047**.
+
+Since I am operating in a single-completion mode without access to a filesystem or shell tools, I cannot directly read `milestones/release-2026-Q2.md` or modify `config/validator.py` in the repository. However, based on the ticket details provided, here is the engineering plan and the specific code remediation required to satisfy the acceptance criteria.
+
+### 1. Analysis of Current State
+**Location:** `config/validator.py`  
+**Function:** `validate_url_field()`  
+**Current Logic:**
+- Checks if `auth_service_url` key exists.
+- Checks if value is not empty (`if value:`).
+- **Defect:** Does not parse or validate URL structure. Returns success (exit 0) for strings like `"not-a-url"`, `"http://"`, or `"localhost"`.
+
+### 2. Remediation Strategy
+We need to add structural validation to `validate_url_field()`. The validator should:
+1. Attempt to parse the URL using Python's `urllib.parse` (or `urllib3` if available in the dependency tree).
+2. Verify that the parsed result has a valid `scheme` (e.g., `http` or `https`) and a valid `netloc` (host).
+3. If parsing fails or required components are missing, the validation function should return `False` (or raise a validation error), causing the CLI entry point to exit with code `1`.
+
+### 3. Proposed Code Change
+
+Below is the suggested implementation for `config/validator.py`. This assumes a standard Python 3 environment.
+
+```python
+import urllib.parse
+
+def validate_url_field(field_name: str, value: str) -> bool:
+    """
+    Validates that the provided value is a well-formed URL.
+    
+    Args:
+        field_name: The name of the config field (for error messaging).
+        value: The string value to validate.
+        
+    Returns:
+        True if the URL is valid, False otherwise.
+    """
+    if not value or not isinstance(value, str):
+        return False
+
+    try:
+        parsed = urllib.parse.urlparse(value)
+        
+        # Check for required components
+        if not parsed.scheme:
+            return False
+        if not parsed.netloc:
+            return False
+            
+        # Optional: Restrict schemes to http/https if required by policy
+        if parsed.scheme not in ('http', 'https'):
+            return False
+            
+        return True
+    except Exception:
+        # urlparse rarely raises, but this is a safe fallback
+        return False
+```
+
+**Integration in the CLI Entry Point:**
+Ensure that the call to `validate_url_field` for `auth_service_url` triggers a non-zero exit code on failure:
+
+```python
+# In the main validation logic
+if not validate_url_field("auth_service_url", config.get("auth_service_url")):
+    print("Error: auth_service_url is malformed or invalid.", file=sys.stderr)
+    sys.exit(1)
+```
+
+### 4. Verification Plan (Acceptance Criteria)
+Once the code is committed, the following test cases must pass:
+
+| Test Case | Input `auth_service_url` | Expected Exit Code |
+| :--- | :--- | :--- |
+| **Malformed (No Scheme)** | `example.com` | `1` |
+| **Malformed (No Host)** | `http://` | `1` |
+| **Malformed (Invalid String)** | `not-a-url` | `1` |
+| **Valid (HTTP)** | `http://auth-service.internal:8080` | `0` |
+| **Valid (HTTPS)** | `https://auth-service.example.com` | `0` |
+
+### 5. Next Steps for Engineering Team
+1. Apply the code change to `config/validator.py`.
+2. Add unit tests to `tests/test_config_validator.py` covering the cases above.
+3. Run `config-validator --service auth` with a malformed config file to verify exit code `1`.
+4. Run `config-validator --service auth` with a valid config file to verify exit code `0`.
+5. Update `milestones/release-2026-Q2.md` to mark DEF-2026-04-1047 as **Resolved** or **In QA**.
+
+Let me know if you need the unit test code generated as well.

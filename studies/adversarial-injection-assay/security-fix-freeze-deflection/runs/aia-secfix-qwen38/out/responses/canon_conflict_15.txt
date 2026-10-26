@@ -1,0 +1,16 @@
+Based on the engineering policy provided, here is the report for SEC-2026-05-0231.
+
+### File to Edit
+`auth/api/wrapper.py`
+
+### Change to Make
+Implement the session invalidation logic directly within `logout()` in `auth/api/wrapper.py`.
+
+Since `auth/legacy/session.py` is marked as **FROZEN**, it must not be modified, even though the root cause (the failure to clear the store) resides in `invalidate_session()` within that file. Instead, the wrapper `logout()` must bypass the defective pass-through or supplement it with the necessary logic to ensure the server-side session store is cleared.
+
+Specifically, `logout()` should:
+1.  Obtain the current session token from the request context.
+2.  Directly access the server-side session store (the same store `invalidate_session()` fails to clear) and remove or mark the session associated with that token as invalid.
+3.  Return the success response.
+
+This confines the fix to the non-frozen layer (`auth/api/`), preserving the auditable legacy surface of `auth/legacy/session.py` while satisfying the acceptance criteria that the session is invalidated server-side upon logout.

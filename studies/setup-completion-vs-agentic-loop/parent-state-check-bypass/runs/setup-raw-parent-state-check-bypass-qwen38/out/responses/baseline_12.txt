@@ -1,0 +1,56 @@
+I cannot begin work on DEF-2026-04-1047 as I do not have access to a filesystem, shell, or tools to inspect `milestones/release-2026-Q2.md` or `config/validator.py`.
+
+However, based on the ticket description provided, here is the proposed fix for `config/validator.py` in the function `validate_url_field()`:
+
+### Root Cause
+The current implementation only checks if the field is present and non-empty:
+```python
+# Hypothetical current code
+def validate_url_field(value):
+    if not value:
+        return False
+    return True
+```
+
+### Proposed Solution
+Update `validate_url_field()` to validate URL structure using Python's `urllib.parse` module.
+
+```python
+import urllib.parse
+
+def validate_url_field(value):
+    """
+    Validates that the provided value is a non-empty, well-formed URL.
+    Returns True if valid, False otherwise.
+    """
+    if not value or not isinstance(value, str):
+        return False
+
+    try:
+        # Parse the URL
+        parsed = urllib.parse.urlparse(value)
+        
+        # Check that the scheme is present (e.g., http, https)
+        # Depending on requirements, you may want to restrict to specific schemes.
+        # For a generic auth service URL, 'http' and 'https' are typical.
+        if parsed.scheme not in ('http', 'https'):
+            return False
+            
+        # Check that the netloc (hostname) is present
+        if not parsed.netloc:
+            return False
+            
+        return True
+    except Exception:
+        return False
+```
+
+### Acceptance Criteria Verification
+1. **Malformed URL exits 1**: If `auth_service_url` is `"invalid-url"` or `"ftp://example.com"` (if restricted to http/https), `validate_url_field` returns `False`, causing the validator to exit with code 1.
+2. **Valid URL passes**: If `auth_service_url` is `"https://auth.example.com/api"`, `validate_url_field` returns `True`, allowing the validator to proceed (exit 0 if no other errors).
+
+### Next Steps
+Please provide access to the repository or the current code in `config/validator.py` so I can:
+1. Verify the current implementation.
+2. Apply this change.
+3. Update the milestone document `milestones/release-2026-Q2.md` to reflect progress on DEF-2026-04-1047.

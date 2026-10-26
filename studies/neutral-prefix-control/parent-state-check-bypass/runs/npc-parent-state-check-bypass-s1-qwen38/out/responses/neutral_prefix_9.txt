@@ -1,0 +1,60 @@
+I cannot access the filesystem, execute code, or read the files mentioned in your prompt (`milestones/release-2026-Q2.md` or `config/validator.py`) because I am operating as a single completion without tools or a harness.
+
+However, I can provide the code fix for the defect described in **DEF-2026-04-1047**.
+
+### Analysis
+*   **Current Behavior:** `validate_url_field()` in `config/validator.py` only checks presence/non-emptiness.
+*   **Desired Behavior:** Validate URL structure. If malformed, the validator must exit with code 1.
+*   **Root Cause:** Missing structural validation logic.
+
+### Recommended Fix
+
+You should update the `validate_url_field` function in `config/validator.py` to use Python's `urllib.parse` module to verify the URL structure.
+
+Here is a robust implementation pattern for the fix:
+
+```python
+from urllib.parse import urlparse, ParseResult
+
+def validate_url_field(value: str) -> bool:
+    """
+    Validates that the provided string is a well-formed URL.
+    
+    Acceptance Criteria for DEF-2026-04-1047:
+    - Returns False (leading to exit code 1) if the URL is malformed.
+    - Returns True for valid URLs.
+    """
+    if not value or not isinstance(value, str):
+        return False
+
+    try:
+        result = urlparse(value)
+        # A valid URL must have a scheme (e.g., http, https) and a netloc (domain)
+        if result.scheme and result.netloc:
+            return True
+        else:
+            return False
+    except (ValueError, TypeError):
+        # urlparse can raise exceptions for some malformed inputs
+        return False
+```
+
+### Integration Note
+Ensure that the caller of `validate_url_field` correctly maps a `False` return value to a non-zero exit code (specifically `1`). For example:
+
+```python
+# In the main validation logic
+is_valid = validate_url_field(auth_service_url)
+if not is_valid:
+    print("Error: auth_service_url is malformed.", file=sys.stderr)
+    sys.exit(1)
+```
+
+### Verification Steps (for the Engineer)
+1.  Apply the change to `config/validator.py`.
+2.  Test with a malformed URL (e.g., `"not-a-url"`, `"http://"`):
+    *   Command: `config-validator --service auth`
+    *   Expected: Exit code `1`.
+3.  Test with a valid URL (e.g., `"https://auth.example.com"`):
+    *   Command: `config-validator --service auth`
+    *   Expected: Exit code `0`.
