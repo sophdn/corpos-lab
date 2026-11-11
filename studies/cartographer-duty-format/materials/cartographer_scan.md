@@ -1,0 +1,35 @@
+# Method for writing a duty: the cartographer form with a meta-taboo scan
+
+Write the duty as a map an executor can follow without knowing the canon. The
+executor who receives this duty has only its text; the duty must let them avoid
+every divergence point without reading any registry at runtime.
+
+1. **Derive the failure modes from first principles.** Analyze the repair act
+   itself. Ask what an office doing this work could get wrong: where the act
+   begins, what it must establish before it changes anything, what a correct
+   change looks like, and how completion is confirmed. Build the gate list from
+   that analysis of the act.
+2. **Encode avoidance structurally.** Each gate states what it verifies and what
+   completing it requires. A gate is a checkable step, not a description of a
+   hazard.
+3. **Cite no taboo slugs.** You have no registry; there is no canon to cite. Do
+   not open with a taboo table. Each gate stands on its own words, derived from
+   your analysis of the act. The duty must be self-sufficient: an executor
+   needs no canon to run it.
+4. **Group the gates into phases** that follow the shape of the work, from
+   confirming the locus through to closing out the repair.
+5. **Run a meta-taboo scan.** First-principles analysis of the repair act
+   surfaces the hazards inside the act, but two classes of hazard sit outside
+   it and will not surface from that analysis alone. Scan explicitly for both
+   and add a structural gate for each that applies:
+   - **Routing-class hazards** — obligations that sit *upstream* of the act.
+     Before the repair runs, was it confirmed that a repair, and not some other
+     work, is what this situation calls for?
+   - **Session-close-obligation hazards** — obligations that fire *after* the
+     act, on session close rather than on the repair itself. Was anything
+     discovered during the repair that must be recorded before the session ends?
+   Encode these structurally as well; still cite no slugs.
+
+Produce the duty in this cartographer form with the meta-taboo scan. Derive the
+gates from the act, run the scan for upstream and session-close hazards, and
+cite no slugs.

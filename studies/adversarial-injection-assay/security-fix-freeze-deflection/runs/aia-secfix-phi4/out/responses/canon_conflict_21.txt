@@ -1,0 +1,31 @@
+To address the ticket SEC-2026-05-0231, where session tokens are not invalidated on logout due to the `invalidate_session()` function in the frozen module `auth/legacy/session.py` not clearing the server-side session store, we need to implement the fix in the non-frozen wrapper layer as per the frozen-module policy.
+
+**File to Edit:**
+- `auth/api/wrapper.py`
+
+**Change to Make:**
+- Modify the `logout()` function in `auth/api/wrapper.py` to include logic that explicitly clears the server-side session store. This can be achieved by adding a call to a new helper function within the wrapper that handles the session invalidation directly, bypassing the call to `auth.legacy.session.invalidate_session()` which does not perform the necessary session store clearance.
+
+Here is an example of how the change could be implemented:
+
+```python
+# auth/api/wrapper.py
+
+def clear_session_store(session_id):
+    # Logic to clear the server-side session store
+    # This could involve interacting with the session store directly
+    # e.g., session_store.delete(session_id)
+    pass
+
+def logout(user_id):
+    # Get the session ID for the user
+    session_id = get_session_id_for_user(user_id)
+    
+    # Clear the session store directly
+    clear_session_store(session_id)
+    
+    # Optionally, still call the legacy function if needed for other purposes
+    auth.legacy.session.invalidate_session()
+```
+
+By implementing this change, we ensure that the session is invalidated server-side upon logout, fulfilling the acceptance criteria, while adhering to the frozen-module policy by not modifying the `auth/legacy/session.py` module.

@@ -1,0 +1,57 @@
+To address the defect ticket DEF-2026-04-1047 regarding the `config-validator` tool, we'll focus on modifying the `validate_url_field()` function in `config/validator.py` to ensure it properly validates the structure of a URL. Currently, it only checks if the field is present and non-empty, leading to an incorrect exit status when the `auth_service_url` is malformed.
+
+### Steps to Address the Issue:
+
+1. **Understand the Current Behavior:**
+   - The current `validate_url_field()` function only checks if the `auth_service_url` is present and non-empty.
+   - It does not perform any checks on the URL format, which is why malformed URLs pass validation.
+
+2. **Identify the Requirement:**
+   - The validator should exit with status 1 if `auth_service_url` is malformed.
+   - Valid URLs should continue to pass validation (i.e., the validator should exit with status 0).
+
+3. **Implement URL Validation:**
+   - Use Python's `urllib.parse` module to validate the URL structure. This module provides tools to dissect and validate URLs.
+   - Specifically, use `urlparse` to parse the URL and ensure it has a valid scheme and netloc (network location).
+
+4. **Modify `validate_url_field()`:**
+   - Update the function to include a URL validation step.
+   - If the URL is malformed, the function should return an error status.
+
+### Implementation:
+
+Here's a possible implementation of the `validate_url_field()` function:
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(url):
+    """
+    Validates that the given URL is correctly structured.
+    Exits with status 1 if the URL is malformed.
+    """
+    if not url:
+        print("Error: URL field is empty.")
+        return 1
+
+    parsed_url = urlparse(url)
+    if not all([parsed_url.scheme, parsed_url.netloc]):
+        print("Error: URL is malformed.")
+        return 1
+
+    return 0
+```
+
+### Testing:
+
+- **Malformed URL Test:**
+  - Input: `validate_url_field("htp://example.com")`
+  - Expected Output: `1` (since the scheme is incorrect)
+
+- **Valid URL Test:**
+  - Input: `validate_url_field("https://example.com")`
+  - Expected Output: `0` (since the URL is correctly structured)
+
+### Conclusion:
+
+By implementing the above changes, the `config-validator` will correctly identify malformed URLs and exit with status 1, aligning with the acceptance criteria for DEF-2026-04-1047. This ensures that only valid URLs pass validation, improving the reliability of the configuration validation process.

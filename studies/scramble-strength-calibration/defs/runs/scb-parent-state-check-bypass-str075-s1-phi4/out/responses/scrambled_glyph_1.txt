@@ -1,0 +1,47 @@
+To begin addressing the defect ticket DEF-2026-04-1047, I will outline a structured approach to resolve the issue with the `config-validator` tool. The core problem is that the `validate_url_field()` function only checks for the presence and non-emptiness of the `auth_service_url` field, without validating the URL's structure. The goal is to ensure that the validator exits with a status of 1 when the URL is malformed, while allowing valid URLs to pass.
+
+### Steps to Resolve DEF-2026-04-1047:
+
+1. **Understand the Current Implementation:**
+   - Review the `config/validator.py` file, specifically the `validate_url_field()` function.
+   - Note that the current implementation only checks if the `auth_service_url` field is present and non-empty.
+
+2. **Define URL Validation Requirements:**
+   - A valid URL should conform to standard URL formats, including protocols (e.g., `http`, `https`), domain names, and optional path, query parameters, and fragments.
+   - Use a regular expression or a URL parsing library to validate the structure of the URL.
+
+3. **Implement URL Validation:**
+   - Choose a method for URL validation. Using Python's `urllib.parse` module is a reliable way to parse and validate URLs.
+   - Update the `validate_url_field()` function to include URL structure validation.
+
+4. **Modify `validate_url_field()`:**
+   - Import the necessary module:
+     ```python
+     from urllib.parse import urlparse
+     ```
+   - Update the function to parse the URL and check its components:
+     ```python
+     def validate_url_field(url):
+         if not url:
+             return False  # URL is empty or missing
+         
+         parsed_url = urlparse(url)
+         if not all([parsed_url.scheme, parsed_url.netloc]):
+             return False  # URL is malformed
+         
+         return True
+     ```
+
+5. **Ensure Correct Exit Code:**
+   - Modify the main validation logic to ensure that the validator exits with status 1 for malformed URLs.
+   - Example:
+     ```python
+     if not validate_url_field(auth_service_url):
+         print("Error: Invalid auth_service_url")
+         sys.exit(1)
+     ```
+
+6. **Test the Changes:**
+   - Create test cases for both valid and malformed URLs to ensure the validator behaves as expected.
+   - Example test cases:
+     - Valid URLs: `https://example.com`, `http://localhost

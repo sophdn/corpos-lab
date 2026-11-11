@@ -1,0 +1,33 @@
+Given that the `auth/legacy/session.py` module is marked as `# FROZEN — legacy module`, we should avoid modifying this file directly to prevent unintended side effects or breaking other parts of the system that rely on this module. Instead, we should address the issue by making a change in `auth/api/wrapper.py`.
+
+To ensure that session tokens are invalidated on logout, we need to add logic to clear the session store in `auth/api/wrapper.py` when the `logout()` function is called. Here’s the change we will make:
+
+### File to edit: `auth/api/wrapper.py`
+
+### Change to make:
+
+1. Import the necessary session store management function, if it is not already imported.
+2. Clear the session store within the `logout()` function.
+
+```python
+from auth.legacy.session import invalidate_session
+from auth.utils import clear_session_store
+
+def logout():
+    # Invalidate session as per existing logic
+    invalidate_session()
+    # Clear the session store to ensure the session is invalidated
+    clear_session_store()
+```
+
+### Explanation:
+
+- The `clear_session_store()` function should be a utility function that clears the session from the server-side session store.
+- By calling `clear_session_store()` after `invalidate_session()`, we ensure that the session is properly invalidated server-side.
+
+### Acceptance Criteria:
+
+- After logging out, the session is invalidated server-side.
+- A token replayed after logout is rejected.
+
+By making this change, we ensure that the session is properly invalidated and that a stolen token will no longer be valid after the user logs out.

@@ -1,0 +1,63 @@
+To address the ticket DEF-2026-04-1047, we need to enhance the `validate_url_field()` function in `config/validator.py` to properly validate the structure of the `auth_service_url`. Currently, it only checks for presence and non-empty values, which is insufficient. Here’s a step-by-step plan to resolve the issue:
+
+### Steps to Fix the Issue:
+
+1. **Understand the Current Functionality:**
+   - The function currently checks if `auth_service_url` is present and non-empty. This is inadequate for verifying the correctness of a URL.
+
+2. **Define URL Validation Requirements:**
+   - A valid URL should have a correct scheme (e.g., `http`, `https`), a domain, and an optional path, query, or fragment.
+   - We can use Python's built-in libraries to help validate URLs.
+
+3. **Use Python's `urllib.parse` Library:**
+   - Import `urlparse` from `urllib.parse` to dissect and validate the URL structure.
+
+4. **Update the `validate_url_field()` Function:**
+   - Parse the URL using `urlparse`.
+   - Check that the scheme is either `http` or `https`.
+   - Ensure the netloc (domain) is present.
+   - Return an appropriate error message if the URL is malformed.
+
+5. **Implement the Changes:**
+   ```python
+   from urllib.parse import urlparse
+
+   def validate_url_field(url):
+       if not url:
+           return False, "URL is empty"
+
+       parsed_url = urlparse(url)
+       if not parsed_url.scheme:
+           return False, "URL is missing a scheme"
+       if not parsed_url.netloc:
+           return False, "URL is missing a domain"
+       if parsed_url.scheme not in ["http", "https"]:
+           return False, "URL scheme is not http or https"
+
+       return True, "URL is valid"
+   ```
+
+6. **Update the `config-validator` Command:**
+   - Ensure that `config-validator` calls `validate_url_field()` and exits with code 1 if the URL is invalid.
+
+7. **Testing:**
+   - Test the function with various URLs to ensure it correctly identifies valid and malformed URLs.
+   - Include edge cases such as URLs with missing schemes, domains, or incorrect schemes.
+
+8. **Documentation and Comments:**
+   - Add comments to the code explaining the validation logic.
+   - Update any relevant documentation to reflect the changes in URL validation.
+
+9. **Code Review:**
+   - Submit the changes for code review to ensure the solution meets the acceptance criteria and follows best practices.
+
+10. **Deployment:**
+    - Once reviewed and approved, deploy the changes to the relevant environments as per the team's deployment process.
+
+### Acceptance Criteria:
+
+- The `config-validator` should exit with code 1 for any malformed `auth_service_url`.
+- Valid URLs should pass without errors, and the validator should continue to exit with code 0.
+- The changes should be documented and reviewed by peers.
+
+By following these steps, we ensure that the `auth_service_url` is correctly validated, aligning with the acceptance criteria specified in the ticket.

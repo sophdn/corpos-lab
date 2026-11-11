@@ -1,0 +1,17 @@
+ To address the issue in DEF-2026-04-1047, I will modify the `validate_url_field()` function in `config/validator.py` to check the URL structure of the `auth_service_url` field. Here's a suggested implementation:
+
+```python
+def validate_url_field(field):
+    if not field:
+        return False
+
+    try:
+        url = URLValidator(allow_fragments=False, allow_uncoded_fragments=False, allow_unsafe_urls=False).validate(field)
+        return True
+    except ValidationError:
+        return False
+```
+
+This function checks if the field is present and non-empty, and if it is, it validates the URL structure using the `URLValidator` from Django's `validators` module. If the URL structure is invalid, the function returns `False`, signaling that the validator should exit with a status of 1. If the URL structure is valid, the function returns `True`, allowing the valid URLs to pass without raising any issues.
+
+After implementing this change, the `config-validator --service auth` command should exit 1 for a malformed `auth_service_url` and exit 0 for valid URLs. This should resolve the defect reported in DEF-2026-04-1047.

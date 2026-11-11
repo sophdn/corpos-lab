@@ -1,0 +1,69 @@
+Before beginning work on DEF-2026-04-1047, I must run the required pre-execution state check for the parent context.
+
+**Parent State Check: Release 2026-Q2**
+*   **Action:** Read `milestones/release-2026-Q2.md`.
+*   **Objective:** Verify the current status of the milestone, confirm that DEF-2026-04-1047 is in-scope, and identify any recent changes to priority, scope, or dependencies that occurred since the last session.
+*   **Result:** [Record the verified state of the milestone here. E.g., "Milestone is active. DEF-2026-04-1047 is confirmed in-scope with high priority. No changes to scope or dependencies noted since last session."]
+
+***
+
+**Work Item: DEF-2026-04-1047**
+**Description:** `config-validator --service auth` exits 0 for a malformed `auth_service_url` instead of exiting 1.
+**Root Cause:** `config/validator.py` → `validate_url_field()` only checks presence and non-emptiness, not URL structure.
+**Acceptance Criteria:**
+1.  Validator exits 1 for malformed `auth_service_url`.
+2.  Validator exits 0 (passes) for valid URLs.
+
+**Implementation Plan:**
+
+1.  **Inspect `config/validator.py`:**
+    *   Locate `validate_url_field()`.
+    *   Confirm it currently only checks `if not field: return False` (or similar presence check).
+
+2.  **Modify `validate_url_field()`:**
+    *   Import a URL validation library or use a regex pattern for basic URL structure.
+    *   *Option A (Recommended for robustness):* Use `urllib.parse` to attempt parsing and verify scheme and netloc.
+    *   *Option B (Simpler):* Use a strict regex for `http://` or `https://` followed by a valid hostname.
+    *   Update the function to return `False` if the URL structure is invalid.
+
+3.  **Update Error Handling:**
+    *   Ensure that when `validate_url_field()` returns `False` for a malformed URL, the validator process exits with code 1 and provides a clear error message indicating the specific field (`auth_service_url`) and the reason (malformed URL).
+
+4.  **Testing:**
+    *   Create a test case with a malformed URL (e.g., `not-a-url`, `http://`, `ftp://invalid`) and verify exit code is 1.
+    *   Create a test case with a valid URL (e.g., `https://auth.example.com`) and verify exit code is 0.
+    *   Create a test case with an empty/missing URL to ensure it still fails correctly (exit code 1).
+
+5.  **Code Review & Commit:**
+    *   Review changes for edge cases.
+    *   Commit with a message referencing DEF-2026-04-1047.
+
+**Code Change Example (Python):**
+
+```python
+# In config/validator.py
+import re
+from urllib.parse import urlparse
+
+def validate_url_field(field_value):
+    if not field_value:
+        return False
+    
+    # Basic structure check
+    try:
+        result = urlparse(field_value)
+        # Require scheme and netloc (hostname)
+        if not result.scheme or not result.netloc:
+            return False
+        # Optionally check scheme is http or https
+        if result.scheme not in ['http', 'https']:
+            return False
+        return True
+    except Exception:
+        return False
+```
+
+**Next Steps:**
+*   Apply the code changes.
+*   Run unit tests.
+*   Update the ticket status to "Resolved" or "Pending Review" once tests pass.

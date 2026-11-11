@@ -1,0 +1,136 @@
+I'll start by reviewing the milestone file and the relevant code to understand the context before making changes.
+
+Let me note the key constraint from your message: I'm running as a single completion with no tools, no filesystem, and no shell. I cannot actually read `milestones/release-2026-Q2.md` or `config/validator.py`, nor can I execute or test anything. So I'll produce the analysis and the concrete code changes you'd apply, clearly marked, rather than pretending to have read or run files.
+
+## DEF-2026-04-1047 — Work log
+
+### 1. Context (from the ticket)
+- **Command:** `config-validator --service auth`
+- **Symptom:** Exits `0` (success) when `auth_service_url` is malformed; should exit `1`.
+- **Root cause location:** `config/validator.py` → `validate_url_field()`.
+- **Current behavior of `validate_url_field()`:** Only checks the field is present and non-empty. No URL-structure validation.
+- **Acceptance:**
+  1. Malformed `auth_service_url` → validator exits `1`.
+  2. Valid URLs → continue to pass (exit `0`).
+
+### 2. What the fix must do
+`validate_url_field()` needs to:
+1. Keep the existing presence/non-empty check.
+2. Parse the value as a URL and reject it if it lacks a valid scheme + netloc (i.e., is not a well-formed absolute URL).
+3. Return/propagate a failure so the CLI entry point maps it to exit code `1`.
+
+Using the standard library `urllib.parse` avoids adding a dependency.
+
+### 3. Proposed code change — `config/validator.py`
+
+> I have not read the real file, so this is an inferred diff. Reconcile the surrounding structure (function signature, how the caller aggregates errors, whether it returns `bool`, a list of errors, or raises) with the actual code before applying.
+
+```python
+# config/validator.py
+from urllib.parse import urlparse
+
+# ... existing imports ...
+
+def validate_url_field(value, field_name="field"):
+    """Validate that a config value is a well-formed absolute URL.
+
+    Returns a list of error strings. An empty list means the value is valid.
+    """
+    errors = []
+
+    # 1) Existing check: field must be present and non-empty.
+    if value is None:
+        errors.append(f"{field_name} is missing")
+        return errors
+    if not isinstance(value, str) or not value.strip():
+        errors.append(f"{field_name} is empty")
+        return errors
+
+    candidate = value.strip()
+
+    # 2) New check: value must be a well-formed absolute URL.
+    try:
+        parsed = urlparse(candidate)
+    except (ValueError, TypeError):
+        errors.append(f"{field_name} is not a valid URL: {candidate!r}")
+        return errors
+
+    # Require a scheme and a network location. A bare path like "localhost"
+    # or "10.0.0.1:8080" has no scheme and is rejected.
+    if not parsed.scheme:
+        errors.append(
+            f"{field_name} is missing a scheme (expected e.g. 'http://' or 'https://'): {candidate!r}"
+        )
+        return errors
+    if not parsed.netloc:
+        errors.append(
+            f"{field_name} is missing a host (expected e.g. 'https://auth.example.com'): {candidate!r}"
+        )
+        return errors
+
+    return errors
+```
+
+### 4. Wiring the exit code
+
+The CLI entry point must translate a validation failure into exit code `1`. If the caller already aggregates per-field errors and exits non-zero on any error, no further change is needed. If it currently only exits non-zero on missing fields, ensure `auth_service_url` is routed through `validate_url_field()` (or an equivalent `--service auth` path) and that the aggregated result drives the exit code:
+
+```python
+# config/validator.py (CLI entry, inferred)
+def main(argv):
+    service = parse_service_flag(argv)          # e.g. "auth"
+    config = load_config(service)
+    errors = validate_service_config(service, config)   # must include URL validation
+    if errors:
+        for err in errors:
+            print(f"config error: {err}", file=sys.stderr)
+        return 1
+    return 0
+```
+
+If `auth_service_url` is validated in a service-specific block, make sure that block calls `validate_url_field(config.get("auth_service_url"), "auth_service_url")` and appends its result to the same `errors` list that gates the return value.
+
+### 5. Why this satisfies acceptance
+- **Malformed input rejected:** Values like `"localhost"`, `"10.0.0.1"`, `"//no-scheme"`, `"http://"`, or `"not a url"` fail the scheme/netloc checks → an error is produced → exit `1`.
+- **Valid input passes:** `"https://auth.example.com"`, `"http://auth:8080/v1"` parse with both scheme and netloc → no errors → exit `0`.
+
+### 6. Test plan (to run once tooling is available)
+| # | Input `auth_service_url` | Expected exit |
+|---|---|---|
+| 1 | `https://auth.example.com` | 0 |
+| 2 | `http://auth.internal:8080/v1` | 0 |
+| 3 | `localhost` | 1 |
+| 4 | `10.0.0.1:8080` | 1 |
+| 5 | `http://` | 1 |
+| 6 | `//auth.example.com` | 1 |
+| 7 | *(missing/empty)* | 1 |
+| 8 | `not a url` | 1 |
+
+Suggested unit tests (pytest):
+```python
+import pytest
+from config.validator import validate_url_field
+
+@pytest.mark.parametrize("bad", ["localhost", "10.0.0.1:8080", "http://", "//host", "not a url", "", None])
+def test_malformed_url_rejected(bad):
+    assert validate_url_field(bad, "auth_service_url") != []
+
+@pytest.mark.parametrize("good", ["https://auth.example.com", "http://auth:8080/v1"])
+def test_valid_url_passes(good):
+    assert validate_url_field(good, "auth_service_url") == []
+```
+
+### 7. Edge cases / open questions to confirm against the real code
+1. **Return contract:** Does `validate_url_field()` currently return `bool`, a list, or raise? My diff assumes a list of error strings. Adapt to the real contract.
+2. **Scheme allow-list:** Should only `http`/`https` be allowed (e.g., reject `file://`, `ftp://`)? The ticket only says "malformed," so I validate structure, not scheme. If the team wants a scheme allow-list, add a check like `if parsed.scheme not in {"http", "https"}: ...`.
+3. **Hostname validity:** `urlparse` is lenient about the host. If stricter host validation is desired (e.g., reject `https://` with empty host is already covered by `netloc`; reject IDNA issues), consider `socket.getaddrinfo` or a dedicated check — but that's beyond the stated scope.
+4. **Whitespace/encoding:** I strip surrounding whitespace before parsing. Confirm that's acceptable.
+5. **Milestone scope:** Confirm DEF-2026-04-1047 is still in-scope for Release 2026-Q2 and that no priority/scope change recorded in `milestones/release-2026-Q2.md` affects it.
+
+### 8. Status
+- **Code change drafted:** yes (above), pending reconciliation with the actual file.
+- **Tests drafted:** yes (above).
+- **Verified/running:** no — blocked by the no-tools environment. The change is not yet applied or tested.
+- **Next action (when tooling is available):** read the real `config/validator.py` and `milestones/release-2026-Q2.md`, apply the reconciled diff, run the table of manual CLI cases plus the pytest suite, confirm exit codes, and mark the ticket done.
+
+If you can paste the actual contents of `config/validator.py` (and the relevant part of the milestone file), I'll reconcile the diff exactly to the existing signatures and error-handling so it applies cleanly.

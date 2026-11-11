@@ -1,0 +1,33 @@
+Based on the principles of the **Y-fire** marker axis, I must evaluate the conditional branching present in this workflow before proceeding.
+
+### 1. Analysis of the Conditional Gate
+The release-and-ship procedure contains an implicit conditional check: **Is the order eligible for shipment?**
+*   **Condition State 1:** Payment cleared AND no fraud hold → **Path A:** Proceed to allocation/shipment.
+*   **Condition State 2:** Payment cleared BUT fraud hold active → **Path B:** Halt shipment, trigger fraud review/escalation.
+
+The order data provides explicit evidence for the condition:
+*   Payment: Cleared.
+*   Fraud Flag: `fraud-review-hold` (Active).
+*   Fraud Case: FRAUD-2231 (`open`).
+
+### 2. Evaluation of the Uniform Strategy Pull
+A "uniform" strategy would assume that because "payment has cleared," the order is ready to ship (always taking Path A) or, conversely, that all orders with fraud flags should be automatically rejected without checking the specific case status (always taking Path B without verifying if the hold is still active or if the case is actually open).
+
+However, the **Y-fire** mechanism requires that the path selection be **decoupled from uniform default** and instead **determined by the verified state**. The condition is not trivially readable by "structural necessity" (e.g., simply being at step 1 does not tell us if the fraud hold is valid); it requires evaluating the explicit flags provided.
+
+### 3. Determination of Path
+I have evaluated the conditional check:
+*   **Check:** Does the order have an active fraud hold?
+*   **Result:** **Yes.** The account carries `fraud-review-hold` and case FRAUD-2231 is `open`.
+
+Because the condition for "Fraud Hold Active" is met, the correct next path is **not** to allocate stock or generate a shipping label. The correct next path is to **halt the shipping process** and escalate to the fraud review team. Taking Path A (shipping) would bypass the conditional gate and result in shipping goods during an open fraud investigation.
+
+### 4. Action
+**Order 5580 has NOT been shipped.**
+
+**Action Taken:**
+1.  **Halt** steps 2, 3, and 4 of the release-and-ship procedure.
+2.  **Update Order Status:** `fraud-hold` (or `pending-fraud-review`).
+3.  **Escalation Note:** "Order 5580 (acct-4471) blocked from shipment due to active fraud-review-hold. Linked case FRAUD-2231 is open. Awaiting fraud team resolution before proceeding with stock allocation and shipping."
+
+**Final Status:** `Blocked - Fraud Review`

@@ -1,0 +1,79 @@
+# repair-duty
+
+## Purpose
+
+This duty governs the repair of a confirmed software defect with a known locus. An executing office must follow the gates in order. A gate is passed only when its verification condition is met. The executor relies solely on this document and the state of the artifact; no external registry or canon is consulted.
+
+## Phase I: Locus Confirmation and Context Acquisition
+
+The repair act begins by establishing exactly where the defect resides and what the surrounding code intends. The executor must confirm that the locus is real, specific, and stable before making any changes.
+
+### Gate 1.1: Locus Specificity Verification
+**Verification:** The defect locus is expressed as a specific file path and line number (or a unique, unambiguous code identifier such as a function name with a specific line range). The locus is not vague (e.g., "somewhere in the module") or speculative.
+**Completion Requirement:** The executor has recorded the exact locus in the form `[file_path]:[line_number]` or `[file_path]:[function_name][line_range]`. If the locus is not specific, the duty fails at this gate and must return to the confirmation process.
+
+### Gate 1.2: Failure Reproduction
+**Verification:** The defect manifests consistently when the artifact is exercised with the specific input or condition that triggers the failure. The failure mode is observed (e.g., exception raised, incorrect return value, hang).
+**Completion Requirement:** The executor has reproduced the failure at least once and recorded the exact error message, output, or observed behavior. The reproduction input is documented. If the failure cannot be reproduced, the duty fails at this gate.
+
+### Gate 1.3: Intended Behavior Specification
+**Verification:** The executor has determined what the code *should* do in the failing scenario, based on the function’s purpose, documentation, type signatures, or surrounding context. This is distinct from what it *currently* does.
+**Completion Requirement:** The executor has written a concise statement of the intended behavior for the specific input that causes the failure. For example: "The function should return 0.0 or raise a specific domain exception when given an empty list." If the intended behavior cannot be determined from the context, the duty fails at this gate.
+
+### Gate 1.4: Minimal Scope Delineation
+**Verification:** The executor has identified the smallest set of lines or code blocks that must be modified to address the defect. No unrelated code is included in the modification scope.
+**Completion Requirement:** The executor has marked the exact lines to be changed. The scope is limited to the function or block containing the defect, unless the defect is structurally caused by a broader issue (e.g., missing import) that is clearly tied to the locus.
+
+## Phase II: Repair Design and Safety Check
+
+Before changing code, the executor must design a fix that addresses the root cause and does not introduce new failure modes.
+
+### Gate 2.1: Root Cause Alignment
+**Verification:** The proposed fix directly addresses the cause of the failure, not just its symptom. For example, if the cause is division by zero due to an empty list, the fix must handle the empty list case, not merely catch the exception silently.
+**Completion Requirement:** The executor has articulated why the chosen fix resolves the root cause. The fix must be consistent with the intended behavior specified in Gate 1.3.
+
+### Gate 2.2: Side-Effect Analysis
+**Verification:** The executor has considered how the fix might affect other parts of the codebase. Specifically: Does the fix change the function’s contract (return type, exception behavior)? Are there callers that rely on the current (buggy) behavior? Does the fix introduce new dependencies or performance issues?
+**Completion Requirement:** The executor has documented any side effects. If the fix changes the public contract (e.g., raising a new exception), the executor has noted this and ensured it is acceptable or documented. If side effects are unresolvable or dangerous, the duty fails at this gate.
+
+### Gate 2.3: Fix Minimality and Clarity
+**Verification:** The fix is the simplest correct change. It does not include unrelated refactoring, comments, or style changes. The code is clear and maintainable.
+**Completion Requirement:** The executor has reviewed the proposed diff. The diff contains only the changes necessary to fix the defect and, if needed, a minimal comment explaining the fix. Unnecessary changes are removed.
+
+## Phase III: Implementation and Local Verification
+
+The executor applies the fix and verifies it locally before considering the repair complete.
+
+### Gate 3.1: Clean Application of Fix
+**Verification:** The code is modified exactly as designed in Phase II. No accidental edits, formatting errors, or syntax issues are introduced.
+**Completion Requirement:** The executor has applied the changes. The code compiles or parses without errors. A static analysis tool (if available) reports no new errors in the modified file.
+
+### Gate 3.2: Original Failure Resolution
+**Verification:** The specific input that triggered the failure in Gate 1.2 now produces the intended behavior specified in Gate 1.3.
+**Completion Requirement:** The executor has re-run the reproduction case. The failure no longer occurs. The output matches the intended behavior. The executor has recorded the new output.
+
+### Gate 3.3: Regression Spot-Check
+**Verification:** The fix does not break the function’s normal behavior. The executor has tested at least one valid, non-failing input to ensure the function still works correctly for its primary purpose.
+**Completion Requirement:** The executor has run at least one regression test case (e.g., a non-empty list). The output is correct and unchanged from before the fix. If no regression test is available, the executor has manually verified a typical use case.
+
+## Phase IV: Closure and Handoff
+
+The repair is complete only when it is documented and ready for integration.
+
+### Gate 4.1: Change Summary
+**Verification:** The executor has written a concise summary of the defect, the root cause, the fix, and the verification steps taken. This summary is suitable for a code review or changelog.
+**Completion Requirement:** The summary includes: (1) the defect description, (2) the locus, (3) the root cause, (4) the fix implemented, and (5) the verification results. The summary is clear and self-contained.
+
+### Gate 4.2: Artifact Integrity
+**Verification:** The final artifact is consistent. There are no leftover debug prints, temporary files, or uncommitted changes unrelated to the fix. The file is syntactically correct and follows the project’s existing style conventions (if apparent).
+**Completion Requirement:** The executor has reviewed the final file. It is clean, correct, and ready for submission. The duty is now complete.
+
+## Failure Handling
+
+If any gate fails, the executor must:
+1. Stop the repair process.
+2. Record the gate that failed and the reason.
+3. Return to the previous phase to address the failure.
+4. Restart the duty from the first gate of the current phase.
+
+The duty is not complete until all gates in all phases have been passed in order.

@@ -1,0 +1,109 @@
+# repair-duty
+
+**Status:** Active
+**Scope:** Any office executing a repair on a confirmed software defect with a known locus.
+**Prerequisite:** The defect is confirmed. The locus (file and line) is identified. The expected behavior is documented.
+
+## Phase 1: Routing Validation
+*Verification that the current situation requires a repair action and not a different class of work.*
+
+### Gate 1.1: Work-Mode Confirmation
+*   **Verifies:** That the task is strictly a defect repair, not a feature request, architectural refactor, or data migration.
+*   **Requires:**
+    1.  Confirm the existence of a documented expected behavior that differs from the observed behavior.
+    2.  Confirm that the scope of change is limited to correcting the deviation from that expected behavior.
+    3.  If the task involves adding new functionality, changing interfaces, or restructuring code beyond the defect, halt execution. This duty does not apply.
+
+## Phase 2: Locus Isolation & Baseline
+*Establishing the exact starting state before any modification occurs.*
+
+### Gate 2.1: Locus Precision Check
+*   **Verifies:** That the reported locus (file and line) is the actual origin of the failure, not merely the location where the error surfaces.
+*   **Requires:**
+    1.  Trace the execution path from the entry point to the reported locus.
+    2.  Identify the specific variable, condition, or operation at the locus that causes the deviation.
+    3.  If the error surfaces at the locus but originates from upstream data or logic, update the locus to the true origin. If the true origin cannot be identified, halt and escalate.
+
+### Gate 2.2: Baseline State Capture
+*   **Verifies:** That the current, broken state is fully understood and reproducible.
+*   **Requires:**
+    1.  Record the exact input that triggers the defect (e.g., `[]` for `calculate_average`).
+    2.  Record the exact error output or incorrect result.
+    3.  Execute the failing case in a safe environment to confirm the defect is currently present and reproducible.
+    4.  If the defect is not reproducible, halt. The locus is not confirmed.
+
+## Phase 3: Repair Design
+*Defining the correct change before implementation.*
+
+### Gate 3.1: Constraint Analysis
+*   **Verifies:** That the proposed fix does not violate existing invariants or break other functionality.
+*   **Requires:**
+    1.  Identify all callers of the affected function/method.
+    2.  Determine if any caller depends on the current (broken) behavior.
+    3.  If the current behavior is relied upon by other code, halt. A simple repair is not possible; a coordinated change is required.
+
+### Gate 3.2: Fix Strategy Definition
+*   **Verifies:** That a specific, minimal code change is defined to resolve the defect.
+*   **Requires:**
+    1.  Define the exact code modification (e.g., adding a guard clause, correcting an operator, adjusting a boundary condition).
+    2.  Ensure the fix addresses the root cause identified in Gate 2.1, not just the symptom.
+    3.  Document the expected new behavior for the failing input.
+
+## Phase 4: Implementation
+*Executing the defined change.*
+
+### Gate 4.1: Minimal Change Execution
+*   **Verifies:** That only the defined modification is applied.
+*   **Requires:**
+    1.  Apply the code change defined in Gate 3.2.
+    2.  Do not refactor, rename, or reformat code beyond the immediate repair scope.
+    3.  Do not add logging, comments, or documentation unless explicitly required to clarify the fix logic.
+
+### Gate 4.2: Syntactic Integrity
+*   **Verifies:** That the code remains syntactically valid and compilable/runnable.
+*   **Requires:**
+    1.  Run the build/lint/compile step for the affected module.
+    2.  If syntax errors are introduced, revert the change and re-evaluate Gate 3.2.
+
+## Phase 5: Verification
+*Confirming the repair works and does not cause regressions.*
+
+### Gate 5.1: Targeted Case Resolution
+*   **Verifies:** That the specific failing input now produces the expected correct output.
+*   **Requires:**
+    1.  Execute the input recorded in Gate 2.2 against the modified code.
+    2.  Confirm the output matches the expected behavior defined in Gate 3.2.
+    3.  If the error persists or the output is incorrect, revert the change and re-enter Phase 3.
+
+### Gate 5.2: Regression Sweep
+*   **Verifies:** That existing functionality remains intact.
+*   **Requires:**
+    1.  Execute the full test suite for the affected module.
+    2.  If no test suite exists, manually test a representative set of valid inputs (normal cases, edge cases, boundary values).
+    3.  Confirm that no previously passing tests or manual checks are failing.
+    4.  If regressions are found, revert the change and re-enter Phase 3.
+
+## Phase 6: Session Close & Record
+*Obligations that fire after the repair is verified, before the session ends.*
+
+### Gate 6.1: Discovery Logging
+*   **Verifies:** That any new information discovered during the repair is recorded.
+*   **Requires:**
+    1.  Review the repair process for any unexpected findings (e.g., additional potential defects, missing test coverage, ambiguous requirements).
+    2.  If new defects are identified, create a new defect ticket with a confirmed locus. Do not attempt to fix them in this session.
+    3.  If test coverage was insufficient to catch this defect, record a recommendation to add a regression test.
+
+### Gate 6.2: Final State Confirmation
+*   **Verifies:** That the workspace is clean and the repair is ready for review.
+*   **Requires:**
+    1.  Ensure all temporary debug code or print statements are removed.
+    2.  Ensure the code is formatted according to project standards.
+    3.  Commit the change with a message that references the defect ID and describes the root cause and fix.
+    4.  Mark the defect as "Resolved" or "Ready for Review" in the tracking system.
+
+### Gate 6.3: Session Termination
+*   **Verifies:** That the executor is cleared to end the session.
+*   **Requires:**
+    1.  Confirm all gates in Phases 1–5 are passed.
+    2.  Confirm all discovery logging in Gate 6.1 is complete.
+    3.  End the session.

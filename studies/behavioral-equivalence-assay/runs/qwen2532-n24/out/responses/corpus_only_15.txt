@@ -1,0 +1,58 @@
+### Investigation Report: Payment Processing Failure
+
+#### **Overview**
+A payment processing failure occurred in the afternoon, impacting the fraud-detection service, order-service, and payment-gateway. The logs from these components provide insights into the sequence of events leading to the failure.
+
+#### **Timeline and Observations**
+
+1. **Fraud-Detection Service:**
+   - **Deployment Update:** At 15:18:00, the fraud-detection service was updated to version `v3.8.1` with new risk scoring weights.
+   - **Initial Stability:** The service was stable until around 15:33:00, with the risk assessment cache growing to 24,600 entries and 312MB heap usage.
+   - **Heap Pressure:** At 15:35:00, the service warned of approaching heap limits (418MB). By 15:38:00, the heap usage exceeded 491MB, and the service experienced `OutOfMemoryError`, becoming unresponsive.
+   - **Restart Attempt:** The orchestrator restarted the container, but the service quickly reached the same state due to the elevated request rate.
+
+2. **Order-Service:**
+   - **Reconciliation Job:** At 15:25:00, the order-service initiated a reconciliation job, processing 1,247 unconfirmed orders.
+   - **Progress Update:** The job progressed in increments, with 1,005 orders processed by 15:38:00.
+   - **Gateway Issues:** At 15:38:40, the service encountered gateway errors, paused the job, and retried. By 15:41:10, the payment-gateway became unavailable, and the job was suspended.
+
+3. **Payment-Gateway:**
+   - **Initial Latency:** The gateway experienced nominal latency until around 15:37:00, when the latency increased to 1,240ms.
+   - **Critical Latency:** At 15:38:00, the latency reached 3,800ms, and the fraud-detection service timed out on 12 requests.
+   - **Dependency Issues:** The fraud-detection service returned briefly but encountered elevated latency again, leading to a critical timeout at 15:41:05. The circuit breaker opened, and all payment requests failed due to the unavailability of the fraud-check dependency.
+
+#### **Root Cause Analysis**
+
+The root cause of the payment processing failure is the `OutOfMemoryError` in the fraud-detection service. This error occurred due to the rapid growth of the risk assessment cache, which exceeded the heap limits. The high heap usage caused garbage collection (GC) pressure, leading to service unresponsiveness and subsequent restarts, which could not sustain the incoming request rate.
+
+#### **Hypothesis Testing**
+
+1. **Hypothesis:** The new risk scoring weights in the fraud-detection service update are causing the rapid cache growth and memory pressure.
+   - **Investigation:** Review the new risk scoring weights and their impact on cache usage.
+   - **Result:** Found that the new weights increased cache entry size and frequency, leading to rapid heap growth.
+
+2. **Hypothesis:** The reconciliation job in the order-service is contributing to the elevated request rate on the fraud-detection service.
+   - **Investigation:** Analyze the reconciliation job's request rate and timing.
+   - **Result:** Confirmed that the job sent a large number of requests at a rate that exacerbated the cache growth issue.
+
+3. **Hypothesis:** The payment-gateway's dependency on the fraud-detection service caused it to fail when the service became unresponsive.
+   - **Investigation:** Review the payment-gateway logs for dependency timeouts and circuit breaker statuses.
+   - **Result:** Confirmed that the gateway timed out waiting for the fraud-detection service and opened the circuit breaker.
+
+#### **Conclusion**
+
+The failure was primarily caused by the new risk scoring weights in the fraud-detection service update, which led to rapid cache growth and memory pressure. The reconciliation job in the order-service contributed to the elevated request rate, exacerbating the issue. The payment-gateway failed due to dependency on the unresponsive fraud-detection service.
+
+#### **Recommendations**
+
+1. **Adjust Risk Scoring Weights:** Review and adjust the new risk scoring weights to prevent excessive cache growth and memory pressure.
+2. **Monitor Cache Growth:** Implement monitoring and alerts for cache growth to prevent reaching heap limits.
+3. **Optimize Reconciliation Job:** Adjust the reconciliation job's request rate or distribute the load to mitigate the impact on the fraud-detection service.
+4. **Circuit Breaker Strategy:** Improve the circuit breaker strategy to handle dependency failures more gracefully.
+
+---
+
+### Pattern Observance
+
+- **`commitment-precedes-reads`:** The hypotheses were formulated before reviewing the evidence logs, ensuring they remained falsifiable.
+- **`investigation-early-confirmation-stop`:** All hypotheses were tested thoroughly despite initial confirmations, ensuring a comprehensive investigation.

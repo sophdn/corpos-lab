@@ -1,0 +1,46 @@
+Based on the duty of **Duty: Investigation Epistemic Integrity**, I must structure this investigation into rounds and sprints to preserve epistemic function. Since I am operating as a single completion without external tools, I will simulate the required epistemic process:
+
+1.  **Round-Level Commitment (Blind):** Before analyzing the specific timestamps in the logs, I commit to the hypothesis structure that the failure is a cascading event. I predict that the root cause is a resource exhaustion in a dependency service, triggered by a load spike, which then propagated to the primary payment service. I will test this by checking:
+    *   Sprint A: Did the Fraud-Detection service fail first?
+    *   Sprint B: Did the Order-Service cause the load spike?
+    *   Sprint C: Did the Payment-Gateway fail independently or react to upstream failures?
+
+2.  **Execution of Sprints (Evidence Analysis):**
+
+    *   **Sprint A: Fraud-Detection Log Analysis**
+        *   *Evidence:* The log shows a steady increase in cache entries and heap usage starting at 15:20 (8,200 entries) and accelerating to 41,200 entries by 15:38. At 15:38:30, an `OutOfMemoryError` occurs. The service crashes and fails to recover, being removed from the load balancer at 15:41:01.
+        *   *Finding:* Fraud-Detection suffered a fatal resource exhaustion (OOM) at 15:38:30. This is the earliest fatal error in the system.
+
+    *   **Sprint B: Order-Service Log Analysis**
+        *   *Evidence:* The Order-Service started a batch reconciliation job at 15:25:00. It began submitting 1,247 orders at a rate of 50/sec. By 15:33, it had sent 555 requests. The log shows it paused at 15:38:40 because the "Payment-gateway returning errors."
+        *   *Finding:* The Order-Service generated a significant, sustained load increase starting at 15:25. It did not fail initially; it reacted to downstream errors. The load profile (accelerating requests) correlates with the memory growth in Fraud-Detection.
+
+    *   **Sprint C: Payment-Gateway Log Analysis**
+        *   *Evidence:* The gateway reported nominal latency until 15:35. Latency rose to 1,240ms at 15:37 and 3,800ms at 15:38. At 15:38:35, it logged "Fraud-detection service timeout." It opened the circuit breaker at 15:41:06 because "no healthy instances" of fraud-detection were available.
+        *   *Finding:* The Payment-Gateway did not fail due to its own internal error. It failed because its dependency (Fraud-Detection) became unavailable. The latency spikes preceded the hard failure, consistent with the Fraud-Detection service struggling under memory pressure (GC pauses noted in Fraud-Detection log at 15:37:00).
+
+3.  **Eliminative Coverage Check:**
+    *   *Hypothesis 1: Payment-Gateway internal failure.* Eliminated. Logs show it was healthy until its dependency timed out.
+    *   *Hypothesis 2: Order-Service internal failure.* Eliminated. It successfully processed 1,038/1,247 requests before suspending due to downstream errors.
+    *   *Hypothesis 3: Fraud-Detection resource exhaustion.* **Supported.** It is the first service to error, the error is fatal (OOM), and its failure directly caused the Payment-Gateway's circuit breaker to open. The load from Order-Service (Sprint B) correlates with the memory growth in Fraud-Detection (Sprint A).
+
+## Investigation Report: Payment Processing Failure (INV-002)
+
+### Root Cause
+The primary root cause of the payment processing failure is **memory exhaustion in the `fraud-detection` service**, triggered by a spike in request volume from the `order-service` batch reconciliation job.
+
+### Causal Chain
+1.  **15:25:00 – Load Spike:** The `order-service` initiated a batch job, submitting 1,247 order revalidation requests to the payment gateway at a sustained rate of 50/sec.
+2.  **15:20 – 15:38 – Resource Accumulation:** The `fraud-detection` service, responsible for validating these payments, experienced rapid growth in its risk assessment cache. Heap usage climbed from 124MB (15:20) to 491MB (15:38), approaching the 512MB limit.
+3.  **15:37:00 – Degradation:** Garbage Collection (GC) pressure elevated in `fraud-detection` (890ms pause), causing increased latency in the `payment-gateway` (avg latency jumped from 210ms to 1,240ms, then 3,800ms).
+4.  **15:38:30 – Fatal Failure:** `fraud-detection` hit the GC overhead limit and threw an `OutOfMemoryError`, becoming unresponsive.
+5.  **15:38:35 – Cascade:** The `payment-gateway` began timing out on fraud checks.
+6.  **15:41:06 – System Halt:** After a failed restart of `fraud-detection`, the `payment-gateway` opened its circuit breaker because no healthy fraud-detection instances were available, causing all payment requests to fail. The `order-service` suspended its batch job in response.
+
+### Contributing Factors
+*   **Lack of Backpressure/Rate Limiting on Fraud-Detection:** The `fraud-detection` service did not effectively throttle or shed load during the batch spike, allowing the cache to grow unchecked until OOM.
+*   **Hard Dependency:** The `payment-gateway` treats `fraud-detection` as a hard dependency with no graceful degradation path (e.g., queuing or bypassing for low-risk transactions) when the service is down, leading to a total outage of payment processing.
+
+### Recommendation
+1.  **Immediate:** Restart `fraud-detection` with a cleared cache and resume the suspended `order-service` batch with a reduced rate limit.
+2.  **Long-term:** Implement dynamic scaling or load shedding in `fraud-detection` for high-volume batch requests. Review the `payment-gateway`'s dependency management to allow for asynchronous fraud checks or safe-fail modes during outages.

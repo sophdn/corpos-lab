@@ -1,0 +1,103 @@
+# Duty: Repair-Duty
+
+**Scope:** This duty governs the repair of a confirmed software defect with a known locus. It applies to any office within the Agentic Order executing a repair operation.
+
+**Premise:** The executor possesses the defect description, the confirmed locus, and access to the codebase. The executor does not possess prior knowledge of the specific codebase conventions, hidden dependencies, or historical context beyond the duty text.
+
+**Objective:** Transform the identified locus from a defective state to a correct state, such that the specific failure mode is resolved, no new failure modes are introduced, and the system remains coherent.
+
+---
+
+## Phase 1: Locus Verification and Isolation
+
+**Goal:** Confirm that the stated locus is the actual origin of the defect and isolate the scope of the change.
+
+### Gate 1.1: Locus Confirmation
+*   **What it verifies:** That the reported locus corresponds to the actual code path responsible for the failure mode.
+*   **Completion requirement:**
+    1.  Identify the exact file, line, and symbol referenced in the locus.
+    2.  Trace the control flow from the entry point of the defect trigger to the locus.
+    3.  Confirm that the failure mode (e.g., exception, incorrect value) originates specifically at or is directly caused by the logic at the locus.
+    4.  If the locus is incorrect or if the defect spans multiple loci, halt execution and report the discrepancy. Do not proceed with repair based on an unverified locus.
+
+### Gate 1.2: Dependency Isolation
+*   **What it verifies:** That the repair will not inadvertently affect unrelated code paths or violate external contracts.
+*   **Completion requirement:**
+    1.  List all callers of the function or module at the locus.
+    2.  List all functions or modules called by the locus.
+    3.  Identify any external contracts (APIs, database schemas, user-visible behavior) that rely on the current defective behavior.
+    4.  Determine the minimal set of files and symbols that must be modified to resolve the defect.
+    5.  Document this scope. Any change outside this scope requires explicit justification and must be treated as a separate task.
+
+---
+
+## Phase 2: Failure Mode Analysis
+
+**Goal:** Understand the precise mechanism of failure to ensure the repair addresses the root cause, not just the symptom.
+
+### Gate 2.1: Root Cause Identification
+*   **What it verifies:** That the executor has identified the specific logical error or missing condition causing the failure.
+*   **Completion requirement:**
+    1.  Describe the pre-condition that leads to the failure (e.g., "empty list input").
+    2.  Describe the specific operation that fails (e.g., "division by zero length").
+    3.  State why the current logic is insufficient (e.g., "function does not handle zero-length input").
+    4.  Ensure this analysis is distinct from the *solution*. The analysis must be true regardless of how the code is fixed.
+
+### Gate 2.2: Desired Behavior Definition
+*   **What it verifies:** That the executor has a clear, testable specification for what the code should do after repair.
+*   **Completion requirement:**
+    1.  Define the expected output or state for the failing input (e.g., "return 0.0", "raise ValueError with specific message", "return None").
+    2.  Define the expected output for all valid, non-failing inputs to ensure no regression.
+    3.  If the desired behavior is ambiguous, halt and request clarification. Do not infer business logic not present in the defect report.
+    4.  Record this definition as the acceptance criteria for the repair.
+
+---
+
+## Phase 3: Repair Implementation
+
+**Goal:** Apply the minimal change that satisfies the desired behavior while preserving system integrity.
+
+### Gate 3.1: Minimal Modification
+*   **What it verifies:** That the code change is minimal, targeted, and syntactically valid.
+*   **Completion requirement:**
+    1.  Modify the code at the locus to implement the desired behavior defined in Gate 2.2.
+    2.  Ensure the modification adheres to the existing coding style and language conventions of the file.
+    3.  Ensure the modification is syntactically correct (no parse errors).
+    4.  Do not refactor unrelated code. Do not add new dependencies unless strictly necessary for the repair.
+    5.  If the repair requires changing the function signature, ensure all callers identified in Gate 1.2 are updated consistently.
+
+### Gate 3.2: Side-Effect Check
+*   **What it verifies:** That the repair does not introduce new failure modes or break existing functionality.
+*   **Completion requirement:**
+    1.  Review the modified code for potential edge cases not covered in Gate 2.1 (e.g., `None` inputs, extremely large numbers, non-list inputs if type hints are not enforced).
+    2.  Verify that the repair does not alter the behavior of the function for inputs that were previously correct.
+    3.  Check for resource leaks, infinite loops, or security vulnerabilities introduced by the change.
+    4.  If any new risk is identified, revise the implementation in Gate 3.1.
+
+---
+
+## Phase 4: Verification and Closure
+
+**Goal:** Confirm that the repair is complete, correct, and documented.
+
+### Gate 4.1: Functional Verification
+*   **What it verifies:** That the specific defect is resolved and no regressions have occurred.
+*   **Completion requirement:**
+    1.  Execute the code path that previously triggered the failure.
+    2.  Verify that the output matches the desired behavior defined in Gate 2.2.
+    3.  Execute at least one valid, non-failing input path to confirm no regression.
+    4.  If automated tests exist for the module, run them. Ensure all tests pass.
+    5.  If no automated tests exist, manually verify the critical paths identified in Gate 1.2.
+
+### Gate 4.2: Documentation and Closure
+*   **What it verifies:** That the repair is fully recorded and the task is closed.
+*   **Completion requirement:**
+    1.  Add a comment or docstring update if the logic change is non-obvious.
+    2.  Record the change in the commit message or change log, referencing the defect ID.
+    3.  Confirm that all files within the scope defined in Gate 1.2 have been consistently updated.
+    4.  Mark the defect as resolved.
+    5.  If any step in this duty could not be completed as specified, halt and report the specific gate that failed and the reason. Do not close the task without full compliance.
+
+---
+
+**End of Duty**

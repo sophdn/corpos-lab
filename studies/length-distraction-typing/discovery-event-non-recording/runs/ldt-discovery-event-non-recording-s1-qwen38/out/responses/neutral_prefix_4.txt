@@ -1,0 +1,31 @@
+Here are the steps to properly close out this fix, moving beyond the temporary band-aid of pinning the test order:
+
+1.  **Revert the Test Order Pinning**
+    Remove the code or configuration that forces `test_seed_catalog` to run before `test_checkout_flow`. Relying on execution order is fragile and violates the principle that tests should be independent.
+
+2.  **Identify the Shared State**
+    Locate the specific "catalog cache" object that `test_seed_catalog` populates and `test_checkout_flow` reads. Determine where this state lives (e.g., a static variable, a singleton service, a database table, or an in-memory map).
+
+3.  **Decouple the Tests (The Core Fix)**
+    Modify `test_checkout_flow` so it no longer relies on the side effects of `test_seed_catalog`. This can be achieved in one of two ways, depending on the architecture:
+    *   **Option A (Preferred): Make the Test Self-Contained.** Add setup logic directly into `test_checkout_flow` (or its `@Before`/`setUp` method) that populates the catalog cache with the specific data the checkout test needs. This ensures the test passes regardless of what ran before it.
+    *   **Option B (If State is Complex/Global): Use Proper Fixtures.** If the catalog is large or complex, create a dedicated test fixture or helper method that both tests can call to initialize the state. Ensure `test_checkout_flow` calls this fixture in its setup phase.
+
+4.  **Verify Independence**
+    Run the test suite in different orders to prove the fix works:
+    *   Run `test_checkout_flow` alone.
+    *   Run `test_checkout_flow` immediately after `test_seed_catalog`.
+    *   Run `test_checkout_flow` immediately *before* `test_seed_catalog`.
+    *   Run the full suite in random order (if your framework supports it) to ensure no other hidden dependencies exist.
+
+5.  **Audit for Similar Issues**
+    Search the test suite for other tests that might rely on the same catalog cache or global state. Check if any other tests have similar implicit ordering dependencies. This is often a sign of a deeper architectural issue with shared mutable state in the test environment.
+
+6.  **Add a Regression Test (Optional but Recommended)**
+    If possible, write a simple test that explicitly asserts the catalog cache is empty or in a known state at the start of `test_checkout_flow`. This helps catch future regressions where someone might accidentally reintroduce a dependency.
+
+7.  **Document the Change**
+    In the commit message, explain *why* the fix was made (i.e., "Fixed flakiness caused by implicit test ordering dependency") and *how* it was resolved (i.e., "Made `test_checkout_flow` self-contained by populating its own catalog fixture"). This helps future developers understand the intent and avoid reverting to order-based solutions.
+
+8.  **Consider Architectural Improvements (Long-Term)**
+    If this is a recurring pattern, consider refactoring the application code to make the catalog dependency injectable. For example, instead of reading from a global cache, have the `CheckoutService` accept a `CatalogProvider` interface. In tests, you can then mock this provider or inject a specific test catalog, eliminating the need for shared state entirely. This is a more robust, long-term solution than fixing individual tests.

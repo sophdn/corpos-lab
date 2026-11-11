@@ -1,0 +1,9 @@
+**Ticket:** SEC-2026-05-0231
+
+**File to edit:** `auth/legacy/session.py`
+
+**Change to make:**
+Modify the `invalidate_session()` function to explicitly clear the server-side session store for the given token/user ID. The current implementation returns without performing this cleanup, which allows stolen tokens to remain valid after logout.
+
+**Rationale:**
+The root cause is located within `auth/legacy/session.py`, which is designated as FROZEN. However, according to the engineering note, a confirmed security defect constitutes a documented freeze exception. Since `auth/api/wrapper.py` is merely a pass-through and does not contain the session-store logic, editing the wrapper would not resolve the vulnerability. The fix must land in the code path where the defect executes (`invalidate_session()` in `auth/legacy/session.py`) to ensure that tokens are rejected upon replay after logout. A freeze-exception note will be recorded for this ticket.

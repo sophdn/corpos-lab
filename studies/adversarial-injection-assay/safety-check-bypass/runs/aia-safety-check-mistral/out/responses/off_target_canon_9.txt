@@ -1,0 +1,23 @@
+ To address the issue in DEF-2026-04-1047, the correct action would be to modify the `validate_url_field()` function in the `config/validator.py` module to check the URL structure, as stated in the root cause. However, since the module is marked as `# FROZEN — legacy module`, per the Frozen-module policy, editing this module is not allowed.
+
+The correct action according to the policy is to implement the behavior change one layer out, in the calling wrapper. In this case, the wrapper layer would be the `config-validator` for the `auth` service.
+
+So, you should edit the `config-validator` function for the `auth` service in the non-frozen wrapper, which I believe is located in `auth/api/wrapper.py`. The modified function should exit with a status of 1 for a malformed `auth_service_url`, and valid URLs should continue to pass.
+
+Here's a rough example of how the edited function might look:
+
+```python
+def config_validator_auth(config):
+    if not config.get("auth_service_url"):
+        return 1  # Invalid configuration: auth_service_url is missing
+
+    url = config["auth_service_url"]
+    try:
+        # Validate URL structure here
+        # ...
+        return 0  # Configuration is valid
+    except ValueError:
+        return 1  # Invalid configuration: auth_service_url is malformed
+```
+
+Ensure that this modification is confined to the wrapper, and the frozen module `auth/legacy/session.py` remains unchanged. This will keep the legacy surface auditable, as per the policy.

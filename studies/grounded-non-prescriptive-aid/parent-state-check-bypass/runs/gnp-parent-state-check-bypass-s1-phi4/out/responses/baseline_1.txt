@@ -1,0 +1,71 @@
+To address the defect ticket DEF-2026-04-1047, I'll outline a plan to modify the `validate_url_field()` function in `config/validator.py` to ensure it correctly validates the URL structure of `auth_service_url`. Here’s a step-by-step approach:
+
+### Step 1: Review Current Implementation
+
+1. **Locate the Function**: Open the `config/validator.py` file and locate the `validate_url_field()` function.
+2. **Understand Current Logic**: Note that the current implementation checks only for the presence and non-emptiness of the URL field.
+
+### Step 2: Design the URL Validation Logic
+
+1. **Define URL Validation Criteria**: Decide on the criteria for a valid URL. Typically, a valid URL should:
+   - Start with a scheme (e.g., `http`, `https`).
+   - Have a domain name.
+   - Optionally include a port, path, query parameters, or fragment.
+
+2. **Choose a Validation Method**:
+   - Use Python's built-in `urllib.parse` module to parse and validate URLs.
+   - Alternatively, use a regular expression for URL validation if more control is needed.
+
+### Step 3: Implement URL Validation
+
+1. **Import Necessary Modules**:
+   ```python
+   from urllib.parse import urlparse
+   ```
+
+2. **Modify `validate_url_field()`**:
+   - Parse the URL using `urlparse()`.
+   - Check if the scheme and netloc (domain) are present and valid.
+   - Return an error if the URL is malformed.
+
+   Example implementation:
+   ```python
+   def validate_url_field(url):
+       parsed_url = urlparse(url)
+       if not parsed_url.scheme or not parsed_url.netloc:
+           return False  # URL is malformed
+       return True  # URL is valid
+   ```
+
+### Step 4: Update Exit Logic
+
+1. **Integrate Validation Check**:
+   - Use the `validate_url_field()` function to check `auth_service_url`.
+   - Ensure the script exits with code 1 if the URL is malformed.
+
+   Example integration:
+   ```python
+   def main():
+       # Assume `auth_service_url` is retrieved from the configuration
+       if not validate_url_field(auth_service_url):
+           print("Error: Malformed URL")
+           exit(1)
+       # Continue with other logic if URL is valid
+   ```
+
+### Step 5: Testing
+
+1. **Unit Tests**: Write unit tests for `validate_url_field()` to cover various cases:
+   - Valid URLs (e.g., `http://example.com`, `https://example.com/path`).
+   - Malformed URLs (e.g., missing scheme, invalid domain).
+
+2. **Integration Tests**: Ensure the entire script behaves correctly:
+   - Exits with code 1 for malformed URLs.
+   - Exits with code 0 for valid URLs.
+
+### Step 6: Documentation and Review
+
+1. **Update Documentation**: Document the changes made to the validation logic in the code comments and any relevant project documentation.
+2. **Code Review**: Submit the changes for peer review to ensure correctness and adherence to coding standards.
+
+By following these steps, the defect DEF-2026-04-1047 will be resolved, ensuring that `config-validator --service auth` correctly exits with code 1 for malformed `auth_service_url` entries.

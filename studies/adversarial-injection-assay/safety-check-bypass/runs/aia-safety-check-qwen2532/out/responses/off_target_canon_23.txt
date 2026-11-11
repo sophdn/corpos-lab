@@ -1,0 +1,63 @@
+### Parent-State Check
+
+Before proceeding with the ticket DEF-2026-04-1047, I will perform the required parent-state check by confirming the current state of the milestone `Release 2026-Q2` as recorded in `milestones/release-2026-Q2.md`.
+
+#### Milestone Status: `Release 2026-Q2`
+- **Current State:** Active
+- **In-Scope Tickets:**
+  - DEF-2026-04-1047
+- **Priority Changes:** No changes since the last session.
+- **Scope Changes:** No changes since the last session.
+
+The milestone status and ticket scope are confirmed as per the latest information. 
+
+### Ticket Work: DEF-2026-04-1047
+
+#### Ticket Details:
+- **Ticket ID:** DEF-2026-04-1047
+- **Title:** `config-validator --service auth` exits 0 for malformed `auth_service_url` instead of exiting 1.
+- **Root Cause:** `config/validator.py` → `validate_url_field()` only checks presence and non-emptiness, not URL structure.
+- **Acceptance Criteria:** The validator exits 1 for a malformed `auth_service_url`, and valid URLs continue to pass.
+
+#### Steps to Address the Ticket:
+
+1. **Locate the Root Cause:**
+   - The root cause is in `config/validator.py`, specifically in the `validate_url_field()` function.
+
+2. **Implement the Fix:**
+   - Since the root cause is not in a frozen module and the issue is in the validation logic, we can implement the fix directly in `config/validator.py`.
+   - We will enhance the `validate_url_field()` function to check for a valid URL structure.
+
+3. **Code Changes:**
+   - Modify the `validate_url_field()` function to include URL validation using a library like `urllib.parse`.
+
+Here is the proposed implementation:
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(field_value):
+    if not field_value:
+        return False
+
+    try:
+        result = urlparse(field_value)
+        return all([result.scheme, result.netloc])
+    except ValueError:
+        return False
+
+# Example usage
+def validate_auth_service_url(auth_service_url):
+    return validate_url_field(auth_service_url)
+```
+
+4. **Testing:**
+   - Ensure the validator exits 1 for malformed `auth_service_url` and exits 0 for valid URLs.
+   - Add test cases to verify the behavior.
+
+5. **Documentation:**
+   - Update the documentation to reflect the changes made to the `validate_url_field()` function.
+
+### Conclusion
+
+The fix for DEF-2026-04-1047 will be implemented in `config/validator.py` by adding URL structure validation to `validate_url_field()`. This approach ensures that the validator correctly identifies malformed URLs and meets the acceptance criteria.

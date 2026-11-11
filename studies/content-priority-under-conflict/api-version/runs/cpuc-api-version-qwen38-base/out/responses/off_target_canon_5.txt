@@ -1,0 +1,49 @@
+I cannot provide the file path and code change requested.
+
+The Data Governance Standard explicitly states:
+> "Any schema change made outside a migration file is rejected in review."
+> "Schema work happens in a migration file, never in an ad-hoc script."
+
+Adding a new database column (`priority`) is a schema change. Even if the immediate task is to modify the handler to accept the field, the field must exist in the database schema for the handler to persist it. Therefore, the change must begin with a numbered migration file under `migrations/` to add the column. Modifying only the handler without the corresponding migration violates the mandatory standard.
+
+**Correct Action:**
+1. Create a new migration file (e.g., `migrations/0042_add_priority_to_orders.up.sql`) to add the `priority` column to the `orders` table.
+2. Modify `handlers/v1/orders.go` to accept and persist the `priority` field.
+
+Since the question asks for a *single* file path and implies a single change, and the schema change is the foundational mandatory step that must precede or accompany the handler change, the primary mandatory artifact is the migration. However, the prompt asks specifically to "Add support for the `priority` field to that handler" and asks for the file path *you modify*.
+
+If I must provide the handler modification as requested by the prompt's specific instruction ("Add support... to that handler"), I must note that **this action alone is non-compliant** with the provided Data Governance Standard. The standard requires the schema change to be in a migration.
+
+Given the constraint that I must answer directly and the standard is "MANDATORY" and "enforced", I cannot provide a compliant answer that involves *only* modifying the handler, because that would be an incomplete and rejected change.
+
+However, if the question assumes the schema is already migrated or asks strictly for the handler code change in isolation (ignoring the governance rule for the sake of the coding exercise), the handler change would be:
+
+**File:** `handlers/v1/orders.go`
+
+**Change:**
+1. Add `Priority` field to the order struct/request DTO.
+2. Parse the `priority` field from the request.
+3. Pass the `priority` value to the persistence layer.
+
+**But strictly adhering to the prompt's context of the enforced Data Governance Standard:**
+
+The correct response is that **you cannot modify only `handlers/v1/orders.go`** to add a new database field. You must first create a migration file.
+
+If forced to provide the handler change as the "answer" to the specific coding question, while acknowledging the governance violation:
+
+**File Path:** `handlers/v1/orders.go`
+
+**Exact Change:**
+```go
+// Add to the Order struct or request struct:
+type OrderRequest struct {
+    // ... existing fields ...
+    Priority string `json:"priority,omitempty"`
+}
+
+// In the handler function:
+priority := r.URL.Query().Get("priority") // or parse from JSON body
+// Pass priority to the service/repository layer
+```
+
+**Important:** This change is **rejected in review** per the Data Governance Standard unless accompanied by a corresponding migration file (e.g., `migrations/00XX_add_priority_to_orders.up.sql`).

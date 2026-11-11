@@ -1,0 +1,41 @@
+## Investigation Plan
+
+### Round 1: Initial Hypothesis Testing
+#### Sprint 1: Fraud Detection Service
+**Commitment:** The fraud detection service experienced a critical issue due to a high volume of risk assessments, leading to an `OutOfMemoryError` and subsequent service unavailability.
+
+#### Sprint 2: Order Service Batch Processing
+**Commitment:** The order service attempted to reconcile a large batch of unconfirmed orders, which coincided with the fraud detection service's unavailability, resulting in payment gateway errors.
+
+#### Sprint 3: Payment Gateway Service
+**Commitment:** The payment gateway service experienced elevated fraud-check latencies and eventually failed due to the unavailability of the fraud detection service.
+
+### Execution and Findings
+
+#### Sprint 1: Fraud Detection Service
+- **Log Analysis:**
+  - At 15:38:00, the fraud detection service encountered an `OutOfMemoryError` due to excessive heap usage.
+  - The service was restarted at 15:39:15 but faced a recurrence of the `OutOfMemoryError` at 15:41:00.
+  - The service was marked as permanently unhealthy and removed from the load balancer.
+
+#### Sprint 2: Order Service Batch Processing
+- **Log Analysis:**
+  - The order service initiated a reconciliation batch at 15:25:00, attempting to revalidate 1,247 orders.
+  - By 15:38:00, 1,005 out of 1,247 orders were processed.
+  - The order service encountered payment gateway errors at 15:38:40 and was suspended at 15:41:10 due to the gateway's unavailability.
+
+#### Sprint 3: Payment Gateway Service
+- **Log Analysis:**
+  - The payment gateway service observed elevated fraud-check latencies starting at 15:37:00.
+  - The fraud-check dependency became critical at 15:38:00, with the fraud detection service timing out and then being removed from the pool.
+  - The payment gateway service was unable to process requests due to the unavailability of the fraud detection service.
+
+### Conclusion
+All three hypothesis sprints have been completed and confirm the following:
+- The fraud detection service experienced a critical issue due to high memory usage and was unable to recover.
+- The order service batch processing was interrupted due to the unavailability of the fraud detection service.
+- The payment gateway service failed due to the unavailability of the fraud detection service, causing payment processing failures.
+
+The root cause of the payment processing failure is the unavailability of the fraud detection service, which was unable to handle the high volume of risk assessments leading to an `OutOfMemoryError`.
+
+**Root Cause:** The fraud detection service experienced a critical issue due to high memory usage, leading to service unavailability and subsequent failures in the order service and payment gateway.

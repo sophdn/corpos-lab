@@ -1,0 +1,84 @@
+# Repair-Duty
+
+## Purpose
+This duty governs the repair of a confirmed software defect with a known locus. It is a map for an executor who possesses only this text. The executor must pass through the following gates in sequence. A gate is not a description of a hazard; it is a checkable step. Completing a gate requires satisfying the stated verification and requirement. No external canon, registry, or taboo list is required or referenced.
+
+## Phase 1: Pre-Act Verification (Upstream Gates)
+*These gates sit upstream of the repair act. They verify that the situation calls for a repair, and that the repair is correctly scoped before any change is made.*
+
+**Gate 1.1: Confirm Defect Class**
+*   **Verifies:** That the reported issue is a defect (unintended behavior, crash, or incorrect output) and not a feature request, performance optimization, or documentation gap.
+*   **Requirement to Complete:** The executor must be able to state, in one sentence, why the current behavior is incorrect against the intended contract of the software. If the behavior is intentional or unspecified, this gate fails; the duty does not apply.
+
+**Gate 1.2: Confirm Locus Uniqueness**
+*   **Verifies:** That the location of the defect (the locus) is specific and singular, or that multiple loci are explicitly identified and scoped for separate handling.
+*   **Requirement to Complete:** The executor must identify the exact file, function, and line range where the defect resides. If the locus is "somewhere in the module" or "the whole system," this gate fails. The repair act must not begin until the locus is pinned to a specific code artifact.
+
+**Gate 1.3: Confirm Reproducibility**
+*   **Verifies:** That the defect can be reproduced in the current environment using the known locus.
+*   **Requirement to Complete:** The executor must execute the minimal input sequence that triggers the defect and observe the failure. If the defect cannot be reproduced, the locus is not confirmed, and the duty does not apply. The executor must not attempt to fix a defect they cannot see failing.
+
+## Phase 2: Pre-Change Establishment
+*These gates establish the state of the system and the safety of the change before any code is modified.*
+
+**Gate 2.1: Establish Baseline Behavior**
+*   **Verifies:** That the current behavior of the system, including the defect, is fully understood and documented.
+*   **Requirement to Complete:** The executor must record the exact input, the exact output/error, and the line of code responsible. This record serves as the "before" state. Without this, completion cannot be verified.
+
+**Gate 2.2: Identify Dependency Surface**
+*   **Verifies:** That all callers, tests, and dependent logic that interact with the locus are identified.
+*   **Requirement to Complete:** The executor must list every function, test case, or module that invokes the defective code or relies on its current (defective) output. If the dependency surface is unknown, the change is unsafe. This gate requires a complete list, not a guess.
+
+**Gate 2.3: Define Correct Output**
+*   **Verifies:** That the intended behavior for the failing input is explicitly defined.
+*   **Requirement to Complete:** The executor must state what the function *should* return or do for the failing input. This definition must be derived from the software's contract, not from the executor's preference. If the correct output is ambiguous, the gate fails; the defect is not confirmed as a defect but as a specification gap.
+
+## Phase 3: The Repair Act
+*These gates govern the act of changing the code. They ensure the change is minimal, targeted, and correct.*
+
+**Gate 3.1: Implement Minimal Fix**
+*   **Verifies:** That the change addresses the root cause at the locus without introducing unnecessary complexity or refactoring.
+*   **Requirement to Complete:** The executor modifies the code at the identified locus to produce the correct output defined in Gate 2.3. The change must be the smallest possible edit that resolves the defect. Refactoring, style changes, or unrelated improvements are prohibited in this gate.
+
+**Gate 3.2: Verify Local Correctness**
+*   **Verifies:** That the specific failing input now produces the correct output.
+*   **Requirement to Complete:** The executor re-runs the minimal input sequence from Gate 1.3. The output must match the definition in Gate 2.3. If it does not, the gate fails, and the executor returns to Gate 3.1.
+
+**Gate 3.3: Verify No Regression**
+*   **Verifies:** That the change has not broken any previously correct behavior.
+*   **Requirement to Complete:** The executor runs all tests and usage cases identified in Gate 2.2. All previously passing tests must still pass. Any new failure indicates a regression, and the gate fails. The executor must return to Gate 3.1 to refine the fix.
+
+## Phase 4: Post-Act Confirmation
+*These gates confirm the repair is complete and the system is stable.*
+
+**Gate 4.1: Confirm Locus Resolution**
+*   **Verifies:** That the defect is no longer reproducible at the locus.
+*   **Requirement to Complete:** The executor confirms that the original failing input no longer causes the error or incorrect output. This is the final check of the repair act itself.
+
+**Gate 4.2: Validate Integration**
+*   **Verifies:** That the repaired component integrates correctly with the broader system.
+*   **Requirement to Complete:** If the dependency surface (Gate 2.2) includes integration tests or end-to-end scenarios, these must be run and pass. If no such tests exist, the executor must manually verify that the dependent logic behaves as expected with the new output.
+
+## Phase 5: Session-Close Obligations
+*These gates sit downstream of the repair act. They fire on session close and ensure that the session’s discoveries are recorded and the workspace is left in a valid state.*
+
+**Gate 5.1: Record Defect Resolution**
+*   **Verifies:** That the repair is documented for future reference.
+*   **Requirement to Complete:** The executor must record the defect, the locus, the root cause, the fix applied, and the verification results. This record must be available to any subsequent executor or reviewer. If the system has a defect tracker, the entry is updated. If not, a local note is created. This gate ensures the knowledge from the repair is not lost.
+
+**Gate 5.2: Clean Workspace**
+*   **Verifies:** That the workspace is left in a clean, reproducible state.
+*   **Requirement to Complete:** The executor must remove any temporary files, debug prints, or experimental code introduced during the repair process. The codebase must contain only the minimal fix and its associated documentation. If the repair introduced new dependencies, they must be formally declared. The workspace must be ready for the next session.
+
+**Gate 5.3: Identify Residual Risks**
+*   **Verifies:** That any known limitations or remaining hazards are explicitly stated.
+*   **Requirement to Complete:** The executor must list any edge cases that were not tested, any assumptions made during the fix, or any related code that may have similar defects. This gate ensures that the session does not close with hidden uncertainties. If no residual risks are identified, the executor must explicitly state "None."
+
+## Meta-Taboo Scan Results
+The following structural gates were added based on the explicit scan for hazards outside the repair act itself:
+
+1.  **Routing-Class Hazard (Upstream):** Addressed by **Gate 1.1** and **Gate 1.2**. These gates verify that the situation is a repair and not a feature request, and that the locus is correctly identified. Without these, the executor might attempt to "repair" a feature or fix the wrong code.
+2.  **Session-Close-Obligation Hazard (Downstream):** Addressed by **Gate 5.1**, **Gate 5.2**, and **Gate 5.3**. These gates ensure that the session’s discoveries (the fix, the documentation, the risks) are recorded and the workspace is cleaned before the session ends. Without these, the repair might be technically successful but leave the system in an undocumented or dirty state, violating the obligations of a complete session.
+
+## Executor Note
+This duty is self-sufficient. You do not need to consult any external registry, canon, or taboo list. If you cannot complete a gate, you have not completed the duty. Do not skip gates. Do not merge gates. Pass each gate in order, or stop.

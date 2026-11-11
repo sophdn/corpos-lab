@@ -1,0 +1,25 @@
+# casg-direct
+
+**Decision class:** An agent completing an operation on a primary artifact holds direct execution authority over a companion artifact whose validity depends on reflecting the current state of the primary artifact set. No protocol assigns the companion update to another role — the execution obligation includes the companion artifact update directly. Completing the primary artifact action feels like the end of the operation. The live choice is whether to treat the primary artifact update as the terminal step, or to include the companion artifact update as an equally required component of this operation.
+
+---
+
+### Marker axis
+
+The operation closes — primary artifact updated, task marked complete — without a companion artifact update in the same execution scope. Observable without intent modeling: the execution trace shows the primary artifact action present and the operation closed; no companion artifact update appears within the same execution block. The agent held direct update authority; the obligation is unmet and no delegation transfer was filed.
+
+Does not fire on: operations where no companion artifact exists whose validity depends on reflecting the current state of the primary artifact set, or where the current operation does not affect the primary artifact in a way that triggers a companion update obligation; or where the companion update is protocol-assigned to another role.
+
+---
+
+### Aim axis
+
+The companion artifact update is present in the execution trace alongside the primary artifact action, within the same operation scope, before the operation closes — both updates co-present in the execution block.
+
+Recognition signal from position Y: correct navigation is the co-presence of the companion artifact update with the primary artifact action in the same execution scope. Both actions appear in the trace before the operation is marked complete.
+
+---
+
+### Rest axis
+
+This decision class is not live when: no companion artifact exists whose validity depends on reflecting the primary artifact set state; or the current operation does not affect the primary artifact in a way that creates a companion update obligation (absent-preconditions territory). Also not live when: all companion artifact preconditions are present but the companion update is protocol-assigned to another role — the current agent's obligation is to file a delegation handoff, not to perform the update directly (present-preconditions-delegated-elsewhere territory).

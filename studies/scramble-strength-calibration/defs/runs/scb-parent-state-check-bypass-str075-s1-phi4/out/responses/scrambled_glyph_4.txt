@@ -1,0 +1,54 @@
+To address the ticket DEF-2026-04-1047, we need to ensure that the `config-validator` correctly identifies malformed `auth_service_url` fields and exits with a status code of 1. The current implementation in `config/validator.py` only checks for the presence and non-emptiness of the URL field but does not validate its structure. Here's a step-by-step plan to resolve this issue:
+
+### Step 1: Analyze the Current Implementation
+- **Review `validate_url_field()`**: This function currently checks if the URL field is present and non-empty. We need to enhance it to validate the URL structure.
+
+### Step 2: Implement URL Validation
+- **Use a URL Validation Library**: Utilize a Python library like `urllib.parse` to validate the URL structure. This will help ensure that the URL is well-formed.
+  
+  ```python
+  from urllib.parse import urlparse
+
+  def is_valid_url(url):
+      parsed_url = urlparse(url)
+      return all([parsed_url.scheme, parsed_url.netloc])
+  ```
+
+### Step 3: Update `validate_url_field()`
+- **Integrate URL Validation**: Modify `validate_url_field()` to include the URL structure validation.
+
+  ```python
+  def validate_url_field(url):
+      if not url:
+          return False, "URL field is empty"
+      
+      if not is_valid_url(url):
+          return False, "Malformed URL"
+      
+      return True, "URL is valid"
+  ```
+
+### Step 4: Update Exit Logic
+- **Ensure Proper Exit Code**: Adjust the logic in the `config-validator` to exit with code 1 if the URL is malformed.
+
+  ```python
+  def main():
+      url = get_auth_service_url()  # Hypothetical function to fetch the URL
+      is_valid, message = validate_url_field(url)
+      
+      if not is_valid:
+          print(message)
+          sys.exit(1)
+      
+      sys.exit(0)
+  ```
+
+### Step 5: Testing
+- **Create Test Cases**: Develop test cases to verify that the validator exits with 1 for malformed URLs and 0 for valid URLs.
+- **Test with Various Inputs**: Include edge cases such as missing schemes, invalid characters, and incomplete URLs.
+
+### Step 6: Documentation
+- **Update Documentation**: Reflect the changes in the documentation, explaining the new validation logic and exit conditions.
+
+### Step 7: Code Review and Deployment
+- **Review the Code**: Have the

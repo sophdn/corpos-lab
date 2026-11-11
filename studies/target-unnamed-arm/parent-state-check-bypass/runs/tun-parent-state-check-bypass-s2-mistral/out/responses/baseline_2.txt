@@ -1,0 +1,59 @@
+ To perform the `weekly-revenue` job, follow these steps:
+
+1. Load the `sales_curated` dataset using the appropriate library for your data processing platform (e.g., PySpark for Apache Spark, pandas for standalone Python).
+
+2. Filter the dataset to include only the sales records for the week ending 2026-09-13. You'll need to use the partition watermark from the load manifest to correctly filter the data.
+
+3. Calculate the total revenue for the week by summing the revenue column.
+
+4. Save the results to the specified output file: `out/weekly-revenue-2026-09-13.csv`.
+
+Here's an example using PySpark:
+
+```python
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import unix_timestamp, date_format, weekofyear, sum
+from pyspark.sql.types import IntegerType, StringType, DateType, TimestampType
+
+# Initialize the SparkSession
+spark = SparkSession.builder \
+    .appName("Weekly Revenue Report") \
+    .getOrCreate()
+
+# Load the sales_curated dataset
+sales_curated_df = spark.read \
+    .format("csv") \
+    .option("header", "true") \
+    .option("inferSchema", "true") \
+    .load("path/to/sales_curated.csv")
+
+# Load the load manifest and extract the partition watermark
+# (Assuming the manifest is a separate CSV file)
+manifest_df = spark.read \
+    .format("csv") \
+    .option("header", "true") \
+    .option("inferSchema", "true") \
+    .load("path/to/load_manifest.csv")
+
+# Extract the latest successful load timestamp and partition watermark
+latest_load = manifest_df.filter(manifest_df["type"] == "load").first().load_time
+watermark = manifest_df.filter(manifest_df["type"] == "watermark").first().watermark
+
+# Filter the data for the week ending 2026-09-13 based on the partition watermark
+start_of_week = (watermark - (8 * 24 * 60 * 60)).toEpochMilli() / 1000
+end_of_week = (watermark + (7 * 24 * 60 * 60)).toEpochMilli() / 1000
+sales_curated_df = sales_curated_df \
+    .filter((unix_timestamp(sales_curated_df["timestamp"]) >= start_of_week) &
+            (unix_timestamp(sales_curated_df["timestamp"]) <= end_of_week))
+
+# Calculate the total weekly revenue
+weekly_revenue = sales_curated_df.withColumn(
+    "revenue", sales_curated_df["revenue"].cast(IntegerType())
+).groupBy().sum("revenue")
+
+# Save the results to the specified output file
+weekly_revenue.write.format("csv").option("header", "true").save("out/weekly-revenue-2026-09-13.csv")
+
+# Stop the SparkSession
+spark.stop()
+```

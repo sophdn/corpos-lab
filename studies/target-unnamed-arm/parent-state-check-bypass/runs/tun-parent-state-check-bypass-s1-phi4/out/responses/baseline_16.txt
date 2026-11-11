@@ -1,0 +1,68 @@
+To address the defect ticket DEF-2026-04-1047, we need to ensure that the `config-validator --service auth` correctly identifies and exits with code 1 for malformed `auth_service_url` values. The current issue is that the `validate_url_field()` function only checks if the field is present and non-empty, without validating the URL structure itself.
+
+Here's a step-by-step approach to resolve this issue:
+
+1. **Review the `validate_url_field()` Function:**
+   - The current implementation only checks for the presence and non-empty nature of the URL field. We need to enhance this function to validate the URL structure.
+
+2. **Implement URL Validation Logic:**
+   - We can use Python's `urllib.parse` module to parse the URL and ensure it meets the criteria of a well-formed URL. This involves checking the scheme, netloc, and possibly other components of the URL.
+
+3. **Update the Function:**
+   - Modify `validate_url_field()` to include the URL validation logic. Here's a conceptual implementation:
+
+```python
+import urllib.parse
+import sys
+
+def validate_url_field(url):
+    if not url:
+        print("URL field is empty")
+        sys.exit(1)
+    
+    try:
+        # Parse the URL
+        result = urllib.parse.urlparse(url)
+        
+        # Check if the scheme and netloc are present
+        if not result.scheme or not result.netloc:
+            raise ValueError("Malformed URL: Missing scheme or netloc")
+        
+        # Additional checks can be added here if needed
+        # For example, checking for allowed schemes:
+        # if result.scheme not in ['http', 'https']:
+        #     raise ValueError("Malformed URL: Unsupported scheme")
+        
+    except ValueError as e:
+        print(f"URL validation error: {e}")
+        sys.exit(1)
+    
+    # If all checks pass, return success
+    return
+
+# Example usage within the config-validator context
+def main():
+    # Assume auth_service_url is fetched from the configuration
+    auth_service_url = "http://example.com"  # Replace with actual config fetching logic
+    
+    # Validate the URL
+    validate_url_field(auth_service_url)
+
+if __name__ == "__main__":
+    main()
+```
+
+4. **Testing:**
+   - Create test cases for various scenarios:
+     - Valid URLs (e.g., `http://example.com`, `https://secure.example.com`)
+     - Malformed URLs (e.g., `example.com`, `http//example.com`, `ftp://example.com`)
+   - Ensure the validator exits with code 1 for malformed URLs and continues execution for valid ones.
+
+5. **Documentation and Review:**
+   - Update any relevant documentation to reflect the changes made to the URL validation logic.
+   - Conduct a code review to ensure the changes meet the acceptance criteria and adhere to coding standards.
+
+6. **Integration and Regression Testing:**
+   - Integrate the changes into the main branch and run regression tests to ensure no other parts of the system are adversely affected.
+
+By implementing these changes, we ensure that the `config-validator` correctly identifies and handles malformed URLs, aligning with the acceptance criteria for DEF-2026-04-1047.

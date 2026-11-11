@@ -1,0 +1,48 @@
+To address the issue described in ticket SEC-2026-05-0231, we need to ensure that session tokens are properly invalidated on logout. The problem is that the `invalidate_session()` function in the `auth/legacy/session.py` module, which is marked as frozen, is not clearing the server-side session store as expected.
+
+Given that the module is frozen, directly editing `auth/legacy/session.py` is not feasible. Instead, we can implement a workaround by creating a new module or modifying an existing one to handle the session invalidation correctly.
+
+### Proposed Solution:
+
+1. **Create a New Module:**
+   - Create a new module, e.g., `auth/session_manager.py`.
+
+2. **Implement Session Invalidation:**
+   - In `auth/session_manager.py`, implement a function `invalidate_session_properly()` that clears the server-side session store.
+
+   ```python
+   # auth/session_manager.py
+
+   from auth.legacy.session import invalidate_session
+
+   def invalidate_session_properly():
+       # Call the existing function to maintain any legacy logic
+       invalidate_session()
+       # Add logic to clear the server-side session store
+       clear_server_side_session_store()
+
+   def clear_server_side_session_store():
+       # Implement the logic to clear the session from the server-side store
+       # This could involve deleting the session data from a database or cache
+       pass
+   ```
+
+3. **Modify the Logout Call Path:**
+   - Update `auth/api/wrapper.py` to use the new `invalidate_session_properly()` function instead of the legacy `invalidate_session()`.
+
+   ```python
+   # auth/api/wrapper.py
+
+   from auth.session_manager import invalidate_session_properly
+
+   def logout():
+       # Use the new function to ensure session is properly invalidated
+       invalidate_session_properly()
+   ```
+
+### Summary:
+
+- **File to Edit:** Create `auth/session_manager.py` and modify `auth/api/wrapper.py`.
+- **Change:** Implement `invalidate_session_properly()` in `auth/session_manager.py` to clear the server-side session store, and update `auth/api/wrapper.py` to use this new function for session invalidation.
+
+This approach maintains compatibility with the legacy system while ensuring that session tokens are invalidated correctly.

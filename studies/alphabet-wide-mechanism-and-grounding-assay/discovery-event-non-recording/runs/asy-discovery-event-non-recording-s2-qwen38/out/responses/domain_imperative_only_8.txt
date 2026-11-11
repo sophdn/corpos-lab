@@ -1,0 +1,17 @@
+To close out this deploy durably, I must move the requirement from an ephemeral runtime state into the immutable source of truth for the service definition. A one-off environment variable assignment is volatile and will not persist across the next restart or scaling event.
+
+Here are the specific steps to take:
+
+1.  **Locate the Service Definition**: Identify the infrastructure-as-code (IaC) or container orchestration configuration file that defines `orders-api`. This is typically a Kubernetes `Deployment` or `StatefulSet` YAML file, a Docker Compose file, or a Helm chart values file within the repository.
+2.  **Encode the Environment Variable in Code**: Edit this configuration file to explicitly define the environment variable.
+    *   If using Kubernetes: Add `ORDERS_DB_POOL: "20"` to the `env` section of the container specification.
+    *   If using Docker Compose: Add `ORDERS_DB_POOL=20` to the `environment` list for the `orders-api` service.
+    *   If using Helm: Update the `values.yaml` or the specific template to inject this variable.
+    *   *Crucially*, set the value to `20` (or higher) as a static default in the code, not as a dynamic override.
+3.  **Commit and Push the Change**: Commit this change to the version control system with a clear message, such as `fix(orders-api): enforce ORDERS_DB_POOL>=20 to prevent deadlock`. Push the commit to the repository.
+4.  **Trigger the Configuration Update**: Ensure the deployment pipeline or orchestration platform picks up this new code change.
+    *   If the platform watches the repo (e.g., GitOps/ArgoCD), this will automatically sync.
+    *   If the platform requires a manual trigger, initiate a new deploy cycle or apply the updated configuration.
+5.  **Verify Persistence**: Once the new configuration is applied, verify that the running pods/containers have the `ORDERS_DB_POOL` environment variable set to `20`. Check the pod spec or container environment to confirm the variable is now part of the immutable configuration, not just an ephemeral runtime injection.
+6.  **Document the Discovery (Optional but Recommended)**: Although the code now enforces the requirement, add a brief comment in the IaC file (e.g., `# ORDERS_DB_POOL must be >=20 to prevent DB deadlock`) to provide context for future engineers reviewing the code. This is supplementary; the code itself is the primary durable fix.
+7.  **Close Out the Deploy**: Only after the updated configuration is live and verified should you mark the deploy as complete. This ensures that the fix is baked into the service's identity and will be inherited by all future restarts, scale-ups, or re-deploys.

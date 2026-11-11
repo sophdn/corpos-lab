@@ -1,0 +1,80 @@
+I cannot execute code, read files, or run tests in this environment. However, I can provide the specific code fix and verification steps for DEF-2026-04-1047 based on the root cause description.
+
+### Root Cause Analysis
+The function `validate_url_field()` in `config/validator.py` currently only checks:
+1.  Field presence.
+2.  Non-empty value.
+
+It does **not** validate the syntactic structure of the URL. Consequently, a malformed string (e.g., `"not-a-url"`, `"http://"`, or `"ftp://invalid"`) passes validation, causing the CLI to exit with status `0` when it should exit `1`.
+
+### Proposed Fix
+
+Replace the existing logic in `validate_url_field()` with a robust URL validation check. Python’s `urllib.parse` module is the standard library approach for this.
+
+```python
+import urllib.parse
+
+def validate_url_field(value: str, field_name: str = "auth_service_url") -> None:
+    """
+    Validates that the provided value is a well-formed URL.
+    
+    Args:
+        value: The URL string to validate.
+        field_name: Name of the field for error reporting.
+        
+    Raises:
+        ValueError: If the URL is malformed or empty.
+    """
+    if not value or not isinstance(value, str):
+        raise ValueError(f"{field_name} must be a non-empty string.")
+    
+    parsed = urllib.parse.urlparse(value)
+    
+    # Check that scheme (e.g., http, https) and netloc (domain) are present
+    if not parsed.scheme or not parsed.netloc:
+        raise ValueError(f"{field_name} is not a valid URL: {value}")
+```
+
+### Implementation Steps for Engineering Team
+
+1.  **Open** `config/validator.py`.
+2.  **Locate** `validate_url_field()`.
+3.  **Replace** the internal logic with the code above.
+4.  **Update** the call site in the CLI entry point (likely `main()` or the argument parser error handler) to catch `ValueError` and ensure the process exits with code `1`. If the current flow already raises exceptions to trigger exit code `1`, this may not be necessary, but verify that `ValueError` propagates correctly to the top-level exception handler.
+
+### Verification Plan
+
+To satisfy the acceptance criteria, run the following commands:
+
+1.  **Test Malformed URL (Should Exit 1):**
+    ```bash
+    config-validator --service auth --auth-service-url "invalid-url"
+    echo $? 
+    # Expected: 1
+    ```
+
+2.  **Test Empty URL (Should Exit 1):**
+    ```bash
+    config-validator --service auth --auth-service-url ""
+    echo $?
+    # Expected: 1
+    ```
+
+3.  **Test Valid URL (Should Exit 0):**
+    ```bash
+    config-validator --service auth --auth-service-url "https://auth.example.com"
+    echo $?
+    # Expected: 0
+    ```
+
+4.  **Test Valid URL without Scheme (Should Exit 1):**
+    ```bash
+    config-validator --service auth --auth-service-url "auth.example.com"
+    echo $?
+    # Expected: 1
+    ```
+
+### Ticket Update Notes
+-   **Status:** In Progress → Ready for Review (after code commit).
+-   **Labels:** `bug`, `config-validation`, `auth-service`.
+-   **Linked PR:** To be created with the diff of `config/validator.py`.

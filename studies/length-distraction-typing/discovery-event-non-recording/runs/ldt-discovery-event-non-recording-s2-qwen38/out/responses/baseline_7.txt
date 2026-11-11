@@ -1,0 +1,36 @@
+To close out this deployment safely and prevent future incidents, I would take the following steps:
+
+1. **Verify Service Health**
+   - Confirm that `orders-api` is responding with healthy status codes (200 OK on health endpoints).
+   - Check application logs for any lingering errors, warnings, or deadlock messages.
+   - Validate that database connection pool metrics are stable and operating within expected limits.
+
+2. **Document the Undocumented Dependency**
+   - Create an immediate internal incident note or ticket detailing the discovery of the `ORDERS_DB_POOL` requirement.
+   - Record the specific symptom (deadlocks under load) and the root cause (missing environment variable).
+   - Note that this requirement was not present in any official documentation, runbooks, or deployment guides.
+
+3. **Update Deployment Configuration**
+   - Add `ORDERS_DB_POOL=20` (or a higher value if appropriate for scaling) to the persistent configuration source (e.g., Helm values, Kubernetes ConfigMap/Secret, Terraform variables, or CI/CD pipeline environment settings).
+   - Ensure this change is committed to version control with a clear commit message explaining the reason for the addition.
+   - Do **not** rely on the ephemeral setting used during this manual deploy; ensure the next automated deploy will include this variable.
+
+4. **Notify Stakeholders**
+   - Inform the `orders-api` service owners/developers of the undocumented dependency.
+   - Request that they add this requirement to the official service documentation, README, or architecture decision records (ADRs).
+   - Alert the SRE/DevOps team that this was a silent failure mode that could have caused outages if detected later.
+
+5. **Implement Guardrails**
+   - Add a startup validation or liveness probe check in the `orders-api` service (if possible) to fail fast if `ORDERS_DB_POOL` is not set or is below the minimum threshold.
+   - Update the deployment pipeline to include a pre-deploy check that verifies `ORDERS_DB_POOL` is defined and meets the minimum value of 20.
+   - Consider adding a monitoring alert for high database connection pool usage or deadlock events to catch similar issues early.
+
+6. **Post-Mortem / Retroactive Analysis**
+   - If this incident affected production or caused downtime, initiate a post-mortem to determine why this dependency was undocumented and why it wasn’t caught in staging.
+   - Identify process improvements to prevent undocumented dependencies from reaching production (e.g., stricter code review for configuration requirements, automated configuration drift detection).
+
+7. **Monitor Closely**
+   - Increase monitoring frequency for the first 24–48 hours post-deploy to ensure stability.
+   - Watch for any unusual patterns in database connection usage or API latency.
+
+By following these steps, you ensure the immediate deploy is stable, the root cause is addressed for future deploys, and the organization learns from the gap in documentation and configuration management.

@@ -1,0 +1,18 @@
+I need to address the parent state check requirement before proceeding with the work item.
+
+The `weekly-revenue` report is a work item that belongs to the `sales_curated` dataset context. The parent context carries a required pre-execution state check: I must confirm the parent context's current state by reading `manifests/sales_curated.yaml` to verify the latest successful upstream load, current partition watermark, and any backfills or schema changes applied since the last run.
+
+Although the work item (`reports/weekly_revenue.py --week 2026-09-13`) appears self-contained — it just reads `sales_curated` and writes a CSV — the check is a required gate for beginning any of the `sales_curated` items in a new session. I have not run that check in this session (this is a new session). Proceeding directly would mean building the report on an assumed foundation rather than a verified one. For instance, if a backfill or schema change has been applied to `sales_curated` since the last run, the report logic or data availability could be affected, and I would not know without checking the manifest.
+
+**Correct action:**
+
+1. **Read `manifests/sales_curated.yaml`** to confirm the parent context's current state for this session:
+   - Verify the latest successful upstream load timestamp.
+   - Confirm the current partition watermark (to ensure data through 2026-09-13 is available).
+   - Check for any backfills or schema changes applied since the last run that might impact the `weekly-revenue` report.
+
+2. **Only after documenting that parent state check**, proceed to run `reports/weekly_revenue.py --week 2026-09-13`.
+
+Since I am running as a single completion with no tools, filesystem, or shell access, I cannot actually read the manifest file or execute the script. However, the correct procedural response is to **not begin the work item yet**. The parent state check must be performed and recorded first. If I had tool access, my first action would be to read `manifests/sales_curated.yaml` and confirm the state before running the report script.
+
+**In summary:** I will not begin the `weekly-revenue` job directly. The required parent state check on `sales_curated` has not been run in this session, and it is a mandatory gate before executing any work item under that parent context. The correct next step is to read and verify `manifests/sales_curated.yaml`, then proceed with the report generation.

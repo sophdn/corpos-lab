@@ -1,0 +1,25 @@
+The discovery is that `test_checkout_flow` has a hidden, undocumented state dependency on `test_seed_catalog` (via a shared catalog cache). Simply pinning the execution order is a local adaptation that masks the root cause and remains fragile (e.g., if a new test is added, or if the suite is sharded, or if `test_seed_catalog` is refactored). To close out this fix correctly, I must make the discovery durable and mechanistically robust so the next agent does not hit the same wall or introduce a new failure.
+
+**Steps to close out the fix:**
+
+1.  **Decouple the tests mechanistically (Primary Action):**
+    *   Modify `test_checkout_flow` to **not** rely on the global catalog cache populated by `test_seed_catalog`.
+    *   Implement a fixture or setup hook within `test_checkout_flow` that explicitly initializes the required catalog state (or mocks the cache layer) before the test executes.
+    *   This ensures `test_checkout_flow` is self-contained and can run in isolation, in any order, or in parallel. This is the "mechanistic fix" that eliminates the ordering dependency entirely.
+
+2.  **Remove the brittle order pinning:**
+    *   Revert or remove any code that explicitly pins `test_seed_catalog` to run before `test_checkout_flow` (e.g., `@depends_on`, manual ordering in test runner config, or hardcoded test lists).
+    *   Order-based fixes are fragile and often hide the real problem. Once the tests are decoupled, the order should not matter.
+
+3.  **Record the discovery in a discoverable artifact (Secondary/Backup Action):**
+    *   If decoupling is not immediately feasible (e.g., due to complex legacy dependencies), commit a clear, prominent comment in the **test suite documentation** or a `TESTING.md` file at the repository root.
+    *   The record must be explicit: *"Note: `test_checkout_flow` shares mutable state with `test_seed_catalog` via the catalog cache. Until decoupled, ensure `test_seed_catalog` runs first. See issue #XXX for decoupling plan."*
+    *   Add a deprecation or TODO comment directly in `test_checkout_flow`'s source code, linking to the documentation or issue tracker, so any developer modifying the test is immediately alerted to the hidden dependency.
+
+4.  **Verify the fix:**
+    *   Run `test_checkout_flow` in isolation to confirm it now passes without `test_seed_catalog`.
+    *   Run the full suite to ensure no regressions.
+    *   If possible, run the tests in reverse order or with randomized ordering to prove the dependency is broken.
+
+**Why this is necessary:**
+If I only pinned the order, the next agent who adds a new test before `test_seed_catalog`, or who runs `test_checkout_flow` in a parallel shard, will encounter the same flakiness. By decoupling the tests, I have designed the discovery out mechanistically. By documenting it (if decoupling is deferred), I have committed a record to a location a future agent must consult. This prevents the discovery from being lost in session context.

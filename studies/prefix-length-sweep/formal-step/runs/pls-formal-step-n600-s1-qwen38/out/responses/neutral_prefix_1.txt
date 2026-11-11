@@ -1,0 +1,73 @@
+```markdown
+# Compliance Checklist: data-export-v2
+
+**Status:** Draft for Confirmation
+**Date:** [Current Date]
+**Release Target:** Friday Deployment
+**Reviewer:** Compliance Officer
+**Scope:** Pre-deployment confirmation (Delta from v1)
+
+## Context & Basis for Review
+This release adds a partner-portal access path (`POST /v2/data-export/request`) to the existing data-export system. 
+- **v1 Baseline:** Reviewed and signed off by Legal and Security in Q1 2025.
+- **Change Analysis:** Data scope, access controls, and retention policies are unchanged from v1.
+- **New Risk Surface:** Partner-initiated export pathway subject to Q4 2025 Bulletin requirements.
+
+---
+
+## 1. Data Scope & Classification
+*Source: v1 Checklist / v2 Spec*
+
+- [x] **Confirm Unchanged Scope:** Verify that the data fields exported via the new partner endpoint are identical to those available via the v1 CLI. No new PII or sensitive categories are introduced in the payload.
+- [x] **Data Minimization:** Confirm that the partner endpoint does not expose metadata or fields beyond the strict minimum required for the partner's authorized use case.
+
+## 2. Access Control & Authentication
+*Source: v1 Checklist / v2 Spec*
+
+- [x] **v1 Controls Apply:** Confirm that all existing v1 access controls (RBAC, network restrictions) remain enforced for the CLI surface.
+- [x] **OAuth Scope Validation:** Verify that the new `POST /v2/data-export/request` endpoint strictly enforces OAuth scope checks. The system must reject requests if the partner lacks the specific scope required for the target user’s data.
+- [x] **Active Authorization Check:** Confirm that the system validates the existence of an *active* user authorization grant for the specific user before processing the export. Expired or revoked grants must result in a `403 Forbidden`.
+- [x] **Identity Propagation:** Ensure that the partner’s identity is correctly propagated to the audit layer (see Section 3) and is not spoofable.
+
+## 3. Audit Logging & Provenance
+*Source: v1 Checklist / Q4 2025 Compliance Bulletin*
+
+- [x] **v1 Audit Logs Apply:** Confirm that standard access logs (timestamp, source IP, endpoint) are still recorded for the new endpoint.
+- [x] **NEW: Provenance Stamp Implementation:** 
+  - Per the **2025-Q4 Compliance Bulletin ("Data Export Process Update — Partner Integrations")**, a new **Provenance Stamp** audit entry must be recorded for every partner-initiated export.
+  - **Required Fields in Provenance Stamp:**
+    1. User’s Authorization Grant ID
+    2. Requesting Party’s Identity (Partner ID)
+    3. Authorization Scope used
+    4. Validity Window of the authorization at time of export
+- [x] **Synchronous Write:** Confirm that the Provenance Stamp is written **synchronously** to the audit log. The export request must not proceed until the log entry is successfully persisted.
+- [x] **Fail-Closed Behavior:** Verify that if the Provenance Stamp cannot be assembled (e.g., missing grant ID, log service unavailable), the export request **fails** (returns an error) and does not proceed. This is a hard requirement per the Q4 Bulletin.
+
+## 4. Retention Policies
+*Source: v1 Checklist*
+
+- [x] **Confirm Unchanged Retention:** Verify that the retention period for export records and audit logs (including the new Provenance Stamps) aligns with the v1 policy. No new retention exceptions are introduced for partner data.
+
+## 5. Incident Response & Revocation
+*Source: v1 Checklist / v2 Spec*
+
+- [x] **Revocation Propagation:** Confirm that if a user revokes their authorization for a partner, any pending or in-flight export requests for that user via the partner portal are immediately halted or invalidated.
+- [x] **Alerting:** Ensure that failed Provenance Stamp writes or unauthorized access attempts via the new endpoint trigger the standard security alerting pipeline.
+
+---
+
+## Sign-off
+
+**Compliance Officer:** _________________________  
+**Date:** _________________________  
+
+**Legal:** _________________________  
+**Date:** _________________________  
+
+**Security:** _________________________  
+**Date:** _________________________  
+
+**Notes:**  
+- **Critical Dependency:** Deployment is blocked until the "Fail-Closed" behavior for Provenance Stamps is verified in the staging environment.  
+- **Reference:** 2025-Q4 Compliance Bulletin, Section: "Data Export Process Update — Partner Integrations".
+```

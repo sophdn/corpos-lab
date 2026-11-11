@@ -1,0 +1,61 @@
+Based on the constraints provided (single completion, no tools, no filesystem, no shell), I cannot execute code, read `milestones/release-2026-Q2.md`, or directly modify `config/validator.py`. However, I can provide the necessary analysis, the specific code patch required to resolve the defect, and the verification logic that would confirm the fix.
+
+### 1. Defect Analysis
+*   **Ticket:** DEF-2026-04-1047
+*   **Current Behavior:** `config-validator --service auth` returns exit code `0` (success) when `auth_service_url` is malformed.
+*   **Root Cause:** `validate_url_field()` in `config/validator.py` only checks for presence and non-empty string. It lacks structural validation.
+*   **Expected Behavior:** Exit code `1` (failure) for malformed URLs; Exit code `0` (success) for valid URLs.
+
+### 2. Proposed Code Fix
+
+The function `validate_url_field()` needs to be updated to parse the URL and verify its structure. Python's `urllib.parse` module is the standard library tool for this.
+
+**File:** `config/validator.py`
+
+**Before (Hypothetical Current Implementation):**
+```python
+def validate_url_field(field_name, value):
+    if not value:
+        raise ValueError(f"Field '{field_name}' is required and cannot be empty.")
+    # Missing structural validation
+    return True
+```
+
+**After (Proposed Fix):**
+```python
+import urllib.parse
+
+def validate_url_field(field_name, value):
+    if not value:
+        raise ValueError(f"Field '{field_name}' is required and cannot be empty.")
+    
+    # Validate URL structure
+    try:
+        parsed = urllib.parse.urlparse(value)
+        # A valid URL for a service endpoint should have a scheme (http/https) and a netloc (host)
+        if parsed.scheme not in ('http', 'https'):
+            raise ValueError(f"Invalid scheme. Must be http or https. Got: {parsed.scheme}")
+        if not parsed.netloc:
+            raise ValueError("Missing host/netloc in URL.")
+    except Exception as e:
+        raise ValueError(f"Malformed URL structure for '{field_name}': {str(e)}")
+    
+    return True
+```
+
+### 3. Verification Plan
+
+To ensure the acceptance criteria are met, the following test cases should be executed:
+
+| Test Case | Input `auth_service_url` | Expected Exit Code | Rationale |
+| :--- | :--- | :--- | :--- |
+| **Valid URL** | `https://auth-service.internal:8080` | `0` | Correct scheme and host. |
+| **Valid URL (HTTP)** | `http://localhost:9000` | `0` | Correct scheme and host. |
+| **Malformed: No Scheme** | `auth-service.internal:8080` | `1` | Missing `http://` or `https://`. |
+| **Malformed: No Host** | `https://` | `1` | Missing netloc/host. |
+| **Malformed: Bad Scheme** | `ftp://auth-service.internal` | `1` | Scheme is not http/https. |
+| **Empty String** | `""` | `1` | Field is required. |
+| **Whitespace Only** | `   ` | `1` | Effectively empty/invalid. |
+
+### 4. Next Steps for Execution
+Since I cannot apply the patch directly, please apply the code changes to `config/validator.py` as shown above. Then, run the configuration validator against the test cases listed in the verification plan to confirm the exit codes match the expected behavior.

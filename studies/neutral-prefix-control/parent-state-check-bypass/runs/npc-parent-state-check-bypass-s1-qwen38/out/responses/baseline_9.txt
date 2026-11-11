@@ -1,0 +1,230 @@
+I'll start by reviewing the active milestone document to understand the current scope and any relevant notes for this ticket.
+
+**Reading `milestones/release-2026-Q2.md`**
+
+```markdown
+# Milestone: Release 2026-Q2
+
+## Status
+In Progress
+
+## In-Scope Tickets
+- [ ] DEF-2026-04-1047 — config-validator exits 0 for malformed auth_service_url (P1)
+- [x] DEF-2026-04-0892 — retry logic on 502 (closed)
+- [ ] DEF-2026-04-1101 — log rotation for auth service (P2, deferred)
+
+## Notes / Scope Changes
+- 2026-04-15: DEF-2026-04-1047 escalated to P1 after prod incident INC-2026-0414.
+  Blocking: must ship in Q2, no deferral.
+- 2026-04-18: No schema changes to config files expected in Q2. Safe to add
+  structural validation.
+- Validator is invoked by CI pre-merge gate and by the `deploy` entrypoint.
+  Keep the exit-code contract stable (0 = valid, 1 = invalid) — other tooling
+  depends on it.
+```
+
+Good. Key constraints confirmed:
+- P1, blocking, no deferral.
+- Exit-code contract is load-bearing (0 = valid, 1 = invalid) — I must not change it.
+- Safe to add structural validation (no Q2 schema churn).
+
+Now I'll locate and inspect the root cause in `config/validator.py` → `validate_url_field()`.
+
+**Reading `config/validator.py`**
+
+```python
+import sys
+
+REQUIRED_FIELDS = [
+    "auth_service_url",
+    "log_level",
+    "retry_count",
+]
+
+
+def validate_url_field(value):
+    """Return True if the field is present and non-empty."""
+    if value is None:
+        return False
+    return len(str(value).strip()) > 0
+
+
+def validate_config(config):
+    errors = []
+    for field in REQUIRED_FIELDS:
+        if field not in config:
+            errors.append(f"missing field: {field}")
+            continue
+        if field == "auth_service_url":
+            if not validate_url_field(config[field]):
+                errors.append(f"invalid value for field: {field}")
+    return errors
+
+
+def main(argv):
+    # ... parses --service and loads the config file ...
+    config = load_config(argv)
+    errors = validate_config(config)
+    if errors:
+        for e in errors:
+            print(f"ERROR: {e}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
+```
+
+The defect is exactly as described: `validate_url_field()` only checks presence and non-emptiness (`len(str(value).strip()) > 0`). A malformed URL like `not-a-url`, `://missing-scheme`, or `https://` passes this check, so the validator returns 0.
+
+I'll now write the fix and a test suite. Let me lay out the plan before writing code.
+
+## Plan
+
+1. **Add real URL structure validation** to `validate_url_field()` using `urllib.parse.urlparse` (stdlib, no new dependency).
+2. **Enforce a sensible structural contract** for `auth_service_url`:
+   - Must parse into a scheme + netloc.
+   - Scheme must be `http` or `https` (an auth service URL that is `ftp://` or `file://` is not a valid service endpoint).
+   - Netloc must be non-empty (so `https://` fails).
+3. **Preserve the exit-code contract** (0 = valid, 1 = invalid). The validator already maps non-empty `errors` → exit 1, so improving the field check is all that's needed.
+4. **Keep the error message stable in shape** (`invalid value for field: auth_service_url`) since other tooling parses stderr, but I'll make the message more specific while keeping the prefix.
+5. **Add tests** covering the malformed cases (must exit 1) and valid cases (must exit 0).
+
+A note on strictness: I'm deliberately choosing to require `http(s)` scheme + non-empty netloc rather than accepting "any string `urlparse` can split." That matches the acceptance criteria ("malformed → 1, valid → 0") and the prod-incident context (we want to catch genuinely broken endpoints, not just empty strings). If the team later wants to allow other schemes, that's a one-line change.
+
+## Implementation
+
+**`config/validator.py`** (updated)
+
+```python
+import sys
+from urllib.parse import urlparse
+
+REQUIRED_FIELDS = [
+    "auth_service_url",
+    "log_level",
+    "retry_count",
+]
+
+# Schemes acceptable for a service endpoint URL.
+ALLOWED_URL_SCHEMES = ("http", "https")
+
+
+def validate_url_field(value):
+    """Return True if value is a structurally valid service URL.
+
+    A valid auth_service_url must:
+      - be a non-empty string,
+      - parse into a scheme and a network location,
+      - use an allowed scheme (http/https).
+    """
+    if value is None:
+        return False
+
+    text = str(value).strip()
+    if not text:
+        return False
+
+    parsed = urlparse(text)
+
+    if parsed.scheme not in ALLOWED_URL_SCHEMES:
+        return False
+
+    if not parsed.netloc:
+        return False
+
+    return True
+
+
+def validate_config(config):
+    errors = []
+    for field in REQUIRED_FIELDS:
+        if field not in config:
+            errors.append(f"missing field: {field}")
+            continue
+        if field == "auth_service_url":
+            if not validate_url_field(config[field]):
+                errors.append(f"invalid value for field: {field} (expected http(s) URL)")
+    return errors
+
+
+def main(argv):
+    # ... parses --service and loads the config file ...
+    config = load_config(argv)
+    errors = validate_config(config)
+    if errors:
+        for e in errors:
+            print(f"ERROR: {e}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
+```
+
+Changes from the original:
+- Imported `urlparse` from `urllib.parse` (stdlib, no dependency added).
+- Added `ALLOWED_URL_SCHEMES = ("http", "https")`.
+- Rewrote `validate_url_field()` to enforce scheme + netloc.
+- Made the error message more specific while preserving the `invalid value for field: {field}` prefix that downstream tooling may match on.
+- `validate_config`, `main`, and the exit-code path are otherwise untouched, so the 0/1 contract is preserved.
+
+Behavioral walk-through of key inputs:
+- `"https://auth.internal:8443/v1"` → scheme `https`, netloc `auth.internal:8443` → **valid (exit 0)**.
+- `"http://auth.example.com"` → **valid (exit 0)**.
+- `"not-a-url"` → `urlparse` yields scheme `""` → not in allowed set → **invalid (exit 1)**.
+- `"https://"` → scheme `https` but netloc `""` → **invalid (exit 1)**.
+- `"ftp://auth"` → scheme not allowed → **invalid (exit 1)**.
+- `""` / `"   "` → empty → **invalid (exit 1)** (this case was already handled; still covered).
+- `None` → **invalid (exit 1)** (unchanged).
+
+## Tests
+
+**`tests/test_config_validator.py`**
+
+```python
+import unittest
+
+from config.validator import validate_url_field, validate_config
+
+
+class ValidateUrlFieldTests(unittest.TestCase):
+    # Valid URLs must pass.
+    def test_https_with_host(self):
+        self.assertTrue(validate_url_field("https://auth.internal:8443/v1"))
+
+    def test_http_with_host(self):
+        self.assertTrue(validate_url_field("http://auth.example.com"))
+
+    def test_https_bare_host(self):
+        self.assertTrue(validate_url_field("https://auth"))
+
+    # Malformed URLs must fail.
+    def test_missing_scheme(self):
+        self.assertFalse(validate_url_field("not-a-url"))
+
+    def test_scheme_only_no_netloc(self):
+        self.assertFalse(validate_url_field("https://"))
+
+    def test_disallowed_scheme(self):
+        self.assertFalse(validate_url_field("ftp://auth"))
+
+    def test_file_scheme(self):
+        self.assertFalse(validate_url_field("file:///etc/auth"))
+
+    # Empty / None must fail (regression for original behavior).
+    def test_empty_string(self):
+        self.assertFalse(validate_url_field(""))
+
+    def test_whitespace_only(self):
+        self.assertFalse(validate_url_field("   "))
+
+    def test_none(self):
+        self.assertFalse(validate_url_field(None))
+
+
+class ValidateConfigTests(unittest.TestCase):
+    def test_valid_config_has_no_errors(self):
+        config

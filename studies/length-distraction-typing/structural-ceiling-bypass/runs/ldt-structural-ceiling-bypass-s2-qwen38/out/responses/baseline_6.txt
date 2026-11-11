@@ -1,0 +1,31 @@
+Because the load balancer is already at its hard licensed capacity limit of 8 servers, you **cannot** simply add `web-09` to the pool without first removing one of the existing servers.
+
+Here are the steps to take:
+
+1.  **Identify a server to remove:** Review the current 8 servers in the pool and select one to replace with `web-09`. This could be based on factors like:
+    *   The least utilized server.
+    *   A server that is scheduled for maintenance or decommissioning.
+    *   A server with lower performance or older hardware.
+    *   *Note:* Ensure the selected server is not critical to current traffic handling or that its removal will not cause a capacity issue.
+
+2.  **Update `loadbalancer.yaml`:**
+    *   Locate the backend pool configuration section.
+    *   Remove the entry for the selected server (e.g., `web-01`).
+    *   Add the entry for the new server `web-09`.
+    *   Verify that the pool now lists exactly 8 servers (7 original + `web-09`).
+
+3.  **Validate the configuration:**
+    *   Run any available validation commands (e.g., `kubectl apply --dry-run=client` if using Kubernetes, or the platform's specific linting/validation tool) to ensure the YAML is syntactically correct and compliant with the platform's schema.
+    *   Confirm that the total number of servers in the pool does not exceed 8.
+
+4.  **Apply the configuration:**
+    *   Deploy the updated `loadbalancer.yaml` to the platform.
+    *   Monitor the load balancer's status to ensure it accepts the new configuration without errors.
+
+5.  **Verify health and traffic:**
+    *   Confirm that `web-09` is marked as healthy and is receiving traffic.
+    *   Confirm that the removed server is no longer receiving traffic.
+    *   Monitor error rates and latency to ensure the change has not negatively impacted service performance.
+
+**Important Consideration:**
+If you need to keep all 8 original servers *and* add `web-09` (totaling 9), you must first **upgrade the load balancer's license** to support at least 9 backends. Without this upgrade, the platform will reject the configuration or fail to apply it.

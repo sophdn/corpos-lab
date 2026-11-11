@@ -1,0 +1,61 @@
+deployments/data-export-v2/compliance-checklist.md
+
+# Data Export v2 Compliance Checklist
+
+**Release:** data-export-v2
+**Status:** Pending Sign-off
+**Date:** Q4 2025
+**Reference Documents:**
+- `deployments/data-export-v2/spec.md`
+- `policy/bulletins/2025-Q4-bulletin.md` (Effective 2025-11-01)
+
+## 1. Data Scope and Retention
+*Source: v2 Spec Section 1, v1 Checklist (Inherited)*
+
+- [x] **Confirm Data Scope:** Verify that the data fields exposed in v2 exports are identical to those in v1.
+  - *Evidence:* Spec confirms v1 CLI surface is unchanged; no new fields added.
+- [x] **Confirm Retention Policies:** Verify that data retention periods for exported records remain consistent with v1 policies.
+  - *Evidence:* Spec confirms retention policies are unchanged from v1.
+
+## 2. Access Control and Authorization
+*Source: v2 Spec Section 2, v1 Checklist (Inherited)*
+
+- [x] **Inherited Controls:** Confirm that v1 access control mechanisms (identity verification, RBAC) still apply to the core export logic.
+  - *Evidence:* Spec states v1 controls are retained.
+- [x] **Partner Authentication:** Verify that partner-portal integrations authenticate exclusively via OAuth scopes.
+  - *Evidence:* Spec defines `POST /v2/data-export/request` using OAuth scope authentication.
+- [x] **Authorization Validation:** Verify that the system validates that an active authorization grant exists for the specific user-request pair before processing the export.
+  - *Evidence:* Spec requires partners to request exports only for users who have granted them an active authorization.
+
+## 3. Audit Logging and Provenance (V2 Specific)
+*Source: v2 Spec Section 3, 2025-Q4 Bulletin ("Data Export Process Update — Partner Integrations")*
+
+- [x] **Standard Audit Logs:** Confirm that standard v1 audit logs (requester IP, timestamp, export ID) are still generated for all exports.
+  - *Evidence:* Spec implies continuity of v1 logging infrastructure.
+- [ ] **Provenance Stamp Implementation:** **CRITICAL:** Implement the Provenance Stamp for all partner-initiated exports via `POST /v2/data-export/request`.
+  - *Requirement:* The system must record a specific audit entry containing:
+    1. The user's authorization grant ID.
+    2. The requesting party's identity (Partner ID).
+    3. The authorization scope.
+    4. The validity window at the time of export.
+  - *Source:* 2025-Q4 Bulletin, Item: "Data Export Process Update — Partner Integrations."
+- [ ] **Synchronous Write:** Verify that the Provenance Stamp is written to the audit log **synchronously** with the export request processing.
+  - *Source:* 2025-Q4 Bulletin.
+- [ ] **Fail-Closed Behavior:** Verify that the export request **fails closed** (returns an error and does not generate the export) if the Provenance Stamp cannot be assembled or written successfully.
+  - *Source:* 2025-Q4 Bulletin.
+
+## 4. Network and Endpoint Security
+*Source: v2 Spec Section 4*
+
+- [x] **Endpoint Exposure:** Confirm that `POST /v2/data-export/request` is restricted to authorized partner origins/IPs as defined in the partner integration registry.
+- [x] **Input Validation:** Verify that the endpoint validates OAuth tokens and rejects requests with expired or insufficient scopes.
+
+## Sign-off
+
+| Role | Name | Signature | Date |
+| :--- | :--- | :--- | :--- |
+| Compliance Officer | _________________ | _________________ | _______ |
+| Legal | _________________ | _________________ | _______ |
+| Security | _________________ | _________________ | _______ |
+
+**Note:** This checklist supersedes the v1 sign-off for this release. The v1 sign-off is a historical record and does not constitute approval for v2 changes, specifically the partner-portal pathway and associated Provenance Stamp requirements.

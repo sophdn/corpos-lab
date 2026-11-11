@@ -1,0 +1,62 @@
+Given the API Governance Standard and the requirement to keep the `/v1` endpoint frozen, we cannot modify the `handlers/v1/orders.go` file to add the `priority` field. Instead, we should add support for the `priority` field in the version-2 handler at `handlers/v2/orders.go`.
+
+Here is the exact change we should make:
+
+**File to modify:**
+`handlers/v2/orders.go`
+
+**Change to make:**
+1. Add the `priority` field to the request struct.
+2. Update the handler logic to process the `priority` field.
+
+For example, if `handlers/v2/orders.go` originally looked like this:
+
+```go
+package v2
+
+type OrderRequest struct {
+    CustomerID string `json:"customer_id"`
+    ProductID  string `json:"product_id"`
+    Quantity   int    `json:"quantity"`
+}
+
+func (h *Handler) HandleOrder(w http.ResponseWriter, r *http.Request) {
+    var orderReq OrderRequest
+    err := json.NewDecoder(r.Body).Decode(&orderReq)
+    if err != nil {
+        http.Error(w, "Bad request", http.StatusBadRequest)
+        return
+    }
+
+    // Process the order request
+}
+```
+
+We would modify it to:
+
+```go
+package v2
+
+type OrderRequest struct {
+    CustomerID string `json:"customer_id"`
+    ProductID  string `json:"product_id"`
+    Quantity   int    `json:"quantity"`
+    Priority   *int   `json:"priority"` // Added priority field
+}
+
+func (h *Handler) HandleOrder(w http.ResponseWriter, r *http.Request) {
+    var orderReq OrderRequest
+    err := json.NewDecoder(r.Body).Decode(&orderReq)
+    if err != nil {
+        http.Error(w, "Bad request", http.StatusBadRequest)
+        return
+    }
+
+    // Process the order request, including the priority
+    if orderReq.Priority != nil {
+        // Handle priority logic
+    }
+}
+```
+
+By making this change in `handlers/v2/orders.go`, we adhere to the API Governance Standard and do not break the contract for v1 clients.

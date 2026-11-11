@@ -1,0 +1,58 @@
+To address the defect ticket DEF-2026-04-1047, we need to modify the `config/validator.py` file to enhance the `validate_url_field()` function so that it properly validates the structure of the `auth_service_url`. Currently, it only checks if the field is present and non-empty, which is insufficient. The goal is to ensure that a malformed URL causes the validator to exit with a status code of 1, while valid URLs continue to pass.
+
+Here’s a step-by-step plan to implement this fix:
+
+1. **Import Required Libraries**: We will use Python's built-in `urllib.parse` module to validate the URL structure.
+
+2. **Update the `validate_url_field()` Function**:
+   - Parse the URL using `urlparse` to check its components.
+   - Ensure that the scheme (e.g., `http`, `https`) and netloc (domain) are present, as these are typically necessary for a valid URL.
+
+3. **Modify Exit Conditions**:
+   - If the URL is malformed (i.e., doesn't have a valid scheme and netloc), the function should exit with status code 1.
+   - If the URL is valid, the function should continue to allow the process to pass.
+
+4. **Testing**:
+   - Create unit tests to verify that the function correctly identifies malformed URLs and allows valid URLs.
+
+Here is the proposed code update for `config/validator.py`:
+
+```python
+import sys
+from urllib.parse import urlparse
+
+def validate_url_field(url):
+    """Validates the structure of the URL."""
+    parsed_url = urlparse(url)
+    
+    # Check if the URL has a valid scheme and netloc
+    if not parsed_url.scheme or not parsed_url.netloc:
+        print("Error: Malformed URL - 'auth_service_url' is invalid.", file=sys.stderr)
+        sys.exit(1)
+    
+    # If URL is valid, continue
+    return True
+
+# Example usage
+def main():
+    # This part simulates the input URL that would be passed in real usage
+    auth_service_url = "http://example.com"  # Replace with actual input logic
+
+    # Validate the URL
+    if validate_url_field(auth_service_url):
+        print("URL is valid.")
+        sys.exit(0)
+
+if __name__ == "__main__":
+    main()
+```
+
+### Key Changes Explained:
+
+- **URL Parsing**: The `urlparse` function from `urllib.parse` is used to decompose the URL into components. This allows us to verify the presence of a scheme (`http`, `https`, etc.) and a network location (`netloc`), which are essential for a valid URL.
+  
+- **Error Handling**: If the URL does not have a valid scheme or netloc, the program prints an error message to `stderr` and exits with a status code of 1.
+
+- **Testing**: Ensure thorough testing with various URL inputs to confirm the function behaves as expected for both valid and malformed URLs.
+
+By implementing these changes, the validator will correctly handle malformed URLs, aligning with the acceptance criteria specified in the defect ticket.

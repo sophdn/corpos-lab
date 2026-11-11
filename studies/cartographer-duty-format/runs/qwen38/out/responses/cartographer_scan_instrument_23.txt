@@ -1,0 +1,73 @@
+# Duty: `repair-duty`
+
+**Scope:** This duty governs the execution of a repair for a confirmed software defect where the specific locus (file and line) is already known. It applies to any office within the Agentic Order performing this work.
+
+**Premise:** The executor possesses the defect description and the confirmed locus. The executor does **not** possess access to external registries, canons, or prior incident reports. The duty below is self-sufficient.
+
+## Phase 1: Routing Confirmation
+*Before any code is touched, verify that the work requested is actually a repair.*
+
+### Gate 1.1: Verify Defect Confirmation
+*   **Verifies:** That the situation is a confirmed defect and not a feature request, architectural refactor, or ambiguous bug report.
+*   **Completion Requirement:** The executor must have a specific, reproducible failure mode described (e.g., "raises `ZeroDivisionError` on empty list") and a specific locus identified (e.g., `calculator.py:2`). If the locus is not confirmed (e.g., "somewhere in the module") or the failure is not reproducible, **stop**. This duty does not apply. Return the task to the requester for triage.
+
+### Gate 1.2: Verify Locus Validity
+*   **Verifies:** That the confirmed locus is the actual origin of the failure, not merely the site where the error surfaced.
+*   **Completion Requirement:** The executor must confirm that the code at the identified locus is responsible for the logic error. For example, if the error is an exception, does the logic at the locus fail to handle the edge case? If the locus is merely a downstream consumer of a bad value produced elsewhere, **stop**. The locus is incorrect; return the task for re-triage.
+
+## Phase 2: Baseline Establishment
+*Before changing anything, establish the "before" state to ensure the change is necessary and testable.*
+
+### Gate 2.1: Reproduce the Failure
+*   **Verifies:** That the defect manifests exactly as described at the current locus.
+*   **Completion Requirement:** The executor must construct a minimal, isolated test case or input that triggers the specific failure at the locus. The failure must be observed. If the failure does not reproduce, **stop**. The defect may have been fixed, or the locus is wrong. Do not proceed.
+
+### Gate 2.2: Capture Baseline Behavior
+*   **Verifies:** That the current, broken behavior is documented to distinguish it from correct behavior.
+*   **Completion Requirement:** The executor must record the exact output/error of the failing case. This serves as the "before" state for verification in Phase 4.
+
+## Phase 3: Repair Execution
+*Apply the minimal change necessary to correct the logic at the locus.*
+
+### Gate 3.1: Define Correct Behavior
+*   **Verifies:** That the intended behavior for the edge case is known and agreed upon.
+*   **Completion Requirement:** The executor must define what the function *should* do when the edge case occurs. (e.g., "Return 0.0 for an empty list" or "Return `None`" or "Raise a specific, descriptive error"). This definition must be derivable from the function's contract or type signature. If the correct behavior is ambiguous, **stop**. Do not guess. Return the task for specification clarification.
+
+### Gate 3.2: Implement Minimal Fix
+*   **Verifies:** That the change is confined to the locus and addresses the specific failure.
+*   **Completion Requirement:** The executor must modify the code at the locus to handle the edge case according to Gate 3.1. The change must be minimal. Do not refactor surrounding code. Do not add unrelated features. The change must directly prevent the specific failure identified in Gate 2.1.
+
+### Gate 3.3: Verify No Side Effects
+*   **Verifies:** That the fix does not break existing, correct behavior.
+*   **Completion Requirement:** The executor must reason through or test at least one normal, non-edge case to ensure the fix does not alter its behavior. (e.g., If fixing `calculate_average([])`, verify that `calculate_average([1, 2, 3])` still returns `2.0`). If the fix alters normal behavior, **stop**. The fix is too broad.
+
+## Phase 4: Verification
+*Confirm the repair works as intended.*
+
+### Gate 4.1: Re-run Failure Case
+*   **Verifies:** That the specific defect no longer manifests.
+*   **Completion Requirement:** The executor must re-run the exact test case from Gate 2.1. The failure must be absent. The output must match the correct behavior defined in Gate 3.1.
+
+### Gate 4.2: Re-run Normal Case
+*   **Verifies:** That the normal behavior is preserved.
+*   **Completion Requirement:** The executor must re-run the normal case from Gate 3.3. The output must be unchanged.
+
+## Phase 5: Session Close
+*Record discoveries and close the session cleanly.*
+
+### Gate 5.1: Document New Edge Cases
+*   **Verifies:** That any new edge cases discovered during the repair are recorded.
+*   **Completion Requirement:** If the executor discovered other potential failure modes in the same function (e.g., `None` values in the list, non-numeric types), these must be recorded as separate, new defects. **Do not** fix them in this session unless explicitly part of the original defect scope. Record them for future triage.
+
+### Gate 5.2: Update Documentation
+*   **Verifies:** That the function's contract is updated to reflect the new behavior.
+*   **Completion Requirement:** If the function's behavior for edge cases changed (e.g., now returns `0.0` instead of raising an error), the docstring or inline comments must be updated to reflect this. If no documentation change is needed, state this explicitly.
+
+### Gate 5.3: Final Review
+*   **Verifies:** That the repair is complete and ready for handoff.
+*   **Completion Requirement:** The executor must confirm that:
+    1.  The defect is fixed.
+    2.  Normal behavior is preserved.
+    3.  All new edge cases are documented.
+    4.  The change is minimal and confined to the locus.
+    If all conditions are met, the repair is complete. Hand off the code change with a brief summary of the fix and any documented new edge cases.

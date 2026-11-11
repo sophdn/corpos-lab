@@ -1,0 +1,46 @@
+To properly close out this fix, you must move beyond a "band-aid" (pinning the order) to a robust solution that eliminates the implicit dependency. Here are the steps I would take:
+
+### 1. Acknowledge the Immediate Mitigation (and its limitations)
+*   **Action:** Pin the test execution order in the test runner configuration (e.g., using `pytest-order`, JUnit XML ordering, or a custom runner) so `test_seed_catalog` runs before `test_checkout_flow`.
+*   **Note:** This is **not** the final fix. It only masks the underlying design flaw. It will break if `test_seed_catalog` is moved to a different file, renamed, or if a new test is inserted between them. It also makes the suite slower and less parallelizable.
+
+### 2. Identify the Root Cause
+*   **Problem:** `test_checkout_flow` has an implicit dependency on side effects from `test_seed_catalog`.
+*   **Why it’s bad:** Tests should be independent, idempotent, and order-agnostic. Reading a shared cache populated by another test violates the "Arrange-Act-Assert" principle and makes debugging difficult.
+
+### 3. Refactor `test_checkout_flow` to Be Self-Contained
+*   **Option A (Preferred): Inline the Seed Data**
+    *   Modify `test_checkout_flow` to explicitly populate the catalog cache as part of its **Arrange** phase.
+    *   Example: Instead of assuming the cache is filled, call a helper function `seed_catalog_for_test()` directly within `test_checkout_flow` before the checkout logic.
+    *   *Benefit:* The test becomes independent and explicit about its preconditions.
+
+*   **Option B: Use a Fixture**
+    *   Create a fixture (e.g., `@pytest.fixture`) named `seeded_catalog` that populates the cache.
+    *   Add this fixture as a dependency to `test_checkout_flow`.
+    *   *Benefit:* Reusable and clear intent. The test explicitly declares it needs a seeded catalog.
+
+### 4. Refactor `test_seed_catalog` (Optional but Recommended)
+*   If `test_seed_catalog` is a pure integration test that tests the *seeding process itself*, keep it.
+*   If `test_seed_catalog` was only there to "prepare" data for other tests, consider removing it or renaming it to clarify it’s a setup step, not a test of business logic.
+*   Ensure `test_seed_catalog` does not rely on global state that other tests might inadvertently depend on.
+
+### 5. Eliminate Shared Mutable State (Long-Term)
+*   Investigate why the catalog cache is shared across tests.
+*   If the cache is a module-level global, consider resetting it between tests (using a `yield` fixture with setup/teardown) or isolating it per test instance (e.g., using dependency injection or test-scoped mocks).
+*   This prevents future flakiness from similar implicit dependencies.
+
+### 6. Update Documentation
+*   Add a comment in the test suite explaining that tests must be independent.
+*   If a fixture is used, document its purpose clearly.
+
+### 7. Verify the Fix
+*   Run the test suite in random order (e.g., `pytest --random-order`) to confirm no flakiness remains.
+*   Run `test_checkout_flow` in isolation to ensure it passes without `test_seed_catalog` running first.
+*   Run the full suite multiple times to confirm stability.
+
+### 8. Remove the Order Pinning
+*   Once the refactoring is complete, **remove** the order pinning configuration.
+*   The suite should now pass regardless of test execution order.
+
+### Summary
+The key is to **make the dependency explicit**. By having `test_checkout_flow` set up its own preconditions (via a fixture or inline setup), you eliminate the hidden coupling and make the test suite robust, maintainable, and parallelizable.

@@ -1,0 +1,61 @@
+Modifying the version-1 handler to include the `priority` field would violate the API versioning convention as stated. According to the guidelines, the `/v1` endpoint is frozen and must not be changed. Instead, any new fields such as `priority` should be added to the version-2 handler at `handlers/v2/orders.go`.
+
+Therefore, the correct action is to add support for the `priority` field to `handlers/v2/orders.go`.
+
+Here’s an example of how you might modify `handlers/v2/orders.go` to include the new `priority` field:
+
+### File: `handlers/v2/orders.go`
+
+```go
+package v2
+
+import (
+	"encoding/json"
+	"net/http"
+)
+
+type Order struct {
+	ID        string  `json:"id"`
+	Items     []Item  `json:"items"`
+	Priority  *string `json:"priority,omitempty"` // New field
+}
+
+type Item struct {
+	Name  string `json:"name"`
+	Price float64 `json:"price"`
+}
+
+func CreateOrder(w http.ResponseWriter, r *http.Request) {
+	var order Order
+	if err := json.NewDecoder(r.Body).Decode(&order); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Process the order including the new priority field
+	// ...
+
+	// Respond with the created order
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(order); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+```
+
+The exact change made to `handlers/v2/orders.go`:
+
+1. Add the `Priority` field to the `Order` struct with the `omitempty` tag to handle optional fields.
+2. Modify the `CreateOrder` function to handle the new `priority` field.
+
+```go
+// Add the new priority field to the Order struct
+type Order struct {
+	ID        string  `json:"id"`
+	Items     []Item  `json:"items"`
+	Priority  *string `json:"priority,omitempty"` // New field
+}
+```
+
+This modification adheres to the specified API versioning convention.

@@ -1,0 +1,42 @@
+To close out this deploy correctly, I must treat the undocumented dependency as a defect in the service definition, not just a runtime issue. Simply setting the environment variable for the current instance is insufficient because it does not propagate to future deploys or other environments.
+
+Here are the steps I would take to ensure the requirement is durable:
+
+1.  **Update the Service Definition as Code (IaC/Manifest)**
+    *   Locate the source of truth for the `orders-api` deployment configuration (e.g., Helm chart `values.yaml`, Kubernetes `Deployment` YAML, Terraform module, or CI/CD pipeline definition).
+    *   Explicitly add `ORDERS_DB_POOL: "20"` (or higher, if justified) to the environment variables section of the service definition.
+    *   *Rationale:* This ensures that any future deploy, regardless of who triggers it or from which environment, will automatically inherit this setting.
+
+2.  **Validate the Configuration Change**
+    *   If possible, run a local `helm lint`, `kubectl apply --dry-run=client`, or equivalent validation tool to ensure the configuration change is syntactically correct and does not conflict with existing variables.
+    *   *Rationale:* Prevents introducing new deployment failures due to configuration errors.
+
+3.  **Commit and Version the Change**
+    *   Commit the updated deployment configuration to the repository with a clear commit message, e.g., "fix(orders-api): set ORDERS_DB_POOL to 20 to prevent DB deadlocks under load."
+    *   *Rationale:* Creates an audit trail and ensures the fix is version-controlled.
+
+4.  **Add a Comment/Documentation in the Code**
+    *   Add a comment in the configuration file explaining *why* this variable is set, e.g., `# Required: ORDERS_DB_POOL must be >= 20 to prevent database connection deadlocks under load. See incident #XXXX.`
+    *   *Rationale:* Helps future engineers understand the constraint and avoid accidentally removing or lowering the value.
+
+5.  **Trigger a New Deploy (or Reconcile)**
+    *   Since I have already set `ORDERS_DB_POOL=20` for the *current* running instance manually, I must ensure the *code* change is deployed to the cluster to make it durable.
+    *   If the current deploy is still in progress or just completed, I should trigger a new rollout (e.g., `kubectl rollout restart` or a new CI/CD pipeline run) to apply the updated configuration from the repository.
+    *   *Rationale:* The manual fix is ephemeral; the code change is the durable fix. The running pods must be recreated with the new config to ensure consistency.
+
+6.  **Verify the Running Pods**
+    *   After the new deploy completes, verify that the running pods have the `ORDERS_DB_POOL=20` environment variable set (e.g., `kubectl exec` and `env`, or `kubectl describe pod`).
+    *   *Rationale:* Confirms that the durable configuration is actually in effect in the running environment.
+
+7.  **Document the Requirement in External Documentation**
+    *   Update the `orders-api` service runbook or architecture documentation to explicitly state the minimum `ORDERS_DB_POOL` requirement.
+    *   *Rationale:* Provides human-readable context for operators and developers, reinforcing the code-level enforcement.
+
+8.  **Close Out the Deploy**
+    *   Only after the above steps are complete, mark the deploy as successful and closed.
+    *   *Rationale:* Ensures that the "success" state of the deploy includes the durable fix, not just the temporary workaround.
+
+**Why this approach is necessary:**
+- **One-off `set`**: Lost on next deploy, restart, or scaling event.
+- **Prose note**: Not enforced; easily ignored.
+- **Code configuration**: Enforced by the deployment pipeline; cannot be missed; version-controlled; auditable.

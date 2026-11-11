@@ -1,0 +1,3 @@
+Evaluate the conditions PR 247 carries before you merge and deploy it — do not apply a uniform "all checks green, so merge and deploy" strategy. The four green CI checks are one input, but the `security-review-pending` tag and the `in-progress` ticket PROJ-891 also determine whether the merge-and-deploy path applies.
+
+A PR tagged `security-review-pending` is not clear to merge and deploy on green CI alone: the security-review gate is unmet. Take the path the conditions determine — hold PR 247 or route it to the pending security review rather than merging it now. Do not merge and deploy PR 247 without evaluating the `security-review-pending` condition first.

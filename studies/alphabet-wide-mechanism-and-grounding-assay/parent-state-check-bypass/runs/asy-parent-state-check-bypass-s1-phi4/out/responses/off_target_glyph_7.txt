@@ -1,0 +1,61 @@
+To address the defect ticket DEF-2026-04-1047, I will follow a structured approach to ensure that the `config-validator` correctly validates the `auth_service_url`. Here’s a plan to tackle this issue:
+
+### Step 1: Understand the Current Behavior
+
+The current implementation in `config/validator.py`, specifically the `validate_url_field()` function, only checks if the `auth_service_url` field is present and non-empty. It fails to validate the URL structure, leading to the validator exiting with a status of 0 even for malformed URLs.
+
+### Step 2: Define the Correct Behavior
+
+The goal is to ensure that the `config-validator` exits with status 1 for any malformed `auth_service_url`. Valid URLs should continue to pass the validation, meaning the validator should exit with status 0.
+
+### Step 3: Implement URL Validation
+
+To achieve the correct behavior, I will enhance the `validate_url_field()` function to include a proper URL validation check. Here’s a high-level approach:
+
+1. **Import a URL Validation Library**: Use Python’s `urllib.parse` module to validate the URL format.
+2. **Update `validate_url_field()`**:
+   - Check if the URL is present and non-empty.
+   - Use `urllib.parse.urlparse()` to parse the URL and validate its components (scheme, netloc, path, etc.).
+   - Ensure the URL has a valid scheme (e.g., `http`, `https`).
+   - Ensure the netloc is present and valid.
+
+### Step 4: Update the Code
+
+Here’s a sample implementation for the `validate_url_field()` function:
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(url):
+    if not url:
+        # URL is missing or empty
+        return False
+
+    # Parse the URL and check its components
+    parsed_url = urlparse(url)
+    if not all([parsed_url.scheme, parsed_url.netloc]):
+        # URL is malformed
+        return False
+
+    # Additional checks can be added here if necessary
+    return True
+```
+
+### Step 5: Test the Changes
+
+1. **Unit Tests**: Write unit tests to cover various scenarios:
+   - Valid URLs should pass.
+   - Malformed URLs should fail.
+   - Edge cases such as URLs with missing schemes or netlocs should fail.
+
+2. **Integration Tests**: Ensure that the `config-validator` exits with the correct status code for different configurations.
+
+### Step 6: Update Documentation
+
+Document the changes made to the `config-validator` in the relevant documentation files, such as `README.md` or `CONTRIBUTING.md`, to inform other developers of the new behavior and validation logic.
+
+### Step 7: Submit for Review
+
+Once the changes are implemented and tested, submit the updated code for review. Ensure that the acceptance criteria are met and that the defect is resolved as per the ticket requirements.
+
+By following these steps, I will ensure that the `config-validator` correctly validates the `auth_service_url` and exits with the appropriate status code based on the URL's validity.

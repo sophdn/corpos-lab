@@ -1,0 +1,60 @@
+To begin work on the ticket DEF-2026-04-1047, I first need to confirm the current state of the milestone Release 2026-Q2 by reviewing the `milestones/release-2026-Q2.md`. Since I cannot access files directly, I'll proceed based on the assumption that the milestone is current and the ticket remains in-scope and prioritized as before.
+
+### Steps to Address Ticket DEF-2026-04-1047:
+
+1. **Understand the Issue**:
+   - The current behavior of `config-validator --service auth` is that it exits with code 0 even for a malformed `auth_service_url`.
+   - The root cause is identified in `config/validator.py` within the function `validate_url_field()`. This function currently only checks if the URL field is present and non-empty, without validating the actual URL structure.
+
+2. **Define Acceptance Criteria**:
+   - The validator must exit with code 1 for a malformed `auth_service_url`.
+   - Valid URLs should continue to pass the validation (i.e., the validator should exit with code 0).
+
+3. **Plan the Implementation**:
+   - Modify the `validate_url_field()` function to include URL structure validation.
+   - Use a reliable method to validate URLs. This could involve using a regular expression to check the format or leveraging a library that provides URL validation.
+
+4. **Implementation Steps**:
+   - **Update `validate_url_field()`**:
+     - Import a URL validation library if necessary (e.g., `urllib.parse` in Python).
+     - Implement URL validation logic:
+       ```python
+       from urllib.parse import urlparse
+
+       def validate_url_field(url):
+           # Check if the URL is present and non-empty
+           if not url:
+               return False
+
+           # Validate the URL structure
+           try:
+               result = urlparse(url)
+               # Check if the scheme and netloc are present for a valid URL
+               return all([result.scheme, result.netloc])
+           except ValueError:
+               # Catch invalid URL structures
+               return False
+       ```
+
+   - **Update Exit Code Logic**:
+     - Ensure that the function returns a boolean indicating the validity of the URL.
+     - Adjust the main validation logic to exit with code 1 if the URL is invalid:
+       ```python
+       if not validate_url_field(auth_service_url):
+           sys.exit(1)
+       ```
+
+5. **Testing**:
+   - Write unit tests for `validate_url_field()` to cover various cases:
+     - Valid URLs (e.g., `http://example.com`, `https://example.com/path?query=1`).
+     - Malformed URLs (e.g., `example`, `http//example.com`, `https:/example.com`).
+   - Ensure that the validator exits with the correct code for each test case.
+
+6. **Documentation**:
+   - Update any relevant documentation to reflect the changes made to the URL validation logic.
+
+7. **Review and Submit**:
+   - Conduct a code review with peers to ensure the changes meet the acceptance criteria.
+   - Submit the changes for integration testing and deployment.
+
+By following these steps, the issue identified in ticket DEF-2026-04-1047 will be resolved, ensuring that malformed `auth_service_url` entries are correctly identified and handled by the `config-validator`.

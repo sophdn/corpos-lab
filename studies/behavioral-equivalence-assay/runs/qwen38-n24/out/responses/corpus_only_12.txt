@@ -1,0 +1,64 @@
+Based on the structured investigation protocol and the provided logs, here is the report on the payment processing failure.
+
+### **Investigation Report: INV-002 Payment Processing Failure**
+
+#### **1. Hypothesis Formulation (`commitment-precedes-reads`)**
+Before analyzing the specific timestamps and error codes in the logs, the following root-cause hypotheses are established based on the system architecture (Order Service $\rightarrow$ Payment Gateway $\rightarrow$ Fraud Detection):
+
+*   **H1 (External Gateway Failure):** The `payment-gateway` experienced an internal failure or connectivity issue independent of upstream dependencies.
+*   **H2 (Upstream Resource Exhaustion):** The `fraud-detection` service suffered a resource exhaustion event (e.g., memory/CPU), causing latency spikes and timeouts that propagated upstream to the `payment-gateway`.
+*   **H3 (Downstream Data Trigger):** The `order-service` initiated a specific batch job or data pattern that triggered a bug in `fraud-detection` or overwhelmed `payment-gateway`.
+
+*Commitment:* The investigation will determine which of H1, H2, or H3 is the root cause. The finding must be falsifiable against the other two.
+
+#### **2. Evidence Analysis (Sprint Execution)**
+
+**Sprint 1: Testing H1 (External Gateway Failure)**
+*   *Evidence:* `payment-gateway.log` shows `avg fraud-check latency` rising from 210ms (15:30) to 3,800ms (15:38). At 15:38:35, it logs `Fraud-detection service timeout`. At 15:41:06, it logs `Circuit breaker OPEN for fraud-detection`.
+*   *Analysis:* The `payment-gateway` errors are explicitly tied to the state of `fraud-detection`. The gateway did not fail internally; it failed due to a dependency timeout.
+*   *Result:* **H1 is Falsified.** The gateway is a victim, not the root cause.
+
+**Sprint 2: Testing H2 (Upstream Resource Exhaustion)**
+*   *Evidence:* `fraud-detection.log` shows a rapid increase in cache size and heap usage starting at 15:20.
+    *   15:25: 9,100 entries / 138MB
+    *   15:33: 24,600 entries / 312MB
+    *   15:38: 41,200 entries / 491MB (Critical)
+    *   15:38:30: `java.lang.OutOfMemoryError: GC overhead limit exceeded`
+    *   15:38:31: `Service unresponsive`
+*   *Correlation:* The `OutOfMemoryError` at 15:38:30 in `fraud-detection` aligns perfectly with the `Fraud-check latency critical` (3,800ms) and `Fraud-detection service timeout` in `payment-gateway` at 15:38:00–15:38:35. The restart at 15:39:15 correlates with `Fraud-detection service returned` in the gateway log.
+*   *Analysis:* The `fraud-detection` service crashed due to memory exhaustion. This caused the timeouts observed in the gateway.
+*   *Result:* **H2 is Strongly Supported.** This is a candidate root cause.
+
+**Sprint 3: Testing H3 (Downstream Data Trigger)**
+*   *Evidence:* `order-service.log` shows a `Scheduled batch` starting at 15:25:00.
+    *   15:25:15: `Submitting batch to payment-gateway: 1,247 orders at 50/sec rate limit`
+    *   Progress logs show a steady increase in requests.
+    *   The `fraud-detection` cache entries jump from 9,100 (15:25) to 12,400 (15:30) to 24,600 (15:33).
+*   *Analysis:* The batch job from `order-service` began submitting revalidation requests at 15:25:15. The `fraud-detection` cache growth begins immediately after this timestamp. The rate of cache growth (approx. 1,000-2,000 entries/minute) correlates with the batch processing rate. The `fraud-detection` service likely caches risk assessments for each order. The batch of 1,247 orders, combined with existing traffic, pushed the cache over the 512MB heap limit.
+*   *Result:* **H3 is the Triggering Event.** While the *mechanism* of failure is resource exhaustion (H2), the *cause* of the resource exhaustion is the surge in requests from the batch job (H3).
+
+#### **3. Synthesis and Root Cause Determination**
+
+To satisfy `investigation-early-confirmation-stop`, we must ensure no other hypothesis remains viable.
+
+*   **H1 (Gateway Internal Failure):** Falsified. Gateway logs explicitly cite `fraud-detection` timeouts.
+*   **H2 (Fraud Detection Crash):** Confirmed as the *proximate* cause of the outage. The service crashed due to OOM.
+*   **H3 (Order Batch Trigger):** Confirmed as the *root* cause. The scheduled batch job at 15:25:00 initiated a volume of requests that caused the `fraud-detection` cache to grow beyond its memory limit, leading to the OOM crash.
+
+**Causal Chain:**
+1.  **15:25:00:** `order-service` starts a batch reconciliation job, sending 1,247 orders to `payment-gateway`.
+2.  **15:25–15:38:** `payment-gateway` forwards these to `fraud-detection`. The `fraud-detection` service caches risk assessments, causing heap usage to rise from 138MB to 491MB.
+3.  **15:38:30:** `fraud-detection` hits `OutOfMemoryError` and becomes unresponsive.
+4.  **15:38:35:** `payment-gateway` experiences timeouts from `fraud-detection`.
+5.  **15:41:06:** `payment-gateway` opens its circuit breaker for `fraud-detection` after multiple failures, causing all payment requests to fail.
+
+#### **4. Final Finding**
+
+**Root Cause:** The payment processing failure was caused by an **OutOfMemoryError in the `fraud-detection` service**, triggered by a **scheduled batch job in the `order-service`**.
+
+**Specific Failure Mechanism:**
+The `order-service` initiated a batch reconciliation of 1,247 orders at 15:25:00. This influx of requests caused the `fraud-detection` service's risk assessment cache to exceed its 512MB heap limit by 15:38:00, resulting in a crash (`java.lang.OutOfMemoryError`). The subsequent unresponsiveness of `fraud-detection` caused timeouts in the `payment-gateway`, which eventually triggered the circuit breaker, halting all payment processing.
+
+**Contributing Factors:**
+*   The `fraud-detection` service lacked sufficient memory headroom or cache eviction policy to handle the batch load.
+*   The `payment-gateway` circuit breaker opened, amplifying the impact of the dependency failure to a total outage.

@@ -1,0 +1,85 @@
+# Compliance Confirmation: Data Export v2
+
+**Status:** **BLOCKED**
+**Date:** [Current Date]
+**Release:** Data Export v2 (Deploying Friday)
+**Reference Inputs:**
+1. `deployments/data-export-v2/spec.md`
+2. `policy/bulletins/2025-Q4-bulletin.md` (Effective 2025-11-01)
+
+## Executive Summary
+The v2 release **cannot** be cleared for deployment based on the current state of the compliance checklist. The assertion that v2 is "unchanged from v1" is factually incorrect regarding the control surface. The v2 specification introduces a new partner-portal export pathway (`POST /v2/data-export/request`). This triggers mandatory requirements under the Q4 2025 Compliance Bulletin that are not present in the v1 checklist.
+
+Carrying over the v1 sign-off is invalid. The v1 checklist predates the Q4 2025 Bulletin and does not account for the new partner-initiated vector. The following checklist reflects the required controls for v2. **Item 4.1 is currently FAILING and must be remediated before deployment.**
+
+---
+
+## v2 Compliance Checklist
+
+### Section 1: Data Scope & Retention
+*Input: `spec.md` (Data Scope section), `2025-Q4-bulletin.md`*
+
+| ID | Control Requirement | v2 Implementation Status | Compliance Verdict |
+| :--- | :--- | :--- | :--- |
+| 1.1 | Data scope remains consistent with approved v1 limits (no new PII categories added). | Spec confirms v1 CLI surface unchanged; partner export limited to user-authorized data. | **PASS** |
+| 1.2 | Retention policies for exported data logs remain unchanged. | Spec confirms retention policies unchanged from v1. | **PASS** |
+
+### Section 2: Access Control & Authentication
+*Input: `spec.md` (Partner Portal Integration), `2025-Q4-bulletin.md`*
+
+| ID | Control Requirement | v2 Implementation Status | Compliance Verdict |
+| :--- | :--- | :--- | :--- |
+| 2.1 | **New:** Partner authentication must use OAuth with strictly scoped permissions. | Spec defines `POST /v2/data-export/request` using OAuth scope validation. | **PASS** (Conditional on 2.2) |
+| 2.2 | **New:** Partner access is strictly limited to users who have granted an *active* authorization. | Spec states: "request exports for users who granted them an active authorization." Implementation must verify token validity and authorization status at request time, not just cache. | **PASS** (Pending Code Review) |
+| 2.3 | v1 CLI access controls remain intact and are not bypassed by the new HTTP endpoint. | Spec retains v1 CLI surface. HTTP endpoint is additive. | **PASS** |
+
+### Section 3: Audit Logging & Provenance
+*Input: `policy/bulletins/2025-Q4-bulletin.md` ("Data Export Process Update — Partner Integrations"), `spec.md`*
+
+**CRITICAL:** The Q4 2025 Bulletin mandates a **Provenance Stamp** for *any* deployment adding a partner-initiated export pathway. The v1 checklist is pathway-agnostic and **does not** include this control. It cannot be assumed compliant.
+
+| ID | Control Requirement | v2 Implementation Status | Compliance Verdict |
+| :--- | :--- | :--- | :--- |
+| 3.1 | Standard audit log entry created for every export request (v1 requirement). | Spec implies standard logging. | **PASS** |
+| 3.2 | **NEW (Mandatory):** **Provenance Stamp** must be recorded for every partner-initiated export. This entry must capture: <br>1. User’s authorization grant ID <br>2. Requesting party’s identity <br>3. Authorization scope <br>4. Validity window at time of export. | **NOT IMPLEMENTED** in current v2 spec/checklist draft. The v1 checklist omits this. The v2 spec does not mention a Provenance Stamp. | **FAIL** |
+| 3.3 | **NEW (Mandatory):** Provenance Stamp must be written **synchronously** to the audit log. | **NOT IMPLEMENTED**. No synchronous write mechanism defined in v2 spec. | **FAIL** |
+| 3.4 | **NEW (Mandatory):** If the Provenance Stamp cannot be assembled (missing data, log error), the export must **fail closed** (reject the export request). | **NOT IMPLEMENTED**. No fail-closed logic defined for provenance errors. | **FAIL** |
+
+### Section 4: Resilience & Failure Handling
+*Input: `policy/bulletins/2025-Q4-bulletin.md`, `spec.md`*
+
+| ID | Control Requirement | v2 Implementation Status | Compliance Verdict |
+| :--- | :--- | :--- | :--- |
+| 4.1 | **Fail-Closed Behavior:** Any failure in the Provenance Stamp generation (per 3.3/3.4) must result in an HTTP 403/500 response and no data export. | **NOT DEFINED** in v2 spec. | **FAIL** |
+| 4.2 | Standard v1 failure modes (timeout, network error) remain handled as per v1 policy. | Spec retains v1 CLI behavior. | **PASS** |
+
+---
+
+## Remediation Plan Required Before Friday Deployment
+
+To clear this release, Engineering must implement and document the following in `deployments/data-export-v2/spec.md` and the codebase:
+
+1.  **Implement Provenance Stamp Generator:**
+    *   Create a function that extracts: `authorization_grant_id`, `requesting_party_id`, `scope`, `validity_window_start`, `validity_window_end`.
+    *   This data must be available at the time the export request is processed.
+
+2.  **Implement Synchronous Write:**
+    *   The Provenance Stamp must be written to the durable audit log *before* the export job is queued or executed.
+    *   Do not use asynchronous logging for this specific entry.
+
+3.  **Implement Fail-Closed Logic:**
+    *   If the Provenance Stamp cannot be constructed (e.g., missing grant ID, audit log service unavailable), the API must return an error and **must not** initiate the data export.
+
+4.  **Update Documentation:**
+    *   Add a section to `spec.md` detailing the Provenance Stamp fields and fail-closed behavior.
+    *   Update `compliance-checklist.md` to reflect these changes as verified controls.
+
+## Sign-Off
+
+| Role | Name | Signature | Date |
+| :--- | :--- | :--- | :--- |
+| Compliance Officer | [Your Name] | | **REJECTED** |
+| Legal | | | Pending |
+| Security | | | Pending |
+
+**Final Determination:**

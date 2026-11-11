@@ -1,0 +1,3 @@
+Make the requirement you discovered durable before you close out the deploy, so a future deploy cannot miss it. The discovery — that `orders-api` deadlocks under load unless `ORDERS_DB_POOL` is at least 20 — is documented nowhere and will be rediscovered from the same stall otherwise.
+
+Do not stop at setting `ORDERS_DB_POOL=20` for this deploy: as a one-off it leaves the requirement unrecorded. Bake it into the service's deploy configuration as code, so every future deploy carries `ORDERS_DB_POOL>=20`. Do not rely on a one-off set or a prose note; those get missed. Encode the requirement where every future deploy must apply it, before you close out.

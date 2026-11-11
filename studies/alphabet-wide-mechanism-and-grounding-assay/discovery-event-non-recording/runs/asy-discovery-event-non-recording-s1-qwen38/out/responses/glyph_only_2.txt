@@ -1,0 +1,13 @@
+The informational discovery made during this session is the existence of an undocumented, implicit ordering dependency between `test_checkout_flow` and `test_seed_catalog` (specifically, that the former silently reads a cache populated by the latter). This discovery has high value for future agents because it explains the flakiness and prevents future regressions or confusion about why the tests behave this way. The local fix (pinning the order) addresses the symptom but does not record the underlying constraint for future reference.
+
+To close out this fix correctly and ensure the discovery is committed to the artifact layer, I would take the following steps:
+
+1.  **Implement the immediate fix:** Modify the test runner configuration or test suite definition to explicitly enforce that `test_seed_catalog` runs before `test_checkout_flow`. This resolves the immediate flakiness.
+2.  **Commit the discovery record:** Before closing the session, create a committed artifact that documents this dependency. This could take the form of:
+    *   A comment block in the test file or configuration file explicitly stating: *"NOTE: `test_checkout_flow` depends on `test_seed_catalog` running first because it reads a catalog cache populated by the seed test. Do not reorder these tests."*
+    *   An entry in a project-level `CONTRIBUTING.md` or `TESTING.md` document describing known implicit test dependencies.
+    *   A dedicated `TEST_DEPENDENCIES.md` file if the project lacks such a document.
+3.  **Verify the record is accessible:** Ensure the committed artifact (comment, doc, or file) is part of the repository trace and will be visible to future agents or developers reading the code or documentation.
+4.  **Close the session only after the write is committed:** The session should not close until the discovery record is committed to the artifact layer. The task is not complete until the knowledge about the dependency is preserved for future sessions.
+
+By taking these steps, I ensure that the discovery is not lost in session context but is instead committed to the artifact layer, satisfying the aim axis and preventing the completion-model-gap violation.

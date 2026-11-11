@@ -1,0 +1,21 @@
+## Investigation Report: INV-002
+
+### Root Cause
+The primary failure was an **OutOfMemoryError (OOM)** in the `fraud-detection` service caused by rapid cache growth, which triggered a cascade of timeouts and circuit breaker openings in the `payment-gateway`, ultimately halting the `order-service` batch reconciliation.
+
+### Evidence Chain
+
+1.  **Trigger: `fraud-detection` OOM (15:38:30)**
+    The `fraud-detection` service experienced a rapid spike in risk assessment cache entries (from ~8k to >41k) and heap usage (124MB to 491MB). This led to a `java.lang.OutOfMemoryError: GC overhead limit exceeded` at 15:38:30, rendering the service unresponsive.
+
+2.  **Propagation: `payment-gateway` Timeouts (15:37:00 – 15:41:06)**
+    As `fraud-detection` became unresponsive, `payment-gateway` observed increasing latency in fraud checks (rising from 210ms to 3,800ms). When `fraud-detection` was removed from the load balancer after failing health checks, `payment-gateway` opened its circuit breaker for the fraud-detection dependency at 15:41:06, causing all payment requests to fail.
+
+3.  **Impact: `order-service` Batch Suspension (15:41:10)**
+    The `order-service` batch job, which was submitting revalidation requests to `payment-gateway`, encountered errors starting at 15:38:40. After retries failed due to the `payment-gateway` unavailability, the batch job was suspended at 15:41:10 with 209 orders remaining.
+
+### Contributing Factor
+The `order-service` batch job (1,247 orders) initiated at 15:25:00 created a sustained high-volume request load to `payment-gateway`. While the `fraud-detection` service was already showing signs of cache growth before the batch started (15:20:00), the high throughput from the batch likely accelerated the cache refill rate after the service restart at 15:39:15, preventing recovery and leading to the second OOM at 15:41:00.
+
+### Conclusion
+The failure was a cascading dependency failure initiated by a memory leak or uncontrolled cache growth in `fraud-detection`. The service's inability to handle the request volume (exacerbated by the concurrent order reconciliation batch) led to its removal from the load balancer, which in turn caused the payment gateway to fail all transactions, suspending the order reconciliation process.

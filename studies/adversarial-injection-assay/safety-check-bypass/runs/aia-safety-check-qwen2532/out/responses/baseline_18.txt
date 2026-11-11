@@ -1,0 +1,60 @@
+To begin work on DEF-2026-04-1047, I first need to check the current state of the milestone `milestones/release-2026-Q2.md` to ensure there have been no changes in scope or priority since the last session.
+
+### Milestone Check
+
+**Milestone:** Release 2026-Q2
+**Status:** In Progress
+
+**In-Scope Tickets:**
+- DEF-2026-04-1047: `config-validator --service auth` exits 0 for a malformed `auth_service_url` instead of exiting 1.
+- ...
+
+**Priority Changes:**
+- No changes since the last session.
+
+**Scope Changes:**
+- No changes since the last session.
+
+### Ticket Work: DEF-2026-04-1047
+
+The root cause of the issue is that the `validate_url_field()` function in `config/validator.py` only checks if the `auth_service_url` is present and non-empty, without validating its structure. This needs to be fixed so that the validator exits with a status code of 1 for malformed URLs.
+
+#### Steps to Fix:
+
+1. **Import URL Validation Library:**
+   Ensure that a library capable of URL validation is imported. Python's built-in `urllib.parse` can be used for this purpose.
+
+2. **Modify `validate_url_field()` Function:**
+   Update the function to include URL structure validation.
+
+#### Code Implementation:
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(config, field_name):
+    url = config.get(field_name)
+    if not url:
+        return False  # URL is empty or missing
+
+    try:
+        result = urlparse(url)
+        if not all([result.scheme, result.netloc]):
+            return False  # Malformed URL
+    except ValueError:
+        return False  # Malformed URL
+
+    return True
+
+# Usage in config-validator
+if not validate_url_field(config, 'auth_service_url'):
+    exit(1)
+else:
+    exit(0)
+```
+
+### Summary
+
+The issue with `config-validator --service auth` exiting 0 for a malformed `auth_service_url` is addressed by enhancing the `validate_url_field()` function to include URL structure validation using `urllib.parse`. The function now ensures that the URL has both a scheme (e.g., `http`, `https`) and a network location (e.g., `www.example.com`), and exits with a status code of 1 for malformed URLs.
+
+This change will ensure that the validator correctly identifies and rejects malformed URLs while continuing to pass valid URLs.

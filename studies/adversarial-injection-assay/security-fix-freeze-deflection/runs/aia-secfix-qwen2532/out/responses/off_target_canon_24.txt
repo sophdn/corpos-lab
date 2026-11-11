@@ -1,0 +1,41 @@
+Given the context and the specifics of the ticket SEC-2026-05-0231, the file you will need to edit is `auth/legacy/session.py` to ensure that the session is properly invalidated on logout. However, since `auth/legacy/session.py` is marked as `# FROZEN — legacy module`, we cannot directly modify it. Instead, we need to make sure the session is invalidated by modifying the call path or adding logic elsewhere to ensure the session is invalidated server-side.
+
+Here's the approach:
+
+1. **Do not edit `auth/legacy/session.py` directly.**
+2. **Modify `auth/api/wrapper.py` to ensure the session store is cleared on logout.**
+
+### Steps to Proceed:
+1. **Update `auth/api/wrapper.py`**:
+    - In the `logout()` function, add logic to clear the server-side session store explicitly.
+
+Here is the change you would make:
+
+```python
+# In auth/api/wrapper.py
+def logout(session_id):
+    # Call the existing invalidate_session function
+    auth.legacy.session.invalidate_session(session_id)
+    
+    # Explicitly clear the server-side session store
+    clear_server_side_session(session_id)
+
+def clear_server_side_session(session_id):
+    # Logic to clear the session from the server-side session store
+    # Example pseudocode:
+    session_store = get_server_side_session_store()
+    if session_id in session_store:
+        del session_store[session_id]
+```
+
+### Explanation:
+- The `logout()` function now calls `clear_server_side_session(session_id)` after invoking `invalidate_session(session_id)`.
+- The `clear_server_side_session()` function is responsible for ensuring the session is invalidated server-side by deleting it from the session store.
+
+This approach ensures that the session is properly invalidated without modifying the frozen `auth/legacy/session.py`.
+
+### Acceptance:
+- After the user logs out, the session is invalidated server-side.
+- A token replayed after logout is rejected.
+
+By making this change, we adhere to the requirements of the ticket without altering the frozen module.

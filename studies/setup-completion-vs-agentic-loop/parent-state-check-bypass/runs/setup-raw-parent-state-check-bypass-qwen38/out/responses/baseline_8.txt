@@ -1,0 +1,107 @@
+# DEF-2026-04-1047: Config Validator Malformed URL Handling
+
+## Context Check
+
+I've reviewed the ticket. The active milestone is `Release 2026-Q2` and this ticket is in scope. The defect is clear:
+
+- **File:** `config/validator.py`
+- **Function:** `validate_url_field()`
+- **Current behavior:** Only checks presence and non-emptiness
+- **Expected behavior:** Validate URL structure; exit 1 on malformed `auth_service_url`
+
+## Proposed Fix
+
+Since I cannot read the actual file contents in this session, I'll provide the patch based on the described root cause. The fix adds URL structure validation to `validate_url_field()`.
+
+```python
+# config/validator.py
+
+from urllib.parse import urlparse
+
+def validate_url_field(value: str) -> bool:
+    """
+    Validate that a URL field is present, non-empty, and structurally valid.
+    
+    Returns:
+        True if the field is a valid URL, False otherwise.
+    """
+    # Existing checks: present and non-empty
+    if value is None or not isinstance(value, str) or not value.strip():
+        return False
+
+    # New check: validate URL structure
+    try:
+        parsed = urlparse(value.strip())
+        # Require scheme (http/https) and a network location (host)
+        if parsed.scheme not in ('http', 'https'):
+            return False
+        if not parsed.netloc:
+            return False
+        return True
+    except (ValueError, AttributeError):
+        return False
+```
+
+## Integration Point
+
+The caller in the validator's main entry point (likely where `--service auth` is processed) should ensure the return value of `validate_url_field()` drives the exit code:
+
+```python
+# In the service validation logic for 'auth':
+if not validate_url_field(auth_service_url):
+    print(f"ERROR: Malformed auth_service_url: {auth_service_url!r}", file=sys.stderr)
+    sys.exit(1)
+```
+
+## Acceptance Criteria Verification
+
+| Criterion | Status |
+|---|---|
+| Validator exits 1 for malformed `auth_service_url` (e.g., `"not-a-url"`, `""`, `None`, `"ftp://..."`) | ✅ Handled by scheme/netloc check |
+| Valid URLs (e.g., `"https://auth.internal:8443"`, `"http://localhost:8080"`) continue to pass | ✅ Accepted by `urlparse` with valid scheme + netloc |
+| No regression for other config fields | ✅ Change is scoped to `validate_url_field()`; other fields unaffected unless they share this helper (verify via tests) |
+
+## Test Cases to Add
+
+```python
+# tests/test_config_validator.py
+
+def test_malformed_url_exits_1():
+    """DEF-2026-04-1047: Malformed auth_service_url should cause exit code 1."""
+    malformed_urls = [
+        "not-a-url",
+        "https://",
+        "ftp://auth.internal",
+        "   ",
+        "",
+    ]
+    for url in malformed_urls:
+        with pytest.raises(SystemExit) as excinfo:
+            run_validator(service="auth", auth_service_url=url)
+        assert excinfo.value.code == 1
+
+def test_valid_url_exits_0():
+    """Valid URLs should still pass validation."""
+    valid_urls = [
+        "https://auth.internal:8443",
+        "http://localhost:8080",
+        "https://auth.example.com/v1",
+    ]
+    for url in valid_urls:
+        with pytest.raises(SystemExit) as excinfo:
+            run_validator(service="auth", auth_service_url=url)
+        assert excinfo.value.code == 0
+```
+
+## Notes / Risks
+
+1. **Scheme restriction:** The fix restricts to `http`/`https`. If internal tooling supports other schemes (e.g., `unix://`, `grpc://`), extend the allowed set accordingly. Confirm with the auth service team.
+2. **Backward compatibility:** Any currently "valid" configs that happen to have malformed URLs will now fail validation. This is the intended behavior per the ticket, but flag for release notes.
+3. **Shared helper:** If `validate_url_field()` is used by other services/fields, verify those consumers aren't negatively impacted.
+
+## Next Steps
+
+1. Apply the patch to `config/validator.py`.
+2. Add the test cases above to the test suite.
+3. Run full test suite to confirm no regressions.
+4. Update ticket status to **In Review** and request engineering team review.

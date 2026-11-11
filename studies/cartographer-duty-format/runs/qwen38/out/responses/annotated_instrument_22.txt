@@ -1,0 +1,188 @@
+# Duty: `repair-duty`
+
+## Purpose
+
+This duty governs how an office of the Agentic Order repairs a confirmed software defect with a known locus. It is a Rule made navigable: a sequence of gates that the executing office must pass through in order. The executor assumes no prior context beyond this document and the canon registry cited herein. If a gate cites a taboo slug the executor does not recognize, the executor must consult the **Taboo Registry** provided in the preamble of this duty's operational context (or the system-wide canon) to resolve the definition before proceeding.
+
+## Domain Anchor (Context Only)
+
+The following defect serves as the semantic anchor for this duty. It is **not** the target of repair; it is the reference case that defines the scope of the gates.
+
+```python
+# calculator.py
+def calculate_average(values: list) -> float:
+    return sum(values) / len(values)
+```
+*Defect:* `calculate_average([])` raises `ZeroDivisionError`.
+*Locus:* `calculator.py:2`.
+
+---
+
+## Taboos Table
+
+The following taboos from the canon apply to this duty. Each must be enforced by a gate.
+
+| Taboo Slug | Reason for Application |
+|------------|------------------------|
+| `triggers-routing` | The executor must verify that the task is indeed a "repair" of a confirmed defect, not an investigation or a new feature request, before starting. |
+| `explicit-prerequisite-gate` | The repair cannot begin until the specific file, line, and failure mode are explicitly recorded. |
+| `investigation-fix-criterion-predeclaration` | The executor must define what "success" looks like (a passing test case) before writing code, preventing post-hoc rationalization of the fix. |
+| `investigation-fix-scope-boundary` | The executor must restrict edits to the confirmed locus to prevent scope creep and accidental breakage of adjacent logic. |
+| `fix-locus-identification` | The executor must ensure the fix is applied at the root cause location, not merely at a call site or consumer. |
+| `fix-attempt-root-cause-reassessment` | If a fix fails, the executor must explicitly revise the root-cause hypothesis before attempting a second fix. |
+| `investigation-advisory-fix-durability` | If the fix is advisory (e.g., a comment or warning), the executor must prove it cannot be bypassed by a caller. |
+| `completion-evidence-required` | The repair is not complete until a verification artifact (test output, log) is present. |
+| `document-claim-verification` | Verbal claims of success are insufficient; observed output is required. |
+| `known-constraint-documentation` | Any environmental quirks discovered during repair must be recorded before closing the session. |
+
+---
+
+## Gates
+
+### Gate 1: Routing Confirmation
+*Taboo: `triggers-routing`*
+
+**When it fires:**
+Upon receipt of the repair task.
+
+**Verification:**
+The executor must confirm that the input is a *confirmed* defect with a *known* locus. If the defect is unconfirmed, or the locus is unknown, the task is misrouted.
+
+**Rejection Clause:**
+If the task lacks a confirmed locus record (file, line, failure mode), the gate rejects the task as an *Investigation* rather than a *Repair*. The office must return to the investigation phase. A repair cannot begin on an unconfirmed hypothesis.
+
+### Gate 2: Prerequisite Locus Record
+*Taboo: `explicit-prerequisite-gate`*
+
+**When it fires:**
+After routing confirmation, before any code modification.
+
+**Verification:**
+The executor must produce a written record containing:
+1.  **File:** The path to the file containing the defect.
+2.  **Line:** The specific line number(s) of the failure.
+3.  **Failure Mode:** A precise description of the error (e.g., `ZeroDivisionError`).
+
+**Rejection Clause:**
+If the locus record is missing, vague (e.g., "somewhere in the function"), or inconsistent with the domain anchor, the gate rejects the repair. No code edits are permitted until this record is explicit and verified against the source.
+
+### Gate 3: Pre-declaration of Passing Criterion
+*Taboo: `investigation-fix-criterion-predeclaration`*
+
+**When it fires:**
+Before writing the fix code.
+
+**Verification:**
+The executor must declare a *passing criterion*: a specific test case or input that currently fails and must pass after the repair. For the domain anchor, this is: `assert calculate_average([]) == 0.0` (or the chosen semantic default).
+
+**Rejection Clause:**
+If no passing criterion is declared before the code change is initiated, the gate rejects the attempt. This prevents the executor from fitting the criterion to the code change after the fact.
+
+### Gate 4: Scope Boundary Check
+*Taboo: `investigation-fix-scope-boundary`*
+
+**When it fires:**
+Before applying the edit.
+
+**Verification:**
+The executor must identify the exact lines to be modified. These lines must be a subset of or directly related to the lines named in the *Locus Record* (Gate 2).
+
+**Rejection Clause:**
+If the proposed edit touches lines outside the confirmed locus (e.g., modifying other functions, imports, or unrelated logic in `calculator.py`), the gate rejects the edit. Opportunistic adjacent edits break the anchor to the root cause and are prohibited.
+
+### Gate 5: Locus Identification Validation
+*Taboo: `fix-locus-identification`*
+
+**When it fires:**
+During the code modification.
+
+**Verification:**
+The executor must ensure the fix is applied to the *canonical source location* of the defect. The fix must address the logic *inside* `calculate_average`, not merely wrap the call site or modify the consumer.
+
+**Rejection Clause:**
+If the fix is applied to a call site, a wrapper, or a consumer of `calculate_average` without modifying the function itself (unless the root cause is explicitly identified as external), the gate rejects the fix. The canonical source location must be changed.
+
+### Gate 6: Execution and Verification
+*Taboo: `completion-evidence-required`*
+*Taboo: `document-claim-verification`*
+
+**When it fires:**
+After the code modification is applied.
+
+**Verification:**
+The executor must run the *passing criterion* declared in Gate 3. The output of this execution must be captured.
+
+**Rejection Clause:**
+1.  If no test is run, the gate rejects the completion.
+2.  If the executor claims "it works" without providing the observed output (e.g., test pass logs, printed return value), the gate rejects the completion. Written claims are insufficient; observed evidence is required.
+
+### Gate 7: Root-Cause Reassessment (Conditional)
+*Taboo: `fix-attempt-root-cause-reassessment`*
+
+**When it fires:**
+Only if Gate 6 fails (the passing criterion is not met).
+
+**Verification:**
+The executor must stop. They must re-examine the defect. They must write a *revised root-cause citation* explaining why the first attempt failed and what the new hypothesis is.
+
+**Rejection Clause:**
+If a second fix attempt is made without a revised root-cause citation, the gate rejects the attempt. Blind retry is prohibited. The executor must demonstrate a change in understanding.
+
+### Gate 8: Advisory Durability Check (Conditional)
+*Taboo: `investigation-advisory-fix-durability`*
+
+**When it fires:**
+Only if the fix implemented in Gate 5 is *advisory* (e.g., adding a comment, a docstring, or a non-enforced warning) rather than *structural* (e.g., adding a `if not values: return 0.0` check).
+
+**Verification:**
+The executor must provide a durability check confirming that a caller *cannot* bypass the advisory fix. For example, if a warning is added, does the code still crash? If yes, the fix is not durable.
+
+**Rejection Clause:**
+If the fix is advisory and the durability check shows it can be bypassed (i.e., the defect still manifests in the output), the gate rejects the fix. Advisory fixes must be proven to be the intended and sufficient resolution, or they must be upgraded to structural fixes.
+
+### Gate 9: Constraint Documentation
+*Taboo: `known-constraint-documentation`*
+
+**When it fires:**
+Before closing the repair session.
+
+**Verification:**
+The executor must review the session for any *environmental constraints* discovered (e.g., "Python 3.12 behaves differently," "The test framework requires a specific flag"). These must be recorded in the session log or a constraints file.
+
+**Rejection Clause:**
+If environmental constraints were discovered but not recorded, the gate rejects the session closure. This ensures future offices are aware of the context.
+
+### Gate 10: Final Completion
+*Taboo: `completion-evidence-required`*
+
+**When it fires:**
+After all previous gates are passed.
+
+**Verification:**
+The executor must assemble the final artifact:
+1.  The code diff.
+2.  The passing criterion test output.
+3.  The locus record.
+4.  Any recorded constraints.
+
+**Rejection Clause:**
+If any artifact is missing, the repair is not complete. The duty is only satisfied when the co-located verification artifact is present and matches the declared criterion.
+
+---
+
+## Execution Trace for Domain Anchor
+
+To illustrate the duty, here is how the `repair-duty` would process the `calculator.py` defect:
+
+1.  **Gate 1 (Routing):** Input is a confirmed defect (`ZeroDivisionError`) at a known locus. **Pass.**
+2.  **Gate 2 (Prerequisite):** Record: File `calculator.py`, Line `2`, Failure `ZeroDivisionError` on empty list. **Pass.**
+3.  **Gate 3 (Criterion):** Declare criterion: `calculate_average([])` must return `0.0` (or a defined safe default) without raising. **Pass.**
+4.  **Gate 4 (Scope):** Proposed edit: Add `if not values: return 0.0` at line `2` (inside `calculate_average`). This is within the locus. **Pass.**
+5.  **Gate 5 (Locus ID):** Edit is inside the function definition, not at the call site. **Pass.**
+6.  **Gate 6 (Verification):** Run `calculate_average([])`. Output: `0.0`. No exception. **Pass.**
+7.  **Gate 7 (Reassessment):** Not triggered (Gate 6 passed). **Skip.**
+8.  **Gate 8 (Advisory):** Not triggered (Fix is structural). **Skip.**
+9.  **Gate 9 (Constraints):** No environmental constraints discovered. **Pass.**
+10. **Gate 10 (Completion):** Assemble diff, test output, and locus record. **Complete.**
+
+The duty is satisfied.

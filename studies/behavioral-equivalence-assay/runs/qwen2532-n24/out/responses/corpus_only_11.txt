@@ -1,0 +1,51 @@
+### Investigation Report: Payment Processing Failure (INV-002)
+
+#### Hypotheses
+1. **Fraud Detection Service Overload**: The fraud detection service experienced high load due to an increase in risk assessment cache entries, leading to a memory issue.
+2. **Order Service Batch Job**: The order service batch job was sending a high number of payment revalidation requests, contributing to the increased load on the fraud detection service.
+3. **Payment Gateway Dependency Issues**: The payment gateway encountered issues due to elevated fraud-check latency, causing it to mark the fraud detection service as unhealthy and fail requests.
+
+#### Round 1: Fraud Detection Service Overload
+
+**Sprint 1.1: Analyze Fraud Detection Log**
+- **Log Analysis**: The fraud detection service deployed a new version at 15:18:00, which included a new risk scoring weight update. The cache entries and heap usage steadily increased over time, leading to a `java.lang.OutOfMemoryError` at 15:38:30.
+- **Observation**: The cache grew from 124MB to 491MB in just over 20 minutes, leading to multiple warnings and errors indicating high GC pressure and memory issues.
+
+**Sprint 1.2: Confirm Overload Impact**
+- **Observation**: The service restarted at 15:39:15, and the cache refilled rapidly, leading to a recurrence of the `java.lang.OutOfMemoryError` at 15:41:00. This confirms that the high request rate and cache growth were persistent issues.
+
+**Conclusion**: The fraud detection service experienced a significant memory issue due to the rapid growth of the risk assessment cache, leading to multiple restarts and service unavailability.
+
+#### Round 2: Order Service Batch Job
+
+**Sprint 2.1: Analyze Order Service Log**
+- **Log Analysis**: The order service started a batch job at 15:25:00, queuing 1,247 orders for payment revalidation at a rate of 50/sec.
+- **Observation**: The batch job made steady progress but started encountering errors at 15:38:00, when the fraud detection service became unresponsive due to the memory issue.
+
+**Sprint 2.2: Confirm Batch Job Impact**
+- **Observation**: The order service suspended the batch job at 15:41:11 due to the fraud detection service being marked as unhealthy. This indicates that the batch job did not directly cause the failure but contributed to the overall load on the fraud detection service.
+
+**Conclusion**: The order service batch job was sending a high number of payment revalidation requests, which contributed to the increased load on the fraud detection service but was not the primary cause of the failure.
+
+#### Round 3: Payment Gateway Dependency Issues
+
+**Sprint 3.1: Analyze Payment Gateway Log**
+- **Log Analysis**: The payment gateway experienced elevated fraud-check latency starting at 15:37:00 and reached critical levels by 15:38:00. The fraud-detection service was marked as unhealthy at 15:41:05, leading to a circuit breaker opening.
+- **Observation**: The payment gateway was unable to process requests due to the dependency on the unhealthy fraud detection service.
+
+**Sprint 3.2: Confirm Dependency Failure**
+- **Observation**: The payment gateway logs indicate that it marked the fraud detection service as unhealthy and opened a circuit breaker, causing all payment requests to fail.
+
+**Conclusion**: The payment gateway encountered issues due to the elevated fraud-check latency and marked the fraud detection service as unhealthy, leading to the failure of all payment requests.
+
+#### Root Cause Analysis
+The root cause of the payment processing failure is the **Fraud Detection Service Overload**. The deployment of a new version with updated risk scoring weights led to a rapid growth in the risk assessment cache, causing memory issues and service unavailability. The order service batch job and payment gateway dependency issues contributed to the overall failure but were secondary effects of the primary overload issue.
+
+#### Recommendations
+1. **Monitor Cache Growth**: Implement monitoring and alerts for the risk assessment cache growth to prevent it from reaching critical levels.
+2. **Optimize Risk Scoring Weights**: Review and optimize the new risk scoring weights to ensure they do not cause excessive cache growth.
+3. **Load Testing**: Perform load testing to identify and address any potential bottlenecks in the fraud detection service.
+4. **Circuit Breaker Configuration**: Review and adjust circuit breaker configurations to prevent cascading failures due to service unavailability.
+
+### Conclusion
+The payment processing failure was primarily caused by the fraud detection service experiencing a memory issue due to rapid cache growth following a new deployment. Addressing this issue will help prevent similar failures in the future.

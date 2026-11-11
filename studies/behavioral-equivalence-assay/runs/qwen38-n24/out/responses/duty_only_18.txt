@@ -1,0 +1,23 @@
+**Investigation Report: INV-002**
+
+**Root Cause:**
+The payment processing failure was caused by an **`OutOfMemoryError` (OOM) in the `fraud-detection` service**, triggered by a sudden spike in risk assessment cache entries. This failure propagated to the `payment-gateway`, which relies on `fraud-detection` for validation, causing the gateway's circuit breaker to open and halt all payment processing.
+
+**Timeline & Causal Chain:**
+
+1.  **15:18:00** - `fraud-detection` v3.8.1 is deployed.
+2.  **15:25:00** - `order-service` initiates a scheduled batch job to revalidate 1,247 unconfirmed orders, sending requests at 50/sec.
+3.  **15:25:00 – 15:35:00** - The batch job drives high traffic to the payment pipeline. Concurrently, `fraud-detection` cache entries grow rapidly (from 8,200 to 34,100 entries), increasing heap usage from 124MB to 418MB.
+4.  **15:37:00** - `fraud-detection` experiences elevated GC pressure (890ms pause). `payment-gateway` observes increased fraud-check latency (1,240ms).
+5.  **15:38:30** - **Critical Failure Point:** `fraud-detection` hits its 512MB heap limit with 41,200 cache entries. It throws `java.lang.OutOfMemoryError: GC overhead limit exceeded`.
+6.  **15:38:31** - `fraud-detection` becomes unresponsive. `payment-gateway` logs fraud-check latency as "critical" (3,800ms) and subsequent timeouts.
+7.  **15:38:40** - `order-service` detects payment-gateway errors and pauses its batch job.
+8.  **15:39:15** - Orchestrator restarts `fraud-detection`. Cache is cold (45MB heap).
+9.  **15:39:30** - Due to the pending load from the batch job and normal traffic, the cache refills rapidly.
+10. **15:41:00** - `fraud-detection` encounters a **recurrence** of `OutOfMemoryError` because the underlying load (batch revalidation) had not subsided, and the new cache limit was insufficient to handle the sustained request rate.
+11. **15:41:05** - `fraud-detection` is marked permanently unhealthy and removed from the load balancer.
+12. **15:41:06** - `payment-gateway` opens its circuit breaker for `fraud-detection`.
+13. **15:41:10/15:41:30** - `order-service` suspends the batch job; `payment-gateway` reports all payment requests failing due to the unavailable fraud-check dependency.
+
+**Conclusion:**
+The primary failure was a resource exhaustion (memory leak/oversized cache) in `fraud-detection` under load. The `order-service` batch job provided the sustained traffic that caused the cache to exceed the 512MB limit twice, leading to service removal and a cascading failure in the payment chain.

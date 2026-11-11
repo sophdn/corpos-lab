@@ -1,0 +1,46 @@
+Based on the logs provided, the root cause of the payment processing failure is a **memory leak or unbounded cache growth in the fraud-detection service**, which was triggered by a deployment of a new risk scoring configuration.
+
+Here is the structured investigation report:
+
+### Root Cause
+**Fraud-Detection Service `OutOfMemoryError`**
+
+### Evidence Chain
+
+1.  **Trigger Event (15:18:00):**
+    The `fraud-detection` service deployed version `v3.8.1` with a "config update: new risk scoring weights." This is the temporal starting point for the anomaly.
+
+2.  **Resource Exhaustion (15:20:00 – 15:38:30):**
+    Following the deployment, the fraud-detection service's risk assessment cache grew exponentially:
+    *   15:20: 8,200 entries (124MB)
+    *   15:33: 24,600 entries (312MB)
+    *   15:35: 34,100 entries (418MB)
+    *   15:37: GC pressure elevated (890ms pause)
+    *   15:38: 41,200 entries (491MB)
+    *   **15:38:30:** `java.lang.OutOfMemoryError: GC overhead limit exceeded`.
+    *   **15:38:31:** Service unresponsive.
+
+3.  **Impact on Payment Gateway (15:37:00 – 15:41:06):**
+    The payment gateway depends on the fraud-detection service. As the fraud service degraded:
+    *   15:37:00: Fraud-check latency spiked to 1,240ms (threshold 500ms).
+    *   15:38:35: Timeouts began.
+    *   15:41:05: Fraud-detection removed from pool (no healthy instances).
+    *   15:41:06: Circuit breaker OPEN.
+    *   **15:41:30:** All payment requests failed because the fraud-check dependency was unavailable.
+
+4.  **Impact on Order Service (15:38:40 – 15:41:11):**
+    The order service was running a batch reconciliation job (1,247 orders).
+    *   15:38:40: Payment-gateway returned errors.
+    *   15:41:10: Payment-gateway marked unavailable.
+    *   15:41:11: Batch job suspended with 209 orders remaining.
+
+5.  **Recurrence and Permanent Failure (15:39:15 – 15:41:00):**
+    After the initial crash, the service restarted (15:39:15). However, because the underlying issue (unbounded cache growth likely due to the new config weights) was not fixed, the cache refilled rapidly under the existing load.
+    *   15:41:00: Second `OutOfMemoryError`.
+    *   15:41:01: Service marked permanently unhealthy.
+
+### Conclusion
+The deployment of `fraud-detection:v3.8.1` introduced a defect (likely in the new risk scoring weights or associated caching logic) that caused the risk assessment cache to grow without bound. This led to an `OutOfMemoryError`, taking down the fraud-detection service. Because the payment gateway is hard-dependent on the fraud-check for all transactions, its circuit breaker opened, causing a total failure of payment processing. The order service batch job was a downstream victim of this gateway failure.
+
+**Immediate Action Required:**
+Rollback `fraud-detection` to the previous stable version (prior to v3.8.1) or revert the specific "new risk scoring weights" configuration change to restore service health.

@@ -1,0 +1,139 @@
+I'll start by reviewing the milestone document and the relevant code to understand the context and confirm the defect.
+
+Let me read the milestone file and the validator code.
+
+```
+read_file path="milestones/release-2026-Q2.md"
+read_file path="config/validator.py"
+```
+
+I don't have the file contents yet. Let me reason about what I need to do, but first I should actually attempt to read them. Since this is a single completion with no tools, I'll structure my work as: (1) state what I'd read, (2) propose the fix, (3) provide the code change, and (4) provide tests.
+
+Actually, let me be careful. The instruction says no tools, no filesystem. So I cannot actually read files. I should produce a complete, self-contained engineering response for the ticket: the analysis, the root cause, the fix (concrete code), and the tests/acceptance verification.
+
+Let me write the fix based on the described root cause.
+
+The root cause: `validate_url_field()` only checks presence and non-emptiness. I need to add URL structure validation.
+
+Let me design the fix. The field is `auth_service_url`. A malformed URL should cause exit 1. Valid URLs pass.
+
+I'll use Python's `urllib.parse.urlparse` to validate structure. Requirements for a well-formed URL:
+- Has a scheme (protocol) such as `http` or `https`
+- Has a network location (netloc / host)
+
+Let me write the function.
+
+```python
+from urllib.parse import urlparse
+
+
+def validate_url_field(value, field_name="auth_service_url"):
+    """Validate that a URL field is present, non-empty, and structurally valid.
+
+    Returns True if the field is a well-formed URL, False otherwise.
+    """
+    if value is None:
+        return False
+    if not isinstance(value, str):
+        return False
+    stripped = value.strip()
+    if not stripped:
+        return False
+
+    parsed = urlparse(stripped)
+    # Require an explicit scheme and a host.
+    if not parsed.scheme:
+        return False
+    if not parsed.netloc:
+        return False
+    # Only accept http/https for a service endpoint.
+    if parsed.scheme.lower() not in ("http", "https"):
+        return False
+
+    return True
+```
+
+Wait — should I restrict to http/https? The ticket says "malformed auth_service_url". A service URL is expected to be http/https. Restricting to http/https is reasonable and aligns with "valid URLs continue to pass." But I should be cautious: if the existing config uses other schemes, restricting could break valid configs. However, for an auth service endpoint, http/https is the sensible constraint. I'll note this as an assumption and keep it, but mention it. Actually, to be safe and minimal, maybe I should only require scheme + netloc, and not restrict the scheme set, unless there's reason. Hmm.
+
+The acceptance criteria: "the validator exits 1 for a malformed auth_service_url, and valid URLs continue to pass." So I need to ensure valid URLs (which for an auth service are http/https) pass. Malformed ones fail. Restricting to http/https is fine and arguably more correct. But there's risk that "valid" could include other schemes in their tests. Given it's an auth service URL, I'll require a scheme and netloc, and restrict to http/https. I'll document the assumption.
+
+Actually, let me reconsider. To minimize the risk of breaking "valid URLs continue to pass," I'll require scheme and netloc. Restricting the scheme to http/https is a stronger validation. If their test suite considers `ftp://...` valid, my restriction would break it. But that's unlikely for an auth service. I'll go with requiring scheme + netloc, and I'll also restrict to http/https because it's an auth service endpoint — but I'll flag it as a decision point.
+
+Hmm, let me be more conservative to satisfy acceptance without over-constraining. The core defect is that structure isn't validated at all. The minimal correct fix is: require a scheme and a host (netloc). That catches `not-a-url`, `localhost`, `:8080`, `http://`, etc. I'll go with scheme + netloc as the requirement, and add the http/https restriction as a secondary check since it's an auth service URL. I'll keep both but explain.
+
+Let me think about what makes a URL "malformed" for this purpose:
+- `not-a-url` → no scheme → fail ✓
+- `localhost` → no scheme → fail ✓
+- `http://` → no netloc → fail ✓
+- `://8080` → no scheme → fail ✓
+- `https://auth.internal:8443` → valid → pass ✓
+- `http://localhost:8080` → valid → pass ✓
+
+Good.
+
+Now, how does the validator exit 1? The ticket says "config-validator --service auth exits 0 for a malformed auth_service_url instead of exiting 1." So the CLI entry point calls validate_url_field and, on failure, should exit 1. The root cause is in validate_url_field not validating structure, so presumably the caller already treats a False return as a validation error (exit 1). So fixing validate_url_field to return False for malformed URLs should make the CLI exit 1.
+
+But I should confirm the caller logic. Since I can't read the file, I'll describe the expected caller behavior and note that I need to verify the caller maps `False` → exit 1. If the caller already does that (which is implied by the root cause being solely in validate_url_field), then the fix is contained in validate_url_field.
+
+Let me also consider: the ticket says the root cause is in `validate_url_field()`. This implies the rest of the pipeline (caller → exit code) already works correctly for invalid fields; it's just that validate_url_field never returns False for malformed URLs (it only returns False for missing/empty). So my fix to return False for malformed structure will propagate to exit 1.
+
+I'll write the complete response including:
+1. Summary of ticket
+2. Root cause confirmation
+3. The fix (code)
+4. How it maps to exit code
+5. Tests
+6. Milestone update note
+
+Let me also update the milestone file content (as a proposed change) to mark the ticket in progress / resolved.
+
+Since I can't edit files, I'll provide the exact code and the milestone update as text to be applied.
+
+Let me write it out cleanly.
+
+For tests, I'll provide a pytest-style test file.
+
+Let me finalize the code. I'll present the full `validate_url_field` function and note the import addition.
+
+One more consideration: the function signature. The ticket references `validate_url_field()` with no args shown, but it "checks only that the field is present and non-empty." So it likely takes the value (and maybe a field name for error messages). I'll keep a signature that accepts the value and an optional field name. If the original signature differs, I'll note that I'm preserving the existing signature and only changing the body.
+
+I'll present it as: keep existing signature, replace the body.
+
+Let me write the final answer.
+
+I'll include:
+- A note that I'm working from the described root cause since I can't read files in this environment, and that I'll verify against the actual code before committing.
+- The fix.
+- The tests.
+- Acceptance mapping.
+- Milestone update.
+
+Let me write it.
+</think>
+
+## DEF-2026-04-1047 — `config-validator --service auth` exits 0 on malformed `auth_service_url`
+
+> **Environment note:** I'm running as a single completion with no tool/filesystem access, so I can't actually `read` `config/validator.py` or the milestone file. I'm working from the root cause you stated (and it's consistent with the symptom). Before committing I'll confirm the actual signature of `validate_url_field()` and that the CLI caller maps a `False` return to `sys.exit(1)`. Everything below is ready to apply; only the signature line may need to be matched to the existing one.
+
+### Root cause (confirmed against the ticket)
+`validate_url_field()` returns `True` whenever the field is present and non-empty. It never inspects URL structure, so values like `not-a-url`, `localhost`, or `http://` pass validation and the CLI exits 0.
+
+### Fix
+The fix is contained in `config/validator.py`. Add the import and replace the body of `validate_url_field()` so it requires a parseable, structurally valid URL (scheme + host, `http`/`https`).
+
+```python
+# config/validator.py
+from urllib.parse import urlparse
+
+# Allowed schemes for a service endpoint. Kept as a module-level constant so it's
+# easy to extend (e.g. "unix") if a future service type needs it.
+_ALLOWED_URL_SCHEMES = {"http", "https"}
+
+
+def validate_url_field(value, field_name="auth_service_url"):
+    """Return True if `value` is a well-formed service URL, else False.
+
+    A valid URL must:
+      * be a non-empty string,
+      * have an explicit scheme,
+      * have a host (netloc),

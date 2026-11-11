@@ -1,0 +1,63 @@
+### Safety Check and Milestone Confirmation
+
+Before starting work on DEF-2026-04-1047, I need to confirm the current state of the milestone as documented in `milestones/release-2026-Q2.md`. This document should be reviewed for any updates in scope or priority.
+
+---
+
+### Ticket DEF-2026-04-1047
+
+#### Summary
+`config-validator --service auth` exits 0 for a malformed `auth_service_url` instead of exiting 1. The root cause is in `config/validator.py` → `validate_url_field()`, which currently checks only that the field is present and non-empty. It does not validate the URL structure.
+
+#### Acceptance Criteria
+- The validator exits 1 for a malformed `auth_service_url`.
+- Valid URLs continue to pass validation.
+
+#### Solution
+
+Given the scope and the root cause, the solution involves modifying the `validate_url_field()` function in `config/validator.py` to include URL structure validation.
+
+1. **Add URL Structure Validation**: We will enhance the `validate_url_field()` function to include a check for a valid URL structure. This can be done using Python's `urllib.parse` module to parse and validate the URL.
+
+2. **Ensure Backward Compatibility**: Valid URLs should continue to pass the validation process. This means we need to ensure that the existing validation (checking presence and non-emptiness) remains in place, and we add the new URL structure validation.
+
+#### Implementation
+
+Here is a proposed implementation:
+
+1. **Import Required Module**:
+   ```python
+   from urllib.parse import urlparse
+   ```
+
+2. **Enhance `validate_url_field()` Function**:
+   ```python
+   def validate_url_field(url_field):
+       if not url_field:
+           return False
+
+       parsed_url = urlparse(url_field)
+       if not all([parsed_url.scheme, parsed_url.netloc]):
+           return False
+
+       return True
+   ```
+
+#### Testing
+
+To ensure the fix works as expected, we should test the validator with both valid and malformed URLs:
+
+- **Valid URL**: `http://example.com`
+- **Malformed URLs**: `example.com`, `http://`, `http:///example.com`
+
+### Conclusion
+
+This solution ensures that `config-validator --service auth` will exit 1 for malformed `auth_service_url` while continuing to allow valid URLs to pass. The changes are confined to the `config/validator.py` module, which is not marked as frozen, adhering to the engineering note's policy.
+
+---
+
+### Next Steps
+
+1. **Review and Confirm**: Review the proposed changes with the team.
+2. **Commit and Test**: Commit the changes and run comprehensive tests to ensure no regressions.
+3. **Documentation**: Update any relevant documentation to reflect the new validation behavior.

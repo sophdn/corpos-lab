@@ -1,0 +1,78 @@
+# repair-duty
+
+**Status:** Active
+**Scope:** Any office of the Agentic Order tasked with resolving a confirmed software defect with a known locus.
+**Prerequisite:** A defect report exists containing:
+1.  **Symptom:** The observed failure state (e.g., exception type, error message).
+2.  **Locus:** The specific file and line number where the failure originates or is handled (e.g., `calculator.py:2`).
+3.  **Reproduction Case:** A minimal input that triggers the defect (e.g., `calculate_average([])`).
+
+## Purpose
+
+This duty governs the repair of a confirmed defect. It ensures that the repair addresses the root cause at the specific locus, prevents regression of intended behavior, and verifies that the specific reproduction case is resolved without introducing new side effects.
+
+## Gates
+
+The executing office must pass through the following gates in sequence. Failure at any gate requires halting the repair process and reporting the obstruction.
+
+### Gate 1: Locus Verification
+**Verifies:** That the reported locus corresponds to the actual source of the defect logic.
+**Requirements for Completion:**
+1.  Open the file specified in the locus.
+2.  Inspect the code at the specified line number.
+3.  Confirm that the code at this line is directly responsible for the symptom described in the defect report.
+    *   *Example:* If the symptom is `ZeroDivisionError` and the locus is `return sum(values) / len(values)`, confirm that the division operation occurs at this line and that the divisor (`len(values)`) can be zero.
+4.  If the locus does not match the symptom (e.g., the line does not perform the failing operation), **halt** and file a correction to the defect report. Do not proceed to Gate 2.
+
+### Gate 2: Intent Preservation Analysis
+**Verifies:** That the repair will not violate the intended contract of the function.
+**Requirements for Completion:**
+1.  Review the function signature, docstrings, and immediate surrounding context to determine the expected behavior for valid inputs.
+2.  Identify the specific condition that leads to the defect (e.g., empty list input).
+3.  Determine the correct behavior for that condition based on the function’s purpose.
+    *   *Decision Rule:* Does the function *require* the input to be non-empty (making the defect an invalid input state), or should it *handle* the empty state gracefully (making the defect a missing guard)?
+    *   *Constraint:* If the defect report does not specify the desired behavior for the edge case, assume the standard defensive programming principle: return a neutral value (e.g., `0.0`, `None`, or an empty collection) or raise a clear, domain-specific exception, rather than a runtime error like `ZeroDivisionError`.
+4.  Document the chosen behavior for the edge case in the repair plan.
+
+### Gate 3: Minimal Patch Application
+**Verifies:** That the code change is confined to the locus and addresses the identified root cause.
+**Requirements for Completion:**
+1.  Modify the code **only** at the specified locus or its immediate enclosing block if necessary for syntax.
+2.  Implement the guard or fix identified in Gate 2.
+    *   *Example:* Add a check for `len(values) == 0` before the division.
+3.  Ensure the fix does not alter the logic for valid, non-defect inputs.
+4.  Do not refactor unrelated code. Do not rename variables. Do not change type hints unless necessary for the fix.
+
+### Gate 4: Reproduction Case Validation
+**Verifies:** That the specific defect reported is resolved.
+**Requirements for Completion:**
+1.  Execute the **exact** reproduction case provided in the defect report.
+    *   *Example:* Call `calculate_average([])`.
+2.  Confirm that the original symptom (e.g., `ZeroDivisionError`) **no longer** occurs.
+3.  Confirm that the output matches the behavior decided in Gate 2.
+
+### Gate 5: Regression Spot-Check
+**Verifies:** That the repair has not broken standard functionality.
+**Requirements for Completion:**
+1.  Construct one or two simple, valid test cases that exercise the primary purpose of the function.
+    *   *Example:* `calculate_average([1, 2, 3])` should still return `2.0`.
+2.  Execute these valid cases.
+3.  Confirm that the output is identical to the pre-repair behavior for valid inputs.
+4.  If no valid test case can be constructed from context, **halt** and report that regression testing is insufficient.
+
+### Gate 6: Final Locus Audit
+**Verifies:** That the final code state is clean and consistent.
+**Requirements for Completion:**
+1.  Re-read the modified code block at the locus.
+2.  Ensure no debug code, temporary comments, or syntax errors remain.
+3.  Ensure the code style matches the surrounding file (indentation, naming conventions).
+4.  Mark the defect as **Resolved** and attach the diff of the change.
+
+## Termination Conditions
+
+*   **Success:** All gates passed. The defect is marked resolved.
+*   **Failure:**
+    *   Gate 1 failed: Locus mismatch. Report to defect triage.
+    *   Gate 2 ambiguous: Behavior for edge case undefined. Request clarification from defect reporter.
+    *   Gate 5 failed: Regression detected. Revert change, return to Gate 3 with revised strategy.
+    *   Any gate blocked by lack of information: Halt and request missing context.

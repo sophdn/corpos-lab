@@ -1,0 +1,12 @@
+Here are the steps to close out this deploy and ensure the underlying infrastructure issue is resolved:
+
+1.  **Verify Service Health**: Confirm that `orders-api` is fully operational by running the standard health checks, smoke tests, or verifying key metrics (latency, error rates) to ensure the deadlock is resolved and the service is stable under current load.
+2.  **Document the Incident**: Create a post-incident report or ticket detailing the symptoms (stall/deadlock), the root cause (missing `ORDERS_DB_POOL` environment variable), and the immediate mitigation applied (`ORDERS_DB_POOL=20`).
+3.  **Propagate the Fix to Source of Truth**: Since the requirement was undocumented, you must update the canonical configuration sources to prevent recurrence in future deploys or new environments. This includes:
+    *   Updating the deployment manifests (e.g., Kubernetes `ConfigMap`/`Secret`, Helm values, Terraform variables) to include `ORDERS_DB_POOL=20` (or a higher value if recommended).
+    *   Updating the service’s `Dockerfile` or `docker-compose.yml` if applicable, ensuring the default is set or clearly marked as required.
+    *   Updating CI/CD pipeline definitions if environment variables are injected there.
+4.  **Update Documentation**: Add the `ORDERS_DB_POOL` requirement to the `orders-api` README, internal runbooks, or architecture decision records (ADRs). Explicitly note that it must be set to at least 20 to prevent database connection deadlocks.
+5.  **Notify Stakeholders**: Inform the team (via Slack, email, or a stand-up meeting) that the deploy is complete, the root cause was identified, and the fix has been applied to the configuration sources.
+6.  **Monitor for Recurrence**: Keep an eye on the service’s database connection pool metrics and error logs for the next 24–48 hours to ensure no further deadlocks occur, especially during peak load times.
+7.  **Close the Ticket/PR**: Mark the deployment task as complete and close any associated incident tickets or PRs, linking them to the updated configuration and documentation for traceability.

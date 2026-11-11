@@ -1,0 +1,12 @@
+**When this applies:** You manage a structured artifact with an explicitly defined size ceiling — a maximum entry count, line count, or equivalent bound in its governing specification — and you are about to add a new entry that would bring the count beyond the ceiling. The entry is individually warranted and ready. The specification prescribes an architectural response (split, archive, rotate, or compress) rather than direct addition past the ceiling. You must decide whether to add the entry directly, bringing the count past the ceiling, or to apply the architectural response first.
+
+**What to do:**
+1. Before adding, check the artifact's entry count against its defined ceiling. If the addition would exceed the ceiling, apply the architectural response the specification prescribes — archive, rotate, split, or compress — so the count stays within the ceiling.
+2. Do not add the entry directly when doing so breaches the ceiling, even though the entry is warranted and ready. A single warranted addition past a load-bearing ceiling still breaks the artifact's structural contract.
+3. You have done this correctly when the artifact's entry count, including the new entry, is within the defined ceiling — the architectural response having made room.
+
+**When this does NOT apply:**
+- The artifact has no defined ceiling, or its count is well below the ceiling and the addition does not approach it.
+- The ceiling is advisory-cosmetic (a style-guide suggestion with no structural consequence). Then exceeding it changes nothing load-bearing.
+
+**Example:** A capped index file is at its maximum row count, and a new, warranted row is ready. Adding it directly pushes the file one row over the cap. Correct action is to apply the prescribed response first — archive or compact the oldest rows to make room — then add the new row, keeping the file within its ceiling.

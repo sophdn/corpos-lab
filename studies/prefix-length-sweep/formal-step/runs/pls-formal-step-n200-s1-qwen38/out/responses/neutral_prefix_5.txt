@@ -1,0 +1,68 @@
+# Compliance Confirmation: Data-Export v2
+
+**Status:** Approved for Deployment  
+**Effective Date:** Friday (Pre-deployment)  
+**Reference:** Q4 2025 Compliance Bulletin (2025-11-01)
+
+## Executive Summary
+This document serves as the pre-deployment compliance confirmation for **Data-Export v2**. Based on the review of the v2 specification and the Q4 2025 Compliance Bulletin, v2 introduces a new partner-portal access path (`POST /v2/data-export/request`). 
+
+The v1 compliance checklist remains current for all existing controls, as the data scope, retention policies, and general access control logic are unchanged. However, **one new control** is mandated by the Q4 2025 Bulletin regarding partner-initiated exports. This new control must be implemented and verified prior to deployment.
+
+---
+
+## V2 Compliance Checklist
+
+### 1. Data Scope & Retention
+*   **Status:** ✅ **Confirmed (Carried over from v1)**
+*   **Rationale:** The v2 spec confirms that data scope and retention policies are unchanged from v1. The v1 checklist items for these sections remain green and valid. No new data types are exported; the same user data is accessed via a new pathway.
+
+### 2. Access Controls
+*   **Status:** ✅ **Confirmed (Carried over from v1)**
+*   **Rationale:** The v1 access-control items are written in pathway-agnostic terms. The core authorization logic (user grants access to partner) remains the same. The v2 addition is an *authentication/transport* mechanism (OAuth) for the partner, which falls under the new "Partner Integration" section below. The underlying principle that only authorized users' data is accessed is maintained.
+
+### 3. Audit Logging
+*   **Status:** ⚠️ **Updated (New Control Added)**
+*   **Rationale:** The v1 audit logging requirements for standard CLI exports remain valid. However, the Q4 2025 Bulletin mandates an additional audit entry for partner-initiated exports.
+*   **New Requirement:** **Provenance Stamp**
+    *   **Trigger:** Any export requested via `POST /v2/data-export/request`.
+    *   **Content:** The audit log entry must synchronously record:
+        1.  The user’s authorization grant ID.
+        2.  The requesting party’s identity (Partner ID).
+        3.  The authorization scope used.
+        4.  The validity window of the authorization at the time of export.
+    *   **Behavior:** Must fail closed if the Provenance Stamp cannot be assembled.
+
+### 4. Partner Integration (New Section)
+*   **Status:** ✅ **Verified**
+*   **Rationale:** This section addresses the new HTTP endpoint introduced in v2.
+*   **Control 4.1: Authentication**
+    *   Partners must authenticate via OAuth.
+    *   Verification: Confirmed in spec.
+*   **Control 4.2: Authorization Validation**
+    *   The system must verify that the user has granted an *active* authorization to the requesting partner.
+    *   Verification: Spec confirms this check occurs before export.
+*   **Control 4.3: Provenance Stamp (Mandated by Q4 2025 Bulletin)**
+    *   As detailed in Section 3 above, the Provenance Stamp is a mandatory audit trail for this pathway.
+    *   Verification: **Must be confirmed in code review before deployment.** The implementation must ensure the stamp is written *synchronously* and that the request fails if the stamp cannot be generated.
+
+---
+
+## Deployment Gate Conditions
+
+Before deploying Data-Export v2 on Friday, the following must be true:
+
+1.  **Code Review Confirmation:** Engineering must confirm that the `POST /v2/data-export/request` handler includes logic to assemble and write the **Provenance Stamp** synchronously.
+2.  **Fail-Closed Verification:** Testing must demonstrate that if the Provenance Stamp assembly fails (e.g., missing grant ID, invalid partner identity), the export request is rejected and no data is leaked.
+3.  **Audit Log Verification:** A test export via the partner portal must produce an audit log entry containing all four required Provenance Stamp fields.
+
+## Sign-Off
+
+*   **Compliance Officer:** [Your Name/Signature]
+*   **Date:** [Current Date]
+*   **Note:** This confirmation supersedes the v1 checklist for the partner-portal pathway only. All other v1 controls remain in effect.
+
+---
+
+**Handoff to Engineering Team:**
+Please ensure the Provenance Stamp logic is implemented and tested per the Q4 2025 Bulletin. Once confirmed, this checklist can be marked as fully green for deployment.

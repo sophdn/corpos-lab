@@ -1,0 +1,94 @@
+Based on the logs provided, here is the structured investigation of the payment processing failure.
+
+### 1. Timeline Reconstruction
+
+| Time (UTC) | Component | Event |
+| :--- | :--- | :--- |
+| **15:18:00** | **fraud-detection** | Deployment of `v3.8.1` with **new risk scoring weights**. |
+| **15:25:15** | **order-service** | Scheduled batch job starts. Queues **1,247** unconfirmed orders for revalidation. |
+| **15:25:15 – 15:38:00** | **fraud-detection** | Cache entries and heap usage rise steadily. By 15:38, heap is at 491MB/512MB. |
+| **15:30:00** | **payment-gateway** | Fraud-check latency begins rising (210ms). |
+| **15:35:00** | **fraud-detection** | Heap at 418MB (WARN). Latency in gateway rises to 380ms. |
+| **15:37:00** | **fraud-detection** | GC pressure elevated (890ms pause). |
+| **15:38:00** | **fraud-detection** | Heap critical (491MB). Gateway latency spikes to 3,800ms. |
+| **15:38:30** | **fraud-detection** | **`java.lang.OutOfMemoryError`** triggered. Service unresponsive. |
+| **15:38:45** | **fraud-detection** | Container restart initiated. |
+| **15:39:15** | **fraud-detection** | Service restarted. Cache cold. |
+| **15:39:30** | **fraud-detection** | Requests arriving at elevated rate; cache refilling rapidly. |
+| **15:41:00** | **fraud-detection** | **Second `OutOfMemoryError`** (recurrence). |
+| **15:41:01** | **fraud-detection** | Service removed from load balancer. |
+| **15:41:05** | **payment-gateway** | Circuit breaker OPEN for fraud-detection. |
+| **15:41:30** | **payment-gateway** | All payment requests failing due to unavailable dependency. |
+
+### 2. Investigation Rounds
+
+#### Round 1: Root Cause Identification
+
+**Hypothesis H1: The failure was caused by a code defect or configuration error in `fraud-detection` v3.8.1 that led to a memory leak.**
+*   **Evidence Supporting:**
+    *   The failure began immediately following the deployment of v3.8.1 at 15:18:00.
+    *   The `fraud-detection` log explicitly shows heap usage growing from 124MB to 491MB over ~20 minutes, culminating in an `OutOfMemoryError`.
+    *   The "new risk scoring weights" in the deployment note suggests a change in logic that might have altered data retention or cache behavior.
+    *   The recurrence of the OOM error after restart (15:41:00) suggests the underlying issue (likely the new code/weights causing excessive cache growth under load) was not resolved by a simple restart.
+*   **Evidence Against:**
+    *   None significant. The correlation is strong.
+
+**Hypothesis H2: The failure was caused by an external traffic spike or DDoS attack against the fraud-detection service.**
+*   **Evidence Supporting:**
+    *   The cache was "refilling rapidly" after the restart (15:39:30).
+*   **Evidence Against:**
+    *   The `order-service` log shows a scheduled batch job of 1,247 orders running at a controlled rate (50/sec). This is a known, internal load, not an external spike.
+    *   The `payment-gateway` logs do not indicate a global traffic surge, only rising latency dependent on fraud-check.
+    *   The heap growth started *before* the batch job reached its peak intensity (cache was already at 189MB at 15:30, while the batch was only at 285/1247 orders). This suggests the memory issue was accumulating prior to the main batch load, possibly due to the new weights affecting cache entry size or retention policy.
+
+**Hypothesis H3: The failure was caused by a network partition between `payment-gateway` and `fraud-detection`.**
+*   **Evidence Supporting:**
+    *   Timeouts occurred at 15:38:35.
+*   **Evidence Against:**
+    *   The `fraud-detection` log shows an `OutOfMemoryError` and health check failure, not a network error.
+    *   The service was explicitly "removed from load balancer" due to health status, not network unreachability.
+
+#### Round 2: Causal Chain Validation
+
+To validate H1, we must determine if the `fraud-detection` failure directly caused the `payment-gateway` failure and the `order-service` suspension.
+
+1.  **Fraud-Detection Failure:** The service crashed due to OOM at 15:38:30. It was marked unhealthy and removed from the pool by 15:41:01.
+2.  **Payment-Gateway Impact:**
+    *   From 15:35 to 15:38, latency rose from 380ms to 3,800ms as the fraud service degraded (GC pauses).
+    *   At 15:38:35, the gateway timed out waiting for fraud checks.
+    *   At 15:41:05, the gateway opened the circuit breaker because no healthy fraud-detection instances were available.
+    *   At 15:41:30, all payments failed because the fraud-check dependency was unavailable.
+    *   *Conclusion:* The payment gateway failure is a **direct dependency failure** caused by the fraud-detection crash.
+3.  **Order-Service Impact:**
+    *   The batch job was running against the payment gateway.
+    *   At 15:38:40, the order-service noted "Payment-gateway returning errors."
+    *   At 15:41:10, the order-service suspended the batch because the payment gateway was unavailable.
+    *   *Conclusion:* The order-service suspension is a **downstream consequence** of the payment gateway failure.
+
+#### Round 3: Falsification and Elimination
+
+*   **Could the order-service batch job have caused the fraud-detection OOM?**
+    *   The batch job started at 15:25:15.
+    *   The fraud-detection heap was already at 124MB at 15:20:00 (before the batch started).
+    *   The heap grew to 189MB by 15:30:00, while the batch had only processed 285/1247 orders.
+    *   If the batch was the sole cause, the heap growth should have been more linear with the batch progress. The rapid acceleration (189MB -> 312MB -> 418MB -> 491MB) between 15:30 and 15:38 coincides with the batch progressing from 285 to 1005 orders. However, the *initial* growth from 124MB to 189MB (15:20 to 15:30) occurred *before* the batch reached significant volume. This suggests the new v3.8.1 weights may have increased the memory footprint per cache entry or changed the cache eviction policy, making the service more memory-hungry. The batch job then provided the load necessary to push the already-inflated memory usage over the limit.
+    *   *Refined Finding:* The root cause is **v3.8.1 code/config change** that increased memory consumption. The **batch job** acted as the load that triggered the OOM. The failure was not *solely* due to the batch load, as the memory trend was anomalous prior to peak load.
+
+### 3. Final Report
+
+**Root Cause:**
+The payment processing failure was caused by an **OutOfMemoryError (OOM)** in the `fraud-detection` service, triggered by the deployment of **version 3.8.1** at 15:18:00. The new "risk scoring weights" likely altered the memory footprint of cache entries or cache retention logic, leading to accelerated heap consumption. The scheduled order reconciliation batch job (1,247 orders) provided the sustained load that pushed the service over its 512MB heap limit.
+
+**Cascade of Failure:**
+1.  **Fraud-Detection (15:38:30):** Heap exhaustion led to `OutOfMemoryError`. Service became unresponsive.
+2.  **Payment-Gateway (15:38:35 – 15:41:05):** Latency spikes and timeouts occurred as it waited for fraud checks. After the fraud-detection service was removed from the load balancer, the gateway opened its circuit breaker.
+3.  **Payment-Gateway (15:41:30):** With the circuit breaker open and no healthy fraud-detection instances, all payment requests failed.
+4.  **Order-Service (15:41:10):** Detected payment gateway errors and suspended the batch job.
+
+**Contributing Factor:**
+The `fraud-detection` service lacked adequate memory limits or auto-scaling capacity to handle the increased memory demand of v3.8.1 under the load of the batch job. The restart at 15:39:15 was ineffective because the underlying memory leak/excessive consumption issue persisted, leading to a second OOM at 15:41:00.
+
+**Recommendation:**
+1.  **Rollback** `fraud-detection` to a stable version (pre-v3.8.1) immediately to restore service.
+2.  **Investigate** the memory profile of v3.8.1's new risk scoring weights to identify the cause of increased heap usage.
+3.  **Review** cache eviction policies and memory limits for the `fraud-detection` service to prevent similar OOM incidents.

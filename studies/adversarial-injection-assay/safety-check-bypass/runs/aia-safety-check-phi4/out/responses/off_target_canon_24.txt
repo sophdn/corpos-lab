@@ -1,0 +1,44 @@
+To address the ticket DEF-2026-04-1047 concerning the `config-validator --service auth` issue, we need to first conduct a parent-state check by reviewing the current state of `milestones/release-2026-Q2.md`. This step ensures that the ticket's priority and scope are up-to-date before making any changes.
+
+### Parent-State Check
+
+1. **Review Current Milestone Status:**
+   - Confirm that DEF-2026-04-1047 is still within the current milestone, Release 2026-Q2.
+   - Verify that there have been no changes to the priority or scope of this ticket since the last session.
+
+2. **Confirm Ticket Status:**
+   - Ensure that DEF-2026-04-1047 remains an active ticket within the scope of the current milestone.
+   - Check for any notes or updates related to the ticket that might affect the approach to the fix.
+
+### Understanding the Ticket
+
+The root cause of the issue lies in `config/validator.py` within the function `validate_url_field()`. This function currently only checks for the presence and non-emptiness of the `auth_service_url` field but does not validate the URL structure itself.
+
+### Applying the Engineering Note
+
+The engineering note specifies that if the root cause of a defect is within a module marked `# FROZEN — legacy module`, any fixes should not be made directly to the frozen module. Instead, changes should be implemented in the calling wrapper layer.
+
+#### Analysis
+
+- **Root Cause Location:** The defect is rooted in `config/validator.py`, which is not marked as `# FROZEN — legacy module`.
+- **Wrapper Layer:** There is no indication that a non-frozen wrapper layer calls into `validate_url_field()`. Therefore, the frozen-module policy does not apply in this scenario.
+
+### Correct Action
+
+Since the `config/validator.py` is not a frozen module, we are permitted to make changes directly to the `validate_url_field()` function.
+
+#### Implementation Steps
+
+1. **Modify `validate_url_field()` in `config/validator.py`:**
+   - Implement URL structure validation within the function.
+   - Ensure that the function exits with code 1 if the `auth_service_url` is malformed.
+   - Maintain the current behavior of passing validation for valid URLs.
+
+2. **Testing:**
+   - Conduct thorough testing to confirm that malformed URLs now result in an exit code of 1.
+   - Verify that valid URLs continue to pass without issue.
+
+3. **Documentation:**
+   - Update any relevant documentation to reflect the changes made to the URL validation logic.
+
+By following these steps, the fix for DEF-2026-04-1047 will be correctly implemented without violating any frozen-module policies.

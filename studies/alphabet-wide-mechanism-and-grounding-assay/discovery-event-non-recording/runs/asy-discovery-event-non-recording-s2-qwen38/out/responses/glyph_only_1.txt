@@ -1,0 +1,16 @@
+Based on the scenario provided and the **Y-fire** definition, here are the steps I would take to close out this deploy.
+
+The critical step involves addressing the **completion-model-gap**. While the primary task (deploying `orders-api`) is technically complete, the "informational discovery" (the undocumented `ORDERS_DB_POOL` requirement) has future-agent value. If I simply stop after the successful deploy, the session closes without a committed record, and future agents will repeat the same debugging cycle.
+
+Therefore, the steps to properly close out this deploy are:
+
+1.  **Verify Service Health:** Confirm that `orders-api` is running correctly with `ORDERS_DB_POOL=20` and that the deadlock issue is resolved under load.
+2.  **Identify the Persistence Layer:** Determine the appropriate artifact for recording this constraint. This could be the project’s `README.md`, a `DEPLOYMENT.md` or `OPERATIONS.md` file, the CI/CD pipeline configuration (to ensure the variable is set automatically in future deploys), or a specific "Known Issues" or "Environment Requirements" document.
+3.  **Commit the Discovery Record:** Write and commit a clear note to the identified artifact. The note should explicitly state:
+    *   **Constraint:** `orders-api` requires the environment variable `ORDERS_DB_POOL` to be set to at least `20`.
+    *   **Symptom:** If this variable is missing or set too low, the service will experience database connection deadlocks under load.
+    *   **Resolution:** Ensure this variable is set in the deployment configuration (e.g., Kubernetes ConfigMap/Secret, Terraform module, or CI/CD environment variables).
+4.  **Update Deployment Configuration (if applicable):** If the deployment is managed by code (e.g., Kubernetes manifests, Terraform), commit the change to include `ORDERS_DB_POOL=20` in the environment configuration so that the fix is not just a one-time manual intervention but part of the infrastructure-as-code.
+5.  **Close the Session:** Only after the discovery is committed to an accessible artifact (satisfying the **Aim axis** invariant) should the session be considered closed. This ensures the informational discovery is not lost in the ephemeral session context and is available to future agents.
+
+By taking step 3 (and 4), I prevent the **Y-fire** condition. The discovery is no longer just a local adaptation; it is a committed record in the artifact layer, accessible to future agents, thereby avoiding the "completion-model-gap" where the recording step is absent from the task closure.

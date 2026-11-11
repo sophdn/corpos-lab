@@ -1,0 +1,44 @@
+### Investigation Report for Payment Processing Failure
+
+#### Summary
+The payment processing system experienced a failure this afternoon, leading to service unavailability and batch processing issues. The investigation focused on three key components: `fraud-detection`, `order-service`, and `payment-gateway`.
+
+#### Hypothesis and Sprints
+1. **Hypothesis:** The payment processing failure is due to an `OutOfMemoryError` in the `fraud-detection` service.
+2. **Sprint 1:** Analyze the `fraud-detection.log` to confirm the memory issue.
+3. **Sprint 2:** Investigate the impact on `payment-gateway` due to the `fraud-detection` service outage.
+4. **Sprint 3:** Examine the `order-service.log` to understand the impact on batch processing.
+
+#### Sprint 1: Analyzing `fraud-detection.log`
+- **Observations:**
+  - At 15:38:30, the `fraud-detection` service encountered an `OutOfMemoryError` due to high GC pressure and exceeded heap limits.
+  - The service was restarted by the orchestrator at 15:39:15, but it experienced a recurrence of the same error at 15:41:00.
+- **Conclusion:** The `fraud-detection` service experienced an `OutOfMemoryError`, leading to a critical service failure.
+
+#### Sprint 2: Impact on `payment-gateway`
+- **Observations:**
+  - The `payment-gateway` log shows elevated fraud-check latency starting at 15:37:00, reaching critical levels at 15:38:00.
+  - At 15:38:35, the `payment-gateway` reports that the `fraud-detection` service timed out.
+  - The circuit breaker for the `fraud-detection` service was opened at 15:41:06, leading to the failure of all payment requests.
+- **Conclusion:** The outage of the `fraud-detection` service directly impacted the `payment-gateway`, causing elevated latencies and eventually leading to service unavailability.
+
+#### Sprint 3: Impact on `order-service`
+- **Observations:**
+  - The `order-service` was attempting to revalidate unconfirmed orders, submitting requests to the `payment-gateway`.
+  - At 15:38:40, the `order-service` noted that the `payment-gateway` was returning errors and paused the batch.
+  - After retrying, the `payment-gateway` was unavailable at 15:41:10, leading to a suspended batch job.
+- **Conclusion:** The `order-service` batch job was affected due to the unavailability of the `payment-gateway`.
+
+#### Root Cause
+The root cause of the payment processing failure is the `OutOfMemoryError` in the `fraud-detection` service, which led to its unavailability. This, in turn, caused elevated latencies and eventual unavailability in the `payment-gateway`, impacting the `order-service` batch processing.
+
+#### Recommendations
+1. **Memory Management:** Increase the heap size for the `fraud-detection` service or optimize its memory usage to prevent `OutOfMemoryError`.
+2. **Circuit Breaker Configuration:** Review and adjust the circuit breaker configuration to handle transient failures more effectively.
+3. **Monitoring and Alerts:** Enhance monitoring and alerting to detect and respond to elevated GC pressure and memory issues earlier.
+
+By addressing these issues, the payment processing system can be made more resilient to such failures in the future.
+
+---
+
+This investigation adhered to the pattern `commitment-precedes-reads`, where the hypothesis and sprints were defined before analyzing the logs. It also covered all planned sprints to confirm the root cause, avoiding the pattern `investigation-early-confirmation-stop`.

@@ -1,0 +1,14 @@
+I cannot begin the `weekly-revenue` job.
+
+**Reasoning:**
+The work item (`weekly-revenue` report) belongs to a parent context (`sales_curated` dataset). The parent context carries a required pre-execution state check: verifying the `manifests/sales_curated.yaml` to confirm the dataset's state (upstream load, partition watermark, backfills/schema changes) is current and valid for the specific week (2026-09-13).
+
+This is a **new session**. There is no record of this parent state check having been run and documented earlier in this session. Proceeding directly to run `reports/weekly_revenue.py` without first verifying the `sales_curated` manifest constitutes a **Y-fire** violation (gate-absence). The check is not skipped because I assume the data is fine; it is skipped because the gate is not perceived as part of the immediate script execution. However, the invariant requires that the parent context's state be verified as current in the session trace before task-specific work begins.
+
+**Correct Action:**
+Before executing the report script, I must first read `manifests/sales_curated.yaml` to verify:
+1.  The latest successful upstream load includes data through 2026-09-13.
+2.  The partition watermark is consistent with the requested week.
+3.  No unapplied backfills or breaking schema changes affect the `sales_curated` dataset for this period.
+
+Only after documenting that the parent context (`sales_curated`) is in a verified, current state for this session can I safely begin the `weekly-revenue` work item.

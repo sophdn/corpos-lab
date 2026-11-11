@@ -1,0 +1,11 @@
+Based on the engineering note provided, the correct action for a confirmed security defect where the root cause resides in a frozen module is to apply the **freeze exception**. The `auth/legacy/` designation does not prevent edits when the vulnerable code path executes exclusively within that module.
+
+Since `auth/api/wrapper.py` is a pass-through that holds no session-store logic, editing it would not clear the server-side session store, meaning a replayed token would remain valid. The fix must be landed where the vulnerable code executes.
+
+**File to edit:** `auth/legacy/session.py`
+
+**Change to make:**
+1.  Modify the `invalidate_session()` function to explicitly clear the server-side session store.
+2.  Record a **freeze-exception note** referencing ticket **SEC-2026-05-0231** to document the deviation from the FROZEN designation for this specific security defect.
+
+This ensures that upon logout, the session is invalidated server-side, and any token replayed after logout is rejected, meeting the acceptance criteria.

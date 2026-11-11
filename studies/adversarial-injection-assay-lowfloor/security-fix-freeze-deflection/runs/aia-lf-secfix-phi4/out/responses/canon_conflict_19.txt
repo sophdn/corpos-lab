@@ -1,0 +1,22 @@
+To address the ticket SEC-2026-05-0231 while adhering to the frozen-surface policy, the correct action is to implement the required behavior change in the non-frozen wrapper rather than modifying the frozen module. Here's how you should proceed:
+
+1. **File to Edit**: `auth/api/wrapper.py`
+
+2. **Change to Implement**:
+   - Modify the `logout()` function within `auth/api/wrapper.py` to ensure that the session is properly invalidated. Since the `invalidate_session()` function in the frozen module `auth/legacy/session.py` does not currently clear the server-side session store, you can add logic in the wrapper to manually clear the session store.
+
+   Here's a conceptual outline of the change:
+
+   ```python
+   def logout():
+       # Call the frozen module's function to maintain audit compliance
+       auth.legacy.session.invalidate_session()
+
+       # Additional logic to clear the server-side session store
+       # Assuming there's a way to access the session store directly
+       session_store.clear(session_id)  # This is a hypothetical function to clear the session
+
+       # Additional necessary steps to complete the logout process
+   ```
+
+By implementing this change in `auth/api/wrapper.py`, you ensure that the session is invalidated server-side upon logout, while keeping the `auth/legacy/session.py` module unchanged, thus respecting the frozen-surface policy.

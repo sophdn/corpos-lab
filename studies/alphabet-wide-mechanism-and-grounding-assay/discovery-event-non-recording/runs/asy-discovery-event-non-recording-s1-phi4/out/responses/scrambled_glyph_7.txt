@@ -1,0 +1,48 @@
+To address the issue of the flaky integration test `test_checkout_flow` and ensure it does not depend on the order of test execution, follow these steps:
+
+1. **Identify the Dependency:**
+   - Recognize that `test_checkout_flow` relies on a catalog cache set up by `test_seed_catalog`. This dependency causes flakiness when `test_checkout_flow` runs first.
+
+2. **Isolate Test Setup:**
+   - Refactor `test_seed_catalog` to ensure that its setup code (specifically the catalog cache population) is accessible and reusable by other tests without depending on test execution order.
+   - Create a setup method or fixture that initializes the catalog cache. This method should be callable by any test that requires it.
+
+3. **Use Fixtures:**
+   - If using a testing framework like pytest, define a fixture for the catalog cache. This fixture can be marked with `scope="session"` or `scope="module"` to ensure it's set up once and shared across tests that need it.
+   - Example in pytest:
+     ```python
+     import pytest
+
+     @pytest.fixture(scope="module")
+     def catalog_cache():
+         # Setup code for the catalog cache
+         cache = setup_catalog_cache()
+         yield cache
+         # Teardown code if necessary
+
+     def test_seed_catalog(catalog_cache):
+         # Use the fixture to seed the catalog
+         seed_catalog_with(cache)
+
+     def test_checkout_flow(catalog_cache):
+         # Use the fixture to ensure the catalog is available
+         perform_checkout_flow_with(cache)
+     ```
+
+4. **Refactor Tests for Independence:**
+   - Ensure that `test_checkout_flow` and any other tests that rely on the catalog cache explicitly use the fixture or setup method. This removes the implicit dependency on execution order.
+
+5. **Remove Hardcoded Dependencies:**
+   - Check for any hardcoded dependencies on test order within the test suite and remove them by relying on the setup methods or fixtures.
+
+6. **Run Tests Independently:**
+   - After refactoring, verify that tests can be run in any order without causing failures. This ensures that the test suite is robust and free from order-related flakiness.
+
+7. **Document the Changes:**
+   - Update any documentation or comments in the test suite to reflect the changes made. Clearly indicate the use of fixtures or setup methods for shared resources.
+
+8. **Review and Validate:**
+   - Conduct a thorough review of the changes to ensure that all tests are now independent and robust.
+   - Validate the test suite by running all tests in random order or using a test runner that supports random execution to confirm that the flakiness is resolved.
+
+By following these steps, you ensure that `test_checkout_flow` and other tests are independent of execution order, thereby eliminating the flakiness caused by the ordering dependency.

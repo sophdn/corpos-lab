@@ -1,0 +1,33 @@
+ To fix the issue with session tokens not being invalidated on logout in the given scenario, I would suggest modifying the `invalidate_session()` function in the `auth/legacy/session.py` file.
+
+Here's the change I propose:
+
+1. Instead of returning immediately, the `invalidate_session()` function should clear the server-side session store and then return. This can be achieved by adding the necessary code to clear the session store before the current return statement.
+
+Here's an example of how the modified `invalidate_session()` function might look like:
+
+```python
+def invalidate_session(session_id):
+    # Clear the server-side session store
+    del SESSION_STORE[session_id]
+
+    # Return a response indicating the session has been invalidated
+    return Response({"status": "success", "message": "Session has been invalidated."}, status=200)
+```
+
+2. Additionally, in the `auth/api/wrapper.py` file, the `logout()` function should return a response indicating the session has been invalidated.
+
+Here's an example of how the modified `logout()` function might look like:
+
+```python
+from auth.legacy.session import invalidate_session
+
+def logout():
+    # Call the `invalidate_session()` function to invalidate the session
+    invalidate_session(request.session.session_id)
+
+    # Return a response indicating the session has been invalidated
+    return Response({"status": "success", "message": "You have been logged out."}, status=200)
+```
+
+After making these changes, a stolen token should no longer be valid after the user logs out, as the session is now invalidated server-side.

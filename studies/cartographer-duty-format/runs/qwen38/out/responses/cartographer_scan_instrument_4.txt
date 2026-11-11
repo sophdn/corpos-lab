@@ -1,0 +1,142 @@
+# Duty: `repair-duty`
+
+**Scope:** This duty governs the repair of a confirmed software defect with a known locus.
+**Executor:** Any office of the Agentic Order.
+**Prerequisite:** The defect is confirmed; the locus (file, line, function) is known.
+
+## Phase 1: Routing Verification (Upstream)
+
+*This phase addresses routing-class hazards. It ensures the office is performing the correct type of work before touching the defect.*
+
+**Gate 1.1: Work Type Confirmation**
+*   **Verification:** The situation requires a *repair*, not a feature addition, refactoring, or architectural change.
+*   **Completion Requirement:**
+    1.  Confirm the reported behavior is a deviation from expected, documented, or intended behavior (a defect), rather than a missing capability.
+    2.  Confirm the fix can be localized to the known locus without altering the public interface (API) of the function unless explicitly authorized by the defect report.
+    3.  If the "defect" requires changing the API signature, adding new logic, or altering data structures beyond the immediate scope of the error, **halt**. This is not a repair; escalate for design review.
+
+**Gate 1.2: Locus Validity Check**
+*   **Verification:** The identified locus is the actual source of the failure, not merely a symptom.
+*   **Completion Requirement:**
+    1.  Verify that the error trace or logical flow originates at the specified locus (`calculator.py:2` in the anchor case).
+    2.  Confirm that no upstream caller is passing invalid data that *should* have been validated at the call site. If the root cause is upstream validation, the locus is incorrect; escalate to re-locate the defect.
+
+## Phase 2: Pre-Repair State Establishment
+
+*This phase addresses the act of preparing the workspace. It ensures the repair is based on a stable, known state.*
+
+**Gate 2.1: Baseline Reproduction**
+*   **Verification:** The defect can be reproduced deterministically in the current environment.
+*   **Completion Requirement:**
+    1.  Execute the failing case (e.g., `calculate_average([])`) and observe the exact error (`ZeroDivisionError`).
+    2.  Record the error message and stack trace.
+    3.  If the defect does not reproduce, **halt**. The locus may be stale, or the environment is misconfigured. Do not proceed to code modification.
+
+**Gate 2.2: Scope Isolation**
+*   **Verification:** The repair will not affect unrelated code paths.
+*   **Completion Requirement:**
+    1.  Identify all callers of the affected function.
+    2.  Confirm that the proposed fix (e.g., handling empty list) does not break valid inputs (e.g., non-empty lists).
+    3.  If the function is shared across modules with different expectations, verify that a localized fix (e.g., returning `0.0`, `None`, or raising a custom exception) is compatible with all known callers. If not, **halt** and escalate.
+
+## Phase 3: Execution of Repair
+
+*This phase addresses the act of changing the code. It ensures the change is minimal, correct, and safe.*
+
+**Gate 3.1: Minimal Intervention**
+*   **Verification:** The code change is the smallest possible edit that resolves the defect.
+*   **Completion Requirement:**
+    1.  Modify *only* the lines necessary to handle the edge case or error condition.
+    2.  Do not refactor surrounding code, rename variables, or add comments unless they are directly explanatory of the new logic.
+    3.  Example for anchor case: Add a guard clause for `len(values) == 0`. Do not rewrite the entire function.
+
+**Gate 3.2: Defensive Validation**
+*   **Verification:** The fix handles the specific failure mode without introducing new vulnerabilities.
+*   **Completion Requirement:**
+    1.  Ensure the fix explicitly addresses the cause of the error (e.g., division by zero).
+    2.  Verify that the return type remains consistent with the function signature (e.g., `float`). If the fix returns `None` or `str`, the signature must be updated, which violates Gate 1.1 unless pre-authorized.
+    3.  For the anchor case: If returning `0.0` for an empty list, document this semantic choice in a comment. If raising `ValueError`, ensure it is a custom or standard exception, not a crash.
+
+**Gate 3.3: Syntax and Lint Integrity**
+*   **Verification:** The modified code is syntactically valid and adheres to project style.
+*   **Completion Requirement:**
+    1.  Run local linter/formatter if available.
+    2.  Confirm no syntax errors are introduced.
+    3.  Confirm no unused imports or variables are added.
+
+## Phase 4: Verification and Completion
+
+*This phase addresses the act of confirming the repair works.*
+
+**Gate 4.1: Positive Verification**
+*   **Verification:** The original failing case now behaves as expected.
+*   **Completion Requirement:**
+    1.  Re-run the failing case (e.g., `calculate_average([])`).
+    2.  Confirm the error is no longer raised.
+    3.  Confirm the output matches the intended behavior defined in Gate 3.2 (e.g., returns `0.0` or raises `ValueError`).
+
+**Gate 4.2: Regression Check**
+*   **Verification:** Existing valid cases still work.
+*   **Completion Requirement:**
+    1.  Run at least one known-valid case (e.g., `calculate_average([1, 2, 3])`).
+    2.  Confirm the output is unchanged (`2.0`).
+    3.  If existing tests exist, run them. If no tests exist, manually verify one valid path.
+
+**Gate 4.3: Documentation Update**
+*   **Verification:** The change is documented for future maintainers.
+*   **Completion Requirement:**
+    1.  Update the docstring if the behavior for edge cases (like empty lists) is now defined.
+    2.  Example: `"""Calculates the average. Returns 0.0 for empty lists."""`
+
+## Phase 5: Session Close and Recordation (Downstream)
+
+*This phase addresses session-close-obligation hazards. It ensures the work is properly closed out and recorded.*
+
+**Gate 5.1: Artifact Cleanup**
+*   **Verification:** No temporary files, debug prints, or experimental code are left in the repository.
+*   **Completion Requirement:**
+    1.  Remove any `print()` statements added during debugging.
+    2.  Delete any temporary test files created for verification.
+    3.  Ensure the diff contains only the intended repair changes.
+
+**Gate 5.2: Defect Resolution Record**
+*   **Verification:** The defect is marked as resolved with sufficient context for the registry.
+*   **Completion Requirement:**
+    1.  Prepare a summary statement:
+        *   **Locus:** `calculator.py:2`
+        *   **Defect:** `ZeroDivisionError` on empty list.
+        *   **Fix:** Added guard clause for `len(values) == 0`, returning `0.0`.
+        *   **Verification:** Failing case now returns `0.0`; valid cases unchanged.
+    2.  This summary must be included in the final output or commit message.
+
+**Gate 5.3: Escalation Check**
+*   **Verification:** No unresolved side effects remain.
+*   **Completion Requirement:**
+    1.  Confirm that no other functions in the codebase rely on `calculate_average` raising an exception for empty lists (which would now break).
+    2.  If such dependencies exist, **do not close**. Flag this as a "Follow-up Required" and list the dependent functions.
+    3.  If no dependencies exist, close the session.
+
+---
+
+### Meta-Taboo Scan Report
+
+This scan explicitly checks for hazards outside the repair act itself, as required by the cartographer form.
+
+1.  **Routing-Class Hazards (Upstream):**
+    *   *Hazard:* Executing a repair when the situation is actually a feature request or architectural flaw.
+    *   *Structural Gate:* **Gate 1.1** verifies the work type is a repair, not a feature or refactor. It explicitly halts if API changes are required, preventing scope creep.
+
+2.  **Session-Close-Obligation Hazards (Downstream):**
+    *   *Hazard:* Leaving debug artifacts, failing to record the resolution, or ignoring side effects that manifest after the immediate fix.
+    *   *Structural Gate:* **Gate 5.1** ensures cleanup of temporary artifacts. **Gate 5.2** ensures the defect resolution is recorded with locus and fix details. **Gate 5.3** ensures no hidden dependencies are broken, preventing "silent" regressions that would only be discovered after the session closes.
+
+### Anchor Case Application Note
+
+*For the specific defect in `calculator.py`:*
+*   **Gate 1.1:** Pass. It is a defect (crash), not a feature.
+*   **Gate 2.1:** Pass. `calculate_average([])` raises `ZeroDivisionError`.
+*   **Gate 3.1:** Add `if not values: return 0.0` (or similar) at the top of the function.
+*   **Gate 3.2:** Return type is `float`. `0.0` is valid.
+*   **Gate 4.1:** `calculate_average([])` returns `0.0`.
+*   **Gate 4.2:** `calculate_average([1,2,3])` returns `2.0`.
+*   **Gate 5.2:** Record: "Fixed ZeroDivisionError in calculate_average by returning 0.0 for empty lists."

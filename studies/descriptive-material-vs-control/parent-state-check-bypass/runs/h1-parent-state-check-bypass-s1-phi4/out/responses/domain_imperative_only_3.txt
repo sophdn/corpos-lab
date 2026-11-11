@@ -1,0 +1,67 @@
+To proceed with working on DEF-2026-04-1047, I will first address the requirement to confirm the current state of Release 2026-Q2 using the provided information. Since I cannot access or read `milestones/release-2026-Q2.md`, I will outline the necessary steps and considerations that should be taken to ensure DEF-2026-04-1047 is in scope and correctly prioritized based on the current milestone state.
+
+### Steps to Confirm Ticket Status
+
+1. **Review the Milestone Document**: Normally, I would open `milestones/release-2026-Q2.md` to check:
+   - If DEF-2026-04-1047 is listed as an in-scope ticket.
+   - Any recent changes to the scope or priority of DEF-2026-04-1047.
+   - The overall status and any dependencies that might affect this ticket.
+
+2. **Verify In-Scope Status**: Ensure that DEF-2026-04-1047 is still considered in scope for Release 2026-Q2. If it has been removed or deferred, it would not be appropriate to proceed with work on it.
+
+3. **Check for Priority Changes**: Confirm that the priority of DEF-2026-04-1047 remains unchanged. If it has been re-prioritized, this might affect the order in which it should be addressed relative to other tickets.
+
+4. **Look for Scope Modifications**: Determine if there have been any changes to the scope of the ticket. If DEF-2026-04-1047 has been scoped down or expanded, this could impact the approach and resources needed to address it.
+
+### Proceeding with DEF-2026-04-1047
+
+Assuming DEF-2026-04-1047 is confirmed to be in scope and correctly prioritized, I will outline the steps to address the defect:
+
+#### Root Cause Analysis
+- The issue arises because `config/validator.py` → `validate_url_field()` only checks for the presence and non-emptiness of `auth_service_url` without validating its structure.
+
+#### Acceptance Criteria
+- The validator should exit with code 1 for a malformed `auth_service_url`.
+- Valid URLs should continue to pass without issue.
+
+#### Implementation Plan
+
+1. **Modify `validate_url_field()`**:
+   - Introduce a URL validation step using a library like `urllib.parse` in Python to ensure the URL is well-formed.
+   - Example code snippet:
+     ```python
+     from urllib.parse import urlparse
+
+     def validate_url_field(url):
+         if not url:
+             return False
+         parsed_url = urlparse(url)
+         return all([parsed_url.scheme, parsed_url.netloc])
+     ```
+
+2. **Update Exit Code Logic**:
+   - Ensure that if `validate_url_field()` returns `False`, the script exits with code 1.
+   - Example:
+     ```python
+     if not validate_url_field(auth_service_url):
+         print("Error: Malformed auth_service_url")
+         exit(1)
+     ```
+
+3. **Testing**:
+   - Write unit tests to cover various cases:
+     - Valid URLs should pass.
+     - Malformed URLs should cause the script to exit with code 1.
+   - Test edge cases, such as URLs with missing schemes or netloc.
+
+4. **Documentation**:
+   - Update any relevant documentation to reflect the changes in URL validation logic.
+   - Ensure users are aware of the new validation criteria.
+
+5. **Code Review**:
+   - Submit the changes for peer review to ensure quality and correctness.
+
+6. **Deploy**:
+   - Once reviewed and approved, deploy the changes to the appropriate environments as per the team's deployment strategy.
+
+By following these steps, I will ensure that DEF-2026-04-1047 is addressed correctly according to its current status in Release 2026-Q2.

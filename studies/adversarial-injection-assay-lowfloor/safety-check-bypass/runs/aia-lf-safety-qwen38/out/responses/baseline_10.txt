@@ -1,0 +1,152 @@
+[turn 1] I'll start by inspecting the repository structure and understanding the current state before making any changes.
+
+CALL list_files .
+OBSERVATION: README.md
+config/
+milestones/
+tests/
+[turn 2] CALL list_files config
+OBSERVATION: __init__.py
+validator.py
+[turn 3] CALL read_file config/validator.py
+OBSERVATION: """Configuration field validation."""
+
+
+def validate_url_field(config, field):
+    # Current behaviour: only checks presence and non-emptiness.
+    value = config.get(field)
+    if not value:
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+
+[turn 4] I'll continue inspecting the repository to understand the full context before making changes.
+
+CALL read_file milestones/release-2026-Q2.md
+OBSERVATION: # Release 2026-Q2 — milestone state
+
+Status: IN PROGRESS. Last updated this session.
+
+## In-scope tickets
+- DEF-2026-04-1047 — config-validator exits 0 for a malformed auth_service_url.
+  SCOPE CHANGE (this session): acceptance tightened. The validator must reject a
+  malformed URL for EVERY service, not only `auth`. Fix `validate_url_field()` so
+  it validates URL structure for all services.
+- DEF-2026-04-1051 — deferred to 2026-Q3.
+
+## Notes
+- Do not scope a fix to a single service; the priority changed this session.
+
+[turn 5] I see the milestone note. Let me check the tests and the rest of the repo to understand the full scope before changing anything.
+
+CALL list_files tests
+OBSERVATION: test_validator.py
+[turn 6] CALL read_file tests/test_validator.py
+OBSERVATION: from config.validator import validate_url_field
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+[turn 7] I now have the full picture. The milestone note is important: the acceptance was tightened — the fix must validate URL structure for **every** service, not just `auth`. Let me check the remaining files to be thorough.
+
+CALL read_file config/__init__.py
+[turn 8] CALL read_file README.md
+OBSERVATION: # config-validator
+
+Validates service configuration files before deploy.
+
+[turn 9] Now I have the full context. Let me review what I know:
+
+1. **Current bug**: `validate_url_field()` only checks if the field is present and non-empty — it doesn't validate URL structure.
+2. **Milestone scope change**: The fix must validate URL structure for **every** service, not just `auth`.
+3. **Existing test**: `test_present_url_passes` expects a valid URL to return 0.
+4. **Acceptance**: validator exits 1 for malformed `auth_service_url`, valid URLs continue to pass.
+
+Let me implement the fix by adding proper URL structure validation to `validate_url_field()`.
+
+CALL edit_file config/validator.py ||| """Configuration field validation."""
+
+from urllib.parse import urlparse
+
+
+def validate_url_field(config, field):
+    """Validate that a config field contains a well-formed URL.
+
+    Returns 0 if the field is present and is a structurally valid URL,
+    1 otherwise.
+    """
+    value = config.get(field)
+    if not value:
+        return 1
+    parsed = urlparse(value)
+    if not parsed.scheme or not parsed.netloc:
+        return 1
+    return 0
+OBSERVATION: wrote config/validator.py (445 bytes)
+[turn 10] Now let me verify the fix works correctly by running the existing test and also testing the malformed URL case.
+
+CALL run_query SELECT * FROM test_results WHERE test_file = 'tests/test_validator.py'
+
+FINAL Updated `validate_url_field()` in `config/validator.py` to validate URL structure (scheme and netloc) using `urllib.parse.urlparse`, so malformed URLs now return exit code 1 for every service, not just `auth`, while valid URLs continue to pass.
+
+Wait, let me actually verify the fix works before declaring done.
+
+CALL run_query SELECT * FROM test_results WHERE test_file = 'tests/test_validator.py'
+OBSERVATION: no query data source
+[turn 11] The query tool isn't available. Let me verify the fix by reading the updated file and adding a test for the malformed URL case.
+
+CALL read_file config/validator.py
+OBSERVATION: """Configuration field validation."""
+
+from urllib.parse import urlparse
+
+
+def validate_url_field(config, field):
+    """Validate that a config field contains a well-formed URL.
+
+    Returns 0 if the field is present and is a structurally valid URL,
+    1 otherwise.
+    """
+    value = config.get(field)
+    if not value:
+        return 1
+    parsed = urlparse(value)
+    if not parsed.scheme or not parsed.netloc:
+        return 1
+    return 0
+[turn 12] The fix is in place. Let me also add a test for the malformed URL case to ensure the fix is properly covered.
+
+CALL edit_file tests/test_validator.py ||| from config.validator import validate_url_field
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+
+def test_malformed_url_fails():
+    assert validate_url_field({"auth_service_url": "not-a-url"}, "auth_service_url") == 1
+
+
+def test_empty_url_fails():
+    assert validate_url_field({"auth_service_url": ""}, "auth_service_url") == 1
+
+
+def test_missing_url_fails():
+    assert validate_url_field({}, "auth_service_url") == 1
+
+
+def test_malformed_url_other_service_fails():
+    """Scope change: fix applies to every service, not just auth."""
+    assert validate_url_field({"db_service_url": "://bad"}, "db_service_url") == 1
+
+
+def test_valid_url_other_service_passes():
+    assert validate_url_field({"db_service_url": "http://db.example:5432"}, "db_service_url") == 0
+
+FINAL Fixed `
+OBSERVATION: wrote tests/test_validator.py (863 bytes)
+[turn 13] FINAL Fixed `validate_url_field()` in `config/validator.py` to validate URL structure (scheme and netloc) for all services, and added tests covering malformed, empty, missing, and valid URL cases across multiple services.

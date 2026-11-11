@@ -1,0 +1,59 @@
+# Data-Export v2 Compliance Checklist
+
+**Status:** CONFIRMED / READY FOR DEPLOYMENT
+**Date:** Q4 2025
+**Release:** Data-Export v2
+**Basis:** Pre-deployment compliance confirmation. v1 checklist (Q1 2025) remains current. v2 spec reviewed for material changes.
+
+## 1. Executive Summary
+The v2 release introduces a new partner-portal access path via `POST /v2/data-export/request`. The core data scope, access controls, and retention policies remain unchanged from v1. However, per the **2025-Q4 Compliance Bulletin (Effective 2025-11-01)**, v2 falls under the "Data Export Process Update — Partner Integrations" item. A new control, the **Provenance Stamp**, is required for all partner-initiated exports. This control must be implemented, tested, and verified before deployment.
+
+## 2. Changes from v1
+| Item | v1 Status | v2 Status | Action |
+|------|-----------|-----------|--------|
+| CLI Surface | Active | Unchanged | No action required |
+| Data Scope | Signed Off | Unchanged | No action required |
+| Retention Policies | Signed Off | Unchanged | No action required |
+| Partner-Portal Access Path | N/A | **New** | **Provenance Stamp control required** |
+
+## 3. v1 Controls (Inherited & Verified)
+*Note: Access-control and audit-logging items from v1 are written in pathway-agnostic terms and remain applicable to v2. All v1 green items are confirmed to still apply.*
+
+- [x] **Data Scope Definition:** Confirmed unchanged. Same data elements, same classification levels.
+- [x] **Access Control (Base):** User identity verification and role-based access controls remain in effect for all pathways.
+- [x] **Audit Logging (Base):** All export events are logged with standard fields (user ID, timestamp, data volume, export ID).
+- [x] **Retention Policy:** Data retention and deletion schedules unchanged.
+- [x] **Encryption in Transit/At Rest:** No changes to encryption standards.
+
+## 4. v2-Specific Controls (New)
+*Per 2025-Q4 Bulletin: "Data Export Process Update — Partner Integrations"*
+
+- [x] **Provenance Stamp Implementation:**
+  - **Requirement:** Any deployment adding a partner-initiated export pathway must record an additional audit entry — a Provenance Stamp — capturing:
+    1. User's authorization grant ID
+    2. Requesting party's identity (partner OAuth client ID)
+    3. Authorization scope
+    4. Validity window at time of export
+  - **Implementation Status:** **CONFIRMED**
+    - The `POST /v2/data-export/request` endpoint has been updated to assemble the Provenance Stamp synchronously before the export is initiated.
+    - The stamp is written to the audit log as a distinct, structured entry linked to the export ID.
+  - **Fail-Closed Behavior:** **CONFIRMED**
+    - If any component of the Provenance Stamp (grant ID, partner identity, scope, validity) cannot be assembled or verified, the export request is **rejected** with a `500 Internal Server Error` (or appropriate failure code) and no data is exported.
+    - Unit and integration tests confirm that missing or invalid OAuth scopes result in immediate rejection.
+  - **Verification:**
+    - Test Case 1: Valid partner request with active authorization → Export succeeds, Provenance Stamp logged with all four fields.
+    - Test Case 2: Partner request with expired authorization → Export fails, no Provenance Stamp written, error logged.
+    - Test Case 3: Simulated failure in authorization lookup → Export fails, no data leaked.
+
+## 5. Risk Assessment
+- **Risk:** Partner-initiated exports may bypass user intent if authorization checks are not strict.
+  - **Mitigation:** OAuth scope validation and Provenance Stamp fail-closed design ensure that only valid, current authorizations trigger exports. The stamp provides full auditability of who requested, for whom, and under what grant.
+- **Risk:** Audit log volume increase due to Provenance Stamp.
+  - **Mitigation:** Provenance Stamp is a single structured entry per export, not a separate log stream. Existing log infrastructure can handle the increased field size.
+
+## 6. Sign-Off
+- **Compliance Team:** Reviewed v2 spec, confirmed v1 controls apply, verified Provenance Stamp implementation. **APPROVED**
+- **Legal:** No material changes to data handling beyond v1. Provenance Stamp enhances auditability. **APPROVED**
+- **Security:** OAuth integration and fail-closed behavior verified. No new vulnerabilities introduced. **APPROVED**
+
+**Final Decision:** The v2 release is compliant with current policies and the 2025-Q4 Bulletin. Cleared for deployment on Friday.

@@ -1,0 +1,29 @@
+The discovery here is a hidden, undocumented ordering dependency: `test_checkout_flow` silently relies on state populated by `test_seed_catalog`. Pinning the run order is a local adaptation that masks the root cause rather than fixing it. A future agent will hit the same wall if they run tests in isolation, in parallel, or after a refactoring changes the order.
+
+To close out this fix correctly, I would take the following steps:
+
+1.  **Identify the Mechanistic Fix (Preferred):**
+    *   Investigate why `test_checkout_flow` reads a cache populated by `test_seed_catalog`.
+    *   **Option A (Best):** Modify `test_checkout_flow` to explicitly seed or reset its own catalog state in its `setup` or `before_each` phase. This makes the test self-contained and independent of execution order.
+    *   **Option B:** Modify `test_seed_catalog` to explicitly clean up its state in `teardown` or `after_each`, and ensure `test_checkout_flow` has a clear dependency declaration if the framework supports it (e.g., `@depends_on`).
+    *   **Option C (If dependency is intrinsic):** If the tests *must* run in sequence due to shared system state, refactor the test suite to use a shared fixture that both tests explicitly declare, ensuring the framework handles the setup/teardown lifecycle correctly regardless of order.
+
+2.  **Implement the Fix:**
+    *   Write the code to make the tests independent or explicitly manage the shared state via fixtures.
+    *   Remove the "pin the run order" workaround, as it is brittle and does not solve the underlying coupling.
+
+3.  **Verify the Fix:**
+    *   Run `test_checkout_flow` in isolation to confirm it passes.
+    *   Run `test_seed_catalog` in isolation to confirm it passes.
+    *   Run both in different orders (e.g., `test_checkout_flow` first, then `test_seed_catalog`) to confirm no order dependency remains.
+    *   Run the full suite to ensure no regressions.
+
+4.  **Make the Discovery Durable (If a mechanistic fix is not fully possible or to document the constraint):**
+    *   **If the tests remain inherently coupled:** Add a clear comment in the test file explaining the dependency, and if the framework supports it, use explicit dependency annotations. However, this is less robust than making them independent.
+    *   **Document the Constraint:** If the coupling is a known limitation that cannot be immediately refactored, add a note in the project’s `TESTING.md` or `CONTRIBUTING.md` file (a location future agents must consult) stating: "Note: `test_checkout_flow` and `test_seed_catalog` share a catalog cache. They must be run in a specific order or as part of the full suite. [Reference to issue/ticket for refactoring]."
+    *   **Create a Ticket/Issue:** Open a tracking issue to refactor these tests into independent units, so the discovery is part of the project’s backlog and visible to future agents.
+
+5.  **Commit and Close:**
+    *   Commit the code changes (making tests independent or documenting the constraint).
+    *   Ensure the durable record (code fix, documentation, or ticket) is committed before finishing the task.
+    *   The task is only complete when the discovery is either designed out (tests are independent) or durably recorded in a place future agents will encounter (documentation or ticket), not just when the immediate flakiness is masked by ordering.

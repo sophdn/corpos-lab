@@ -1,0 +1,47 @@
+### Investigation Round 1: Hypotheses Generation
+
+#### Hypothesis 1: Fraud Detection Service Outage
+The payment processing failure could be due to the fraud detection service experiencing an outage, leading to elevated latency and eventually service unavailability.
+
+#### Hypothesis 2: Order Service Batch Job Overload
+The order service might have submitted a large number of batch requests to the payment gateway, potentially overloading the system and causing the fraud detection service to become unresponsive.
+
+#### Hypothesis 3: Payment Gateway Dependency Failure
+The payment gateway might have failed due to dependency issues with the fraud detection service, leading to an inability to process any payment requests.
+
+### Sprint 1: Fraud Detection Service Outage
+
+#### Sprint Question: Was the fraud detection service experiencing elevated latency and eventual unresponsiveness?
+- **Fraud Detection Log Analysis:**
+  - At [15:38:30], the service experienced an `OutOfMemoryError` and was marked as unresponsive.
+  - The log shows repeated warnings about approaching heap limits and elevated GC pressure, leading to critical errors and service restarts.
+- **Payment Gateway Log Analysis:**
+  - At [15:38:35], the payment gateway logs indicate that the fraud detection service timed out with 12 requests pending.
+  - After [15:38:35], the fraud detection service was unavailable, causing the payment gateway to fail requests.
+
+**Conclusion:** The fraud detection service experienced a critical failure due to `OutOfMemoryError`, leading to elevated latency and service unresponsiveness. This hypothesis is confirmed.
+
+### Sprint 2: Order Service Batch Job Overload
+
+#### Sprint Question: Did the order service submit a large number of batch requests leading to overload?
+- **Order Service Log Analysis:**
+  - The order service initiated a batch job to process 1,247 orders, sending requests at a rate of 50/sec.
+  - The log shows the batch progress, with 1,005/1,247 requests sent by [15:38:00].
+  - At [15:38:40], the payment gateway started returning errors, and the batch job was paused and suspended.
+- **Payment Gateway Log Analysis:**
+  - The payment gateway logs show elevated latency due to the fraud detection service issues, but no explicit indication of overload from the batch job.
+
+**Conclusion:** While the order service did submit a large batch job, the logs do not indicate that this directly caused the payment processing failure. The elevated latency and eventual unavailability of the fraud detection service seem to have been the primary cause.
+
+### Sprint 3: Payment Gateway Dependency Failure
+
+#### Sprint Question: Did the payment gateway fail due to dependency issues with the fraud detection service?
+- **Payment Gateway Log Analysis:**
+  - The payment gateway logs show elevated latency and eventual unavailability due to the fraud detection service timeouts.
+  - At [15:41:05], the payment gateway circuit breaker was opened due to the fraud detection service being removed from the pool.
+
+**Conclusion:** The payment gateway experienced dependency issues with the fraud detection service, which became unresponsive due to `OutOfMemoryError`. This caused the payment gateway to fail processing all payment requests.
+
+### Investigation Outcome
+
+The fraud detection service experienced a critical failure due to `OutOfMemoryError`, leading to elevated latency and service unresponsiveness. This caused the payment gateway to fail due to dependency issues, ultimately leading to the payment processing failure. The order service batch job was a contributing factor but not the primary cause of the failure. All sprints were completed to confirm the root cause.

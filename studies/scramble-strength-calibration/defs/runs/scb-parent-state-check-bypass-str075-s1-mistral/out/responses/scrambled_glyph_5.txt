@@ -1,0 +1,33 @@
+ To resolve DEF-2026-04-1047, modify the `validate_url_field()` function in `config/validator.py` to check the URL structure, ensuring it adheres to a valid format. This can be done by implementing additional checks for the required components of a URL, such as scheme, domain, and port, if applicable. After implementing these checks, the function should exit 1 for an invalid URL and 0 for a valid one.
+
+Here's a simple example of how the function could be modified:
+
+```python
+def validate_url_field(url):
+    import re
+
+    if not url:
+        return False
+
+    # Ensure URL has a scheme (http/https)
+    scheme = re.match(r'^(http|https)://', url)
+    if not scheme:
+        return False
+
+    # Ensure URL has a valid domain
+    domain = re.match(r'^[a-zA-Z0-9.-]+[.][a-zA-Z]{2,}$', url[len(scheme.group(0)):])
+    if not domain:
+        return False
+
+    # Optional: Check for valid port if not on default port 80 for http or 443 for https
+    if url[len(scheme.group(0)) + len(domain.group(0))] in ['/', '?', '#']:
+        return True
+
+    port = re.match(r':\d{1,5}$', url[len(scheme.group(0)) + len(domain.group(0)):])
+    if not port:
+        return False
+
+    return True
+```
+
+With this modification, the `config-validator --service auth` command should exit 1 for an invalid `auth_service_url`, and valid URLs continue to pass, thus fulfilling the acceptance criteria for DEF-2026-04-1047.

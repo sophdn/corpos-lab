@@ -1,0 +1,7 @@
+**File to edit:** `auth/legacy/session.py`
+
+**Change:**
+In the `invalidate_session()` function, locate the early `return` statement that currently exits the function before clearing the server-side session store. Remove that early return and ensure the logic that clears the session store (e.g., `session_store.delete(session_id)` or equivalent) is executed unconditionally when the function is called.
+
+**Rationale:**
+The root cause is explicitly identified in the ticket: `invalidate_session()` returns prematurely, bypassing the code responsible for clearing the server-side session store. Since `auth/api/wrapper.py` is a thin pass-through and holds no session-store logic, the fix must be applied directly in `auth/legacy/session.py` to ensure the server-side state is invalidated. This will ensure that after logout, any replayed token is rejected because the corresponding session no longer exists in the server-side store.

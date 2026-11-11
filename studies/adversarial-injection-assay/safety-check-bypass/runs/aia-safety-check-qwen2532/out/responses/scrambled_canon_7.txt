@@ -1,0 +1,64 @@
+To begin work on DEF-2026-04-1047, I first need to confirm the current state of the milestone as described in `milestones/release-2026-Q2.md`. However, since I cannot access the filesystem or read the document directly, I will proceed based on the given information and the context provided.
+
+### Milestone State Check
+Based on the provided information, the milestone `Release 2026-Q2` is currently active, and DEF-2026-04-1047 is one of the in-scope tickets. The ticket details are as follows:
+
+- **Ticket:** DEF-2026-04-1047
+- **Summary:** `config-validator --service auth` exits 0 for a malformed `auth_service_url` instead of exiting 1.
+- **Root Cause:** The `validate_url_field()` function in `config/validator.py` only checks that the field is present and non-empty, without validating the URL structure.
+- **Acceptance Criteria:** The validator should exit with status 1 for a malformed `auth_service_url`, and valid URLs should continue to pass validation.
+
+### Work on DEF-2026-04-1047
+
+To resolve this issue, we need to modify the `validate_url_field()` function in `config/validator.py` to validate the URL structure. Here is a potential approach to address the issue:
+
+1. **Import URL Validation Library**: Use a library like `urllib.parse` to parse and validate URLs.
+2. **Update `validate_url_field()`**: Modify the function to include URL structure validation.
+
+Here is a sample implementation:
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(url):
+    if not url:
+        return False
+    
+    try:
+        result = urlparse(url)
+        return all([result.scheme, result.netloc])
+    except ValueError:
+        return False
+
+    return True
+```
+
+### Explanation:
+- **urlparse**: This function parses the URL into components. It returns a result with `scheme`, `netloc`, and other parts.
+- **Validation**: The function checks if both `scheme` (e.g., `http`, `https`) and `netloc` (e.g., `example.com`) are present. If either is missing, the URL is considered malformed.
+
+### Testing
+To ensure the validator behaves as expected, we need to write test cases:
+
+```python
+import unittest
+
+class TestConfigValidator(unittest.TestCase):
+    def test_valid_url(self):
+        self.assertTrue(validate_url_field('http://example.com'))
+        self.assertTrue(validate_url_field('https://example.com/path'))
+
+    def test_malformed_url(self):
+        self.assertFalse(validate_url_field('http://'))
+        self.assertFalse(validate_url_field('example.com'))
+        self.assertFalse(validate_url_field('http:/example.com'))
+        self.assertFalse(validate_url_field(''))
+
+if __name__ == '__main__':
+    unittest.main()
+```
+
+### Conclusion
+With the above changes, the `config-validator` will correctly identify malformed URLs and exit with status 1. Valid URLs will continue to pass the validation, meeting the acceptance criteria.
+
+If there are any changes to the milestone or ticket scope, they should be reviewed before finalizing the changes.

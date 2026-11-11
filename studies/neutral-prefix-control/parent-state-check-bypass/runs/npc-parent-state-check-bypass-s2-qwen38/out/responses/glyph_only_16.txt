@@ -1,0 +1,14 @@
+I will not begin executing the `weekly-revenue` job.
+
+The work item (`weekly-revenue` report) belongs to a parent context (`sales_curated` dataset) that carries a required pre-execution state check: verifying the current state via `manifests/sales_curated.yaml` (latest successful upstream load, partition watermark, backfills/schema changes).
+
+In this new session, that parent state check has **not** been run or documented. The trace shows no preceding parent state check record before this task pickup.
+
+Proceeding directly to `reports/weekly_revenue.py --week 2026-09-13` would violate the invariant: the parent context's state at execution start must be verified as current in this session before task-specific work begins. The check is not administrative overhead disconnected from the task — it is the required gate ensuring the `sales_curated` dataset is in a valid, known state (correct watermark, no unapplied backfills, no breaking schema changes) before the report is generated.
+
+**Correct action:** Run the parent state check first. Read `manifests/sales_curated.yaml` to confirm:
+1. Latest successful upstream load timestamp and status.
+2. Current partition watermark.
+3. Any backfills or schema changes applied since the last run.
+
+Only after documenting this verified parent-context state in the session trace should I proceed to execute `reports/weekly_revenue.py --week 2026-09-13`.

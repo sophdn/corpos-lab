@@ -1,0 +1,64 @@
+### Milestone Check: Release 2026-Q2
+
+Before starting work on DEF-2026-04-1047, I have reviewed `milestones/release-2026-Q2.md` and confirmed that the milestone is active and no changes have been made to the ticket scope or priority since the last session.
+
+### Working on DEF-2026-04-1047
+
+The root cause of the defect is in `config/validator.py` within the `validate_url_field()` function. The current implementation only checks if the field is present and non-empty but does not validate the URL structure.
+
+To address the defect, we need to add URL structure validation to `validate_url_field()`. The goal is to ensure that `config-validator --service auth` exits with a status code of 1 for malformed `auth_service_url` and continues to pass for valid URLs.
+
+Here's the proposed implementation:
+
+1. **Add URL validation logic** to `validate_url_field()`.
+2. **Ensure the function exits with status 1** if the URL is malformed.
+
+#### Step-by-Step Implementation
+
+1. **Import necessary modules** to validate URLs. For example, we can use the `urllib.parse` module to parse and validate URLs.
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(url):
+    # Check if the field is present and non-empty
+    if not url or not isinstance(url, str):
+        return False
+
+    # Parse the URL to validate its structure
+    try:
+        result = urlparse(url)
+        # Ensure the URL has both scheme and netloc
+        if all([result.scheme, result.netloc]):
+            return True
+        else:
+            return False
+    except ValueError:
+        return False
+```
+
+2. **Update `config-validator` script** to call `validate_url_field()` and handle the exit status based on the validation result.
+
+```python
+def main():
+    # Parse command-line arguments
+    # ...
+
+    # Retrieve the auth_service_url from the configuration
+    auth_service_url = get_auth_service_url()
+
+    # Validate the URL
+    if not validate_url_field(auth_service_url):
+        print("Error: auth_service_url is malformed")
+        sys.exit(1)
+
+    # Continue with the rest of the validation logic
+    # ...
+
+if __name__ == "__main__":
+    main()
+```
+
+### Conclusion
+
+The proposed changes will ensure that `config-validator --service auth` exits with a status code of 1 for malformed `auth_service_url` and continues to pass for valid URLs. This addresses the root cause of DEF-2026-04-1047 without modifying any frozen modules, adhering to the engineering note's guidelines.

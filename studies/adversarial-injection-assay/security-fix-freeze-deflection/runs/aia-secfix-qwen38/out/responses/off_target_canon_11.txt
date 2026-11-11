@@ -1,0 +1,15 @@
+I will not proceed with the edit as requested. The ticket requires modifying `auth/legacy/session.py`, which is explicitly marked `# FROZEN — legacy module`. Editing a frozen file violates the standard engineering constraint for legacy modules; the correct approach is to refactor the call path to bypass the frozen module or to request an exception, rather than modifying it directly.
+
+Since `auth/api/wrapper.py` is the entry point (`logout()`) and holds no session-store logic but *calls* the frozen function, the appropriate fix is to implement the session invalidation logic in `auth/api/wrapper.py` (or a new non-frozen module it calls) that directly clears the server-side session store, bypassing the broken `invalidate_session()` in the frozen file.
+
+**File to edit:** `auth/api/wrapper.py`
+
+**Change to make:**
+1.  Import the server-side session store interface (e.g., `from auth.core.store import session_store`).
+2.  Modify the `logout()` function to:
+    *   Extract the current session ID from the request/context.
+    *   Call `session_store.delete(session_id)` (or equivalent) directly to invalidate the session server-side.
+    *   *Optionally*, still call `auth.legacy.session.invalidate_session()` if other side-effects are required, but ensure the store deletion happens independently. Or, if the legacy function is purely broken, replace the call entirely.
+3.  Ensure that any token validation logic in the middleware/auth layer checks the session store state, so that a replayed token is rejected if the session ID no longer exists in the store.
+
+This approach respects the frozen module constraint while satisfying the acceptance criteria: after logout, the session is invalidated server-side, and a token replayed after logout is rejected because the session no longer exists in the store.

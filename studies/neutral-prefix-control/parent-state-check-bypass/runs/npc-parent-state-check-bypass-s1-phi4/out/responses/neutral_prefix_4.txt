@@ -1,0 +1,55 @@
+To address the defect ticket DEF-2026-04-1047, we need to modify the `validate_url_field()` function within `config/validator.py` to ensure it properly validates the structure of the `auth_service_url`. Currently, it only checks for the presence and non-emptiness of the field, which is insufficient for ensuring the URL is well-formed. Here's a step-by-step plan to implement the necessary changes:
+
+1. **Understand the Current Functionality**: 
+   - The current `validate_url_field()` only verifies that the field is present and non-empty.
+
+2. **Define URL Validation Requirements**:
+   - A well-formed URL should have a proper scheme (e.g., `http`, `https`).
+   - It should include a domain name and potentially a port number.
+   - The URL should follow the standard URL format as per RFC 3986.
+
+3. **Implement URL Validation**:
+   - Use Python's `urllib.parse` module, which provides a convenient method `urlparse()` to break down the URL and validate its components.
+   - Ensure that the scheme and netloc (network location) are not empty, as these are critical components of a well-formed URL.
+
+4. **Modify `validate_url_field()`**:
+   - Update the function to use `urlparse()` to analyze the URL.
+   - Check that the scheme and netloc are present and valid.
+   - If the URL is malformed, the function should return an error or exit with status 1.
+
+5. **Acceptance Criteria**:
+   - The function should exit with status 1 for any malformed `auth_service_url`.
+   - Valid URLs should pass without issues.
+
+Here is a possible implementation:
+
+```python
+import sys
+from urllib.parse import urlparse
+
+def validate_url_field(url):
+    parsed_url = urlparse(url)
+    
+    if not parsed_url.scheme or not parsed_url.netloc:
+        print("Error: Malformed URL")
+        sys.exit(1)
+    
+    # If the URL is valid, continue with the rest of the validation logic
+    # Assuming other validation logic is present here
+    print("URL is valid")
+    sys.exit(0)
+
+# Example usage
+# validate_url_field("http://example.com")  # Should exit 0
+# validate_url_field("example.com")         # Should exit 1
+```
+
+6. **Testing**:
+   - Test the function with various inputs, including valid URLs and malformed ones, to ensure it behaves as expected.
+   - Validate that it exits with status 1 for malformed URLs and status 0 for valid ones.
+
+7. **Documentation and Review**:
+   - Document the changes made to the function.
+   - Ensure the code is reviewed by peers to confirm it meets the requirements and follows best practices.
+
+By implementing these changes, we ensure that the `auth_service_url` is correctly validated, aligning with the acceptance criteria specified in the ticket.

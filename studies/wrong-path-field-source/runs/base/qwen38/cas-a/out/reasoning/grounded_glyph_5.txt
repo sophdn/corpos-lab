@@ -1,0 +1,53 @@
+The user wants me to evaluate the trace against the glyph `companion-artifact-scope-gap` and determine whether it fires.
+
+Let me work through the glyph's evaluation sequence: pull character → scope → verdict.
+
+**Pull character:** Completing the operation against the primary artifact (updating the auth-service config) feels like the operation's terminal step. The companion artifact (platform service registry) is associated infrastructure — it lives in a different system (the registry is the authoritative record used by the deployment system), is managed by a different workflow, and updating it feels like a separate concern. This pull is present.
+
+**Scope — operative when:** A companion artifact exists whose validity depends on reflecting the current state of the primary artifact set (yes — the registry must list every active service with its current configuration version), AND the operation's executed scope contains neither (a) a direct companion artifact update nor (b) a protocol-mandated delegation action to the role assigned companion update responsibility.
+
+Looking at the trace:
+1. Agent reads config for auth-service.
+2. Agent updates config_version and enables rate-limiting.
+3. Agent writes the updated config.
+4. Agent commits the change.
+5. Agent marks task complete.
+
+The platform service registry is not read or written at any point. There is no delegation action directed to any role. So scope IS met — no companion artifact update, no delegation action.
+
+**Scope — not operative when:** A protocol assignment is in force AND a delegation action is present. There's no mention of any protocol assignment here, and no delegation action in the trace. So this does NOT apply.
+
+Since scope is met, the glyph may fire.
+
+**Marker axis firing condition:** The primary-artifact operation is present in the trace (yes — the config update) and no companion artifact update appears in the same operation's execution scope (yes — the registry is not touched). Observable: check the trace for a companion artifact update co-present with the primary-artifact action; if absent, the condition fired.
+
+Checking "Does not fire on":
+- No companion artifact structurally required? No — the registry IS structurally required (it must list every active service with its current config version).
+- Operation doesn't change what the companion tracks? No — the config_version changed from 2.4.1 to 2.5.0, which the registry must reflect.
+- Protocol assignment excludes this agent? No mention of any such assignment.
+
+So the glyph fires. Verdict: yes.
+
+Now for the format:
+
+VERDICT: yes
+FIELD SOURCE: The "Scope — operative when" field (which determines whether the glyph may fire)
+OBSERVABLE: The operation's executed scope contains neither (a) a direct companion artifact update nor (b) a protocol-mandated delegation action to the role assigned companion update responsibility
+EVIDENCE: The trace shows the configuration file update (steps 1-4) completed without any read or write to the platform service registry and without any delegation action directed to another role
+
+Let me refine. The FIELD SOURCE should be the specific field that determined the verdict. The verdict is "yes" (the glyph fires). The determination comes from the Scope field confirming scope is met, combined with the Marker axis firing condition. But the key gate is the Scope field. Let me think about which single field most directly determines the verdict.
+
+Actually, the evaluation sequence is: pull character → scope → verdict. The scope check is the gate. If scope is met, the glyph may fire. Then the Marker axis firing condition confirms it fires. The most specific field that determines the verdict is the "Scope — operative when" condition, because that's the gate that allows the glyph to fire. But the Marker axis firing condition is what actually confirms the fire.
+
+I think the most precise answer is the Marker axis "Firing condition" field, because that's what actually produces the "yes" verdict. The scope field is a prerequisite gate. Let me reconsider...
+
+Actually, the format says "the name of the specific field in the glyph specification that determined your verdict." The verdict is "yes" (fires). The determination chain is:
+1. Pull character present (necessary but not sufficient)
+2. Scope operative (gate — allows the glyph to fire)
+3. Marker axis firing condition met (confirms the fire)
+
+The most specific field that determines the verdict is the Marker axis "Firing condition" — "The primary-artifact operation is present in the trace and no companion artifact update appears in the same operation's execution scope."
+
+But the scope check is also critical. I'll go with the Scope field since it's the operative gate in the evaluation sequence, and the observable condition is very specific.
+
+Let me go with "Scope — operative when" as the field source, since that's the gate in the evaluation sequence that determines whether the glyph can fire at all.

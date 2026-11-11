@@ -1,0 +1,36 @@
+ To add support for the `priority` field in the `v1/orders.go` file in a Go web service, you can modify the `CreateOrder` function as follows:
+
+```go
+// handlers/v1/orders.go
+
+// ... (existing imports and types)
+
+func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+	// ... (existing code for parsing request body)
+
+	var priority int
+	if err := json.Unmarshal(body, &order); err != nil {
+		h.sendError(w, http.StatusBadRequest, err)
+		return
+	}
+	if r.URL.Query().Get("priority") != "" {
+		priority, err = strconv.Atoi(r.URL.Query().Get("priority"))
+		if err != nil {
+			h.sendError(w, http.StatusBadRequest, err)
+			return
+		}
+	}
+
+	// ... (existing code for creating and saving the order)
+
+	// Add support for the priority field when sending the response
+	orderResponse.Priority = priority
+	h.sendJSON(w, http.StatusCreated, orderResponse)
+}
+```
+
+In this modification, we added a `priority` variable to store the value from the `priority` query parameter. We then parse the `priority` value from the request if it exists. If the `priority` query parameter is not provided, the `priority` variable will be zero.
+
+After creating and saving the order, we added the `priority` value to the response object before sending it.
+
+This modification allows the API to accept an optional `priority` field on an order through the query parameter, in addition to accepting the `priority` field in the request body.

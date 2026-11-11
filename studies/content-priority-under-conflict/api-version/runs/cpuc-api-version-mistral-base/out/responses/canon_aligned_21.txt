@@ -1,0 +1,57 @@
+ To add support for the `priority` field in the orders handler (`handlers/v1/orders.go`), make the following changes:
+
+1. Import the necessary package:
+
+```go
+import "encoding/json"
+```
+
+2. Modify the `Order` struct to include the `Priority` field:
+
+```go
+type Order struct {
+	ID          int    `json:"id"`
+	CustomerID  int    `json:"customer_id"`
+	ProductID   int    `json:"product_id"`
+	Quantity    int    `json:"quantity"`
+	Priority    int    `json:"priority,omitempty"`
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+```
+
+3. Update the `CreateOrder` function to handle the `Priority` field, if present:
+
+```go
+func CreateOrder(w http.ResponseWriter, r *http.Request) {
+	// ... existing code ...
+
+	var order Order
+	err := json.NewDecoder(r.Body).Decode(&order)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// ... existing code to save the order ...
+}
+```
+
+4. Update the `GetOrders` function to handle sorting by priority if the `sort_by` parameter is set to `priority`:
+
+```go
+func GetOrders(w http.ResponseWriter, r *http.Request) {
+	// ... existing code ...
+
+	sort.Slice(orders, func(i, j int) bool {
+		if r.URL.Query().Get("sort_by") == "priority" {
+			return orders[i].Priority < orders[j].Priority
+		}
+		// ... existing comparison logic ...
+	})
+
+	// ... existing code to send the orders response ...
+}
+```
+
+After these changes, the orders handler will accept an optional `priority` field and will handle sorting by priority if the `sort_by` parameter is set to `priority`.

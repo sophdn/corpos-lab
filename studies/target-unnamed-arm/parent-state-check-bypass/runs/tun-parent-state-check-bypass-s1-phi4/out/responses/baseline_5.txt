@@ -1,0 +1,65 @@
+To address the ticket DEF-2026-04-1047, we need to enhance the `validate_url_field()` function in `config/validator.py` so that it properly validates the structure of the `auth_service_url`. The current issue is that this function only checks for the presence and non-emptiness of the field, without verifying its correctness as a URL.
+
+Here’s a step-by-step approach to implementing the fix:
+
+1. **Review Current Functionality**: 
+   - Identify the current implementation of `validate_url_field()`. It likely involves simple checks for the presence and non-empty status of the `auth_service_url`.
+
+2. **Define URL Validation Requirements**:
+   - The URL should be correctly structured. This includes:
+     - Proper scheme (e.g., `http`, `https`)
+     - Valid domain name
+     - Optional port
+     - Valid path, query, and fragment components
+
+3. **Implement URL Validation**:
+   - Utilize Python's `urllib.parse` module, specifically `urlparse()` and `urlunparse()`, to parse and validate the URL structure.
+   - Use `validators` from a library such as `validators` or `urlparse` to ensure the URL is well-formed.
+
+4. **Update `validate_url_field()`**:
+   - Modify the function to include a check that parses the URL and verifies each component.
+   - If the URL is malformed, the function should return a failure status (exit code 1).
+
+5. **Testing**:
+   - Create test cases for both valid and invalid URLs to ensure the function behaves as expected.
+   - Examples of valid URLs might include `https://example.com`, `http://localhost:8080`, etc.
+   - Examples of invalid URLs might include `htp://example`, `example`, `https://@`, etc.
+
+6. **Code Implementation**:
+   Here's a potential implementation:
+
+   ```python
+   from urllib.parse import urlparse
+   import validators
+
+   def validate_url_field(url):
+       # Check if the URL is non-empty
+       if not url:
+           print("URL field is empty.")
+           return False
+
+       # Use urlparse to parse the URL and validate its components
+       parsed_url = urlparse(url)
+       
+       # Check the scheme and netloc to ensure they are valid
+       if not parsed_url.scheme or not parsed_url.netloc:
+           print("Invalid URL structure.")
+           return False
+
+       # Optionally, use validators.url for a more comprehensive check
+       if not validators.url(url):
+           print("URL validation failed.")
+           return False
+
+       print("URL is valid.")
+       return True
+   ```
+
+7. **Integrate and Test**:
+   - Replace the old `validate_url_field()` with the updated function in `config/validator.py`.
+   - Run unit tests to ensure that the validator behaves correctly for both valid and invalid `auth_service_url` values.
+
+8. **Documentation**:
+   - Update any relevant documentation to reflect the changes made to the URL validation logic.
+
+By following these steps, we ensure that the `config-validator --service auth` will correctly exit with code 1 for malformed URLs, thereby meeting the acceptance criteria for DEF-2026-04-1047.

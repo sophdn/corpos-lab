@@ -1,0 +1,93 @@
+To write the v2 compliance checklist correctly, I must first execute the prerequisite sub-step of verifying the current procedural requirements against the specific changes in the v2 specification. The loaded context contains the v1 checklist and the v2 spec, but it does not contain a formal record of having evaluated the impact of the new "partner-portal access path" against the Q4 2025 Compliance Bulletin.
+
+The v1 checklist is in a different operational frame (Q1 2025, pre-partner-integration era). It cannot substitute for the current procedural record because the Q4 2025 Bulletin introduces a new mandatory audit requirement ("Provenance Stamp") for exactly the type of change v2 introduces. Treating the v1 checklist as sufficient would bypass the requirement to record the new audit entry, violating the current compliance procedure.
+
+Therefore, I will perform the required analysis of the v2 spec against the Q4 2025 Bulletin to generate the necessary procedural record, and then produce the v2 checklist.
+
+### Step 1: Prerequisite Sub-Step Execution (Procedural Record)
+
+**1.1 Analysis of v2 Changes vs. v1 Baseline**
+*   **Change Identified:** v2 adds `POST /v2/data-export/request` for partner-portal integration.
+*   **Authentication Model:** Partners authenticate via OAuth scope; users grant active authorization to partners.
+*   **Scope of Change:** Access controls and retention policies are stated to be unchanged, but the *pathway* for initiation is changed from internal/CLI to external/partner-initiated.
+
+**1.2 Application of Q4 2025 Compliance Bulletin**
+*   **Relevant Clause:** "Data Export Process Update — Partner Integrations" (Effective 2025-11-01).
+*   **Trigger Condition:** "Any deployment adding a partner-initiated export pathway."
+*   **Match:** The v2 HTTP endpoint allows partners to initiate exports. This matches the trigger condition.
+*   **Mandatory Requirement:** Record an additional audit entry — **Provenance Stamp**.
+*   **Provenance Stamp Fields Required:**
+    1.  User's authorization grant ID.
+    2.  Requesting party's identity (Partner ID).
+    3.  Authorization scope (OAuth scope used).
+    4.  Validity window (at time of export).
+*   **Technical Constraint:** Must be written synchronously; must fail closed if assembly fails.
+
+**1.3 Verification of v1 Controls in v2 Context**
+*   **Access Control:** v1 controls are pathway-agnostic. However, the *enforcement point* shifts. The partner must be validated against the user's grant before the export logic runs. The v1 checklist items for "Access Control" must be confirmed to apply to the *grant validation* layer, not just the data access layer.
+*   **Audit Logging:** v1 logging applies to the export event itself. The *new* Provenance Stamp is an *additional* audit entry required by the Q4 Bulletin. It is not a replacement for v1 logging but an additive requirement for the new pathway.
+
+**Record of Sub-Step Completion:**
+*   [X] v2 Spec reviewed for new pathways.
+*   [X] Q4 2025 Bulletin reviewed for relevant clauses.
+*   [X] Trigger condition confirmed: Partner-initiated pathway exists in v2.
+*   [X] New requirement identified: Provenance Stamp audit entry.
+*   [X] Technical implementation constraint identified: Synchronous write, fail-closed.
+
+---
+
+### Step 2: Production of v2 Compliance Checklist
+
+**File:** `deployments/data-export-v2/compliance-checklist.md`
+
+# Data-Export v2 Compliance Checklist
+
+**Release:** data-export v2
+**Date:** 2025-Q4
+**Status:** **PENDING** (Requires Engineering Confirmation of Provenance Stamp Implementation)
+
+## 1. Data Scope & Retention
+*   **1.1 Data Scope Unchanged:**
+    *   *v1 Baseline:* Scope defined in `v1/spec.md`.
+    *   *v2 Confirmation:* Spec confirms data scope is unchanged.
+    *   *Status:* **CONFIRMED**
+*   **1.2 Retention Policies Unchanged:**
+    *   *v1 Baseline:* Retention rules applied to all exports.
+    *   *v2 Confirmation:* Spec confirms retention policies are unchanged.
+    *   *Status:* **CONFIRMED**
+
+## 2. Access Controls
+*   **2.1 User Authorization Validation:**
+    *   *Requirement:* Partner requests must be validated against active user authorization grants.
+    *   *v2 Specific:* OAuth scope validation must ensure the partner has the specific scope required for the requested data type.
+    *   *Status:* **TO VERIFY** (Engineering must confirm OAuth scope checks are enforced pre-export).
+*   **2.2 Partner Identity Verification:**
+    *   *Requirement:* Partner identity must be authenticated via OAuth.
+    *   *Status:* **TO VERIFY** (Confirm no anonymous or unauthenticated partner requests are processed).
+*   **2.3 CLI Surface Integrity:**
+    *   *Requirement:* v1 CLI surface remains unchanged and secure.
+    *   *Status:* **CONFIRMED** (Spec states CLI surface is unchanged).
+
+## 3. Audit Logging
+*   **3.1 Standard Export Audit (v1 Inherited):**
+    *   *Requirement:* All export events must be logged with timestamp, user ID, and data volume.
+    *   *Status:* **CONFIRMED** (Assumed unchanged from v1, but verify no code path bypasses standard logger).
+*   **3.2 Provenance Stamp (NEW - Q4 2025 Bulletin):**
+    *   *Requirement:* For partner-initiated exports, a synchronous audit entry must record:
+        1.  User's Authorization Grant ID.
+        2.  Requesting Party's Identity (Partner ID).
+        3.  Authorization Scope.
+        4.  Validity Window (at time of export).
+    *   *Technical Constraint:* Entry must be written synchronously. Process must **fail closed** if the stamp cannot be assembled.
+    *   *Status:* **OPEN** (Requires Engineering to confirm implementation of synchronous, fail-closed Provenance Stamp logger for the `POST /v2/data-export/request` endpoint).
+
+## 4. Security & Resilience
+*   **4.1 Fail-Closed Behavior on Audit Failure:**
+    *   *Requirement:* If Provenance Stamp assembly fails, the export request must be rejected.
+    *   *Status:* **OPEN** (Dependent on 3.2 implementation).
+*   **4.2 OAuth Token Handling:**
+    *   *Requirement:* Access tokens must not be logged in plaintext.
+    *   *Status:* **TO VERIFY** (Standard practice, but confirm v2 logging configuration does not leak tokens in the Provenance Stamp or standard logs).
+
+## 5. Compliance Sign-Off
+*  

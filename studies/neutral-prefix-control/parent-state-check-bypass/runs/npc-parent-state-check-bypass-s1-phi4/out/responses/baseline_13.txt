@@ -1,0 +1,55 @@
+To address the defect ticket DEF-2026-04-1047, we need to enhance the `validate_url_field()` function in `config/validator.py` to properly validate the structure of the `auth_service_url`. Here's a structured approach to resolve this issue:
+
+### Analysis
+
+1. **Current Behavior**: The `validate_url_field()` function currently only checks if the `auth_service_url` field is present and non-empty. It does not verify the URL's structure, leading to a scenario where a malformed URL can pass validation.
+
+2. **Required Behavior**: The function should validate the structure of the URL and exit with code 1 if the URL is malformed, while valid URLs should continue to pass the validation.
+
+### Steps to Resolve
+
+1. **Update the `validate_url_field()` Function**:
+   - Introduce a URL validation mechanism. We can use Python's `urllib.parse` module, specifically the `urlparse` function, to check if the URL is well-formed.
+   - Ensure the scheme and network location (netloc) are present, as these are typically required for a valid URL.
+
+2. **Modify the Exit Code**:
+   - If the URL is malformed, the function should set an appropriate error message and return an exit code of 1.
+   - If the URL is valid, the function should continue without altering the exit code (implicitly 0).
+
+3. **Testing**:
+   - Create unit tests to cover various scenarios, including valid URLs, URLs with missing schemes, and URLs with incorrect formats.
+   - Ensure that the function behaves correctly for edge cases, such as empty strings or strings with only whitespace.
+
+### Implementation
+
+Here's a pseudocode outline for the changes:
+
+```python
+from urllib.parse import urlparse
+import sys
+
+def validate_url_field(url_field):
+    # Check if the field is present and non-empty
+    if not url_field:
+        print("Error: URL field is missing or empty.")
+        sys.exit(1)
+
+    # Parse the URL to validate its structure
+    parsed_url = urlparse(url_field)
+
+    # Check if the scheme and netloc are present
+    if not parsed_url.scheme or not parsed_url.netloc:
+        print("Error: Malformed URL.")
+        sys.exit(1)
+
+    # If the URL is valid, the function will continue without exiting
+    print("URL is valid.")
+```
+
+### Acceptance Criteria
+
+- The validator exits with code 1 for a malformed `auth_service_url`.
+- Valid URLs pass without any errors.
+- Unit tests confirm the correct behavior for various URL formats.
+
+By implementing these changes, we ensure that the `config-validator` tool correctly identifies malformed URLs, aligning with the acceptance criteria outlined in the defect ticket.

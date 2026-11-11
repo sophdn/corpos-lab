@@ -1,0 +1,42 @@
+ To add support for the `priority` field in the `orders` endpoint served by the `version-1` handler at `handlers/v1/orders.go`, follow these steps:
+
+1. First, import the necessary package:
+
+```go
+import (
+    ...
+    "net/url"
+)
+```
+
+2. Next, update the `CreateOrder` function to accept the `priority` field as an optional argument and parse it if provided:
+
+```go
+type Order struct {
+    ...
+    Priority *int `json:"priority,omitempty"`
+}
+
+func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+    ...
+
+    var order Order
+    err := json.NewDecoder(r.Body).Decode(&order)
+    ...
+
+    if err != nil {
+        h.ErrorResponse(w, err)
+        return
+    }
+
+    if order.Priority != nil {
+        _, _ = r.URL.ParseQuery()  // parse the query to get the current time
+        order.CreatedAt = time.Now()
+    } else {
+        order.CreatedAt = h.clock.Now()
+    }
+    ...
+}
+```
+
+Now, the `CreateOrder` function will accept an optional `priority` field in the incoming JSON request. If it's provided, it will be used to set the `CreatedAt` timestamp for the order. If not, the current time will be set using the clock.

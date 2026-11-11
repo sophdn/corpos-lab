@@ -1,0 +1,116 @@
+# repair-duty
+
+## Purpose
+
+This duty governs the execution of a repair act on a confirmed software defect with a known locus. It is designed to be self-sufficient; the executor requires no external registry, canon, or additional documentation to navigate the following gates. Failure to pass any gate halts the repair process immediately.
+
+## Phase 1: Pre-Execution Verification (Upstream Routing)
+
+This phase addresses **routing-class hazards**. It ensures that the situation correctly calls for a repair act and that the executor is authorized to proceed before any code is touched.
+
+### Gate 1.1: Confirmation of Defect Status
+- **Verifies:** That the defect is confirmed as a true software error (not a feature request, performance optimization, or ambiguous behavior) and that the locus (file and line number) has been independently verified to exist and correspond to the reported failure.
+- **Completes when:**
+  1. The executor has confirmed that the reported behavior deviates from the intended specification or logical contract of the function.
+  2. The executor has located the exact code at the specified locus (e.g., `calculator.py:2`).
+  3. The executor has reproduced the failure locally or via the provided test case, confirming that the specific input triggers the specific error at the identified line.
+  4. If reproduction fails or the locus does not match the error, the duty halts and returns "Locus Invalid" to the caller.
+
+### Gate 1.2: Authority and Scope Check
+- **Verifies:** That the executor has the necessary permissions to modify the identified file and that the repair is within the scope of the current session.
+- **Completes when:**
+  1. The executor confirms write access to the target file.
+  2. The executor confirms that the repair does not require changes to external dependencies, database schemas, or other modules outside the immediate locus unless explicitly authorized in the initial defect report.
+
+## Phase 2: Pre-Modification Analysis
+
+This phase establishes the baseline and safety constraints before any code is changed.
+
+### Gate 2.1: Baseline Capture
+- **Verifies:** That the current state of the code at the locus is preserved for rollback and that the expected post-repair behavior is clearly defined.
+- **Completes when:**
+  1. The executor records the exact text of the current implementation at the locus.
+  2. The executor defines the acceptance criteria: a specific input (e.g., `[]`) that previously failed and a specific expected output (e.g., `0.0`, `None`, or a specific exception) that the new code must produce.
+  3. The executor identifies all other inputs that must continue to work correctly (regression scope).
+
+### Gate 2.2: Impact Analysis
+- **Verifies:** That the proposed change will not introduce new side effects or break existing callers.
+- **Completes when:**
+  1. The executor has identified all functions, methods, or scripts that call the defective function.
+  2. The executor has reasoned through how the new behavior (e.g., handling an empty list) will affect each caller.
+  3. If the new behavior changes the return type or exception pattern in a way that could break callers, the duty halts and flags "Caller Compatibility Risk."
+
+## Phase 3: Execution of Repair
+
+This phase contains the actual modification.
+
+### Gate 3.1: Implementation of Fix
+- **Verifies:** That the code at the locus is modified to handle the specific failure mode identified in Gate 1.1 while preserving the integrity of the surrounding logic.
+- **Completes when:**
+  1. The executor modifies the code at the locus to prevent the `ZeroDivisionError` (or equivalent failure).
+  2. The modification is minimal and targeted. For example, if the defect is division by zero, the fix must explicitly check for the zero condition before the division.
+  3. The fix does not introduce new imports, dependencies, or complex logic that was not present in the original scope, unless strictly necessary and justified in the impact analysis.
+
+### Gate 3.2: Syntax and Lint Validation
+- **Verifies:** That the modified code is syntactically valid and conforms to the project’s style guidelines.
+- **Completes when:**
+  1. The executor runs a syntax check (e.g., Python `ast.parse` or equivalent) on the modified file.
+  2. The executor runs the project’s linter (if available) on the modified file.
+  3. Any syntax errors or critical lint failures are resolved. If lint failures are stylistic and do not affect logic, they may be noted but do not halt the repair unless they are errors.
+
+## Phase 4: Verification and Testing
+
+This phase confirms that the repair works and does not break other functionality.
+
+### Gate 4.1: Targeted Test Execution
+- **Verifies:** That the specific defect is resolved.
+- **Completes when:**
+  1. The executor runs the specific test case that reproduced the original failure (e.g., `calculate_average([])`).
+  2. The output matches the acceptance criteria defined in Gate 2.1.
+  3. If the output does not match, the duty halts and returns "Repair Ineffective."
+
+### Gate 4.2: Regression Test Execution
+- **Verifies:** That existing functionality is not broken.
+- **Completes when:**
+  1. The executor runs the existing test suite for the module containing the defect.
+  2. All previously passing tests continue to pass.
+  3. If any regression is detected, the duty halts and returns "Regression Detected," and the executor must roll back to the baseline captured in Gate 2.1.
+
+## Phase 5: Post-Execution and Session Close
+
+This phase addresses **session-close-obligation hazards**. It ensures that all discoveries and states are recorded before the session ends.
+
+### Gate 5.1: Documentation of Change
+- **Verifies:** That the repair is documented for future maintenance and audit.
+- **Completes when:**
+  1. The executor updates the commit message or change log to include:
+     - The defect ID (if available).
+     - A brief description of the root cause.
+     - A brief description of the fix.
+     - The test cases that were run to verify the fix.
+  2. If the project uses inline comments for complex logic, the executor adds or updates comments at the locus to explain why the new check (e.g., `if len(values) == 0`) is present.
+
+### Gate 5.2: Discovery Log
+- **Verifies:** That any additional issues, anomalies, or risks discovered during the repair are recorded.
+- **Completes when:**
+  1. The executor reviews the session for any "side findings." Examples include:
+     - Other potential defects noticed during impact analysis.
+     - Code that was not modified but is fragile or poorly written.
+     - Missing tests that should have covered the original defect.
+  2. These findings are logged in a "Discovered Issues" section of the final report, even if they are not addressed in this repair.
+  3. If no additional issues are found, the executor explicitly states "No additional issues discovered."
+
+### Gate 5.3: Final State Confirmation
+- **Verifies:** That the system is left in a consistent, committed state.
+- **Completes when:**
+  1. The executor confirms that the modified file is saved.
+  2. The executor confirms that the change is committed to the version control system (if applicable) with the documentation from Gate 5.1.
+  3. The executor provides a final summary to the caller, including:
+     - Status: "Repair Complete."
+     - Locus Modified: `calculator.py:2`.
+     - Verification: "Targeted test passed; regression suite passed."
+     - Discovered Issues: [List from Gate 5.2].
+
+## End of Duty
+
+If all gates in Phase 1 through Phase 5 are passed, the repair duty is considered complete. If any gate fails, the process halts at that gate, and the executor must report the specific failure mode as defined in the gate’s completion criteria.

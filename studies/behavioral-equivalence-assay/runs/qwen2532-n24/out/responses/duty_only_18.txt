@@ -1,0 +1,61 @@
+## Investigation Plan
+
+### Round 1: Initial Hypothesis Testing
+
+#### Sprint 1: Fraud-Detection Service Overload
+- **Commitment:** The fraud-detection service experienced an overload condition due to elevated memory usage and garbage collection pressure, leading to unresponsiveness.
+- **Evidence Check:** Review the fraud-detection log for signs of memory usage, GC pressure, and service unresponsiveness.
+
+#### Sprint 2: Order-Service Batch Job
+- **Commitment:** The order-service batch job was submitting a high volume of revalidation requests, which may have contributed to the payment processing failure.
+- **Evidence Check:** Review the order-service log for the batch job progress and any warnings or errors related to the payment-gateway.
+
+#### Sprint 3: Payment-Gateway Dependency
+- **Commitment:** The payment-gateway encountered delays due to elevated latency from the fraud-detection service, eventually leading to circuit breaker activation.
+- **Evidence Check:** Review the payment-gateway log for latency warnings and circuit breaker status.
+
+### Round 2: Verification and Confirmation
+
+#### Sprint 1: Memory Usage and GC Pressure in Fraud-Detection
+- **Commitment:** The fraud-detection service experienced high memory usage and GC pressure, leading to service unresponsiveness and subsequent restart.
+- **Evidence Check:** Confirm memory usage and GC pressure logs.
+
+#### Sprint 2: Batch Job Completion and Retry
+- **Commitment:** The order-service batch job was not fully completed due to the payment-gateway's unavailability.
+- **Evidence Check:** Confirm batch progress and suspension status.
+
+#### Sprint 3: Circuit Breaker Activation in Payment-Gateway
+- **Commitment:** The payment-gateway circuit breaker was activated due to the fraud-detection service's unresponsiveness.
+- **Evidence Check:** Confirm circuit breaker status and payment request failures.
+
+## Investigation Execution
+
+### Sprint 1: Fraud-Detection Service Overload
+- **Evidence Check:** The fraud-detection log shows a steady increase in memory usage and GC pressure, leading to an `OutOfMemoryError` and service unresponsiveness at 15:38:30. The service was restarted at 15:39:15 but experienced another `OutOfMemoryError` at 15:41:00. This supports the initial hypothesis.
+
+### Sprint 2: Order-Service Batch Job
+- **Evidence Check:** The order-service log indicates that the batch job was submitting revalidation requests at a high rate, with progress being made until 15:38:00 when the payment-gateway returned errors. The batch was suspended at 15:41:10 with 1,038/1,247 requests completed and 209 remaining. This supports the initial hypothesis.
+
+### Sprint 3: Payment-Gateway Dependency
+- **Evidence Check:** The payment-gateway log shows elevated fraud-check latency, leading to service timeouts and circuit breaker activation. The payment-gateway became unavailable for all requests after the fraud-detection service was removed from the pool. This supports the initial hypothesis.
+
+### Sprint 4: Memory Usage and GC Pressure in Fraud-Detection
+- **Evidence Check:** The memory usage logs from the fraud-detection service confirm the service experienced high memory usage and GC pressure, leading to unresponsiveness. This supports the hypothesis.
+
+### Sprint 5: Batch Job Completion and Retry
+- **Evidence Check:** The order-service log shows the batch job was not fully completed due to the payment-gateway's unavailability. This supports the hypothesis.
+
+### Sprint 6: Circuit Breaker Activation in Payment-Gateway
+- **Evidence Check:** The payment-gateway log confirms the circuit breaker was activated due to the fraud-detection service's unresponsiveness. This supports the hypothesis.
+
+## Investigation Outcome
+
+### Root Cause
+The payment processing failure was primarily due to the fraud-detection service experiencing an overload condition due to elevated memory usage and garbage collection pressure, leading to service unresponsiveness. This caused the payment-gateway to experience elevated latency and eventually activate the circuit breaker, preventing all payment requests. The order-service batch job was affected by the payment-gateway's unavailability but was not the root cause.
+
+### Recommendations
+1. **Monitor and Optimize Fraud-Detection Service:** Implement additional monitoring to detect and mitigate memory usage and GC pressure issues.
+2. **Circuit Breaker Configuration:** Review and possibly adjust circuit breaker thresholds to better handle transient service unavailability.
+3. **Batch Job Retries and Backoff:** Implement more robust retry and backoff mechanisms in the order-service batch job to handle temporary service unavailability.
+
+The investigation has been conducted in a structured manner, ensuring all hypotheses were tested and verified before reaching the final conclusion.

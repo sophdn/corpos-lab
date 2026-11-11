@@ -1,0 +1,121 @@
+# repair-duty
+
+**Scope:** This duty governs the repair of a confirmed software defect with a known locus. It applies to any office executing a repair within the Agentic Order.
+**Prerequisite:** The defect is confirmed. The locus (file and line) is identified. The expected behavior is defined.
+
+## Phase 1: Locus Verification
+*Purpose: Ensure the executor is at the correct site and has the correct context before modifying any code.*
+
+### Gate 1.1: Locus Confirmation
+**Verifies:** The specified locus exists, is accessible, and corresponds to the defect description.
+**Requires:**
+1. Open the file at the specified line.
+2. Visually confirm that the code at this location matches the defect description (e.g., the code responsible for the `ZeroDivisionError` is present).
+3. Confirm that no other code changes have been made to this file since the defect was identified (check version control status if available; otherwise, verify line numbers have not shifted).
+4. **Pass Condition:** The executor can point to the exact line(s) of code that cause the defect.
+
+### Gate 1.2: Context Isolation
+**Verifies:** The repair will not inadvertently affect adjacent logic.
+**Requires:**
+1. Identify the function or method containing the locus.
+2. Identify the input types and expected output types of that function.
+3. Identify any callers of this function within the accessible codebase (if accessible) or note that callers are unknown.
+4. **Pass Condition:** The executor has defined the boundary of the repair (the specific function) and the contract of that function (inputs/outputs).
+
+## Phase 2: Hypothesis Formulation
+*Purpose: Define what "correct" looks like before writing code.*
+
+### Gate 2.1: Failure Mode Analysis
+**Verifies:** The root cause is understood, not just the symptom.
+**Requires:**
+1. Write a one-sentence explanation of *why* the current code fails. (e.g., "Dividing by the length of an empty list results in division by zero.")
+2. Identify the specific condition that triggers the failure (e.g., `len(values) == 0`).
+3. **Pass Condition:** The executor can state the trigger condition and the resulting error type.
+
+### Gate 2.2: Desired Behavior Definition
+**Verifies:** The repair has a defined target state.
+**Requires:**
+1. Determine the correct behavior for the failure condition.
+   - Option A: Return a neutral value (e.g., `0`, `None`, `NaN`).
+   - Option B: Raise a specific, descriptive exception.
+   - Option C: Handle the case within existing logic.
+2. Select Option A, B, or C based on the function's contract and typical usage.
+   - *Note for this defect:* If the function is expected to return a `float`, returning `0.0` or raising a `ValueError` with a clear message are standard choices. Do not silently ignore the error unless the contract specifies it.
+3. **Pass Condition:** The executor has chosen a specific behavior for the edge case and can justify it.
+
+## Phase 3: Implementation
+*Purpose: Apply the fix with minimal scope.*
+
+### Gate 3.1: Minimal Modification
+**Verifies:** The change is surgical and does not introduce new complexity.
+**Requires:**
+1. Modify the code at the locus to handle the trigger condition identified in Gate 2.1.
+2. Ensure the fix does not alter the behavior for valid inputs.
+3. Ensure the fix does not introduce new variables, imports, or dependencies unless strictly necessary.
+4. **Pass Condition:** The diff (difference) between original and new code is minimal and directly addresses the trigger condition.
+
+### Gate 3.2: Syntax and Lint Check
+**Verifies:** The new code is syntactically valid and conforms to style guidelines.
+**Requires:**
+1. Run a syntax checker (e.g., `python -m py_compile`) on the file.
+2. Run a linter (e.g., `flake8`, `pylint`) if available.
+3. Manually review indentation, spacing, and naming conventions.
+4. **Pass Condition:** No syntax errors or lint warnings are introduced by the change.
+
+## Phase 4: Verification
+*Purpose: Prove the repair works and does not break existing functionality.*
+
+### Gate 4.1: Edge Case Testing
+**Verifies:** The specific defect is resolved.
+**Requires:**
+1. Write or execute a test case that provides the trigger input (e.g., `calculate_average([])`).
+2. Observe the output.
+3. Compare the output to the desired behavior defined in Gate 2.2.
+4. **Pass Condition:** The function behaves exactly as specified in Gate 2.2 for the trigger input.
+
+### Gate 4.2: Regression Testing
+**Verifies:** Existing functionality is preserved.
+**Requires:**
+1. Write or execute test cases for valid inputs (e.g., `calculate_average([1, 2, 3])` -> `2.0`, `calculate_average([10])` -> `10.0`).
+2. Observe the output.
+3. Compare the output to the expected correct values.
+4. **Pass Condition:** All valid input tests pass with the expected results.
+
+### Gate 4.3: Exception Handling Review
+**Verifies:** The repair does not mask other errors.
+**Requires:**
+1. Test with inputs that should still raise errors (e.g., `calculate_average([1, "a"])` should raise `TypeError`).
+2. Ensure the new exception handling (if any) does not catch unintended exception types.
+3. **Pass Condition:** Unrelated errors continue to propagate or are handled as per the original contract.
+
+## Phase 5: Closure
+*Purpose: Document the repair and ensure it is committed safely.*
+
+### Gate 5.1: Documentation Update
+**Verifies:** The change is understood by future readers.
+**Requires:**
+1. If the function has a docstring, update it to reflect the new behavior for empty lists.
+2. If no docstring exists, consider adding one that clarifies the edge case behavior.
+3. **Pass Condition:** The code includes a comment or docstring explaining why the check exists.
+
+### Gate 5.2: Final Review
+**Verifies:** The complete change is coherent.
+**Requires:**
+1. Review the entire diff.
+2. Ensure the change is self-contained and does not rely on external state.
+3. Ensure the naming is clear (e.g., variable names in the fix are descriptive).
+4. **Pass Condition:** A new reader can understand the purpose of the change by reading the code and comments.
+
+### Gate 5.3: Commit
+**Verifies:** The repair is recorded in version control.
+**Requires:**
+1. Stage the modified file.
+2. Write a commit message that includes:
+   - A brief description of the fix (e.g., "Fix ZeroDivisionError in calculate_average").
+   - The issue number or reference (if applicable).
+   - The specific change (e.g., "Return 0.0 for empty list").
+3. Commit the change.
+4. **Pass Condition:** The change is committed to the repository with a clear, descriptive message.
+
+---
+**End of Duty.**

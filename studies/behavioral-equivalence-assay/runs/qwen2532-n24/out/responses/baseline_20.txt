@@ -1,0 +1,63 @@
+### Investigation Report for Payment Processing Failure (INV-002)
+
+#### Overview
+A payment processing failure occurred this afternoon, captured by the monitoring system in three key components: `fraud-detection`, `order-service`, and `payment-gateway`. The logs indicate a sequence of events leading to service unavailability and subsequent failure.
+
+#### Timeline and Key Events
+
+1. **[15:18:00] to [15:30:00]:**
+   - The `fraud-detection` service was updated and deployed with new risk scoring weights. Initially, the service was healthy.
+   - By [15:30:00], the risk assessment cache reached 12,400 entries and 189MB heap usage, which was still within the heap limit of 512MB.
+
+2. **[15:33:00] to [15:38:00]:**
+   - The risk assessment cache rapidly increased to 24,600 entries and 312MB heap usage.
+   - At [15:35:00], the cache usage reached 418MB, approaching the heap limit.
+   - Elevated GC (Garbage Collection) pressure was noted at [15:37:00] with an 890ms pause.
+
+3. **[15:38:00] to [15:41:00]:**
+   - The `fraud-detection` service reached a critical state with the heap usage hitting 491MB at [15:38:00].
+   - An `OutOfMemoryError` was thrown at [15:38:30], making the service unresponsive.
+   - The orchestrator restarted the service at [15:38:45], but due to elevated request rates, the service encountered another `OutOfMemoryError` at [15:41:00] and was marked permanently unhealthy.
+
+4. **`order-service` and `payment-gateway` Impact:**
+   - The `order-service` initiated a batch reconciliation job at [15:25:00], processing 1,247 orders.
+   - By [15:38:00], 1,005 orders were revalidated.
+   - At [15:38:40], the `payment-gateway` began returning errors due to increased fraud-check latency.
+   - By [15:41:11], the `payment-gateway` became unavailable due to the `fraud-detection` service being marked unhealthy and removed from the pool.
+
+#### Analysis
+1. **Heap Usage and OutOfMemoryError:**
+   - The `fraud-detection` service's heap usage escalated quickly, likely due to the high volume of risk assessments and the new risk scoring weights.
+   - The service reached critical heap usage and GC pressure, eventually leading to an `OutOfMemoryError`.
+
+2. **Service Restart and Recurrence:**
+   - The orchestrator attempted to restart the service, but the elevated request rates caused the service to crash again, making it permanently unhealthy.
+
+3. **Dependency Impact:**
+   - The failure of the `fraud-detection` service directly impacted the `payment-gateway`, leading to elevated latency and eventual timeouts.
+   - The `order-service` could not complete its batch job due to the unavailability of the `payment-gateway`.
+
+#### Recommendations
+
+1. **Heap Management:**
+   - Increase the heap size for the `fraud-detection` service to handle the increased workload.
+   - Implement more efficient caching strategies or periodic cache eviction to manage memory usage.
+
+2. **Load Balancing and Autoscaling:**
+   - Configure autoscaling to handle spikes in request rates.
+   - Use a load balancer to distribute traffic evenly across multiple instances of the `fraud-detection` service.
+
+3. **Monitoring and Alerting:**
+   - Enhance monitoring and alerting to detect high heap usage and GC pressure early.
+   - Implement automated restart and scaling policies for critical services.
+
+4. **Dependency Management:**
+   - Implement circuit breakers and retry mechanisms to handle temporary service unavailability.
+   - Consider fallback strategies or secondary services to handle critical dependencies.
+
+#### Conclusion
+The payment processing failure was primarily due to the `fraud-detection` service running out of memory and becoming unresponsive. Addressing heap management and implementing more robust monitoring and dependency management can prevent such issues in the future.
+
+---
+
+End of Investigation Report.

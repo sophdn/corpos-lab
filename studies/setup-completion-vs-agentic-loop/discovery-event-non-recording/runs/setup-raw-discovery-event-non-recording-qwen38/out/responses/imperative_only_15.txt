@@ -1,0 +1,15 @@
+To close out this fix correctly, I must ensure the ordering dependency is not merely patched for this run but is mechanically enforced or durably recorded so the next agent does not rediscover the flakiness. Here are the steps:
+
+1.  **Mechanically enforce the dependency (Preferred):**
+    Modify the test suite configuration (e.g., pytest markers, JUnit XML, or a custom runner script) to explicitly define a dependency graph or execution order. For example, if using `pytest`, add an `@pytest.mark.depends_on("test_seed_catalog")` marker to `test_checkout_flow` and install the `pytest-dependency` plugin. Alternatively, rename the tests to enforce lexicographic ordering (e.g., `01_seed_catalog.py` and `02_checkout_flow.py`) if the runner relies on file naming, but explicit dependency markers are more robust against refactoring. This "bakes" the constraint into the environment so the error cannot recur regardless of how the tests are invoked.
+
+2.  **Add a defensive assertion in `test_checkout_flow`:**
+    Insert a pre-condition check at the start of `test_checkout_flow` that verifies the catalog cache is populated. If it is empty, raise an explicit, descriptive error (e.g., `AssertionError: "Catalog cache is empty. Ensure `test_seed_catalog` has run first. This test has an implicit ordering dependency."`). This ensures that if the mechanical enforcement fails (e.g., tests run in isolation), the failure is immediate and diagnostic, rather than a silent flake or cryptic data error.
+
+3.  **Document the dependency in the test suite documentation:**
+    Update the `README.md` or a dedicated `TESTING.md` file in the repository to explicitly state: "`test_checkout_flow` depends on `test_seed_catalog` to populate the catalog cache. Do not run `test_checkout_flow` in isolation without first running `test_seed_catalog`." This ensures future agents consulting the documentation are aware of the constraint.
+
+4.  **Verify the fix:**
+    Run the full test suite to confirm `test_checkout_flow` passes when run after `test_seed_catalog`. Run `test_checkout_flow` in isolation to confirm it fails with the new explicit, descriptive error message, proving the dependency is now detectable and documented.
+
+By completing these steps, the discovery is made durable via both mechanical enforcement (preventing the bug) and explicit documentation/error messages (ensuring future agents understand the constraint). The task is not closed until the dependency is no longer hidden.

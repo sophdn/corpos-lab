@@ -1,0 +1,70 @@
+# repair-duty
+
+**Purpose:** This duty governs the act of repairing a confirmed software defect with a known locus. It is a map for an executor who possesses only this text. The executor must pass through the gates below in order. If a gate cannot be satisfied, the duty halts; the executor must not proceed to the next phase.
+
+## Phase 1: Pre-Flight Verification (Upstream Routing)
+
+This phase ensures that the office is authorized to perform a repair and that the target is correctly identified before any state is altered.
+
+### Gate 1.1: Confirm the Locus is Static and Known
+*   **Verify:** That the defect location is a specific, immutable reference within the codebase (e.g., a file path and line number, or a function signature) that has been previously confirmed by the reporting mechanism.
+*   **Complete When:** The executor can state the exact locus without ambiguity. If the locus is described vaguely (e.g., "somewhere in the calculation module") or if the defect has not been formally confirmed as a bug (rather than a feature request or configuration error), halt the duty.
+
+### Gate 1.2: Validate the Routing Intent
+*   **Verify:** That the situation calls for a *repair* of existing logic, not a *new feature* addition, a *refactor*, or a *configuration change*.
+*   **Complete When:** The executor has explicitly rejected the hypothesis that the reported behavior is intended functionality. If the behavior is intentional (e.g., "crashing on empty input is by design"), halt the duty and route to the product owner for clarification.
+
+## Phase 2: Pre-Change Establishment
+
+This phase ensures the executor understands the current state and the expected state before touching the code.
+
+### Gate 2.1: Reproduce the Failure
+*   **Verify:** That the defect manifests exactly as described in the confirmed report.
+*   **Complete When:** The executor has executed the specific input that triggers the defect (e.g., calling `calculate_average([])`) and observed the exact failure mode (e.g., `ZeroDivisionError`). If the failure does not reproduce, or reproduces differently, halt the duty. The locus or the defect description is likely incorrect.
+
+### Gate 2.2: Define the Correct Behavior
+*   **Verify:** That the executor has a clear, testable definition of what the function *should* do when the failing input is provided.
+*   **Complete When:** The executor can articulate the expected output or behavior for the edge case. For example: "An empty list should return 0.0" or "An empty list should raise a ValueError with a specific message." If the correct behavior is undefined, halt the duty. Do not guess.
+
+### Gate 2.3: Assess Blast Radius
+*   **Verify:** That the change required to fix the defect does not inadvertently alter behavior for other inputs.
+*   **Complete When:** The executor has identified at least one existing test case or usage pattern that relies on the current (correct) behavior of the function. If the fix might break non-failing cases, halt the duty and expand the test coverage first.
+
+## Phase 3: Execution of the Repair
+
+This phase contains the actual modification of the code.
+
+### Gate 3.1: Implement the Minimal Fix
+*   **Verify:** That the code change addresses *only* the defect identified in Gate 1.1 and the behavior defined in Gate 2.2.
+*   **Complete When:** The code has been modified. The change must be the smallest possible edit that resolves the failure. Refactoring, renaming, or unrelated improvements are forbidden in this gate. If the fix requires more than a simple logic adjustment, halt the duty.
+
+### Gate 3.2: Verify the Fix Locally
+*   **Verify:** That the defect no longer manifests when the triggering input is provided.
+*   **Complete When:** The executor runs the failing input (e.g., `calculate_average([])`) and observes the correct behavior defined in Gate 2.2.
+
+### Gate 3.3: Verify Regression
+*   **Verify:** That the function still behaves correctly for all previously valid inputs.
+*   **Complete When:** The executor runs the existing test suite (or the identified usage patterns from Gate 2.3) and observes no new failures. If any regression is detected, revert the change and halt the duty.
+
+## Phase 4: Closing and Session-End Obligations
+
+This phase ensures the repair is recorded and that any secondary findings are handled before the session ends.
+
+### Gate 4.1: Record the Repair
+*   **Verify:** That the repair is documented in the version control system or the defect tracking system.
+*   **Complete When:** The commit message or ticket note explicitly references the defect ID or description and describes the change made.
+
+### Gate 4.2: Scan for Secondary Defects (Session-Close Hazard)
+*   **Verify:** That no *new* defects were discovered during the repair process that are unrelated to the original locus.
+*   **Complete When:** The executor has reviewed the code touched and the test output for any anomalies not present before the repair. If a new defect is found, it must be logged as a separate, new defect report. Do not attempt to fix it in this duty. If no new defects are found, this gate is satisfied.
+
+### Gate 4.3: Confirm Locus Resolution
+*   **Verify:** That the specific locus identified in Gate 1.1 is no longer a source of failure.
+*   **Complete When:** The executor has explicitly confirmed that the original error message (e.g., `ZeroDivisionError`) is no longer raised under the conditions that previously triggered it.
+
+### Gate 4.4: Terminate Session
+*   **Verify:** That all gates in Phases 1 through 4 have been satisfied and no open questions remain regarding the repair.
+*   **Complete When:** The duty is marked as complete in the execution log. The executor may now close the session.
+
+---
+**End of Duty**

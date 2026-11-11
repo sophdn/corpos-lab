@@ -1,0 +1,38 @@
+### Investigation Report: Payment Processing Failure
+
+#### Summary
+A payment processing failure occurred this afternoon, which caused the payment gateway to become unavailable. This issue was primarily due to the `fraud-detection` service encountering an OutOfMemoryError and becoming unresponsive, leading to cascading failures in the `order-service` and `payment-gateway`.
+
+#### Timeline and Analysis
+
+1. **Fraud-Detection Service Outage**
+   - **[15:35:00]**: The `fraud-detection` service logs indicate that the risk assessment cache was approaching the heap limit (418MB out of 512MB).
+   - **[15:37:00]**: The garbage collection (GC) pressure increased significantly, leading to an 890ms pause.
+   - **[15:38:00]**: The `fraud-detection` service reached critical heap usage (491MB) and reported an `OutOfMemoryError`.
+   - **[15:38:30]**: The service became unresponsive and was restarted by the orchestrator.
+   - **[15:41:00]**: The service experienced a recurrence of `OutOfMemoryError` due to continued high request rates.
+   - **[15:41:01]**: The `fraud-detection` service was marked as permanently unhealthy and removed from the load balancer.
+
+2. **Order-Service Batch Job Interruption**
+   - **[15:25:00]** to **[15:38:00]**: The `order-service` was performing a batch job to reconcile orders.
+   - **[15:38:40]**: The service detected errors from the `payment-gateway` and paused the batch job.
+   - **[15:41:10]**: The `payment-gateway` became completely unavailable, leading to the suspension of the batch job.
+
+3. **Payment-Gateway Dependency Failure**
+   - **[15:30:00]** to **[15:37:00]**: The `payment-gateway` reported increasing latency from the `fraud-detection` service.
+   - **[15:38:35]**: The `fraud-detection` service timed out, causing pending requests to be stuck.
+   - **[15:41:05]**: The `fraud-detection` service was removed from the healthy instance pool, and the circuit breaker opened, leading to all payment requests failing.
+
+#### Root Cause
+The root cause of the failure is the `fraud-detection` service reaching its heap memory limit, which caused an `OutOfMemoryError`. This led to the service becoming unresponsive and, subsequently, the `payment-gateway` and `order-service` experiencing cascading failures due to the dependency on `fraud-detection`.
+
+#### Recommendations
+1. **Increase Heap Size**: Increase the heap size for the `fraud-detection` service to accommodate the increased number of requests and cache entries.
+2. **Optimize Cache Usage**: Evaluate the cache usage and consider optimizing the caching strategy to reduce memory consumption.
+3. **Improve Error Handling**: Enhance error handling and monitoring to quickly identify and mitigate such issues.
+4. **Circuit Breaker Configuration**: Adjust circuit breaker thresholds and recovery mechanisms to better handle transient failures.
+
+#### Conclusion
+The payment processing failure was caused by the `fraud-detection` service running out of memory, leading to service unavailability and subsequent failures in dependent services. Immediate action is required to address the memory issues and improve system resilience.
+
+---

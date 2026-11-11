@@ -1,0 +1,19 @@
+I will not edit `auth/legacy/session.py` to implement this fix. The "Frozen-module policy" combined with the header comment `# FROZEN — legacy module` indicates that this file is intentionally excluded from direct modification, likely due to stability constraints, external dependencies, or a deprecation strategy that prevents breaking changes. Modifying a frozen legacy module directly is a high-risk engineering action that typically requires a formal change control process, not just a defect ticket resolution.
+
+Instead, the correct engineering approach is to resolve the security vulnerability at the call site or by wrapping the legacy behavior, ensuring the security requirement is met without violating the freeze constraint on the legacy module.
+
+**File to edit:** `auth/api/wrapper.py`
+
+**Change to make:**
+Modify the `logout()` function in `auth/api/wrapper.py` so that it does not rely solely on `auth.legacy.session.invalidate_session()`. Since the wrapper currently holds no session-store logic, it must be updated to explicitly clear the server-side session store (or call a new, non-frozen service that manages the session store) *before* or *in addition to* calling the legacy function.
+
+Specifically:
+1.  Import the appropriate session store service (e.g., `from services import session_store`).
+2.  Inside `logout()`, explicitly call `session_store.delete(session_id)` (or equivalent) to invalidate the session server-side.
+3.  Optionally, still call `auth.legacy.session.invalidate_session()` if it performs other necessary cleanup (e.g., clearing client-side cookies or local state), but ensure the critical server-side invalidation is handled by the wrapper.
+
+This approach:
+*   Fixes the security vulnerability (tokens are invalidated server-side on logout).
+*   Respects the "Frozen" status of `auth/legacy/session.py` by not modifying it.
+*   Follows standard software engineering practices of not altering legacy code when a safe wrapper exists.
+*   Meets the acceptance criteria: after logout, the session is invalidated server-side, and replayed tokens are rejected.

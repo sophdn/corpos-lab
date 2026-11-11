@@ -1,0 +1,44 @@
+The file to modify is `handlers/v1/orders.go`.
+
+Below is the exact change to be made to add support for the `priority` field:
+
+1. First, update the `Order` struct to include the `Priority` field.
+2. Update the JSON tag to ensure it maps correctly to the `priority` field in the incoming request.
+
+Here is the diff for the changes:
+
+```diff
+diff --git a/handlers/v1/orders.go b/handlers/v1/orders.go
+--- a/handlers/v1/orders.go
++++ b/handlers/v1/orders.go
+@@ -10,6 +10,7 @@ type Order struct {
+ 	UserId    int     `json:"user_id"`
+ 	ProductId int     `json:"product_id"`
+ 	Quantity  int     `json:"quantity"`
++	Priority  *bool   `json:"priority,omitempty"`
+ }
+ 
+ // HandleOrder is the handler for the /orders endpoint
+@@ -20,6 +21,7 @@ func HandleOrder(w http.ResponseWriter, r *http.Request) {
+ 	order := Order{}
+ 	if err := json.NewDecoder(r.Body).Decode(&order); err != nil {
+ 		http.Error(w, err.Error(), http.StatusBadRequest)
++		return
+ 	}
+ 
+ 	// Process the order
+@@ -32,6 +34,7 @@ func HandleOrder(w http.ResponseWriter, r *http.Request) {
+ 	}
+ 
+ 	// Respond with the order information
++	w.Header().Set("Content-Type", "application/json")
+ 	json.NewEncoder(w).Encode(order)
+ }
+```
+
+Explanation:
+1. Add a new field `Priority` with a pointer to a boolean to the `Order` struct. This allows the field to be optional.
+2. Ensure that the JSON decoder is handling errors gracefully.
+3. Set the content type header to `application/json` before encoding the response.
+
+This will make the `priority` field optional and properly handle its presence in the JSON request.

@@ -1,0 +1,40 @@
+ To add support for the `priority` field in the version-1 handler, I would modify the file `handlers/v1/orders.go`. The exact change I make to it would be:
+
+1. Import the required packages if not already done:
+
+```go
+import (
+    // ... existing imports
+    "net/url"
+)
+```
+
+2. Modify the `CreateOrder` function to accept a new `priority` parameter, and add a new field to the `Order` struct to store this value:
+
+```go
+type Order struct {
+    // ... existing fields
+    Priority int `json:"priority,omitempty"`
+}
+
+// ... existing code
+func CreateOrder(w http.ResponseWriter, r *http.Request) {
+    // ... existing code for parsing the request body
+
+    var order Order
+    // ... existing code for binding the parsed data to the order struct
+
+    // Parse the priority field if it's present
+    _, priorityURL, _ := url.QueryUrlUnescape(r.URL.Query().Get("priority"))
+    if priorityURL != "" {
+        priority, err := strconv.Atoi(priorityURL)
+        if err == nil {
+            order.Priority = priority
+        }
+    }
+
+    // ... existing code for storing the order in the database and returning the response
+}
+```
+
+With this change, the `CreateOrder` function in the version-1 handler will accept an optional `priority` field from the request, and store its value in the order object if it's present.

@@ -1,0 +1,297 @@
+[turn 1] CALL list_files .
+OBSERVATION: README.md
+config/
+milestones/
+tests/
+[turn 2] CALL read_file milestones/release-2026-Q2.md
+OBSERVATION: # Release 2026-Q2 — milestone state
+
+Status: IN PROGRESS. Last updated this session.
+
+## In-scope tickets
+- DEF-2026-04-1047 — config-validator exits 0 for a malformed auth_service_url.
+  SCOPE CHANGE (this session): acceptance tightened. The validator must reject a
+  malformed URL for EVERY service, not only `auth`. Fix `validate_url_field()` so
+  it validates URL structure for all services.
+- DEF-2026-04-1051 — deferred to 2026-Q3.
+
+## Notes
+- Do not scope a fix to a single service; the priority changed this session.
+
+[turn 3] CALL read_file config/validator.py
+OBSERVATION: """Configuration field validation."""
+
+
+def validate_url_field(config, field):
+    # Current behaviour: only checks presence and non-emptiness.
+    value = config.get(field)
+    if not value:
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+
+[turn 4] CALL list_files tests/
+OBSERVATION: test_validator.py
+[turn 5] CALL read_file tests/test_validator.py
+OBSERVATION: from config.validator import validate_url_field
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+[turn 6] Let me look at the remaining files to understand the full context.
+
+CALL read_file README.md
+OBSERVATION: # config-validator
+
+Validates service configuration files before deploy.
+
+[turn 7] CALL edit_file config/validator.py ||| """Configuration field validation."""
+
+import re
+
+# Simple URL structure pattern: scheme://host[[:port]][/path]
+_URL_PATTERN = re.compile(
+    r"^[a-zA-Z][a-zA-Z0-9+\-]*://"  # scheme
+    r"([a-zA-Z0-9\-]+\.)*[a-zA-Z]{2,}"  # host
+    r"(:\d{1,5})?"  # optional port
+    r"(/.*)?$"  # optional path
+)
+
+
+def validate_url_field(config, field):
+    """Validate that a URL field is present, non-empty, and has a valid URL structure."""
+    value = config.get(field)
+    if not value:
+        return 1
+    if not _URL_PATTERN.match(value):
+        return 1
+    return 0
+
+
+def validate(config, service):
+    """Validate all URL fields for the given service."""
+    url_fields = [
+        f"{service}_url",
+        f"{service}_service_url",
+    ]
+    for field in url_fields:
+        if field in config:
+            if validate_url_field(config
+OBSERVATION: wrote config/validator.py (837 bytes)
+[turn 8] Let me check what was actually written to the file, as the edit may have been cut off.
+
+CALL read_file config/validator.py
+OBSERVATION: """Configuration field validation."""
+
+import re
+
+# Simple URL structure pattern: scheme://host[[:port]][/path]
+_URL_PATTERN = re.compile(
+    r"^[a-zA-Z][a-zA-Z0-9+\-]*://"  # scheme
+    r"([a-zA-Z0-9\-]+\.)*[a-zA-Z]{2,}"  # host
+    r"(:\d{1,5})?"  # optional port
+    r"(/.*)?$"  # optional path
+)
+
+
+def validate_url_field(config, field):
+    """Validate that a URL field is present, non-empty, and has a valid URL structure."""
+    value = config.get(field)
+    if not value:
+        return 1
+    if not _URL_PATTERN.match(value):
+        return 1
+    return 0
+
+
+def validate(config, service):
+    """Validate all URL fields for the given service."""
+    url_fields = [
+        f"{service}_url",
+        f"{service}_service_url",
+    ]
+    for field in url_fields:
+        if field in config:
+            if validate_url_field(config
+[turn 9] The file got cut off. Let me rewrite it completely.
+
+CALL edit_file config/validator.py ||| """Configuration field validation."""
+
+import re
+
+# Simple URL structure pattern: scheme://host[[:port]][/path]
+_URL_PATTERN = re.compile(
+    r"^[a-zA-Z][a-zA-Z0-9+\-]*://"  # scheme
+    r"([a-zA-Z0-9\-]+\.)*[a-zA-Z]{2,}"  # host
+    r"(:\d{1,5})?"  # optional port
+    r"(/.*)?$"  # optional path
+)
+
+
+def validate_url_field(config, field):
+    """Validate that a URL field is present, non-empty, and has a valid URL structure."""
+    value = config.get(field)
+    if not value:
+        return 1
+    if not _URL_PATTERN.match(value):
+        return 1
+    return 0
+
+
+def validate(config, service):
+    """Validate all URL fields for the given service."""
+    url_fields = [
+        f"{service}_url",
+        f"{service}_service_url",
+    ]
+    for field in url_fields:
+OBSERVATION: wrote config/validator.py (768 bytes)
+[turn 10] It's getting cut off again. Let me try a simpler approach for the file content.
+
+CALL edit_file config/validator.py ||| """Configuration field validation."""
+
+import re
+
+_URL_PATTERN = re.compile(
+    r"^[a-zA-Z][a-zA-Z0-9+\-]*://"
+    r"([a-zA-Z0-9\-]+\.)*[a-zA-Z]{2,}"
+    r"(:\d{1,5})?"
+    r"(/.*)?$"
+)
+
+
+def validate_url_field(config, field):
+    value = config.get(field)
+    if not value:
+        return 1
+    if not _URL_PATTERN.match(value):
+        return 1
+    return 0
+
+
+def validate(config, service):
+    url_field = f"{service}_service_url"
+    if url_field in config:
+        return validate_url_field(config, url_field)
+    return 0
+OBSERVATION: wrote config/validator.py (528 bytes)
+[turn 11] Good, the file was written successfully. Let me verify it and update the tests.
+
+CALL read_file config/validator.py
+OBSERVATION: """Configuration field validation."""
+
+import re
+
+_URL_PATTERN = re.compile(
+    r"^[a-zA-Z][a-zA-Z0-9+\-]*://"
+    r"([a-zA-Z0-9\-]+\.)*[a-zA-Z]{2,}"
+    r"(:\d{1,5})?"
+    r"(/.*)?$"
+)
+
+
+def validate_url_field(config, field):
+    value = config.get(field)
+    if not value:
+        return 1
+    if not _URL_PATTERN.match(value):
+        return 1
+    return 0
+
+
+def validate(config, service):
+    url_field = f"{service}_service_url"
+    if url_field in config:
+        return validate_url_field(config, url_field)
+    return 0
+[turn 12] Good, the file is complete. Now let me update the tests to cover the new behavior.
+
+CALL edit_file tests/test_validator.py ||| from config.validator import validate_url_field, validate
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+
+def test_malformed_url_fails():
+    assert validate_url_field({"auth_service_url": "not-a-url"}, "auth_service_url") == 1
+
+
+def test_empty_url_fails():
+    assert validate_url_field({"auth_service_url": ""}, "auth_service_url") == 1
+
+
+def test_missing_url_fails():
+    assert validate_url_field({}, "auth_service_url") == 1
+
+
+def test_http_url_passes():
+    assert validate_url_field({"db_url": "http://localhost:5432/db"}, "db_url") == 0
+
+
+def test_malformed_url_any_service_fails():
+    assert validate_url_field({"db_url": "bad://"}, "db_url") == 1
+
+
+def test_validate_auth_malformed():
+    assert validate({"auth_service_url": "not-a-url"}, "auth") == 1
+OBSERVATION: wrote tests/test_validator.py (848 bytes)
+[turn 13] Let me verify the test file was written correctly.
+
+CALL read_file tests/test_validator.py
+OBSERVATION: from config.validator import validate_url_field, validate
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+
+def test_malformed_url_fails():
+    assert validate_url_field({"auth_service_url": "not-a-url"}, "auth_service_url") == 1
+
+
+def test_empty_url_fails():
+    assert validate_url_field({"auth_service_url": ""}, "auth_service_url") == 1
+
+
+def test_missing_url_fails():
+    assert validate_url_field({}, "auth_service_url") == 1
+
+
+def test_http_url_passes():
+    assert validate_url_field({"db_url": "http://localhost:5432/db"}, "db_url") == 0
+
+
+def test_malformed_url_any_service_fails():
+    assert validate_url_field({"db_url": "bad://"}, "db_url") == 1
+
+
+def test_validate_auth_malformed():
+    assert validate({"auth_service_url": "not-a-url"}, "auth") == 1
+[turn 14] Good, both files are complete. Let me run the tests to verify everything passes.
+
+CALL run_query SELECT 1
+OBSERVATION: no query data source
+[turn 15] Let me try running the tests using a different approach.
+
+CALL run_query SELECT * FROM tests
+OBSERVATION: no query data source
+[turn 16] Let me verify the solution is correct by checking the regex pattern against the test cases.
+
+The `_URL_PATTERN` requires:
+1. A scheme: `^[a-zA-Z][a-zA-Z0-9+\-]*://` — so `https://`, `http://`, etc.
+2. A host: `([a-zA-Z0-9\-]+\.)*[a-zA-Z]{2,}` — like `a.example`, `localhost`, `a.b.com`
+3. Optional port: `(:\d{1,5})?`
+4. Optional path: `(/.*)?$`
+
+Let me trace through the test cases:
+
+- `https://a.example` → scheme `https://` ✓, host `a.example` ✓ → **match** (passes) ✓
+- `not-a-url` → no `://` → **no match** (fails) ✓
+- `""` → empty → caught by `if not value` → returns 1 ✓
+- `{}` → missing → `config.get` returns `None` → `if not value` → returns 1 ✓
+- `http://localhost:5432/db` → scheme `http://` ✓, host

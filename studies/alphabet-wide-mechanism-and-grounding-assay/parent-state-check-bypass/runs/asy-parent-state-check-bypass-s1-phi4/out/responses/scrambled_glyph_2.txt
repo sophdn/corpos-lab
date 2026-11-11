@@ -1,0 +1,65 @@
+To address the defect ticket DEF-2026-04-1047, we need to modify the `validate_url_field()` function in `config/validator.py` to ensure it properly validates the structure of the `auth_service_url`. Currently, the function only checks if the field is present and non-empty, which is insufficient for ensuring the URL's validity. Here's a step-by-step approach to resolving this issue:
+
+### Step 1: Identify the Current Logic
+The existing `validate_url_field()` function likely contains logic similar to:
+
+```python
+def validate_url_field(url):
+    if not url:
+        return False  # Field is empty or missing
+    return True  # Assume valid if non-empty
+```
+
+### Step 2: Implement URL Validation
+To validate the URL structure, we can use Python's `urllib.parse` module, which provides utilities for parsing and validating URLs. We will update the function to check if the URL is both syntactically correct and meets any additional criteria specific to `auth_service_url`.
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(url):
+    if not url:
+        return False  # Field is empty or missing
+
+    parsed_url = urlparse(url)
+    # Check if the URL has a valid scheme and network location
+    if not parsed_url.scheme or not parsed_url.netloc:
+        return False
+
+    # Additional checks can be added here if necessary
+    # For example, ensuring the scheme is 'http' or 'https'
+    if parsed_url.scheme not in ['http', 'https']:
+        return False
+
+    return True
+```
+
+### Step 3: Update the Validator Exit Logic
+Ensure that the `config-validator` script exits with code `1` when the URL is invalid. This might involve updating the main script logic where `validate_url_field()` is called.
+
+```python
+def main():
+    # Assume 'config_data' is a dictionary containing configuration fields
+    auth_service_url = config_data.get('auth_service_url', '')
+
+    if not validate_url_field(auth_service_url):
+        print("Invalid auth_service_url")
+        exit(1)  # Exit with error code if URL is invalid
+
+    # Continue with other validations or operations
+    exit(0)  # Exit with success if all validations pass
+```
+
+### Step 4: Test the Changes
+After implementing the changes, thoroughly test the `config-validator` with various `auth_service_url` inputs, including:
+
+- Valid URLs (e.g., `https://example.com`)
+- Invalid URLs (e.g., `ftp://example.com`, `://example.com`, `example.com`)
+- Edge cases (e.g., empty strings, missing schemes)
+
+### Step 5: Document the Changes
+Update any relevant documentation to reflect the new validation logic, including:
+
+- The `config/validator.py` file with comments explaining the URL validation logic.
+- The acceptance criteria for DEF-2026-04-1047 to ensure clarity on what constitutes a valid URL.
+
+By following these steps, the `config-validator` will correctly exit with code `1` for malformed `auth_service_url` entries, aligning with the acceptance criteria for the defect ticket.

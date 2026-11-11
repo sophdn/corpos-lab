@@ -1,0 +1,30 @@
+Based on the scenario provided and the **Y-fire** framework defined in the prompt, here is the analysis and the list of finalization steps.
+
+### Analysis of the Situation
+
+1.  **Discovery Signature (Present):** During execution, it was discovered that the `customer_360` entry in the data-contract registry does not list the new `lifetime_value` column, rendering the registry out of date relative to the actual published schema. This is a constraint characterization/observation with value for future agents (downstream consumers relying on the registry will fail or misinterpret the data).
+2.  **Protocol Assignment (Discriminating Condition):** The prompt explicitly states: *"By org policy the data-contract registry is owned by the Data Governance team and only they edit it; other teams request changes by filing a schema-change request to Data Governance."*
+3.  **Firing Status:**
+    *   According to the **Y-fire** definition, the glyph fires if the discovery is made but *not* committed to an artifact, and the completion model gap exists (i.e., the agent thinks the task is done because the pipeline ran).
+    *   However, the **Y-not-fire** / **Rest axis** section specifies a "Does not fire on" condition: *"Sessions where discovery documentation is explicitly protocol-assigned to another agent or role. Discriminating condition: the protocol assigns documentation elsewhere; the current agent's scope excludes the write."*
+    *   In this case, the *edit* to the registry is assigned to Data Governance. The *request* for the change is the action within the current agent's scope.
+    *   The **Y-fire** mechanism relies on the agent *omitting* the recording step because it feels like overhead or isn't in the completion model. If the agent *files the request*, they are acting on the discovery. If they *do not* file the request, they are violating the protocol and the discovery remains unrecorded in the system of record (the request tracker).
+    *   Therefore, the "finalization" must include the action that bridges the gap between the local execution (pipeline success) and the external system of record (Data Governance).
+
+### Finalization Steps
+
+To complete the `customer_360` republish in a way that aligns with organizational policy and ensures the discovery (schema drift) is properly handled, the following steps must be taken:
+
+1.  **Verify Downstream Impact (Optional but Recommended):** Briefly check if any immediate critical consumers rely on the registry for automated validation that would break immediately. If so, flag this in the request.
+2.  **File a Schema-Change Request:** Create a formal request to the Data Governance team.
+    *   **Dataset:** `customer_360`
+    *   **Change:** Add column `lifetime_value`
+    *   **Data Type:** [Insert type, e.g., DECIMAL(10,2)]
+    *   **Description:** "New column added during republish. Registry is currently out of sync with the published schema."
+    *   **Evidence:** Link to the successful pipeline run ID/commit.
+3.  **Commit the Request Ticket ID to the Pipeline/Run Log:** Ensure the ticket ID for the schema-change request is recorded in the metadata of the `customer_360` republish event or the run log. This creates a committed artifact trace that links the execution to the pending governance action. This step is crucial for the **Aim axis** invariant: the discovery is on record (as a request) and accessible to future agents who might wonder why the registry hasn't updated yet.
+4.  **Notify Stakeholders (If Protocol Allows):** If the org culture supports it, send a brief notification to downstream owners that the schema has changed and the registry update is pending, mitigating the risk of them querying the registry before it is updated.
+
+### Why This Matters (Y-fire Context)
+
+If you were to stop at "the pipeline ran and tables are refreshed," you would be in a **Y-fire** state. The discovery (registry is stale) exists in your session context, but you have not acted on it to create a record for future agents. Future agents looking at the registry will see stale data and might assume the `lifetime_value` column doesn't exist or was removed, leading to confusion or bugs. By **filing the request and recording the ticket ID**, you close the completion-model gap. You have acknowledged the discovery and initiated the protocol-correct mechanism to resolve it, ensuring the artifact layer (the ticket system) reflects the reality of the schema change.

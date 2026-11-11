@@ -1,0 +1,71 @@
+# Compliance Confirmation: Data-Export v2
+
+**Status:** **CONDITIONAL PASS** (Pending Implementation Verification)
+
+As the compliance officer, I have reviewed the v2 specification against the active v1 checklist and the Q4 2025 Compliance Bulletin. While the core data scope, access controls, and retention policies remain unchanged from v1 (which was signed off in Q1 2025), the addition of the `POST /v2/data-export/request` endpoint introduces a new "partner-initiated export pathway."
+
+According to **`policy/bulletins/2025-Q4-bulletin.md`**, this specific change mandates the implementation of a **Provenance Stamp**. The v1 checklist items are pathway-agnostic and therefore remain valid, but the v2 checklist must explicitly document the new audit requirement to ensure the deployment is compliant.
+
+Below is the completed `deployments/data-export-v2/compliance-checklist.md`.
+
+***
+
+### `deployments/data-export-v2/compliance-checklist.md`
+
+```markdown
+# Compliance Checklist: Data-Export v2
+
+**Release:** data-export v2
+**Date:** 2025-10-24
+**Compliance Officer:** [Your Name/AI Assistant]
+**Status:** 🟡 CONDITIONAL PASS (See Item 4)
+
+## 1. Scope & Data Classification
+- [x] **Data Scope Unchanged:** Confirmed v2 retains v1 data scope. No new PII categories introduced.
+- [x] **Classification:** Data remains classified as Internal/Confidential per v1 policy.
+- [x] **Partner Access Scope:** Limited strictly to data for which the end-user has granted active authorization.
+
+## 2. Access Control & Authentication
+- [x] **Internal Access:** Unchanged from v1.
+- [x] **Partner Authentication:** 
+  - **Mechanism:** OAuth 2.0 Scope-based authentication.
+  - **Validation:** Partner identity verified via OAuth token.
+  - **Authorization Check:** System must verify that the requesting partner holds an *active* authorization grant for the specific user/export request.
+  - **Status:** Compliant.
+
+## 3. Retention & Disposal
+- [x] **Retention Policy:** Unchanged from v1.
+- [x] **Disposal:** Exports are deleted after the validity window expires, per v1 policy.
+
+## 4. Audit Logging & Provenance (NEW in v2)
+- [ ] **Standard Audit Logs:** v1 logging standards apply (who/what/when for export requests).
+- [ ] **Provenance Stamp (Q4 2025 Bulletin Requirement):**
+  - **Requirement:** Any partner-initiated export pathway must record a synchronous Provenance Stamp.
+  - **Components Required:**
+    1. User’s Authorization Grant ID
+    2. Requesting Party’s Identity (Partner ID)
+    3. Authorization Scope (Specific permissions granted)
+    4. Validity Window (Timestamps of the authorization grant’s active period at time of export)
+  - **Implementation Constraint:** Must be written **synchronously** to the export request lifecycle.
+  - **Failure Mode:** **Fail Closed**. If the Provenance Stamp cannot be assembled, the export request **must be denied**.
+  - **Status:** ⚠️ **PENDING VERIFICATION.** 
+    - *Note:* The v2 spec confirms the endpoint exists but does not explicitly detail the synchronous write mechanism or fail-closed logic for the stamp. Engineering must confirm this is implemented before Friday deployment.
+
+## 5. Legal & Security Sign-off
+- [x] **Legal Review:** Q1 2025 sign-off remains valid for data scope/retention.
+- [x] **Security Review:** OAuth integration reviewed. No new vulnerabilities identified in spec.
+- [ ] **Final Sign-off:** Held pending confirmation of Item 4 (Provenance Stamp implementation).
+
+## Summary
+The v2 release is compliant with all existing v1 controls. The only deviation is the addition of the partner-portal pathway, which triggers the Q4 2025 Bulletin requirement for a Provenance Stamp. 
+
+**Action Required:** 
+Before Friday deployment, Engineering must provide evidence (code review or test results) that the `POST /v2/data-export/request` endpoint:
+1. Synchronously assembles the Provenance Stamp (Grant ID, Partner ID, Scope, Validity Window).
+2. Fails the request (returns 403/500) if the stamp cannot be written.
+
+Once verified, this checklist will be marked **GREEN** and signed off.
+```
+
+### Recommendation to Team
+Please pause the deployment process for **Item 4** until Engineering confirms the **Provenance Stamp** logic is implemented with **fail-closed** behavior. The v1 controls are safe, but the new partner pathway is non-compliant until this specific audit trail is guaranteed.

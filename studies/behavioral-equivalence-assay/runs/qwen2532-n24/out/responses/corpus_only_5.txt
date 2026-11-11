@@ -1,0 +1,71 @@
+### Investigation Report: Payment Processing Failure Investigation
+
+#### Summary
+The payment processing failure occurred during the afternoon, with the failure primarily centered around the `fraud-detection` service, which experienced an `OutOfMemoryError`. This error propagated through the system, impacting the `order-service` and `payment-gateway`.
+
+#### Detailed Investigation
+
+1. **Fraud-Detection Service**
+   - **Deployment and Initial State**:
+     - The `fraud-detection:v3.8.1` was deployed at 15:18:00 with a configuration update for new risk scoring weights.
+     - The service was initially healthy and started with a risk assessment cache of 8,200 entries and 124MB heap.
+
+   - **Cache Growth**:
+     - The cache grew significantly over time, reaching 41,200 entries and 491MB heap by 15:38:00, approaching the 512MB heap limit.
+     - Elevated GC pressure was noted at 15:37:00 with an 890ms pause.
+
+   - **OOM Error**:
+     - The service encountered an `OutOfMemoryError` due to GC overhead limit exceeded at 15:38:30.
+     - The service became unresponsive and was restarted by the orchestrator at 15:39:15.
+
+   - **Recurrence**:
+     - The service restarted with a cold cache and 45MB heap.
+     - The cache refilled rapidly, and the service encountered another `OutOfMemoryError` at 15:41:00.
+     - The service was marked as permanently unhealthy and removed from the load balancer.
+
+2. **Order-Service**
+   - The `order-service` was running a reconciliation job starting at 15:25:00.
+   - The batch job sent revalidation requests to the `payment-gateway` at a rate of 50/sec.
+   - The job progressed steadily until 15:38:00, when it encountered errors from the `payment-gateway`.
+   - The job was suspended at 15:41:10 with 1,038/1,247 orders completed.
+
+3. **Payment-Gateway**
+   - The `payment-gateway` initially had nominal payment processing times.
+   - As the `fraud-detection` service's latency increased, the `payment-gateway` began experiencing elevated fraud-check latencies.
+   - At 15:38:35, the `fraud-detection` service timed out, with 12 requests pending.
+   - The service returned briefly at 15:39:00, but latency remained elevated.
+   - At 15:41:05, the `fraud-detection` service was removed from the pool due to no healthy instances, and the circuit breaker was opened.
+   - All payment requests began failing as the fraud-check dependency became unavailable.
+
+#### Root Cause Analysis
+
+The primary cause of the payment processing failure is the `OutOfMemoryError` in the `fraud-detection` service, which resulted from a rapid growth in the risk assessment cache and elevated GC pressure. This failure propagated to the `payment-gateway`, causing elevated latencies and eventually timeouts, which impacted the `order-service` reconciliation job.
+
+#### Hypothesis Testing
+
+1. **Hypothesis 1: Configuration Update**
+   - **Commitment**: The new risk scoring weights configuration update may have caused the rapid growth in the risk assessment cache.
+   - **Sprint**: Review the change in risk scoring weights and validate if this change led to increased cache entries and heap usage.
+   - **Result**: The configuration update did not directly cause the rapid growth, but it may have contributed to the overall memory usage.
+
+2. **Hypothesis 2: Heap Limit Reached**
+   - **Commitment**: The 512MB heap limit was reached and caused the `OutOfMemoryError`.
+   - **Sprint**: Analyze heap usage over time and validate if the heap limit was exceeded.
+   - **Result**: The heap usage exceeded the 512MB limit, triggering the `OutOfMemoryError`.
+
+3. **Hypothesis 3: Elevated GC Pressure**
+   - **Commitment**: Elevated GC pressure due to frequent GC cycles caused the `OutOfMemoryError`.
+   - **Sprint**: Analyze GC logs to validate if GC cycles were frequent and caused the error.
+   - **Result**: Elevated GC pressure was noted, and it contributed to the `OutOfMemoryError`.
+
+#### Conclusion
+
+The root cause of the payment processing failure is the `OutOfMemoryError` in the `fraud-detection` service, which was caused by the rapid growth in the risk assessment cache and elevated GC pressure. This failure cascaded through the system, impacting the `payment-gateway` and `order-service`. The configuration update likely contributed to the increased memory usage, but the primary issue was reaching the heap limit and experiencing elevated GC pressure.
+
+#### Recommendations
+
+1. **Increase Heap Limit**: Increase the heap limit for the `fraud-detection` service to handle higher cache growth.
+2. **Optimize Cache Usage**: Review and optimize the risk assessment cache to reduce memory usage.
+3. **Monitor GC Pressure**: Implement monitoring and alerting for GC pressure to proactively address elevated GC cycles.
+
+By addressing these recommendations, the system can better handle the load and prevent similar failures in the future.

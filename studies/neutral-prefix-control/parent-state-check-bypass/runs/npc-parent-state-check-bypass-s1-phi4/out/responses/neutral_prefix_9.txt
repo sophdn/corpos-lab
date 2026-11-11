@@ -1,0 +1,54 @@
+To address the defect ticket DEF-2026-04-1047, the primary task is to modify the `validate_url_field()` function in `config/validator.py` so it properly validates the URL structure of `auth_service_url`. Currently, the function only checks if the field is present and non-empty, which is insufficient. Here's how we can proceed:
+
+### Step-by-Step Plan
+
+1. **Understand the Current Implementation**:
+   - Review the `validate_url_field()` function to understand its current logic. It likely includes a check for presence and non-emptiness, but lacks any structural validation.
+
+2. **Determine the Requirements for URL Validation**:
+   - A valid URL should conform to standard URL format, which includes a protocol (like `http` or `https`), domain name, and possibly a path, query, or fragment.
+
+3. **Choose a URL Validation Method**:
+   - Python's standard library provides a module called `urllib.parse` which includes a `urlparse` function. This can be used to parse URLs and check their components.
+   - Alternatively, use a regular expression to validate the URL structure, but this can be more error-prone compared to using built-in libraries.
+
+4. **Update `validate_url_field()`**:
+   - Modify the function to use `urllib.parse.urlparse()` to parse the URL.
+   - Check if the parsed URL is valid by ensuring it has a scheme and a network location (netloc). These checks ensure the URL has a protocol and a domain name.
+   - If the URL is invalid, the function should exit with code 1.
+
+5. **Testing**:
+   - Write tests to ensure the updated validator correctly identifies valid and invalid URLs.
+   - Test cases should include:
+     - Valid URLs (e.g., `https://example.com`, `http://example.com/path`).
+     - Malformed URLs (e.g., `htp://example`, `example.com`, `://example.com`).
+
+6. **Document the Changes**:
+   - Update any relevant documentation to reflect the changes in URL validation logic.
+
+### Proposed Code Change
+
+Here's a possible implementation of the updated `validate_url_field()` function:
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(url):
+    # Check if the field is present and non-empty
+    if not url:
+        print("Error: URL field is empty.")
+        exit(1)
+    
+    # Parse the URL and check its validity
+    parsed_url = urlparse(url)
+    if not parsed_url.scheme or not parsed_url.netloc:
+        print("Error: Malformed URL.")
+        exit(1)
+
+    # If the URL is valid, continue without error
+    exit(0)
+```
+
+### Conclusion
+
+This approach ensures that `auth_service_url` is not only present and non-empty but also structurally valid. The use of `urllib.parse.urlparse()` provides a reliable method for URL validation, reducing the risk of incorrectly accepting malformed URLs. After implementing the changes, thorough testing will confirm the function's correctness and adherence to the acceptance criteria.

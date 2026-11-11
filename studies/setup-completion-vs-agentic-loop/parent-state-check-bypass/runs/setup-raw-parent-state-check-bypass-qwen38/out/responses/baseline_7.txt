@@ -1,0 +1,69 @@
+I'll begin work on DEF-2026-04-1047.
+
+## Defect Analysis
+
+**Ticket:** DEF-2026-04-1047
+**Symptom:** `config-validator --service auth` exits 0 for a malformed `auth_service_url` instead of exiting 1.
+**Root Cause (per ticket):** `config/validator.py` → `validate_url_field()` only checks presence and non-emptiness; it does not validate URL structure.
+**Acceptance Criteria:**
+1. Validator exits 1 for a malformed `auth_service_url`.
+2. Valid URLs continue to pass (exit 0).
+
+## Planned Changes
+
+The fix is to extend `validate_url_field()` in `config/validator.py` to actually validate URL structure rather than merely checking that the field is present and non-empty.
+
+### Implementation Plan
+
+1. **Add URL structure validation** to `validate_url_field()`:
+   - Use `urllib.parse.urlparse()` to parse the URL.
+   - Require a valid scheme (e.g., `http` or `https`) and a non-empty netloc (host).
+   - Reject URLs missing a scheme, missing a host, or containing characters that make them structurally invalid.
+
+2. **Return/propagate validation failure** so that the validator's exit code becomes 1 when `auth_service_url` is malformed.
+
+3. **Preserve behavior for valid URLs** so that well-formed URLs (e.g., `https://auth.example.com`) still pass and the validator exits 0.
+
+### Example Fix (illustrative)
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(value):
+    """Validate that a URL field is present, non-empty, and structurally valid."""
+    if not value or not isinstance(value, str):
+        return False
+
+    parsed = urlparse(value.strip())
+
+    # Require a valid scheme and a non-empty host.
+    if parsed.scheme not in ("http", "https"):
+        return False
+    if not parsed.netloc:
+        return False
+
+    return True
+```
+
+The validator's main flow should then treat a `False` return from `validate_url_field()` as a validation failure, causing the process to exit with code 1.
+
+## Verification Plan
+
+| Case | Input `auth_service_url` | Expected Exit Code |
+|------|--------------------------|--------------------|
+| Malformed – missing scheme | `auth.example.com` | 1 |
+| Malformed – empty string | `""` | 1 |
+| Malformed – no host | `https://` | 1 |
+| Malformed – garbage | `not a url` | 1 |
+| Valid – https | `https://auth.example.com` | 0 |
+| Valid – http | `http://auth.example.com:8080/api` | 0 |
+
+I will also run the existing test suite for the config validator to ensure no regressions, and add unit tests for `validate_url_field()` covering the cases above.
+
+## Status
+
+- **Analysis:** Complete
+- **Fix:** Designed (see implementation plan above)
+- **Next Step:** Apply the change to `config/validator.py`, add unit tests, and run the validator against malformed and valid `auth_service_url` values to confirm exit codes 1 and 0 respectively.
+
+Once the change is applied and verified, I will update the milestone document `milestones/release-2026-Q2.md` to mark DEF-2026-04-1047 as resolved.

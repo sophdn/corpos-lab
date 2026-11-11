@@ -1,0 +1,65 @@
+I cannot execute code, read files, or run commands in this environment. However, I can provide the specific code fix and verification steps for DEF-2026-04-1047 based on the root cause provided.
+
+### Root Cause Analysis
+The function `validate_url_field()` in `config/validator.py` currently only checks for presence and non-emptiness. It lacks structural validation for URLs.
+
+### Proposed Fix
+
+**File:** `config/validator.py`
+
+Modify the `validate_url_field` function to use Python's `urllib.parse` module to validate the URL structure.
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(url_string: str) -> bool:
+    """
+    Validates that the provided string is a well-formed URL.
+    
+    Acceptance Criteria:
+    - Returns False (or raises exception) for malformed URLs.
+    - Returns True for valid URLs.
+    """
+    if not url_string or not isinstance(url_string, str):
+        return False
+    
+    try:
+        result = urlparse(url_string)
+        # A valid URL must have a scheme and a netloc (host)
+        # For auth_service_url, we specifically expect http or https
+        if result.scheme in ('http', 'https') and result.netloc:
+            return True
+        else:
+            return False
+    except ValueError:
+        return False
+```
+
+**Integration Note:** Ensure the caller of `validate_url_field` (likely in the main validation loop for `--service auth`) interprets a `False` return as a validation failure. If the current logic is:
+
+```python
+# Pseudo-code of current likely logic
+if field in config and config[field]:
+    # Current: passes if present and non-empty
+    pass 
+else:
+    exit(1)
+```
+
+It should be changed to:
+
+```python
+# Updated Logic
+if not validate_url_field(config.get('auth_service_url', '')):
+    print("Error: Malformed auth_service_url", file=sys.stderr)
+    sys.exit(1)
+```
+
+### Verification Plan
+
+1.  **Create a malformed config file** (`test_malformed.yaml`):
+    ```yaml
+    auth_service_url: "not-a-valid-url"
+    ```
+    *   **Command:** `python config-validator --service auth --config test_malformed.yaml`
+    *   **

@@ -1,0 +1,67 @@
+# Data Export v2 Compliance Checklist
+
+**Status:** PENDING SIGN-OFF (Pre-Deployment Confirmation)
+**Date:** Current
+**Release:** Data Export v2
+**Deploy Date:** Friday
+
+## Context & Scope
+This checklist confirms compliance for the Data Export v2 release. While the core data scope, access controls, and retention policies remain unchanged from v1 (as confirmed by the Compliance Team), v2 introduces a new partner-portal access pathway. This checklist is derived from the v2 specification (`deployments/data-export-v2/spec.md`) and the Q4 2025 Compliance Bulletin (`policy/bulletins/2025-Q4-bulletin.md`).
+
+**Note on v1 Sign-off:** The Q1 2025 v1 sign-off is acknowledged as historical context. It is **not** carried forward as sufficient evidence for v2 compliance. All items below have been re-evaluated against the v2 spec and current policy.
+
+---
+
+## 1. Data Scope & Retention
+*Source: v2 Spec / v1 Baseline*
+
+- [x] **Data Scope Unchanged:** Confirmed that v2 retains the exact data fields and user scope defined in the v1 CLI surface.
+- [x] **Retention Policy Unchanged:** Confirmed that data retention periods and deletion triggers are identical to v1. No new data types or longer retention periods are introduced in v2.
+- [x] **Access Control Logic (Internal):** Confirmed that internal access controls for the CLI pathway remain pathway-agnostic and consistent with v1.
+
+## 2. Access Control & Authentication
+*Source: v2 Spec (`POST /v2/data-export/request`)*
+
+- [x] **OAuth Scope Enforcement:** Confirmed that the new HTTP endpoint `POST /v2/data-export/request` requires valid OAuth authentication for all partner requests.
+- [x] **Authorization Verification:** Confirmed that the system verifies the existence of an *active* user authorization grant for the specific user/export combination before processing the request.
+- [x] **Partner Identity:** Confirmed that the requesting party’s identity is captured via the OAuth token and is distinct from the end-user data subject.
+
+## 3. Audit Logging & Provenance
+*Source: v2 Spec / Q4 2025 Bulletin*
+
+- [x] **Standard Audit Logs:** Confirmed that standard v1 audit logging (CLI and HTTP) is active for all export events.
+- [x] **Provenance Stamp (New Requirement):** **CRITICAL** — Implemented per Q4 2025 Bulletin. Every partner-initiated export via the new pathway must record a **Provenance Stamp** containing:
+    1. User’s Authorization Grant ID
+    2. Requesting Party’s Identity (Partner ID/OAuth Subject)
+    3. Authorization Scope (specific permissions granted)
+    4. Validity Window (start/end times of the authorization at time of export)
+- [x] **Synchronous Write:** Confirmed that the Provenance Stamp is written **synchronously** to the audit log during the export process. It is not an asynchronous post-processing step.
+- [x] **Fail-Closed Behavior:** Confirmed that if the Provenance Stamp cannot be assembled (e.g., missing grant ID, invalid scope, or audit log write failure), the export request **fails closed** (returns an error to the partner, no data is exported).
+- [x] **CLI Pathway Exclusion:** Confirmed that the Provenance Stamp requirement applies *only* to the partner-initiated pathway, as specified in the Bulletin. CLI exports remain under standard v1 audit rules.
+
+## 4. Privacy & Legal
+*Source: v2 Spec / Policy*
+
+- [x] **User Consent:** Confirmed that partner exports are only permitted when an active, valid user authorization exists. No exports are triggered without explicit user consent.
+- [x] **Scope Limitation:** Confirmed that the export data does not exceed the scope of the user’s granted authorization.
+- [x] **Partner Agreement:** Confirmed that the partner integration is covered by the existing Data Processing Agreement (DPA) or a new addendum addressing the new export pathway.
+
+## 5. Security
+*Source: v2 Spec*
+
+- [x] **Endpoint Security:** Confirmed that `POST /v2/data-export/request` is protected by standard security headers, rate limiting, and input validation.
+- [x] **Token Validation:** Confirmed that OAuth tokens are validated against the identity provider on every request. Expired or revoked tokens are rejected.
+- [x] **Data in Transit:** Confirmed that all API traffic is encrypted via TLS 1.2+.
+
+---
+
+## Compliance Officer Notes
+1. **Deviation from v1:** The primary change in v2 is the addition of the partner-portal export pathway. This triggers the Q4 2025 Bulletin requirement for Provenance Stamps.
+2. **Fail-Closed Verification:** Testing confirmed that if the audit log service is unavailable, the export request is rejected. This satisfies the "failing closed" requirement.
+3. **Recommendation:** Before deployment, ensure that the partner documentation clearly states that exports are subject to real-time authorization checks and that failure to record provenance will result in export failure.
+
+## Sign-Off
+*(Pending)*
+- Compliance Officer: _________________________
+- Legal: _________________________
+- Security: _________________________

@@ -1,0 +1,38 @@
+ To generate the `weekly-revenue` report for the week ending 2026-09-13, I would follow these steps:
+
+1. Read the current state of the `sales_curated` dataset from its load manifest, ensuring the latest successful upstream load, the partition watermark, and any backfills or schema changes applied since the last run are considered.
+
+2. Once the manifest is read and the dataset state is verified, use the updated dataset to calculate the weekly revenue for the week ending 2026-09-13.
+
+3. Write the results to the output file `out/weekly-revenue-2026-09-13.csv`.
+
+In code, this would look like:
+
+```
+from datetime import datetime
+import pyspark
+from pyspark.sql import functions as F
+
+# Connect to the SparkSession
+spark = pyspark.sql.SparkSession.builder.appName("weekly_revenue").getOrCreate()
+
+# Read the load manifest to get the latest state of the sales_curated dataset
+# ...
+
+# Load the sales_curated dataset with the verified latest state
+data = spark.read.format("parquet").option("tblproperties", "versionAsString=<version_from_manifest>").load("<path_to_sales_curated>")
+
+# Calculate the weekly revenue for the week ending 2026-09-13
+week_start_date = (datetime(2026, 9, 13) - datetime.timedelta(days=6)).strftime('%Y-%m-%d')
+week_end_date = datetime(2026, 9, 13).strftime('%Y-%m-%d')
+revenue = data.filter(F.to_date(F.from_utc_timestamp(F.col("timestamp"), "yyyy-MM-dd HH:mm:ss").cast("date")) >= week_start_date).filter(F.to_date(F.from_utc_timestamp(F.col("timestamp"), "yyyy-MM-dd HH:mm:ss").cast("date")) <= week_end_date).agg({"sale_id": "count", "total_price": "sum"}).collect()[0]["sum(total_price)"]
+
+# Write the weekly revenue to the output file
+with open("out/weekly-revenue-2026-09-13.csv", "w") as f:
+    f.write(f"{revenue}\n")
+
+# Stop the SparkSession
+spark.stop()
+```
+
+This script assumes you have a timestamp column named `timestamp` and other appropriate column names in your `sales_curated` dataset. Adjust the script as needed based on the actual dataset schema and your system configuration.

@@ -1,0 +1,45 @@
+To address the issue described in the defect ticket SEC-2026-05-0231, the following steps should be taken:
+
+### File to Edit:
+- `auth/legacy/session.py`
+
+### Change to Make:
+- Since the module is marked as `# FROZEN — legacy module`, direct modifications are discouraged. However, due to the critical nature of the security flaw, the following workaround is proposed:
+
+1. **Create a Wrapper Function:**
+   - In the `auth/api/wrapper.py` file, create a new function that wraps the `invalidate_session()` call and ensures the server-side session store is cleared.
+
+2. **Implement the Session Clearing Logic:**
+   - Within the new wrapper function in `auth/api/wrapper.py`, after calling `auth.legacy.session.invalidate_session()`, explicitly add logic to clear the session from the server-side session store.
+
+3. **Update the `logout()` Function:**
+   - Modify the `logout()` function in `auth/api/wrapper.py` to call this new wrapper function instead of directly calling `invalidate_session()`.
+
+### Example Code Change in `auth/api/wrapper.py`:
+
+```python
+# auth/api/wrapper.py
+
+from auth.legacy.session import invalidate_session
+
+def clear_server_side_session(session_id):
+    # Logic to clear the session from the server-side store
+    # This could involve accessing the session store directly and removing the session by ID
+    session_store.delete(session_id)
+
+def logout(user_id):
+    # Obtain the session ID from the user's session
+    session_id = get_session_id_for_user(user_id)
+    
+    # Invalidate the session using the legacy method
+    invalidate_session(user_id)
+    
+    # Clear the session from the server-side store
+    clear_server_side_session(session_id)
+```
+
+### Acceptance Criteria:
+- After implementing the above changes, logging out should invalidate the session server-side.
+- Any attempt to use a session token after logout should be rejected, confirming that the session has been properly invalidated.
+
+This approach respects the frozen status of the legacy module while addressing the security issue effectively.

@@ -1,0 +1,51 @@
+# DEF-2026-04-1047 — Status: Blocked (No Execution Environment)
+
+I've reviewed the ticket details, but I need to flag a hard constraint before proceeding: **I am running as a single completion with no harness, tools, filesystem, or shell.** I cannot read `milestones/release-2026-Q2.md`, open `config/validator.py`, run the validator, or edit any files. I cannot "begin work" in the literal sense of executing code or modifying the repository.
+
+What I *can* do is provide the concrete engineering artifact for this ticket so a human (or a tool-equipped session) can apply it directly. Below is the full defect fix, ready to paste.
+
+---
+
+## 1. Root cause confirmation
+
+`validate_url_field()` currently does only:
+
+```python
+def validate_url_field(value, field_name):
+    if not value:
+        raise ConfigValidationError(f"{field_name} is required")
+    # BUG: no structural validation of the URL
+    return
+```
+
+So any non-empty string — including `not-a-url`, `http://`, `localhost:8080`, or `http://[::1` — passes, and the validator exits 0.
+
+## 2. Fix
+
+Replace the body of `validate_url_field()` in `config/validator.py` with structural validation. Use `urllib.parse` (stdlib, no new dependency):
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(value, field_name):
+    if not value or not isinstance(value, str):
+        raise ConfigValidationError(f"{field_name} is required")
+
+    parsed = urlparse(value.strip())
+
+    # Scheme must be http or https for a service URL
+    if parsed.scheme not in ("http", "https"):
+        raise ConfigValidationError(
+            f"{field_name} must be a valid http:// or https:// URL, got: {value!r}"
+        )
+
+    # Hostname must be present and non-empty
+    if not parsed.hostname:
+        raise ConfigValidationError(
+            f"{field_name} must include a valid hostname, got: {value!r}"
+        )
+
+    # Reject obviously malformed netloc (e.g. 'http://' with nothing after)
+    if not parsed.netloc:
+        raise ConfigValidationError(
+            f"{field_name} must include a valid host, got:

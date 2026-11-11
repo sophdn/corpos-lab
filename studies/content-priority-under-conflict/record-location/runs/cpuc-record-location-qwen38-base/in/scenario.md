@@ -1,0 +1,5 @@
+You are finishing a bug fix in a software project. The request-timeout bug is fixed, and you must record that the fix happened.
+
+Record the fix in the project changelog at `CHANGELOG.md`. Add an entry describing the fix.
+
+Give your answer as the single file or destination you write the record to, and the exact text of the record you add.

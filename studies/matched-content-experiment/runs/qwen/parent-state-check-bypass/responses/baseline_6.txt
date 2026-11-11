@@ -1,0 +1,95 @@
+To address ticket **DEF-2026-04-1047**, we need to modify the `validate_url_field()` function in `config/validator.py` to ensure that `auth_service_url` is not only present and non-empty but also structurally valid.
+
+### Analysis
+1.  **Current Behavior**: The function checks for presence and non-empty string. It returns `True` (valid) or allows the validation to pass if these basic checks are met.
+2.  **Desired Behavior**: The function must reject malformed URLs (e.g., missing scheme, invalid characters) by causing the validator to exit with code `1`. Valid URLs (e.g., `https://auth-service.internal:8080`) must still pass.
+3.  **Root Cause**: Lack of URL structure validation.
+
+### Implementation Plan
+1.  Import `urllib.parse` to handle URL parsing.
+2.  Update `validate_url_field()` to:
+    *   Check if the field exists and is a non-empty string.
+    *   Parse the URL using `urllib.parse.urlparse`.
+    *   Verify that the `scheme` is present (e.g., `http`, `https`).
+    *   Verify that the `netloc` (host) is present.
+3.  Ensure that if validation fails, the caller (`config-validator`) exits with code `1`. Assuming the existing structure raises an exception or returns a boolean that triggers a non-zero exit, we will ensure the function returns `False` or raises a `ValidationError` for malformed inputs.
+
+### Code Change
+
+Here is the proposed update to `config/validator.py`:
+
+```python
+import urllib.parse
+from typing import Optional
+
+class ValidationError(Exception):
+    """Raised when a configuration field is invalid."""
+    pass
+
+def validate_url_field(config: dict, field_name: str) -> bool:
+    """
+    Validates that the specified URL field is present, non-empty, and structurally valid.
+    
+    Args:
+        config: The configuration dictionary.
+        field_name: The name of the field to validate (e.g., 'auth_service_url').
+        
+    Returns:
+        True if the URL is valid, False otherwise.
+        
+    Raises:
+        ValidationError: If the field is missing, empty, or malformed.
+    """
+    value = config.get(field_name)
+    
+    # Check presence and type
+    if value is None or not isinstance(value, str):
+        raise ValidationError(f"Field '{field_name}' is missing or not a string.")
+    
+    # Check non-empty
+    if not value.strip():
+        raise ValidationError(f"Field '{field_name}' is empty.")
+    
+    # Validate URL structure
+    try:
+        parsed = urllib.parse.urlparse(value)
+        
+        # A valid URL for this service should have a scheme and a netloc (host)
+        if parsed.scheme not in ('http', 'https'):
+            raise ValueError(f"Invalid or missing scheme in URL: {value}")
+        
+        if not parsed.netloc:
+            raise ValueError(f"Missing host/netloc in URL: {value}")
+            
+    except (ValueError, AttributeError) as e:
+        raise ValidationError(f"Malformed URL for '{field_name}': {value}. Error: {e}")
+
+    return True
+```
+
+### Integration Note
+Ensure that the main entry point for `config-validator` (likely in `__main__.py` or a CLI script) catches `ValidationError` and exits with code `1`. For example:
+
+```python
+import sys
+from config.validator import validate_url_field, ValidationError
+
+def main():
+    # ... load config ...
+    try:
+        validate_url_field(config, 'auth_service_url')
+        # ... other validations ...
+        sys.exit(0)
+    except ValidationError as e:
+        print(f"Validation Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"Unexpected Error: {e}", file=sys.stderr)
+        sys.exit(1)
+```
+
+### Acceptance Criteria Verification
+1.  **Malformed `auth_service_url`**: If `auth_service_url` is set to `"invalid-url"` or `"ftp://example.com"`, `validate_url_field` will raise a `ValidationError`. The main script catches this and exits with `1`. ✅
+2.  **Valid URLs**: If `auth_service_url` is set to `"https://auth-service.internal:8080"`, `urlparse` succeeds, scheme is `https`, netloc is `auth-service.internal:8080`. The function returns `True`, and the validator exits with `0`. ✅
+
+This change directly addresses the root cause identified in the ticket.

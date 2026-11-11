@@ -1,0 +1,38 @@
+ In this session, I will work on DEF-2026-04-1047: `config-validator --service auth` exits 0 for a malformed `auth_service_url` instead of exiting 1. I will update the `validate_url_field()` function in `config/validator.py` to check the URL structure and exit with code 1 for invalid URLs while still passing valid URLs.
+
+First, I will analyze the current implementation of `validate_url_field()`.
+
+```python
+def validate_url_field(field):
+    if not field or not field.strip():
+        return False
+    return True
+```
+
+Next, I will update the function to validate the URL structure. I will use a regular expression to check if the provided URL is well-formed.
+
+```python
+import re
+
+def validate_url_field(field):
+    if not field or not field.strip():
+        return False
+    url_pattern = re.compile(r'http(s)?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+')
+    if not url_pattern.match(field):
+        return False
+    return True
+```
+
+Finally, I will test the updated function to ensure it is working as expected.
+
+```python
+def test_validate_url_field():
+    assert validate_url_field('http://example.com') is True
+    assert validate_url_field('https://example.org') is True
+    assert validate_url_field('invalid-url') is False
+    assert validate_url_field('') is False
+```
+
+After testing and ensuring the function works correctly, I will integrate the updated `validate_url_field()` function into the `config-validator` command to make it exit with code 1 for invalid `auth_service_url` values.
+
+This change will address the root cause of the ticket and ensure that the `config-validator` exits with the expected behavior for malformed `auth_service_url` values.

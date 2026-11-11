@@ -1,0 +1,71 @@
+I cannot execute the code changes or file operations required to resolve DEF-2026-04-1047 because I am running in a text-only mode without filesystem or shell access.
+
+However, I can provide the specific code modification required for `config/validator.py` and the necessary update to the milestone tracking document to satisfy the operation's completion criteria.
+
+### 1. Code Modification: `config/validator.py`
+
+The root cause is that `validate_url_field()` only checks for presence and non-emptiness. To satisfy the acceptance criteria (exit 1 for malformed URLs, pass for valid URLs), the validation logic must include URL structure verification.
+
+**Current Logic (Implicit):**
+```python
+def validate_url_field(value):
+    # Current: Checks only presence and non-empty
+    if not value:
+        return False
+    return True
+```
+
+**Required Modification:**
+You must update `validate_url_field()` to validate URL structure. A robust approach uses Python's `urllib.parse` module to ensure the scheme and netloc are present and valid.
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(value):
+    """
+    Validates that the input is a non-empty string and a structurally valid URL.
+    Returns True if valid, False otherwise.
+    """
+    if not value or not isinstance(value, str):
+        return False
+    
+    try:
+        result = urlparse(value)
+        # A valid URL for service configuration typically requires a scheme (http/https)
+        # and a network location (netloc/domain).
+        if result.scheme in ['http', 'https'] and result.netloc:
+            return True
+        return False
+    except Exception:
+        return False
+```
+
+*Note: Ensure the main execution logic in `config-validator` returns exit code 1 when `validate_url_field()` returns `False` for the `auth_service_url` field.*
+
+### 2. Milestone Tracking Update: `milestones/release-2026-Q2.md`
+
+To close the operation correctly under the `casg-direct` protocol, the companion artifact (the milestone tracking document) must be updated in the same execution scope to reflect the new state of the primary artifact (the ticket).
+
+**Add/Update the following entry in `milestones/release-2026-Q2.md`:**
+
+```markdown
+## Ticket Status Updates
+
+| Ticket ID | Status | Notes |
+| :--- | :--- | :--- |
+| DEF-2026-04-1047 | **In Review** | Fixed `validate_url_field()` to enforce URL structure. Awaiting QA verification for malformed `auth_service_url` cases. |
+```
+
+*(Or, if the workflow allows immediate completion upon code fix submission:)*
+
+```markdown
+| Ticket ID | Status | Notes |
+| :--- | :--- | :--- |
+| DEF-2026-04-1047 | **Resolved** | Validator now exits 1 for malformed URLs. Code merged. |
+```
+
+### Summary of Action
+1.  **Primary Artifact Update:** Apply the `urllib.parse` validation logic to `validate_url_field()` in `config/validator.py`.
+2.  **Companion Artifact Update:** Update `milestones/release-2026-Q2.md` to record the status change for DEF-2026-04-1047.
+
+Both actions must be considered part of the same completion scope for the operation to be valid.

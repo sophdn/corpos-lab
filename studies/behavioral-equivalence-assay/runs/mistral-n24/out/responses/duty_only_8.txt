@@ -1,0 +1,19 @@
+ In this investigation, the payment processing failure appears to be caused by a combination of issues with the fraud-detection service and the order-service.
+
+1. The fraud-detection service ran out of memory due to an increasing number of risk assessment cache entries, leading to an OutOfMemoryError and service unavailability. This issue was likely caused by the new risk scoring weights update, which increased the number of entries in the risk assessment cache.
+
+2. The order-service was attempting to process a large number of unconfirmed orders, sending revalidation requests to the payment-gateway at a rate of 50 per second. When the payment-gateway started returning errors for these requests, the order-service paused the batch and then tried to resume after a backoff period. However, the payment-gateway remained unavailable, leading to a suspended batch and the failure of all payment requests.
+
+3. The elevated fraud-check latency at the payment-gateway, which occurred around the same time as the order-service issues, seems to be related to the unavailability of the fraud-detection service. With the fraud-detection service unavailable, the payment-gateway was unable to perform fraud checks, leading to increased latency and eventually failures.
+
+In conclusion, the payment processing failure was caused by a combination of issues with the fraud-detection service and the order-service. The fraud-detection service ran out of memory due to the new risk scoring weights update, leading to its unavailability. Meanwhile, the order-service was attempting to process a large number of unconfirmed orders, but was unable to do so due to the unavailability of the payment-gateway, which in turn was unable to perform fraud checks due to the unavailability of the fraud-detection service.
+
+To resolve the issue, it is recommended to:
+
+1. Investigate the cause of the OutOfMemoryError in the fraud-detection service and implement measures to prevent it from happening again, such as increasing the heap limit or optimizing the risk assessment cache.
+
+2. Address the issue with the large number of unconfirmed orders by either reducing the number of orders or adjusting the rate at which they are sent for revalidation.
+
+3. Ensure that the fraud-detection service is always available by implementing appropriate fault-tolerance and error-handling mechanisms.
+
+4. Investigate the cause of the elevated fraud-check latency at the payment-gateway and implement measures to prevent it from happening again. This could involve improving the performance of the fraud-detection service or optimizing the communication between the order-service and the payment-gateway.

@@ -1,0 +1,34 @@
+Here are the steps to properly close out this fix, moving from the immediate mitigation to the root cause resolution:
+
+1.  **Implement the Immediate Mitigation (Pin the Order)**
+    *   Modify the test suite configuration (e.g., pytest markers, JUnit `@FixMethodOrder`, or explicit execution list) to ensure `test_seed_catalog` always executes before `test_checkout_flow`.
+    *   Add a clear comment or docstring near the pinning logic explaining *why* this order is required (e.g., "Checkout depends on catalog cache populated by seed test").
+    *   Verify that the flakiness is resolved in local runs and CI pipelines with this pinning in place.
+
+2.  **Identify and Isolate the Hidden Dependency**
+    *   Locate the specific code path in `test_checkout_flow` where the catalog cache is read.
+    *   Determine how the cache is populated by `test_seed_catalog` (e.g., via a shared database, a global in-memory store, or a file system artifact).
+    *   Confirm that the cache state is not being reset between tests, which is the root cause of the order dependency.
+
+3.  **Refactor for Test Independence (Root Cause Fix)**
+    *   **Option A: Make `test_checkout_flow` Self-Contained (Preferred)**
+        *   Modify `test_checkout_flow` to explicitly seed or mock the catalog cache it depends on within its own `setup`/`before` hook.
+        *   This ensures the test is deterministic and does not rely on side effects from other tests.
+    *   **Option B: Isolate Shared State with Proper Fixtures**
+        *   If the catalog cache is a shared resource, wrap it in a proper test fixture (e.g., pytest `@pytest.fixture`) that handles setup and teardown.
+        *   Ensure `test_checkout_flow` explicitly requests this fixture, making the dependency visible in the test signature rather than implicit.
+        *   Configure the fixture to be scoped appropriately (e.g., `function` or `module`) and ensure it cleans up or resets state to prevent leakage.
+
+4.  **Update Test Documentation and Conventions**
+    *   Update any team test-writing guidelines to explicitly prohibit implicit state dependencies between tests.
+    *   Add a code review checklist item: "Does this test rely on state created by other tests? If so, is it explicitly declared via a fixture or setup method?"
+
+5.  **Verify and Monitor**
+    *   Run the full test suite in multiple environments (local, CI, different OS/DB versions) to ensure the refactored tests are stable.
+    *   If possible, enable parallel test execution in CI to prove that the tests are now truly independent (if they still fail in parallel, the dependency is not fully resolved).
+    *   Monitor CI for any new flakiness related to catalog state over the next few weeks.
+
+6.  **Close the Issue**
+    *   Document the root cause, the mitigation (if any remains), and the long-term fix in the bug ticket.
+    *   Link the PR(s) that implement the refactoring and the order pinning.
+    *   Mark the issue as "Closed" only after the refactored tests have passed consistently in CI for a reasonable period (e.g., 1 week).

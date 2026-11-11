@@ -1,0 +1,66 @@
+# Compliance Confirmation: Data-Export v2
+
+**Status:** Approved for Deployment  
+**Effective Date:** Friday (Pre-deployment)  
+**Reference:** Q4 2025 Compliance Bulletin (2025-11-01)  
+**Baseline:** Data-Export v1 Checklist (Signed off Q1 2025)
+
+## Summary of Changes
+Data-Export v2 introduces a new partner-portal integration via the endpoint `POST /v2/data-export/request`. This addition introduces a **partner-initiated export pathway** not present in v1. Per the Q4 2025 Compliance Bulletin, this specific architectural change triggers a new mandatory control: the **Provenance Stamp**.
+
+All other data scopes, access controls, and retention policies remain identical to v1. The v1 checklist items, which are written in pathway-agnostic terms, remain valid and applicable to the core functionality.
+
+---
+
+## V2 Compliance Checklist
+
+### 1. Data Scope & Retention
+*   **Status:** ✅ Confirmed (Unchanged from v1)
+*   **Control:** Data scope and retention policies are identical to v1.
+*   **Verification:** Spec review confirms no changes to data fields or retention durations. v1 sign-off remains valid for these parameters.
+
+### 2. Access Control & Authentication
+*   **Status:** ✅ Confirmed (Unchanged from v1)
+*   **Control:** Core access controls remain pathway-agnostic and valid.
+*   **Verification:** 
+    *   **CLI Surface:** Unchanged from v1.
+    *   **Partner-Portal (New):** Partners authenticate via OAuth scope. Users must have granted active authorization to the specific partner.
+    *   **Note:** While the mechanism is new (OAuth for partners), the underlying principle of "least privilege" and "explicit user consent" is maintained. The v1 access control framework supports this via the existing authorization model.
+
+### 3. Audit Logging & Provenance
+*   **Status:** ⚠️ **New Control Required** (Per Q4 2025 Bulletin)
+*   **Control:** **Provenance Stamp** must be implemented for all partner-initiated exports.
+*   **Requirement:** 
+    *   Every export request via `POST /v2/data-export/request` must synchronously generate an audit entry containing:
+        1.  User's Authorization Grant ID
+        2.  Requesting Party's Identity (Partner ID)
+        3.  Authorization Scope
+        4.  Validity Window at time of export
+    *   **Fail-Closed Behavior:** If the Provenance Stamp cannot be assembled (e.g., missing grant ID, invalid scope, or audit service unavailable), the export request **must fail**. No export shall occur without a complete, successfully written Provenance Stamp.
+*   **Verification:** Engineering to confirm implementation of synchronous audit write with fail-closed logic prior to deployment.
+
+### 4. Security & Encryption
+*   **Status:** ✅ Confirmed (Unchanged from v1)
+*   **Control:** Data in transit and at rest remains encrypted per v1 standards.
+*   **Verification:** No changes to encryption protocols or key management. New HTTP endpoint inherits existing transport security (TLS) and data-at-rest encryption policies.
+
+### 5. Privacy & Legal
+*   **Status:** ✅ Confirmed (Unchanged from v1)
+*   **Control:** Legal and Security sign-off from Q1 2025 remains valid for the core data processing activities.
+*   **Verification:** The new partner pathway does not alter the purpose of data processing or the legal basis for consent. Users are still the data subjects, and partners act as processors/authorized recipients under existing user grants. No new legal review required for unchanged data flows.
+
+---
+
+## Final Confirmation
+
+The v2 release adds a single material change: the partner-initiated export pathway. This change is addressed by the new **Provenance Stamp** control mandated by the Q4 2025 Bulletin. All other v1 controls remain applicable and unchanged.
+
+**Conditions for Deployment:**
+1.  Implementation of the Provenance Stamp audit entry is complete.
+2.  Fail-closed behavior is verified (exports fail if audit entry is not successfully written).
+3.  No other deviations from v1 data scope, retention, or access control policies.
+
+**Compliance Officer Sign-Off:**
+[Signature]  
+Compliance Officer  
+Date: [Current Date]

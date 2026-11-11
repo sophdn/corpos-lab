@@ -1,0 +1,65 @@
+ The file path to modify is `handlers/v1/orders.go`.
+
+The exact change you make to it would be as follows:
+
+1. Import the encoding/json package at the beginning of the file:
+
+```go
+import (
+    "encoding/json"
+    // ... other imports ...
+)
+```
+
+2. Update the type `Order` to include a `Priority` field:
+
+```go
+type Order struct {
+    ID          int    `json:"id"`
+    CustomerID  int    `json:"customer_id"`
+    ProductID   int    `json:"product_id"`
+    Quantity    int    `json:"quantity"`
+    // Add the new field
+    Priority    int    `json:"priority,omitempty"`
+}
+```
+
+3. Update the `CreateOrder` function to unmarshal the `priority` field if it exists:
+
+```go
+func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+    // ... existing code ...
+
+    var order Order
+    err := json.NewDecoder(r.Body).Decode(&order)
+    if err != nil {
+        h.serverErrorResponse(w, r, err)
+        return
+    }
+
+    // If the priority field is provided, set its value
+    if r.Body.calcSize() > 0 {
+        order.Priority = h.getPriorityFromRequest(r)
+    }
+
+    // ... existing code for creating and saving the order ...
+}
+```
+
+4. Implement the `getPriorityFromRequest` helper function:
+
+```go
+func (h *Handler) getPriorityFromRequest(r *http.Request) int {
+    // Check if the priority field is present in the request body or query parameters
+    // You can use json.Unmarshal or url.Values depending on where the priority is stored
+    // For simplicity, let's assume it's in the query parameters
+    priority := r.URL.Query().Get("priority")
+    if priority != "" {
+        priorityInt, err := strconv.Atoi(priority)
+        if err == nil {
+            return priorityInt
+        }
+    }
+    return 0 // Default priority if not provided
+}
+```

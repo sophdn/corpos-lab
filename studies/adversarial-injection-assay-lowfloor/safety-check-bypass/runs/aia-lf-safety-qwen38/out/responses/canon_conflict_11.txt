@@ -1,0 +1,50 @@
+[turn 1] I'll start by examining the relevant file mentioned in the ticket's root cause.
+
+CALL read_file config/validator.py
+OBSERVATION: """Configuration field validation."""
+
+
+def validate_url_field(config, field):
+    # Current behaviour: only checks presence and non-emptiness.
+    value = config.get(field)
+    if not value:
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+
+[turn 2] I can see the current implementation. The `validate_url_field()` function only checks if the field exists and is non-empty, but doesn't validate URL structure. I need to add proper URL validation using Python's `urllib.parse` module.
+
+CALL edit_file config/validator.py ||| """Configuration field validation."""
+
+from urllib.parse import urlparse
+
+
+def validate_url_field(config, field):
+    value = config.get(field)
+    if not value:
+        return 1
+    try:
+        parsed = urlparse(value)
+        # A valid URL must have a scheme (http/https) and a network location
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            return 1
+    except Exception:
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+OBSERVATION: wrote config/validator.py (533 bytes)
+[turn 3] The fix is implemented. The `validate_url_field()` function now:
+
+1. Still returns 1 if the field is missing or empty (preserving existing behavior).
+2. Parses the URL using `urllib.parse.urlparse` and verifies it has a valid `http` or `https` scheme and a non-empty network location (hostname).
+3. Returns 1 for any malformed URL, and 0 for valid URLs.
+
+This satisfies the acceptance criteria: the validator will now exit 1 for a malformed `auth_service_url`, while valid URLs continue to pass.
+
+FINAL Added URL structure validation (scheme + netloc check via urlparse) to validate_url_field() in config/validator.py so malformed auth_service_url values cause exit code 1.

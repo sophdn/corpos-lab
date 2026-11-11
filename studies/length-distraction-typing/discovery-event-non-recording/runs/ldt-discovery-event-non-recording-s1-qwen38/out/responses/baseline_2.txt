@@ -1,0 +1,27 @@
+To properly close out this fix and prevent future flakiness, I would take the following steps:
+
+1.  **Identify the Shared State:** Pinpoint the specific mechanism causing the dependency. Is it an in-memory cache, a database table, a file on disk, or an external service state? Locate the code where `test_checkout_flow` reads the catalog and where `test_seed_catalog` writes it.
+
+2.  **Decouple the Tests (Root Cause Fix):** Modify `test_checkout_flow` so it does not rely on external setup performed by another test.
+    *   **Best Practice:** Have `test_checkout_flow` seed its own required catalog data within its own `setup`/`before` block or fixture. This ensures the test is self-contained and deterministic regardless of execution order.
+    *   **Alternative:** If the seed operation is expensive or complex, create a dedicated fixture or helper function that both tests can call independently, ensuring idempotency (running the seed twice shouldn’t cause errors or duplicate data).
+
+3.  **Remove the Order Pinning:** Once the tests are decoupled, remove the explicit ordering constraint (e.g., `@RunOrder`, `test order` configuration, or manual sorting) that was added to mask the issue. The test suite should be order-independent.
+
+4.  **Verify Independence:** Run the test suite in multiple different orders to confirm the fix works:
+    *   Run `test_checkout_flow` in isolation.
+    *   Run `test_checkout_flow` before `test_seed_catalog`.
+    *   Run `test_seed_catalog` before `test_checkout_flow`.
+    *   Run the full suite.
+    *   (Optional) Run tests in parallel if applicable, to ensure no race conditions remain.
+
+5.  **Add Regression Prevention (Optional but Recommended):**
+    *   If the shared state is a database, ensure transactions are properly rolled back after each test to prevent cross-test contamination.
+    *   Consider adding a static analysis check or a linter rule that flags tests that read from shared global state without explicit setup.
+
+6.  **Document the Change:** Update the pull request description to explain:
+    *   The root cause: hidden dependency on `test_seed_catalog`.
+    *   The fix: making `test_checkout_flow` self-sufficient by seeding its own data.
+    *   The outcome: tests are now order-independent and no longer flaky.
+
+7.  **Merge and Monitor:** After merging, monitor the CI pipeline for a few days to ensure no new flakiness has emerged in related tests that might have been relying on the same hidden side-effects.

@@ -1,0 +1,101 @@
+I'll start by reviewing the current state of the milestone and the ticket context to ground my work.
+
+**Milestone: Release 2026-Q2**
+- **Status:** In progress
+- **In-scope tickets:** DEF-2026-04-1047 is confirmed in scope for this release.
+- **Priority/scope changes since last session:** None recorded. This ticket carries its standard priority.
+
+---
+
+## Defect Analysis: DEF-2026-04-1047
+
+**Symptom:** `config-validator --service auth` exits `0` when given a malformed `auth_service_url`; it should exit `1`.
+
+**Root cause (confirmed against ticket):** In `config/validator.py`, `validate_url_field()` performs only a presence/non-emptiness check. It does not validate URL structure, so strings like `not-a-url`, `http://`, `://foo`, or `auth_service_url` (no scheme/host) all pass.
+
+**Acceptance criteria:**
+1. Validator exits `1` for a malformed `auth_service_url`.
+2. Valid URLs continue to pass (exit `0`).
+
+---
+
+## Fix Plan
+
+### 1. Harden `validate_url_field()` in `config/validator.py`
+
+Replace the presence-only check with a structural validation. Using the standard library (`urllib.parse`) keeps the change dependency-free and consistent with existing tooling:
+
+```python
+# config/validator.py
+
+from urllib.parse import urlparse
+
+def validate_url_field(value, field_name="auth_service_url"):
+    """Validate that a URL field is present and structurally well-formed.
+
+    Returns (ok: bool, error_message: str | None).
+    """
+    if value is None or not str(value).strip():
+        return False, f"{field_name} is required and must be non-empty"
+
+    candidate = str(value).strip()
+    parsed = urlparse(candidate)
+
+    # A valid service URL must have a scheme and a network location.
+    if parsed.scheme not in ("http", "https"):
+        return False, (
+            f"{field_name} must use http or https; got scheme "
+            f"{parsed.scheme!r}"
+        )
+    if not parsed.netloc:
+        return False, f"{field_name} is missing a host: {candidate!r}"
+
+    return True, None
+```
+
+Notes on the rules chosen:
+- **Scheme restricted to `http`/`https`** — an `auth_service_url` pointing at `ftp://`, `file://`, or a bare `//host` is malformed for this service. This is the key structural gate the old check was missing.
+- **`netloc` required** — rejects `http://`, `://foo`, and schemeless strings like `not-a-url` (which `urlparse` treats as having no scheme).
+- **No over-reach:** we do *not* reject unusual-but-legal hosts, reject paths, or enforce DNS resolution. The acceptance criterion is "malformed structure fails, valid URLs pass" — not "reachability." This avoids false negatives on valid URLs that don't resolve yet.
+
+### 2. Wire the result to the exit code
+
+In the `--service auth` validation path, ensure a `False` return from `validate_url_field()` flows into the non-zero exit:
+
+```python
+ok, err = validate_url_field(cfg.get("auth_service_url"))
+if not ok:
+    report_failure("auth", err)   # existing reporter; sets exit status to 1
+```
+
+Confirm the `auth` service branch aggregates per-field results so *any* failed field (not just the first) yields exit `1`, and that the error message is emitted to stderr for operator visibility.
+
+### 3. Edge cases to verify before closing
+
+| Input | Expected |
+|---|---|
+| `https://auth.internal:8443/v1` | pass (exit 0) |
+| `http://10.0.0.5` | pass (exit 0) |
+| `https://auth.example.com/path?x=1` | pass (exit 0) |
+| `not-a-url` | fail (exit 1) — no scheme |
+| `http://` | fail (exit 1) — no host |
+| `://foo` | fail (exit 1) — no scheme |
+| `ftp://auth.internal` | fail (exit 1) — wrong scheme |
+| empty string / missing field | fail (exit 1) |
+| `  https://auth.internal  ` (whitespace) | pass (exit 0) — trimmed |
+
+### 4. Tests
+
+Add unit tests to the existing `test_validator.py` covering the table above, plus a regression test that reproduces the original ticket (malformed URL → exit 1) and a guard that a previously-valid URL still exits 0. These directly encode the two acceptance criteria.
+
+---
+
+## Scope & Risk Notes
+
+- **Blast radius:** Low. The change is confined to `validate_url_field()` and the `auth` branch's exit-code propagation. Other services that call `validate_url_field()` inherit the same structural check — I should confirm no other service intentionally relies on the lax presence-only behavior. If any do, I'll scope the stricter check to the `auth` path via a parameter rather than changing the shared function's contract.
+- **No breaking change to valid configs:** Any URL that passed before and is a well-formed http/https URL continues to pass.
+- **Dependencies:** None added (stdlib only).
+
+---
+
+I'm ready to implement. Since I can't read or edit files in this session, the above is the complete, implementation-ready change set. If you have access to the repo, I can proceed with the file edits, run the test suite, and verify the exit-code behavior end-to-end — just confirm and I'll continue.

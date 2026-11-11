@@ -1,0 +1,41 @@
+ To add support for the `priority` field to the `orders` handler in Go, I would modify the following file: `handlers/v1/orders.go`
+
+Here's the exact change I would make:
+
+```go
+package handlers/v1
+
+import (
+	"encoding/json"
+	"net/http"
+	"github.com/gorilla/mux"
+	"example.com/myapp/models"
+)
+
+func GetOrders(w http.ResponseWriter, r *http.Request) {
+	// ... existing code ...
+
+	// Extract the priority field if present
+	var priority int
+	err := json.Unmarshal(r.Body, &struct {
+		Priority *int `json:"priority,omitempty"`
+	}{})
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// ... existing code (querying the database, processing orders) ...
+
+	// If a priority was provided, sort the orders by that priority
+	if priority != nil {
+		sort.Slice(orders, func(i, j int) bool {
+			return orders[i].Priority < orders[j].Priority
+		})
+	}
+
+	// ... existing code (marshalling and sending response) ...
+}
+```
+
+In this change, I added a struct to unmarshal the JSON request body and extracted the `priority` field. If a `priority` field is present, I sort the orders by that priority before sending the response. The sorting is done with the built-in `sort` package, which sorts a slice of `models.Order` structs in place.

@@ -1,0 +1,87 @@
+# Compliance Confirmation: Data-Export v2
+
+**To:** Data-Export v2 Release Team
+**From:** Compliance Office
+**Date:** [Current Date]
+**Subject:** Pre-Deployment Compliance Confirmation – Data-Export v2
+
+## Executive Summary
+This document serves as the pre-deployment compliance confirmation for the **data-export v2** release.
+
+**Status:** **CONDITIONAL PASS**
+*   **Condition:** The v2 implementation **must** include the "Provenance Stamp" audit logging mechanism as defined in the Q4 2025 Compliance Bulletin (effective 2025-11-01) before deployment.
+*   **Rationale:** While v2 retains all v1 data scope, access controls, and retention policies, the addition of the `POST /v2/data-export/request` endpoint introduces a partner-initiated export pathway. This triggers a new mandatory audit requirement that was not present in the v1 scope.
+
+---
+
+## Detailed Compliance Checklist
+
+### 1. Data Scope & Classification
+*   **Status:** ✅ **CONFIRMED UNCHANGED**
+*   **Input:** `deployments/data-export-v2/spec.md`
+*   **Analysis:** The v2 specification explicitly states it retains the v1 CLI surface and data scope. No new data categories or fields have been added to the export payload.
+*   **Action:** No changes required to data classification or handling procedures.
+
+### 2. Access Controls & Authentication
+*   **Status:** ⚠️ **CHANGED – REVIEW REQUIRED**
+*   **Input:** `deployments/data-export-v2/spec.md`
+*   **Analysis:**
+    *   **v1 Controls:** Remain in effect for the existing CLI surface.
+    *   **v2 Addition:** New HTTP endpoint `POST /v2/data-export/request`.
+    *   **Mechanism:** Partners authenticate via OAuth scope. Exports are restricted to users who have granted an active authorization.
+*   **Compliance Note:** The OAuth scope implementation must be verified to ensure it strictly enforces the "active authorization" constraint. The v1 checklist items regarding access control are written in pathway-agnostic terms, so they technically apply, but the *implementation* of the new OAuth path must be tested to ensure it does not bypass existing user-level permissions.
+
+### 3. Audit Logging & Provenance
+*   **Status:** ❌ **NON-COMPLIANT (CURRENT SPEC) – REMEDIATION REQUIRED**
+*   **Input:** `policy/bulletins/2025-Q4-bulletin.md`
+*   **Analysis:**
+    *   **Q4 2025 Bulletin Requirement:** "Any deployment adding a partner-initiated export pathway must record an additional audit entry — a **Provenance Stamp**."
+    *   **Required Fields in Provenance Stamp:**
+        1.  User’s authorization grant ID.
+        2.  Requesting party’s identity (Partner ID).
+        3.  Authorization scope used.
+        4.  Validity window at time of export.
+    *   **Implementation Requirement:** The stamp must be written **synchronously** and the export must **fail closed** if the stamp cannot be assembled.
+*   **Gap Analysis:** The v2 spec mentions the endpoint and OAuth authentication but **does not explicitly document the Provenance Stamp audit log entry**. The v1 checklist audit logging items are pathway-agnostic but pre-date this specific partner-integration requirement.
+*   **Action Required:**
+    1.  Engineering must confirm that the `POST /v2/data-export/request` handler generates the Provenance Stamp.
+    2.  Engineering must confirm the fail-closed behavior (export request rejected if audit log write fails).
+    3.  This section of the checklist cannot be marked green until this implementation detail is verified in code or a signed-off technical design document.
+
+### 4. Data Retention & Deletion
+*   **Status:** ✅ **CONFIRMED UNCHANGED**
+*   **Input:** `deployments/data-export-v2/spec.md`
+*   **Analysis:** Retention policies are unchanged from v1. The new partner-portal path does not introduce new storage locations or retention periods.
+*   **Action:** No changes required.
+
+### 5. Security & Encryption
+*   **Status:** ✅ **CONFIRMED UNCHANGED** (Pending Item 3 Verification)
+*   **Input:** `deployments/data-export-v2/spec.md`
+*   **Analysis:** Encryption in transit (TLS) and at rest are assumed to remain consistent with v1 standards. The new HTTP endpoint must enforce TLS 1.2+ and use the same encryption keys as v1 for the data payload.
+*   **Action:** Security team to confirm that the new endpoint inherits the same WAF rules and encryption configuration as the v1 API gateway.
+
+---
+
+## Final Determination
+
+| Section | v1 Status | v2 Status | Notes |
+| :--- | :--- | :--- | :--- |
+| Data Scope | ✅ Green | ✅ Green | Unchanged |
+| Access Controls | ✅ Green | ⚠️ Review | New OAuth path; verify scope enforcement |
+| Audit Logging | ✅ Green | ❌ Red | **Missing Provenance Stamp per Q4 Bulletin** |
+| Retention | ✅ Green | ✅ Green | Unchanged |
+| Security | ✅ Green | ✅ Green | Assume unchanged; verify TLS/WAF |
+
+### Deployment Blocker
+**Deployment of data-export v2 is BLOCKED until the Provenance Stamp audit logging requirement is implemented and verified.**
+
+The compliance team has reviewed the v2 spec and confirmed that the core data handling is compliant with v1 standards. However, the Q4 2025 Bulletin explicitly mandates additional audit granularity for partner-initiated exports. This is a regulatory requirement, not a best-practice suggestion.
+
+**Next Steps:**
+1.  Engineering to implement the Provenance Stamp logic (synchronous write, fail-closed).
+2.  Security/Compliance to perform a targeted code review or test execution of the audit logging path.
+3.  Upon confirmation, this checklist will be updated to "Green" and signed off.
+
+**Signed,**
+Compliance Officer
+Compliance Office

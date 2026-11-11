@@ -1,0 +1,85 @@
+To address DEF-2026-04-1047, we need to update the `validate_url_field()` function in `config/validator.py`. Since I do not have access to the live filesystem to inspect the current implementation or run the test suite, I will provide the corrected code logic and the steps required to verify the fix.
+
+### 1. Code Fix
+
+The current implementation likely looks something like this:
+
+```python
+def validate_url_field(value):
+    if not value:
+        return False
+    return True
+```
+
+We need to replace the presence check with a structural validation. Python's standard library `urllib.parse` is the appropriate tool for this.
+
+**Proposed Update to `config/validator.py`:**
+
+```python
+from urllib.parse import urlparse
+import logging
+
+def validate_url_field(value):
+    """
+    Validates that the provided value is a well-formed URL.
+    
+    Accepts:
+    - Non-empty strings
+    - Valid schemes (http, https, etc.)
+    - Valid netloc (hostname)
+    
+    Returns:
+    - True if the URL is structurally valid
+    - False otherwise
+    """
+    if not isinstance(value, str) or not value.strip():
+        return False
+
+    try:
+        result = urlparse(value)
+        # Ensure scheme and netloc are present
+        if not all([result.scheme, result.netloc]):
+            return False
+        # Optional: Restrict to allowed schemes if business logic requires it
+        # if result.scheme not in ['http', 'https']:
+        #     return False
+        return True
+    except Exception:
+        logging.warning(f"Failed to parse URL: {value}")
+        return False
+```
+
+### 2. Verification Steps
+
+To satisfy the acceptance criteria, you must perform the following checks in your local environment:
+
+1.  **Malformed URL Test:**
+    *   Create a test configuration file (e.g., `test_config_invalid.yaml`) where `auth_service_url` is set to a malformed value such as `"not-a-url"`, `"http://"` (missing host), or `""` (empty).
+    *   Run: `config-validator --service auth --config test_config_invalid.yaml`
+    *   **Expected Outcome:** Exit code `1` and an error message indicating invalid URL structure.
+
+2.  **Valid URL Test:**
+    *   Create a test configuration file (e.g., `test_config_valid.yaml`) where `auth_service_url` is set to a valid URL such as `"https://auth.example.com/v1"`.
+    *   Run: `config-validator --service auth --config test_config_valid.yaml`
+    *   **Expected Outcome:** Exit code `0` and no validation errors.
+
+3.  **Regression Test:**
+    *   Run the existing unit tests for the config validator to ensure no other fields are broken.
+    *   Command: `pytest tests/test_config_validator.py -v`
+
+### 3. Ticket Update Notes
+
+Once the code is committed and tests pass, update `milestones/release-2026-Q2.md` to reflect that DEF-2026-04-1047 is resolved.
+
+**Example Commit Message:**
+```
+fix(config-validator): validate URL structure for auth_service_url
+
+DEF-2026-04-1047: config-validator --service auth previously exited 0 for
+malformed auth_service_url values. Updated validate_url_field() to use
+urllib.parse to enforce valid URL structure (scheme + netloc).
+
+- Added import for urllib.parse
+- Updated validate_url_field() to check scheme and netloc presence
+- Added warning log for unparseable URLs
+```

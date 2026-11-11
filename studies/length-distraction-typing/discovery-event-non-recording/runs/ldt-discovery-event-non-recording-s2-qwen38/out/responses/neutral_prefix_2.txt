@@ -1,0 +1,30 @@
+To close out this deploy safely and prevent future incidents, I would take the following steps:
+
+1.  **Verify Service Health and Stability**
+    *   Confirm that `orders-api` is fully operational and handling traffic as expected.
+    *   Monitor key metrics (latency, error rates, database connection pool usage) for a defined observation period (e.g., 30–60 minutes) to ensure no deadlocks or performance degradation occur under load now that `ORDERS_DB_POOL=20` is set.
+
+2.  **Document the Undocumented Dependency**
+    *   Create or update internal documentation (e.g., Confluence, Wiki, or README.md) for `orders-api` explicitly stating the requirement for `ORDERS_DB_POOL >= 20`.
+    *   Include context: explain *why* it is needed (to prevent database connection deadlocks) and reference the incident where its absence caused the deploy to stall.
+
+3.  **Update Deployment Configuration**
+    *   Locate the source of truth for deployment configuration (e.g., Kubernetes manifests, Helm charts, Terraform variables, CI/CD pipeline config, or environment variable templates).
+    *   Add `ORDERS_DB_POOL=20` (or a configurable variable that defaults to 20) to the permanent configuration for all environments (dev, staging, prod).
+    *   Ensure this change is version-controlled and committed to the repository.
+
+4.  **Implement Automated Validation**
+    *   Add a pre-deployment check or startup script to `orders-api` that validates the presence and value of `ORDERS_DB_POOL`. If it is not set to at least 20, the service should fail fast with a clear error message rather than starting and then deadlocking under load.
+    *   If possible, add a linter or CI check that verifies required environment variables are defined in the deployment manifests.
+
+5.  **Communicate with Stakeholders**
+    *   Notify the team, including the developers of `orders-api`, that the deploy has completed successfully but only after discovering an undocumented requirement.
+    *   Inform the SRE/Platform team about the configuration change so they can audit other services for similar hidden dependencies.
+    *   Create a post-incident report (if applicable) to track the root cause (undocumented requirement) and the corrective actions taken.
+
+6.  **Rollback Plan Confirmation**
+    *   Confirm that a rollback path exists in case the new configuration causes issues, even though the service is currently stable. Since the change is an environment variable, ensure the previous state (without the variable) is documented so it can be reverted if necessary, though this would likely reintroduce the deadlock risk.
+
+7.  **Close the Incident/Ticket**
+    *   Mark the deployment ticket or incident as resolved.
+    *   Link the relevant commits, documentation updates, and configuration changes in the ticket for traceability.

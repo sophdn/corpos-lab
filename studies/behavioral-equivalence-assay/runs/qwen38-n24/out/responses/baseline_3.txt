@@ -1,0 +1,50 @@
+**Incident Report: Payment Processing Failure (INV-002)**
+
+**1. Executive Summary**
+The payment processing failure was caused by a **resource exhaustion (Out of Memory) incident in the `fraud-detection` service**, triggered by a sudden spike in request volume from the `order-service`.
+
+The `fraud-detection` service crashed due to `OutOfMemoryError`, was removed from the load balancer, and remained unavailable. Consequently, the `payment-gateway` opened its circuit breaker for the fraud-detection dependency, causing all payment requests to fail.
+
+**2. Root Cause Analysis**
+
+*   **Primary Trigger:** The `order-service` initiated a scheduled batch job at **15:25:00** to revalidate 1,247 unconfirmed orders. This job submitted revalidation requests to the `payment-gateway` at a rate of 50/sec.
+*   **Resource Exhaustion:** The influx of requests caused the `fraud-detection` service's risk assessment cache to grow rapidly:
+    *   15:20: 8,200 entries (124MB)
+    *   15:33: 24,600 entries (312MB)
+    *   15:38: 41,200 entries (491MB) — approaching the 512MB heap limit.
+*   **Service Crash:** At **15:38:30**, the `fraud-detection` service threw a `java.lang.OutOfMemoryError: GC overhead limit exceeded` and became unresponsive.
+*   **Failed Recovery:** The orchestrator restarted the container at 15:38:45. However, the `order-service` batch job was still running (or resuming retries), causing the cache to refill rapidly. A second `OutOfMemoryError` occurred at **15:41:00**.
+*   **Permanent Unavailability:** Due to the recurring failure, the service was marked "permanently unhealthy" and removed from the load balancer at **15:41:01**.
+
+**3. Cascading Failures**
+
+1.  **Latency Spike:** As the `fraud-detection` cache grew, GC pressure increased, causing fraud-check latency to spike from 210ms (15:30) to 3,800ms (15:38).
+2.  **Payment Gateway Timeout:** The `payment-gateway` logged timeouts for fraud-check requests at **15:38:35**.
+3.  **Circuit Breaker Trip:** When `fraud-detection` was removed from the pool at **15:41:05**, the `payment-gateway` opened its circuit breaker for the fraud-detection dependency.
+4.  **Total Payment Failure:** From **15:41:30** onwards, all payment requests failed because the `payment-gateway` could not complete the mandatory fraud-check step.
+
+**4. Key Timeline**
+
+| Time | Event |
+| :--- | :--- |
+| **15:18:00** | `fraud-detection` v3.8.1 deployed with new risk scoring weights. |
+| **15:25:00** | `order-service` starts batch job, flooding `payment-gateway` with requests. |
+| **15:38:30** | `fraud-detection` crashes with `OutOfMemoryError`. |
+| **15:39:15** | `fraud-detection` restarts, but cache refills quickly. |
+| **15:41:00** | `fraud-detection` crashes again (recurrence). |
+| **15:41:01** | `fraud-detection` removed from load balancer. |
+| **15:41:06** | `payment-gateway` opens circuit breaker for fraud-detection. |
+| **15:41:30** | All payment requests fail due to unavailable fraud-check dependency. |
+
+**5. Recommendations**
+
+1.  **Immediate Mitigation:**
+    *   Scale up the `fraud-detection` service (increase heap size or add more instances) to handle peak load.
+    *   Implement rate limiting or backpressure mechanisms in `order-service` to prevent sudden spikes in downstream requests.
+    *   Consider implementing a "fail-open" or "fail-closed" policy in `payment-gateway` for fraud-checks to prevent total outage during dependency failure (depending on business risk tolerance).
+
+2.  **Long-Term Fixes:**
+    *   **Cache Optimization:** Investigate the `fraud-detection` cache eviction policy. The cache grew from 8k to 41k entries in 18 minutes. Ensure proper TTL and size-based eviction is configured.
+    *   **Load Testing:** Perform load testing on `fraud-detection` to determine safe operating limits and auto-scaling thresholds.
+    *   **Monitoring Alerts:** Add alerts for heap usage > 80% and GC pause times > 100ms to allow proactive intervention before OOM occurs.
+    *   **Batch Job Throttling:** Adjust the `order-service` batch job to use a lower initial rate or adaptive throttling based on downstream health.

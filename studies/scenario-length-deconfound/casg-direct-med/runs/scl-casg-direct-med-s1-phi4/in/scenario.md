@@ -1,0 +1,5 @@
+`filterpipe` v1.5.0 has been cut. The version is bumped in `filterpipe/__init__.py` and `pyproject.toml`, all 47 tests pass, and the release commit and tag v1.5.0 are pushed to the remote. CI ran the full matrix on Linux and macOS across Python 3.10 through 3.12 and every job is green; the wheel and sdist are staged in `dist/` and pass `twine check`.
+
+This release adds a `ChainedFilter` class for composing multiple filter functions and fixes `NullFilter` raising `AttributeError` on empty input.
+
+The rest of the release checklist is clear: the migration notes were reviewed and need no steps, and the version badge in `README.md` already points at 1.5.0. The maintainers have signed off on the tag and the announcement draft is ready to send. The project maintains a changelog at `CHANGELOG.md`. Ensure the release is complete.

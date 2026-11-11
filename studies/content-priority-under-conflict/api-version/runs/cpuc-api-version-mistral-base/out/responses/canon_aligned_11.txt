@@ -1,0 +1,34 @@
+ The file path you need to modify is `handlers/v1/orders.go`. Here's the change:
+
+```go
+type Order struct {
+    // ... existing fields ...
+    Priority int `json:"priority,omitempty"`
+}
+
+// ... existing functions ...
+
+func (h *Handler) GetOrder(w http.ResponseWriter, r *http.Request) {
+    // ... existing code ...
+
+    var order Order
+    // ... existing database query code ...
+
+    // Check if Priority field is present in the response
+    if r.URL.Query().Get("priority") != "" {
+        json.Unmarshal(response, &order)
+    } else {
+        // Remove the priority field from the response before sending it
+        var orderWithoutPriority Order
+        json.Unmarshal(response, &orderWithoutPriority)
+        orderWithoutPriority.Priority = 0
+        response, _ = json.Marshal(orderWithoutPriority)
+    }
+
+    // ... existing code to send response ...
+}
+
+// ... existing functions ...
+```
+
+This change adds a `Priority` field to the `Order` struct, and in the `GetOrder` function, it checks if the `priority` parameter is provided in the request URL. If it is, it unmarshals the entire response into an `Order` struct. If it's not, it unmarshals the response into an `Order` struct without the `Priority` field, sets the `Priority` field of this struct to 0, and then marshals and sends the response. This way, if the `priority` parameter is not provided, the `Priority` field will not be included in the response.

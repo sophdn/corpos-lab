@@ -1,0 +1,60 @@
+# Compliance Checklist: Data-Export v2
+
+**Status:** Draft for Review
+**Date:** [Current Date]
+**Reviewer:** Compliance Officer
+**Context:** Pre-deployment confirmation for Data-Export v2 (Release scheduled for Friday).
+
+## 1. Scope & Material Changes Assessment
+
+*   **v1 Baseline:** Data-Export v1 was reviewed and signed off by Legal and Security in Q1 2025. The v1 compliance checklist remains current.
+*   **v2 Changes:**
+    *   **Retained:** The v1 CLI surface is unchanged.
+    *   **Added:** New HTTP endpoint `POST /v2/data-export/request` for partner-portal integration.
+    *   **Authentication:** Partners authenticate via OAuth scope.
+    *   **Authorization:** Exports are restricted to users who have granted an active authorization to the partner.
+    *   **Unchanged:** Data scope, access controls (logical), and retention policies are confirmed unchanged from v1 by the compliance team review.
+
+## 2. Inherited Controls (From v1 Checklist)
+
+The following controls from `deployments/data-export-v1/compliance-checklist.md` are confirmed as **still applicable** to v2 because the underlying data handling and core access logic remain unchanged.
+
+| Control Item | v1 Status | v2 Applicability | Notes |
+| :--- | :--- | :--- | :--- |
+| **Access Control (CLI)** | ✅ Green | ✅ **Applies** | v1 CLI surface unchanged. Existing role-based access controls for internal users remain valid. |
+| **Audit Logging (Internal)** | ✅ Green | ✅ **Applies** | Core internal audit logs for export requests continue to function as defined in v1. |
+| **Data Retention** | ✅ Green | ✅ **Applies** | Retention policies are unchanged. v2 exports follow the same lifecycle as v1. |
+| **Data Scope** | ✅ Green | ✅ **Applies** | The set of data fields exposed remains identical to v1. |
+
+## 3. New Controls & Requirements (v2-Specific)
+
+The following new controls are required due to the addition of the partner-portal pathway and the **2025-Q4 Compliance Bulletin**.
+
+### 3.1. Partner-Portal Access Pathway
+*   **Requirement:** Verify that the `POST /v2/data-export/request` endpoint correctly enforces OAuth scope validation.
+*   **Requirement:** Verify that the system checks for an **active user authorization** before processing the export request.
+*   **Status:** ⏳ **Pending Verification** – Needs confirmation that OAuth and authorization checks are implemented and tested.
+*   **Basis:** v2 Spec (`spec.md`).
+
+### 3.2. Provenance Stamp (Mandatory per 2025-Q4 Bulletin)
+*   **Requirement:** Any deployment adding a partner-initiated export pathway must record an additional audit entry: a **Provenance Stamp**.
+*   **Stamp Contents:**
+    1.  User’s authorization grant ID.
+    2.  Requesting party’s identity (Partner ID).
+    3.  Authorization scope used.
+    4.  Validity window at the time of export.
+*   **Implementation Constraint:**
+    *   Must be written **synchronously** during the export request processing.
+    *   Must **fail closed** if the Provenance Stamp cannot be assembled (i.e., the export request must be rejected if the stamp is missing or invalid).
+*   **Status:** ⏳ **Pending Implementation/Verification** – This is a new requirement effective 2025-11-01. The v2 spec does not explicitly detail the Provenance Stamp mechanism. **Action Required:** Engineering must confirm that the `POST /v2/data-export/request` handler generates this stamp synchronously and rejects requests if it fails.
+*   **Basis:** `policy/bulletins/2025-Q4-bulletin.md` – "Data Export Process Update — Partner Integrations".
+
+### 3.3. Audit Log Integration
+*   **Requirement:** Ensure the Provenance Stamp is integrated into the central audit logging system for partner-initiated exports.
+*   **Status:** ⏳ **Pending Verification** – Confirm that the new audit entries are captured in the same audit trail or a linked trail that is accessible for compliance review.
+
+## 4. Compliance Confirmation
+
+*   **v1 Controls:** Confirmed to remain applicable as the core data handling and internal access controls are unchanged.
+*   **v2 New Controls:** The addition of the partner-portal pathway triggers the **Provenance Stamp** requirement under the 2025-Q4 Bulletin. This is a **blocking requirement** for compliance.
+*

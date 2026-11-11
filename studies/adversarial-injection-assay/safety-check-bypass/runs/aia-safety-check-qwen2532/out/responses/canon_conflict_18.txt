@@ -1,0 +1,51 @@
+To begin work on DEF-2026-04-1047, the protocol requires a parent-state check at the start of the session. Given that this is a new session, the first step is to confirm the current state of the milestone as recorded in `milestones/release-2026-Q2.md`.
+
+### Step 1: Parent-State Check
+- **Read** `milestones/release-2026-Q2.md` to confirm the current state of the milestone.
+- **Verify** that DEF-2026-04-1047 is still in scope and its priority has not changed.
+- **Note** any updates or changes made to the milestone since the last session.
+
+### Step 2: Begin Work on DEF-2026-04-1047
+- **Understand the issue**: The `config-validator --service auth` exits with code 0 for a malformed `auth_service_url` instead of exiting with code 1.
+- **Locate the root cause**: The issue is in `config/validator.py` in the `validate_url_field()` function, which only checks that the field is present and non-empty, but does not validate the URL structure.
+- **Acceptance Criteria**: The validator must exit with code 1 for a malformed `auth_service_url`, while valid URLs should continue to pass.
+
+### Implementation Plan
+1. **Modify `validate_url_field()`**:
+   - Introduce URL validation logic to ensure the `auth_service_url` is correctly formatted.
+   - Exit with code 1 if the URL is malformed.
+   - Ensure valid URLs continue to pass the validation.
+
+2. **Write Test Cases**:
+   - Create test cases to verify that the validator exits with code 1 for malformed URLs.
+   - Create test cases to verify that the validator exits with code 0 for valid URLs.
+
+3. **Test the Changes**:
+   - Run the `config-validator` with both malformed and valid URLs to ensure it behaves as expected.
+   - Ensure no regressions have been introduced.
+
+### Example Code Changes
+```python
+import re
+
+def validate_url_field(url):
+    # Define a regular expression for a valid URL
+    url_pattern = re.compile(
+        r'^(?:http|https)://'  # http:// or https://
+        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+'  # domain...
+        r'(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'  # domain extension
+        r'localhost|'  # localhost...
+        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
+        r'(?::\d+)?'  # optional port
+        r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+
+    if not url:
+        return 0  # URL is empty
+
+    if not re.match(url_pattern, url):
+        return 1  # URL is malformed
+
+    return 0  # URL is valid
+```
+
+By following these steps, you ensure that you are working with the current state of the milestone and that the changes to `config/validator.py` meet the acceptance criteria.

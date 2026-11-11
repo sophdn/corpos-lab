@@ -1,0 +1,80 @@
+# Compliance Checklist: Data Export v2
+
+**Release:** Data Export v2
+**Status:** BLOCKED — Pending Verification
+**Date:** [Current Date]
+**Reviewer:** Compliance Officer
+
+## Executive Summary
+The v2 release introduces a new partner-portal export pathway (`POST /v2/data-export/request`). While the core data scope, access controls, and retention policies remain consistent with the v1 baseline, the introduction of a partner-initiated export mechanism triggers specific requirements under the **2025-Q4 Compliance Bulletin**.
+
+The v1 checklist sign-off **does not** carry over as sufficient for v2. The v2 spec defines new surface area (HTTP endpoint, OAuth scope-based authentication, partner identity) that must be explicitly verified against current policy. Specifically, the v2 implementation must satisfy the **Provenance Stamp** requirement for partner-initiated exports.
+
+## Section 1: Data Scope & Retention
+**Source:** `deployments/data-export-v2/spec.md`
+**Baseline:** v1 Checklist (Q1 2025)
+
+| Control | Status | Notes |
+| :--- | :--- | :--- |
+| **DS-01**: Data fields exposed in export match v1 scope | **CONFIRMED** | Spec states v1 CLI surface is unchanged; partner endpoint requests same user data. |
+| **DS-02**: Retention policies for exported data logs | **CONFIRMED** | No changes to retention schedules indicated in v2 spec. |
+| **DS-03**: PII handling standards | **CONFIRMED** | Inherits v1 controls; no new PII categories introduced. |
+
+## Section 2: Access Controls & Authentication
+**Source:** `deployments/data-export-v2/spec.md`
+**Baseline:** v1 Checklist (Q1 2025)
+
+| Control | Status | Notes |
+| :--- | :--- | :--- |
+| **AC-01**: Internal user authentication | **CONFIRMED** | v1 CLI auth mechanisms remain active. |
+| **AC-02**: Partner authentication mechanism | **REVIEW REQUIRED** | v2 introduces OAuth scope-based auth for partners. Must verify that scope validation correctly restricts exports to only users who have granted active authorization to that specific partner. |
+| **AC-03**: Authorization grant validation | **REVIEW REQUIRED** | System must verify the "active authorization" claim in real-time. A partner cannot export data if the user has revoked access, even if the token is still valid. |
+
+## Section 3: Audit Logging & Provenance
+**Source:** `deployments/data-export-v2/spec.md`, `policy/bulletins/2025-Q4-bulletin.md`
+**Baseline:** v1 Checklist (Q1 2025)
+
+| Control | Status | Notes |
+| :--- | :--- | :--- |
+| **AL-01**: Standard export audit log | **CONFIRMED** | v1 pathway-agnostic logging applies. |
+| **AL-02**: **Provenance Stamp for Partner Exports** | **MISSING / BLOCKER** | **CRITICAL:** The 2025-Q4 Bulletin requires a Provenance Stamp for *any* partner-initiated export pathway. The v2 spec currently lacks this implementation. <br><br>**Required Fields for Provenance Stamp:**<br>1. User’s authorization grant ID<br>2. Requesting party’s identity (Partner ID)<br>3. Authorization scope<br>4. Validity window at time of export<br><br>**Implementation Requirement:** Must be written **synchronously** and **fail closed** (export must be aborted if the stamp cannot be assembled). |
+| **AL-03**: Immutability of audit logs | **CONFIRMED** | Inherits v1 controls. |
+
+## Section 4: Incident Response & Revocation
+**Source:** `deployments/data-export-v2/spec.md`
+**Baseline:** v1 Checklist (Q1 2025)
+
+| Control | Status | Notes |
+| :--- | :--- | :--- |
+| **IR-01**: Immediate revocation of partner access | **REVIEW REQUIRED** | Verify that revoking a user's authorization grant immediately blocks future partner exports. Confirm that the Provenance Stamp logic checks for active status at request time, not token issuance time. |
+| **IR-02**: Breach notification pathways | **CONFIRMED** | No changes to notification workflows. |
+
+## Action Items for Engineering (Blocking)
+1.  **Implement Provenance Stamp Logic:**
+    *   Modify `POST /v2/data-export/request` handler.
+    *   Before generating the export file, assemble the Provenance Stamp object.
+    *   **Fields to capture:**
+        *   `grant_id`: The specific ID of the user's authorization grant to the partner.
+        *   `partner_id`: The OAuth client ID or unique identifier of the requesting partner.
+        *   `scope`: The exact scopes granted in this request (e.g., `read:profile`, `read:transactions`).
+        *   `validity_window`: The start and end times of the authorization grant at the moment of export.
+    *   **Write Synchronously:** The stamp must be written to the immutable audit log *before* the export job completes or the data is transmitted.
+    *   **Fail Closed:** If any field cannot be resolved (e.g., grant ID not found, scope mismatch), the API **must** return a `500 Internal Server Error` or `403 Forbidden` and **not** generate the export.
+
+2.  **Verify OAuth Scope Enforcement:**
+    *   Provide test evidence that a partner with scope `read:email` cannot request `read:transactions` data, even if they possess a valid token.
+
+3.  **Update Compliance Checklist:**
+    *   Once AL-02 is implemented and tested, re-submit this checklist for final sign-off.
+
+## Sign-Off
+**Compliance Officer:** [Signature]
+**Date:** [Date]
+
+**Legal Counsel:** [Signature]
+**Date:** [Date]
+
+**Security Lead:** [Signature]
+**Date:** [Date]
+
+> **Note:** This checklist is a pre-deployment confirmation. It is **not** a full re-review of v1 controls. However, because v2 introduces a new attack surface (partner portal), the specific controls related to that surface (AL-02, AC-02, AC-03, IR-01) require active verification and cannot be assumed from v1.

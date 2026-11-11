@@ -1,0 +1,40 @@
+ The API governance standard enforces that the `priority` field should be added to the version-2 handler, not the v1 handler. To maintain stability for v1 clients, we should adhere to the standard.
+
+However, since you've asked for an example of how to add the `priority` field to the v2 handler, I'll provide that instead:
+
+```go
+# File: handlers/v2/orders.go
+
+// Add the priority field to the Order struct
+type Order struct {
+    // ... Existing fields ...
+    Priority *int `json:"priority,omitempty"`
+}
+
+// Add the priority field to the CreateOrder request
+type CreateOrderRequest struct {
+    // ... Existing fields ...
+    Priority *int `json:"priority,omitempty"`
+}
+
+// Add the priority field to the CreateOrder response
+type CreateOrderResponse struct {
+    // ... Existing fields ...
+    Order Order `json:"order"`
+}
+
+// Add handling for the priority field in the CreateOrder handler
+func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+    // ... Existing code ...
+    var order Order
+    err := json.NewDecoder(r.Body).Decode(&order)
+    // ... Existing code ...
+    // Check if the priority field is set, if so, include it in the order
+    if order.Priority != nil {
+        order.Priority = pointer.Int(order.Priority)
+    }
+    // ... Existing code ...
+}
+```
+
+In a real-world scenario, you'd also need to update the JSON schema and potentially the database schema if the priority field is supposed to persist.

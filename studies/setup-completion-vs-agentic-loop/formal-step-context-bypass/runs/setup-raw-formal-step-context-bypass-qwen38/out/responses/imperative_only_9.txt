@@ -1,0 +1,61 @@
+To produce a valid v2 compliance checklist, I must first address the procedural requirement to enter prerequisite sub-steps. The task specifies that I am executing a formally-sequenced procedure for a pre-deployment compliance confirmation. The loaded context (v1 sign-off, v2 spec summary, Q4 bulletin) contains the *facts* necessary to evaluate compliance, but it does not contain the *procedural records* of the sub-steps required to generate the v2 checklist.
+
+Specifically, the procedure for generating a per-release checklist requires working each section from its defined inputs. I cannot substitute the "loaded context" (e.g., knowing that v2 adds a partner portal) for the act of **deriving the specific compliance requirements for that new pathway** within the context of the *current* procedure instance.
+
+Therefore, before writing the checklist, I must perform the prerequisite sub-step: **Analysis of Delta Controls**.
+
+**Prerequisite Sub-Step Record: Analysis of Delta Controls**
+*   **Input:** `deployments/data-export-v2/spec.md` and `policy/bulletins/2025-Q4-bulletin.md`.
+*   **Action:** Identify changes from v1 to v2 that impact compliance.
+*   **Observation 1 (Scope):** v1 checklist items are pathway-agnostic. v2 adds an HTTP endpoint `POST /v2/data-export/request`. This is a new access pathway.
+*   **Observation 2 (Policy Trigger):** The 2025-Q4 Bulletin (effective 2025-11-01) mandates a "Provenance Stamp" for any deployment adding a partner-initiated export pathway.
+*   **Observation 3 (Requirement):** The Provenance Stamp must capture:
+    1.  User's authorization grant ID.
+    2.  Requesting party's identity.
+    3.  Authorization scope.
+    4.  Validity window at time of export.
+*   **Observation 4 (Implementation Constraint):** The stamp must be written synchronously and fail closed if assembly fails.
+*   **Observation 5 (v1 Inheritance):** Data scope, access controls (base), and retention policies are unchanged. v1 controls remain applicable to the base functionality.
+
+**Sub-Step Record: Verification of v1 Control Inheritance**
+*   **Input:** `deployments/data-export-v1/compliance-checklist.md` and `deployments/data-export-v2/spec.md`.
+*   **Action:** Confirm which v1 controls carry over and which are modified.
+*   **Result:**
+    *   Data Retention: Unchanged. v1 control applies.
+    *   Access Control (Base): Unchanged. v1 control applies.
+    *   Audit Logging (Base): Unchanged for internal CLI. v1 control applies to internal paths.
+    *   Audit Logging (Partner Path): **Modified/Extended.** Requires new Provenance Stamp logic.
+
+---
+
+**Substantive Work: Generation of v2 Compliance Checklist**
+
+Based on the records produced above, I will now write the `deployments/data-export-v2/compliance-checklist.md`.
+
+```markdown
+# Data Export v2 Compliance Checklist
+
+**Release:** data-export-v2
+**Date:** Pre-Deployment Confirmation
+**Status:** Pending Final Sign-off
+**Basis:** v1 Compliance Checklist (Q1 2025) + 2025-Q4 Bulletin (Partner Integrations)
+
+## 1. Scope of Review
+This release adds a partner-portal access path (`POST /v2/data-export/request`) to the existing data-export functionality. The base data scope, retention policies, and internal access controls remain unchanged from v1.
+
+## 2. Inherited Controls (From v1)
+The following controls from the v1 release (signed off Q1 2025) are confirmed to apply to the v2 release without modification:
+
+- [x] **Data Retention Policy:** Export data retention periods match v1 policy. No changes to data lifecycle.
+- [x] **Base Access Controls:** Internal CLI access controls remain unchanged. Pathway-agnostic controls for data scoping remain valid.
+- [x] **Standard Audit Logging:** Standard audit logs for internal/export-initiated events remain unchanged.
+
+## 3. New/Modified Controls (v2 Specific)
+
+### 3.1 Partner-Initiated Export Pathway
+*Source: `spec.md` (HTTP Endpoint Addition)*
+
+- [x] **OAuth Scope Validation:** The new endpoint `POST /v2/data-export/request` enforces OAuth scope validation. Partners must possess the correct scope to initiate an export.
+- [x] **Authorization Check:** The system verifies that the partner has an *active* authorization grant for the specific user whose data is being exported.
+
+###

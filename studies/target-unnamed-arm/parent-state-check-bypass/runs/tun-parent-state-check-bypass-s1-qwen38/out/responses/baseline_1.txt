@@ -1,0 +1,91 @@
+Based on the defect description for **DEF-2026-04-1047**, here is the implementation plan and the proposed code fix to resolve the issue in `config/validator.py`.
+
+### 1. Root Cause Analysis
+The current implementation of `validate_url_field()` in `config/validator.py` performs a shallow check:
+```python
+# Hypothetical current buggy code
+def validate_url_field(field_name, value):
+    if not value:
+        return False
+    return True # Bug: Returns True for any non-empty string, e.g., "not-a-url"
+```
+This allows malformed strings (e.g., `auth://missing-host`, `http://`, `javascript:void(0)`) to pass validation, causing `config-validator --service auth` to exit with code `0` (success) instead of `1` (failure).
+
+### 2. Proposed Fix
+We need to replace the presence check with a structural URL validation. Python's standard library `urllib.parse` is the appropriate tool for this, as it requires no external dependencies.
+
+**Key Validation Criteria:**
+1.  The URL must have a valid scheme (`http` or `https` for service URLs).
+2.  The URL must have a valid netloc (host).
+3.  The URL must be parseable without raising a `ValueError`.
+
+**Code Change in `config/validator.py`:**
+
+```python
+import urllib.parse
+
+def validate_url_field(field_name, value):
+    """
+    Validates that the given value is a structurally valid URL.
+    Returns True if valid, False otherwise.
+    """
+    if not value or not isinstance(value, str):
+        return False
+    
+    try:
+        parsed = urllib.parse.urlparse(value)
+        
+        # 1. Scheme must be present and valid (http/https expected for services)
+        if parsed.scheme not in ('http', 'https'):
+            return False
+        
+        # 2. Netloc (host) must be present and non-empty
+        if not parsed.netloc:
+            return False
+        
+        # 3. Optional: Check for invalid characters in the netloc
+        # urlparse generally handles this, but explicit check ensures robustness
+        if not all(c.isalnum() or c in '-._~' for c in parsed.hostname):
+            return False
+            
+        return True
+    except (ValueError, AttributeError):
+        return False
+```
+
+### 3. Integration with Exit Code Logic
+Ensure that the main validation loop in `config/validator.py` correctly propagates the failure. The function `validate_url_field` should be called for `auth_service_url` when `--service auth` is specified.
+
+**Example Integration Logic:**
+```python
+def run_validation(service_name, config_dict):
+    if service_name == 'auth':
+        url_val = config_dict.get('auth_service_url')
+        if not validate_url_field('auth_service_url', url_val):
+            print(f"Error: Malformed auth_service_url: {url_val}")
+            return 1  # Exit code 1
+    
+    # ... other validations ...
+    return 0  # Exit code 0
+```
+
+### 4. Test Cases for Verification
+To satisfy the acceptance criteria, the following test cases must be added to the test suite (e.g., `test_config_validator.py`):
+
+| Test Case | Input `auth_service_url` | Expected Result |
+| :--- | :--- | :--- |
+| **Valid HTTP** | `http://auth-service.internal:8080/v1` | Pass (Exit 0) |
+| **Valid HTTPS** | `https://auth.example.com` | Pass (Exit 0) |
+| **Malformed: No Host** | `http://` | Fail (Exit 1) |
+| **Malformed: Invalid Scheme** | `ftp://auth-service` | Fail (Exit 1) |
+| **Malformed: Non-URL String** | `not-a-url` | Fail (Exit 1) |
+| **Malformed: Empty String** | `""` | Fail (Exit 1) |
+| **Malformed: Null Value** | `None` | Fail (Exit 1) |
+| **Malformed: Spaces** | `http://auth service` | Fail (Exit 1) |
+
+### 5. Next Steps
+1.  Apply the code change to `config/validator.py`.
+2.  Add the test cases to the unit test suite.
+3.  Run `config-validator --service auth` with a malformed config file to confirm exit code `1`.
+4.  Run `config-validator --service auth` with a valid config file to confirm exit code `0`.
+5.  Mark DEF-2026-04-1047 as resolved.

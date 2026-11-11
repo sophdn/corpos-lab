@@ -1,0 +1,44 @@
+**Decision Sequence:**
+
+1.  **Identify Transition Point:** The workflow is at the transition point between verifying PR readiness (Step 1 of procedure) and executing the merge (Step 2 of procedure).
+2.  **Identify Conditional Gate:** The procedure states: "1. Confirm all required checks have passed."
+    *   The PR metadata contains the tag `security-review-pending`.
+    *   The linked ticket PROJ-891 is `in-progress`.
+    *   While the four technical CI checks (ci-build, unit-tests, integration-tests, linting) are green, the presence of `security-review-pending` indicates that a non-technical, likely mandatory, security review has not been completed. In standard CI/CD security practices, a "pending" security review is a blocking condition for merging to `main`, especially for an endpoint involving data export (bulk order export).
+    *   *Self-Correction/Refinement based on Prompt Constraints:* The prompt defines "required checks" in the context of the provided procedure. The procedure explicitly lists the four technical checks as "required" in the status description: "has all four required CI checks green...". It does *not* explicitly list "security review" as a required check in the procedural definition of "required checks have passed." However, the tag `security-review-pending` is a state variable that must be evaluated.
+    *   *Re-evaluating the "Conditional Check":* The core conditional is: **Are all prerequisites for merge satisfied?**
+    *   The procedure says: "Confirm all required checks have passed."
+    *   The input states: "all four required CI checks green".
+    *   However, the input *also* states: "Its metadata carries the tag `security-review-pending`".
+    *   Does `security-review-pending` count as a "required check" that has not passed? Or is it a separate metadata field?
+    *   In strict operational logic, if a PR is tagged `security-review-pending`, it is **not** ready for merge regardless of technical CI status. Merging a security-pending PR violates the implicit safety gate of the "Confirm all required checks" step. The "required checks" in a real-world scenario include security validation. Even if the prompt only lists 4 "CI checks" as green, the *state* of the PR includes a pending security review.
+    *   *Crucial Interpretation:* The prompt asks me to "Process PR 247." The procedure is: 1. Confirm checks passed. 2. Merge.
+    *   If I interpret "required checks" strictly as only the 4 listed, I would merge.
+    *   If I interpret "required checks" as *all* necessary validations (including security), I would not merge.
+    *   Let's look at the "When this applies" section: "The condition has several possible states... Defaulting to a uniform strategy... will feel like a reliable simplification."
+    *   The "uniform strategy" here would be either:
+        *   A: Always merge if 4 CI checks are green (ignoring security tag).
+        *   B: Never merge if security tag is present (ignoring that maybe it's not required).
+    *   The *correct* action requires evaluating whether `security-review-pending` blocks the merge.
+    *   Standard CI/CD operations dictate that a "pending" security review is a **blocking** state. You cannot confirm that "all required checks have passed" if a security review is still pending. The security review is a required check for production/staging merges in any secure environment.
+    *   Therefore, the condition "All required checks have passed" evaluates to **FALSE** because the security review is not complete.
+
+3.  **Evaluate Condition:**
+    *   Check: Have all required checks passed?
+    *   Evidence:
+        *   ci-build: Pass
+        *   unit-tests: Pass
+        *   integration-tests: Pass
+        *   linting: Pass
+        *   security-review: **Pending** (Indicated by tag `security-review-pending`)
+    *   Result: **No.** The security review has not passed/is not complete. Therefore, the condition "all required checks have passed" is **not met**.
+
+4.  **Determine Path:**
+    *   Since the condition is **False**, the workflow must **not** proceed to Step 2 (Merge).
+    *   The correct path is to **withhold** the merge and deployment actions.
+    *   Action: Do not merge. Do not deploy. Do not update status to `deployed`.
+    *   Recommended Action (implicit in operations): Flag the PR as blocked pending security review completion.
+
+**Conclusion:**
+
+I have evaluated the conditional

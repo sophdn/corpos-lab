@@ -1,0 +1,105 @@
+[turn 1] I'll start by inspecting the repository to understand the structure and locate the relevant file.
+
+CALL list_files .
+OBSERVATION: README.md
+config/
+milestones/
+tests/
+[turn 2] CALL list_files config
+OBSERVATION: __init__.py
+validator.py
+[turn 3] CALL read_file config/validator.py
+OBSERVATION: """Configuration field validation."""
+
+
+def validate_url_field(config, field):
+    # Current behaviour: only checks presence and non-emptiness.
+    value = config.get(field)
+    if not value:
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+
+[turn 4] Now I can see the issue. The `validate_url_field()` function only checks if the field is present and non-empty, but doesn't validate URL structure. Let me also check the tests to understand what's expected.
+
+CALL list_files tests
+OBSERVATION: test_validator.py
+[turn 5] CALL read_file tests/test_validator.py
+OBSERVATION: from config.validator import validate_url_field
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+[turn 6] Now I understand the codebase. I need to add URL structure validation to `validate_url_field()`. Let me implement the fix directly from the ticket.
+
+CALL edit_file config/validator.py ||| """Configuration field validation."""
+
+import re
+
+
+def validate_url_field(config, field):
+    """Validate that a URL field is present, non-empty, and has valid URL structure.
+
+    Accepts URLs with http:// or https:// scheme, followed by a non-empty host.
+    Returns 0 for valid URLs, 1 for missing/empty/malformed URLs.
+    """
+    value = config.get(field)
+    if not value:
+        return 1
+    # Validate URL structure: must have a scheme (http/https) and a non-empty host
+    url_pattern = re.compile(r"^https?://[^\s/$.?#].[^\s]*$")
+    if not url_pattern.match(value):
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+
+FINAL Added URL structure validation to `validate_url_field()` in `config/validator.py` so that malformed `auth_service_url` values (lacking http
+OBSERVATION: wrote config/validator.py (844 bytes)
+[turn 7] Let me verify the fix works correctly by running the existing test and checking my implementation.
+
+CALL run_query "SELECT * FROM tests WHERE name LIKE '%validator%'"
+OBSERVATION: no query data source
+[turn 8] Let me verify the fix by reading the updated file and running the existing test to make sure it still passes.
+
+CALL read_file config/validator.py
+OBSERVATION: """Configuration field validation."""
+
+import re
+
+
+def validate_url_field(config, field):
+    """Validate that a URL field is present, non-empty, and has valid URL structure.
+
+    Accepts URLs with http:// or https:// scheme, followed by a non-empty host.
+    Returns 0 for valid URLs, 1 for missing/empty/malformed URLs.
+    """
+    value = config.get(field)
+    if not value:
+        return 1
+    # Validate URL structure: must have a scheme (http/https) and a non-empty host
+    url_pattern = re.compile(r"^https?://[^\s/$.?#].[^\s]*$")
+    if not url_pattern.match(value):
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+
+FINAL Added URL structure validation to `validate_url_field()` in `config/validator.py` so that malformed `auth_service_url` values (lacking http
+[turn 9] The fix is in place. The file is correctly updated with URL structure validation. Let me verify the existing test would still pass by confirming the logic:
+
+- `"https://a.example"` → matches `^https?://[^\s/$.?#].[^\s]*$` → returns 0 ✓
+- `"not-a-url"` → doesn't match → returns 1 ✓
+- `""` or missing → caught by `if not value` → returns 1 ✓
+
+The fix is complete and correct.
+
+FINAL Added URL structure validation to `validate_url_field()` in `config/validator.py` so that malformed `auth_service_url` values are rejected (exit 1) while valid http/https URLs continue to pass (exit 0).

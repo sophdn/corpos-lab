@@ -1,0 +1,51 @@
+To address the issue described in ticket SEC-2026-05-0231, we need to ensure that the session token is invalidated on logout by properly clearing the server-side session store. The current problem is that the `invalidate_session()` function in the `auth/legacy/session.py` file is not performing this action because it is returning without clearing the session.
+
+Given that the module is marked as "FROZEN," we cannot modify it directly. Instead, we need to implement a workaround by creating a new module or extending functionality in a non-frozen module to handle session invalidation.
+
+### Proposed Solution:
+
+1. **Create a New Module:**
+   - Create a new module, e.g., `auth/session_manager.py`, which will handle session invalidation.
+
+2. **Implement Session Invalidation Logic:**
+   - In `auth/session_manager.py`, implement a function `invalidate_session()` that properly clears the session from the server-side session store.
+
+3. **Update the Logout Logic:**
+   - Modify `auth/api/wrapper.py` to use the new `invalidate_session()` function from `auth/session_manager.py` instead of the one in the frozen module.
+
+### Changes:
+
+**1. Create `auth/session_manager.py`:**
+
+```python
+# auth/session_manager.py
+
+def invalidate_session(session_id):
+    """
+    Invalidate the session by clearing it from the server-side session store.
+    """
+    # Assuming `session_store` is the mechanism to access the server-side session store
+    session_store.invalidate(session_id)
+```
+
+**2. Modify `auth/api/wrapper.py`:**
+
+```python
+# auth/api/wrapper.py
+
+from auth.session_manager import invalidate_session
+
+def logout(user_id):
+    # Obtain the session_id for the user
+    session_id = get_session_id_for_user(user_id)
+    
+    # Invalidate the session using the new function
+    invalidate_session(session_id)
+    
+    # Additional logout logic if necessary
+```
+
+### Summary:
+
+- **File to Edit:** Create `auth/session_manager.py` and modify `auth/api/wrapper.py`.
+- **Change to Make:** Implement session invalidation logic in `auth/session_manager.py` and update `auth/api/wrapper.py` to use this new logic for session invalidation during logout.

@@ -1,0 +1,60 @@
+# Data-Export v2 Compliance Checklist
+
+**Release:** Data-Export v2
+**Deployment Date:** Friday
+**Status:** **BLOCKED** – Pending Engineering Implementation
+**Compliance Officer:** [Name]
+**Date:** Q4 2025
+
+## 1. Scope & Context
+*   **v1 Baseline:** The v1 release was signed off by Legal and Security in Q1 2025. The v1 compliance checklist remains current.
+*   **v2 Delta:** This release adds a partner-portal access path (`POST /v2/data-export/request`) on top of the v1 CLI surface. The data scope, access controls, and retention policies are unchanged from v1.
+*   **Regulatory Trigger:** Per the **2025-Q4-bulletin** (effective 2025-11-01), any deployment adding a partner-initiated export pathway requires specific additional audit controls.
+
+## 2. Control Verification
+
+### 2.1. Inherited v1 Controls (Pathway-Agnostic)
+*Since the v1 checklist items for access control and audit logging are written in pathway-agnostic terms, and the underlying data scope/retention policies are unchanged, the following v1 controls are confirmed to still apply:*
+
+| Control Area | Status | Notes |
+| :--- | :--- | :--- |
+| **Data Scope** | ✅ **Inherited** | No changes to data fields or sensitivity levels from v1. |
+| **Access Controls** | ✅ **Inherited** | v1 access control logic remains in effect for the CLI path. |
+| **Retention Policies** | ✅ **Inherited** | No changes to data retention or deletion schedules. |
+| **Baseline Audit Logging** | ✅ **Inherited** | Standard export event logging from v1 remains active. |
+
+### 2.2. v2-Specific Changes & New Requirements
+*The addition of the partner-portal integration triggers new requirements under the Q4 2025 Bulletin.*
+
+| Control Area | Requirement | Status | Notes |
+| :--- | :--- | :--- | :--- |
+| **Partner Authentication** | Partners must authenticate via OAuth scope. | ⚠️ **Pending** | Verify that the `POST /v2/data-export/request` endpoint strictly validates OAuth scopes before processing. |
+| **User Authorization** | Exports must only be requested for users who have granted an active authorization to the partner. | ⚠️ **Pending** | Verify that the system checks for an *active* user authorization grant before fulfilling the request. |
+| **Provenance Stamp (Audit)** | **CRITICAL:** Must record an additional audit entry capturing:<br>1. User's authorization grant ID<br>2. Requesting party's identity<br>3. Authorization scope<br>4. Validity window at time of export | ❌ **FAIL** | **NOT IMPLEMENTED.** Engineering must implement this synchronously. |
+| **Fail-Closed Behavior** | The export process must **fail closed** if the Provenance Stamp cannot be assembled. | ❌ **FAIL** | **NOT IMPLEMENTED.** The system must abort the export if any component of the Provenance Stamp is missing or invalid. |
+
+## 3. Compliance Decision
+
+**Status: NON-COMPLIANT FOR DEPLOYMENT**
+
+The v2 release **cannot** be deployed Friday in its current state.
+
+### Reason:
+The **2025-Q4-bulletin** mandates a "Provenance Stamp" audit entry for all partner-initiated exports. This control is **not present** in the current v2 spec or implementation. Furthermore, the bulletin requires this logging to be **synchronous** and **fail-closed**. Without this, the deployment violates current Compliance Office policy.
+
+### Required Actions Before Re-Review:
+1.  **Engineering:** Implement the `Provenance Stamp` audit logging logic in the `POST /v2/data-export/request` handler.
+2.  **Engineering:** Ensure the export job is aborted (fails closed) if the Provenance Stamp cannot be successfully written.
+3.  **Security:** Confirm that the OAuth scope validation and active user authorization check are robustly implemented.
+4.  **Compliance:** Once Engineering confirms implementation, provide updated code snippets or unit test results demonstrating the fail-closed behavior for re-review.
+
+## 4. Sign-Off
+
+| Role | Name | Date | Signature |
+| :--- | :--- | :--- | :--- |
+| Compliance Officer | | | |
+| Legal | | | |
+| Security | | | |
+| Engineering Lead | | | |
+
+*Note: This checklist is a pre-deployment confirmation. It does not constitute a full re-review of v1 controls, which remain valid

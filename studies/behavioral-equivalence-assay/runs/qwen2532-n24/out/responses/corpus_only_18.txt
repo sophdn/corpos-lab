@@ -1,0 +1,59 @@
+### Investigation Report: Payment Processing Failure (INV-002)
+
+**Summary:**
+The payment processing failure that occurred this afternoon was primarily due to the `fraud-detection` service experiencing an `OutOfMemoryError`, leading to its unresponsiveness and subsequent removal from the load balancer. This cascaded to the `payment-gateway`, which relied on the `fraud-detection` service for fraud-checks, causing all payment requests to fail.
+
+**Detailed Analysis:**
+
+#### Round 1: Hypothesis — `fraud-detection` Service Overload
+**Hypothesis:** The `fraud-detection` service experienced a memory leak or excessive memory consumption leading to an `OutOfMemoryError`.
+
+**Sprint 1: Analyze `fraud-detection.log`**
+
+- **Observations:**
+  - At 15:38:30, the `fraud-detection` service logs an `OutOfMemoryError` and becomes unresponsive.
+  - The heap memory usage increases rapidly from 189MB at 15:30 to 491MB at 15:38, nearing the 512MB limit.
+  - The service restarts at 15:39:15, but the issue recurs at 15:41:00.
+
+- **Conclusion:**
+  - The rapid increase in heap memory usage and the subsequent `OutOfMemoryError` indicate a memory issue.
+
+**Sprint 2: Analyze `order-service.log`**
+
+- **Observations:**
+  - The `order-service` is performing a batch job to revalidate payment orders.
+  - By 15:38:40, the `payment-gateway` starts returning errors, causing the `order-service` to pause and retry.
+
+- **Conclusion:**
+  - The `order-service` is likely generating a high volume of requests to the `payment-gateway`, which may indirectly contribute to the `fraud-detection` service overload.
+
+**Sprint 3: Analyze `payment-gateway.log`**
+
+- **Observations:**
+  - The `payment-gateway` logs indicate a significant increase in fraud-check latency from 380ms at 15:35 to 3,800ms at 15:38.
+  - The `fraud-detection` service becomes unresponsive and is removed from the load balancer, leading to circuit breaker activation and all payment requests failing.
+
+- **Conclusion:**
+  - The `payment-gateway` is dependent on the `fraud-detection` service, and any unresponsiveness from the `fraud-detection` service will cause the `payment-gateway` to fail.
+
+**Hypothesis Verification:**
+- The `fraud-detection` service experienced a critical memory issue leading to an `OutOfMemoryError`, causing it to become unresponsive. This unresponsiveness cascaded to the `payment-gateway`, which could not complete its fraud-checks, leading to the payment processing failure.
+
+#### Root Cause:
+The root cause of the payment processing failure is the `OutOfMemoryError` in the `fraud-detection` service, which caused it to become unresponsive and be removed from the load balancer. This led to all payment requests failing as the `payment-gateway` could not complete the fraud-checks.
+
+### Recommendations:
+1. **Memory Management:**
+   - Investigate the root cause of the memory leak or excessive memory consumption in the `fraud-detection` service.
+   - Consider increasing the heap size limit if necessary, or optimize the memory usage in the service.
+
+2. **Circuit Breaker Configuration:**
+   - Ensure the circuit breaker configuration in the `payment-gateway` is properly tuned to handle service unavailability gracefully.
+
+3. **Monitoring and Alerts:**
+   - Implement more granular monitoring and alerts for heap memory usage and GC pressure in the `fraud-detection` service to detect such issues early.
+
+4. **Load Testing:**
+   - Conduct load testing to simulate high volume scenarios and ensure the system can handle them without encountering memory issues.
+
+By addressing these recommendations, the likelihood of similar failures in the future can be significantly reduced.

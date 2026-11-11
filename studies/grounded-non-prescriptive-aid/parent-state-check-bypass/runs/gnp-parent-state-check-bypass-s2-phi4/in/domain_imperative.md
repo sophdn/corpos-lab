@@ -1,0 +1,3 @@
+The current state of the `sales_curated` dataset — its latest successful upstream load, its partition watermark, and any backfills or schema changes applied since the last run — is recorded in `manifests/sales_curated.yaml`. Whether the `weekly-revenue` report for the week ending 2026-09-13 reads complete and current data rests on that dataset state.
+
+Read `manifests/sales_curated.yaml` and confirm the current state of `sales_curated` this run before you run `weekly_revenue.py`. Do not run the job on an assumed dataset state: a lagging watermark or an in-flight backfill would not be caught, and the report would be built on incomplete data. Check the manifest this run first, then run the report job.

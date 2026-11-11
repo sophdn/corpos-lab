@@ -1,0 +1,63 @@
+To ensure the release is complete, the API reference documentation must be updated to reflect the changes in `gridcache` v2.3.0. Specifically, the `docs/api-reference.md` file needs to include documentation for the new `TTLCache` class.
+
+Here is the content that should be added to `docs/api-reference.md`:
+
+```markdown
+## `TTLCache`
+
+A cache implementation that automatically expires entries after a configurable time-to-live (TTL) interval.
+
+### Class Signature
+
+```python
+class gridcache.TTLCache(maxsize: int, ttl: float)
+```
+
+### Parameters
+
+- **`maxsize`** (`int`): The maximum number of items the cache can hold. If exceeded, the least recently used items are evicted.
+- **`ttl`** (`float`): The time-to-live in seconds for each entry. Entries older than this duration are considered expired and are removed upon access or cleanup.
+
+### Description
+
+`TTLCache` combines the functionality of a standard cache with time-based expiration. It is useful for storing data that becomes invalid after a certain period, such as API responses, session data, or computed results.
+
+### Methods
+
+- **`get(key: Any) -> Optional[Any]`**:
+  Retrieves the value associated with `key`. Returns `None` if the key is not found or if the entry has expired.
+  
+- **`set(key: Any, value: Any) -> None`**:
+  Stores `value` under `key`. If the cache is full, the least recently used entry is evicted to make room. The timestamp for the entry is updated to the current time.
+
+- **`pop(key: Any, default: Optional[Any] = None) -> Optional[Any]`**:
+  Removes and returns the value associated with `key`. If the key is not found or has expired, returns `default`.
+
+- **`clear() -> None`**:
+  Removes all items from the cache.
+
+### Example Usage
+
+```python
+from gridcache import TTLCache
+
+# Create a cache that holds up to 100 items, each expiring after 30 seconds
+cache = TTLCache(maxsize=100, ttl=30)
+
+cache.set("user:123", {"name": "Alice", "age": 30})
+print(cache.get("user:123"))  # Outputs: {'name': 'Alice', 'age': 30}
+
+import time
+time.sleep(31)
+
+print(cache.get("user:123"))  # Outputs: None (entry expired)
+```
+
+### Notes
+
+- `TTLCache` is thread-safe.
+- Expired entries are lazily deleted upon access or when the cache needs to evict items to maintain size constraints.
+- For high-throughput applications, consider tuning `maxsize` and `ttl` to match your access patterns and data volatility.
+```
+
+Additionally, ensure that any changelog or release notes section in `docs/api-reference.md` (if present) mentions the fix for `LRUCache.pop` returning a stale value after a concurrent eviction.

@@ -1,0 +1,29 @@
+The discovery is that `test_checkout_flow` has a hidden, undocumented ordering dependency on `test_seed_catalog` to populate the catalog cache. While pinning the run order fixes the immediate flakiness, it does not eliminate the root cause (the implicit state dependency) or prevent future regressions if the test suite structure changes. To close out this fix correctly, the discovery must be made durable so that future agents or developers do not rediscover this wall.
+
+**Steps to close out the fix:**
+
+1.  **Eliminate the dependency mechanistically (Preferred):**
+    *   Modify `test_checkout_flow` so it does not rely on global state populated by another test.
+    *   If the catalog cache is a test fixture, ensure `test_checkout_flow` explicitly declares a dependency on the fixture that seeds the catalog (e.g., using a `@pytest.mark.usefixtures("seed_catalog")` decorator or equivalent in the testing framework).
+    *   Alternatively, modify `test_checkout_flow` to seed its own minimal required catalog data in its `setup` phase, making it independent of `test_seed_catalog`.
+    *   *Why this is better:* It removes the implicit ordering constraint entirely. The test becomes self-contained and robust regardless of execution order.
+
+2.  **If the dependency cannot be eliminated (e.g., performance constraints make re-seeding too expensive):**
+    *   **Document the constraint in a discoverable location:** Add a comment directly in the test file for `test_checkout_flow` stating: *"DEPENDENCY: This test requires `test_seed_catalog` to have run first to populate the catalog cache. Do not run in isolation or without ensuring ordering."*
+    *   **Add a hard check in the test:** Modify `test_checkout_flow` to explicitly assert that the catalog cache is populated at the start. If it is empty, fail with a clear message: *"Test failed because catalog cache is empty. Ensure `test_seed_catalog` runs before this test."* This turns a silent flaky failure into a clear, diagnostic error.
+    *   **Update the project's test documentation:** Add a note in the main `README.md` or a dedicated `TESTING.md` file listing known ordering dependencies, specifically noting that `test_seed_catalog` must run before `test_checkout_flow`.
+
+3.  **Verify the fix:**
+    *   Run the test suite in a randomized order (if the framework supports it) or explicitly reverse the order to confirm that the fix works. If using the mechanistic fix (step 1), the test should pass regardless of order. If using the documentation/soft-fix (step 2), the test should fail with a clear diagnostic message when run out of order, rather than failing silently due to missing data.
+
+4.  **Commit the changes:**
+    *   Commit the code changes (fixture dependency or explicit seeding) and the documentation updates.
+    *   Include the discovery in the commit message: *"Fix flaky test_checkout_flow by making catalog cache dependency explicit. Previously relied on implicit ordering from test_seed_catalog."*
+
+**Why this closes the discovery:**
+*   **Mechanistic fix (Step 1):** The problem is "designed out." The next agent will not hit the wall because the test no longer has the hidden dependency.
+*   **Documentation/Check (Step 2):** The discovery is committed to a discoverable artifact (the test file itself and the project docs). The next agent who modifies the test suite will see the explicit dependency or the hard check, preventing the silent failure from recurring. The error message guides them to the root cause.
+
+**What NOT to do:**
+*   Do not just pin the run order and finish. The next agent who adds a new test or changes the runner configuration may accidentally break the order, leading to a silent, hard-to-debug failure.
+*   Do not leave the discovery only in this session's context. A future agent has no way to know that `test_seed_catalog` is a prerequisite for `test_checkout_flow` unless it is encoded in the code or documented.

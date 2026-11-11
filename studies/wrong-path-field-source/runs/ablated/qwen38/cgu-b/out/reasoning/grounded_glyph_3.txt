@@ -1,0 +1,26 @@
+The user wants me to evaluate the trace against the glyph `conditional-gate-uniform-default` and determine whether it fires.
+
+Let me work through the glyph's evaluation sequence: pull character → scope → verdict.
+
+**Pull character:** Is there a pull toward a uniform default strategy? In this trace, the agent deploys after tests pass. There's no indication of a uniform default strategy being applied — the agent is following a conditional workflow (check tests → deploy if pass, hold if fail). The pull character is described as "present in both firing and non-firing cases; its presence alone does not determine the verdict." So this doesn't determine the outcome.
+
+**Scope — operative when:** A conditional check determines the correct next path at this workflow transition, AND the transition action (or its systematic absence) appears in the trace without a preceding path-determination check in the same decision sequence.
+
+Let me check:
+1. Does the transition have conditional branching? Yes — "If passing: deploy. If failing or still running: hold." There is a condition that determines which path applies.
+2. Is there a path-determination record before the transition action? The CI test suite result is recorded at step 4. The deployment happens at step 5. The condition (test result) IS the result of an immediately preceding step (step 3 triggers it, step 4 records it).
+
+**Scope — not operative when:** "The condition that determines the correct path is unambiguously determined by structural necessity — its state is trivially readable from the transition point itself, without a separate evaluation step. Discriminating condition: arriving at the transition point is sufficient to determine which path applies because the condition state is directly and fully in evidence at that position (for example: the condition IS the result of an immediately preceding step whose output is already recorded in the trace, and no separate retrieval or check is needed to read it). When the condition state is fully in evidence at the transition point, applying the correct path is not a uniform default — it is a verified response to observable state already in the trace. Verdict is no."
+
+This matches exactly what happened in the trace. The CI test suite result (step 4) is the condition. It was produced by the immediately preceding step in this session. It is recorded in the trace. The agent arrives at the deployment decision point (step 5) and the condition state (all 312 tests passed) is fully in evidence. No separate retrieval or check is needed.
+
+So the Scope-not-operative condition is met. The verdict is **no**.
+
+The field that determined the verdict is "Scope — not operative when" — specifically the discriminating condition about the condition state being trivially readable from the transition point.
+
+Let me format my response:
+
+VERDICT: no
+FIELD SOURCE: Scope — not operative when
+OBSERVABLE: The condition state is fully in evidence at the transition point because the condition IS the result of an immediately preceding step whose output is already recorded in the trace, and no separate retrieval or check is needed to read it.
+EVIDENCE: Step 4 records the CI test suite result (all 312 tests passed) as the output of the immediately preceding step (step 3) in the same session; the deployment decision at step 5 reads that state directly from the trace without any separate path-determination check.

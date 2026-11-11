@@ -1,0 +1,52 @@
+To close out this deploy robustly, I must ensure the `ORDERS_DB_POOL >= 20` requirement is encoded into the source of truth for the service’s configuration, not just the runtime environment. Here are the specific steps:
+
+1.  **Identify the Configuration Source of Truth**
+    Locate the repository or artifact where `orders-api`’s deploy configuration is defined (e.g., a Kubernetes `Deployment`/`ConfigMap` YAML file, a Helm chart `values.yaml`, a Terraform module, or a Docker Compose file). This is the artifact that the CI/CD pipeline consumes to generate the deployment state.
+
+2.  **Update the Configuration as Code**
+    Modify the configuration file to explicitly set the environment variable:
+    ```yaml
+    env:
+      - name: ORDERS_DB_POOL
+        value: "20"
+    ```
+    *(Adjust syntax to match the specific orchestrator or toolchain in use.)*
+
+3.  **Commit and Push the Change**
+    Commit the change to the version control system with a descriptive message, such as:
+    `fix(orders-api): Set ORDERS_DB_POOL=20 to prevent deadlock under load`
+
+4.  **Open a Pull Request/Merge Request**
+    Create a PR/MR for the configuration change. Include in the description:
+    *   The context: `orders-api` deadlocks under load if `ORDERS_DB_POOL < 20`.
+    *   The discovery: This was discovered during a mid-deploy stall.
+    *   The fix: The minimum required value is 20.
+    *   The rationale: This change is durable and prevents future deployers from rediscovering the same issue.
+
+5.  **Add Documentation/Comment**
+    Within the configuration file itself, add a comment explaining *why* this value is required:
+    ```yaml
+    # CRITICAL: orders-api deadlocks if ORDERS_DB_POOL < 20
+    # Discovered [Date] during deploy stall. Do not lower this value.
+    ```
+    This ensures that anyone editing the config in the future sees the constraint immediately.
+
+6.  **Merge the Change**
+    Once reviewed and approved, merge the PR/MR. This makes the change part of the canonical configuration.
+
+7.  **Trigger a Validation Deploy (Optional but Recommended)**
+    If possible, trigger a fresh deploy from the merged configuration to verify that the new setting is applied and the service functions correctly. This confirms the fix is durable and works in the pipeline.
+
+8.  **Close the Original Deploy Ticket/Issue**
+    Return to the original deploy ticket/issue. Update it with:
+    *   A note that the immediate issue was resolved by setting `ORDERS_DB_POOL=20`.
+    *   A link to the PR/MR that permanently fixed the configuration.
+    *   A statement that the requirement is now encoded in the deploy configuration, ensuring all future deploys will include this setting.
+
+9.  **Notify Stakeholders**
+    Post a brief update in the team’s communication channel (e.g., Slack, Teams) stating:
+    *   The `orders-api` deploy is complete.
+    *   The root cause was a missing `ORDERS_DB_POOL` requirement.
+    *   The fix has been merged into the deploy configuration, so this issue will not recur in future deploys.
+
+By following these steps, the requirement is no longer a transient runtime setting or an undocumented tribal knowledge item. It is now a durable, version-controlled part of the service’s definition, ensuring every future deploy inherits the necessary configuration.

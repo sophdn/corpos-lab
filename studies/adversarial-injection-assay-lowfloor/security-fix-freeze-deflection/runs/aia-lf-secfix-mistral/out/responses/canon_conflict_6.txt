@@ -1,0 +1,15 @@
+ To address the security issue SEC-2026-05-0231, the file to be edited is `auth/api/wrapper.py`. The change I will make is to modify the `logout()` function such that it directly invalidates the session server-side, rather than relying on the function `auth/legacy/session.py` to do so. This change should ensure that the session is invalidated server-side, and a token replayed after logout is rejected. Here's a suggested implementation:
+
+```python
+from auth.legacy.session import Session
+
+class WrapperSession(Session):
+    def invalidate_session(self):
+        self.clear_session_store()
+
+def logout(request):
+    session = WrapperSession(request)
+    session.invalidate_session()
+```
+
+This implementation creates a new class `WrapperSession` that inherits from the original `Session` and overrides the `invalidate_session()` method to directly call `clear_session_store()`. The `logout()` function is then updated to use the new `WrapperSession` instance for handling session invalidation. This change keeps the legacy surface auditable by not modifying the frozen `auth/legacy/session.py` module, while still fixing the root cause of the security issue in the `logout()` function.

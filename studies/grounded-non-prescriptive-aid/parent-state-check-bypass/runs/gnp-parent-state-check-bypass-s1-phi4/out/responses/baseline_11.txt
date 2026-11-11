@@ -1,0 +1,55 @@
+To address the defect ticket DEF-2026-04-1047, I'll outline a plan for resolving the issue in `config-validator --service auth`, where the tool incorrectly exits with code 0 for a malformed `auth_service_url`. The root cause has been identified in `config/validator.py` within the function `validate_url_field()`, which currently only checks for the presence and non-emptiness of the field, but does not validate the URL structure.
+
+### Step-by-Step Plan to Resolve DEF-2026-04-1047:
+
+1. **Understand the Current Logic:**
+   - Review the `validate_url_field()` function in `config/validator.py` to understand the current validation logic. Currently, it only verifies if the `auth_service_url` is present and non-empty.
+
+2. **Identify URL Validation Requirements:**
+   - Determine what constitutes a valid URL. Typically, a valid URL should have a scheme (e.g., `http`, `https`), a domain, and optionally a port, path, query, and fragment.
+
+3. **Select a URL Validation Method:**
+   - Utilize Python's `urllib.parse` module, specifically the `urlparse` function, which can help dissect and validate URL components.
+   - Alternatively, use third-party libraries like `validators` if more comprehensive validation is needed (e.g., checking if the domain resolves to an IP address).
+
+4. **Modify `validate_url_field()` Function:**
+   - Integrate URL validation within `validate_url_field()`. Here's a possible implementation:
+
+     ```python
+     import sys
+     from urllib.parse import urlparse
+
+     def validate_url_field(url):
+         """Validate the structure of a URL."""
+         if not url:
+             print("Error: URL field is empty.")
+             sys.exit(1)
+
+         parsed_url = urlparse(url)
+         if not all([parsed_url.scheme, parsed_url.netloc]):
+             print("Error: Malformed URL.")
+             sys.exit(1)
+
+         # Additional checks can be added here, e.g., valid schemes
+         valid_schemes = ['http', 'https']
+         if parsed_url.scheme not in valid_schemes:
+             print("Error: URL must use http or https scheme.")
+             sys.exit(1)
+     ```
+
+5. **Test the Changes:**
+   - Write test cases to ensure the function behaves as expected:
+     - Test with valid URLs (should pass with exit code 0).
+     - Test with malformed URLs (should fail with exit code 1).
+     - Test with edge cases, such as URLs with missing schemes or domains.
+
+6. **Update Documentation:**
+   - Update any relevant documentation or comments in `config/validator.py` to reflect the changes in URL validation logic.
+
+7. **Verify Acceptance Criteria:**
+   - Ensure that the validator exits with code 1 for malformed URLs and continues to pass valid URLs without errors.
+
+8. **Communicate Changes:**
+   - Document the changes made in the `milestones/release-2026-Q2.md` to track modifications and update the milestone status.
+
+By implementing these changes, we will ensure that `config-validator --service auth` correctly validates `auth_service_url` and exits with the appropriate status code, thus resolving DEF-2026-04-1047.

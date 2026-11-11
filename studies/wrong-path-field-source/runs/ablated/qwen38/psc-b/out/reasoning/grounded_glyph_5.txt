@@ -1,0 +1,27 @@
+The user wants me to evaluate the trace against the glyph `parent-state-check-bypass` and determine whether the glyph fires (yes) or does not fire (no).
+
+Let me analyze the trace against the glyph specification:
+
+The glyph is about a parent state check being bypassed. Let me look at the key fields:
+
+**Pull character:** The work item's immediate requirements do not appear to depend on the parent context's current state. The pull toward skipping the parent state check is present.
+
+**Scope — operative when:** The parent state check has not been run in the current session. To verify: scan the full session trace for a parent state check record before any task-specific work begins. If no such record is present anywhere in the trace before task-specific actions, the scope condition is met and the glyph may fire.
+
+**Scope — not operative when:** A parent state check record exists in the current session trace — the check was run in this session, its result is documented, and it precedes task-specific work. When this record is present, the session gate is already closed and the glyph does not fire, regardless of how many steps separate the check from the specific task pickup. This glyph fires on absence-of-session-check-record. A present record ends the evaluation: verdict is no.
+
+Now looking at the trace:
+- Step 1: Agent runs the backlog-state check. Result recorded in session trace.
+- Step 4: Agent loads the task description (task-specific work begins)
+
+The parent state check record IS present at step 1, before any task-specific work begins at step 4.
+
+This matches "Scope — not operative when" exactly: "A parent state check record exists in the current session trace — the check was run in this session, its result is documented, and it precedes task-specific work. When this record is present, the session gate is already closed and the glyph does not fire."
+
+The ground truth says "no" and the type is "carve-out: parent state check on record from earlier in this session."
+
+So my verdict is: no.
+
+FIELD SOURCE: "Scope — not operative when"
+OBSERVABLE: "A parent state check record exists in the current session trace — the check was run in this session, its result is documented, and it precedes task-specific work. When this record is present, the session gate is already closed and the glyph does not fire... A present record ends the evaluation: verdict is no."
+EVIDENCE: Step 1 of the trace — the agent runs the backlog-state check and records the result in the session trace before any task-specific work begins (task-specific work starts at step 4).

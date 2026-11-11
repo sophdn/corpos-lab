@@ -1,0 +1,24 @@
+To properly close out this fix and prevent future flakiness, I would take the following steps:
+
+1.  **Remove the ordering dependency pin:** Revert the change that forced `test_seed_catalog` to run before `test_checkout_flow`. Pinning test order is a band-aid that masks the underlying design flaw and makes the test suite fragile to refactoring or parallel execution.
+
+2.  **Refactor `test_checkout_flow` to be self-contained:**
+    *   **Option A (Preferred):** Modify `test_checkout_flow` so it explicitly creates or mocks the necessary catalog data within its own setup phase (`setUp` or equivalent). This ensures the test defines its own preconditions and does not rely on side effects from other tests.
+    *   **Option B:** If the catalog cache is a global singleton or shared resource that cannot be easily mocked, inject a fresh instance of the catalog cache or mock the cache lookup directly within `test_checkout_flow` to return the expected data.
+
+3.  **Refactor `test_seed_catalog` (if applicable):** Ensure `test_seed_catalog` tests its own logic (i.e., that it correctly populates the cache) without assuming other tests will use that data. If it’s purely a setup step and not a test of behavior, consider moving its logic to a shared fixture or setup method, or renaming it to clarify its role.
+
+4.  **Add a regression test for isolation:** Write a small unit test or integration test that verifies `test_checkout_flow` passes when run in isolation (e.g., in a fresh test runner context with no prior tests). This confirms the test no longer has hidden dependencies.
+
+5.  **Run the full test suite in multiple orders:**
+    *   Run the suite in standard order.
+    *   Run the suite in reverse order.
+    *   Run `test_checkout_flow` alone.
+    *   Run `test_seed_catalog` alone.
+    *   Run the suite in parallel (if supported) to ensure no cross-test contamination.
+
+6.  **Update documentation/comments:** Add a brief comment in `test_checkout_flow` clarifying that it sets up its own catalog state, to prevent future developers from re-introducing the implicit dependency.
+
+7.  **Commit with a clear message:** Example: “Fix flaky test_checkout_flow by removing implicit dependency on test_seed_catalog; test now sets up its own catalog state.”
+
+This approach eliminates the root cause (shared mutable state across tests) rather than just masking the symptom (order dependency), ensuring long-term stability of the test suite.

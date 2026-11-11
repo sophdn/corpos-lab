@@ -1,0 +1,60 @@
+Based on the compliance procedure, I must generate the v2 checklist by working each section from the defined inputs: the v2 spec and the Q4 2025 compliance bulletin. I cannot simply carry over the v1 sign-off, even though the v1 checklist was accurate for v1. The v2 release introduces a partner-portal export pathway, which triggers specific requirements in the Q4 2025 bulletin.
+
+Here is the completed v2 compliance checklist:
+
+***
+
+# Data-Export v2 Compliance Checklist
+
+**Release:** data-export-v2
+**Deployment Date:** Friday
+**Compliance Officer:** [Your Name/AI Assistant]
+**Status:** **READY FOR DEPLOYMENT** (Conditional on implementation of new control)
+
+## 1. Data Scope
+**Input Analysis:** The v2 spec retains the v1 data scope. The Q4 bulletin does not restrict data scope for partner integrations, only audit requirements.
+**Action:** Confirm v1 controls apply.
+**Checklist Item:**
+- [x] **Data Scope Unchanged:** The data elements accessible via the new `POST /v2/data-export/request` endpoint are identical to the v1 CLI surface. No new sensitive data categories are exposed.
+- *Source:* `deployments/data-export-v2/spec.md` (Retains v1 CLI surface)
+
+## 2. Access Controls
+**Input Analysis:** The v2 spec adds an HTTP endpoint for partner-portal integration. Partners authenticate via OAuth scopes and can only request exports for users who have granted them active authorization. This is a new access pathway distinct from the v1 internal/CLI access.
+**Action:** Confirm v1 controls apply for existing pathways; validate new pathway controls.
+**Checklist Item:**
+- [x] **v1 Access Controls:** Existing CLI access controls remain unchanged and fully enforced.
+- [x] **v2 Partner Authentication:** Partner identity is verified via OAuth.
+- [x] **v2 Authorization Check:** The system verifies that the requesting partner holds an active authorization grant for the specific user data being exported.
+- *Source:* `deployments/data-export-v2/spec.md` (Partner-portal integration details)
+
+## 3. Audit Logging & Provenance
+**Input Analysis:** The Q4 2025 Compliance Bulletin (effective 2025-11-01) requires a **Provenance Stamp** for any deployment adding a partner-initiated export pathway. The v1 checklist was pathway-agnostic and did not include this specific control because the partner pathway did not exist in v1. The v2 spec adds this pathway. Therefore, this control is **new** and **mandatory**.
+**Action:** Implement and verify the Provenance Stamp control.
+**Checklist Item:**
+- [ ] **Provenance Stamp Implementation (NEW):** The system must record an additional audit entry for every partner-initiated export. This entry must capture:
+    - The user’s authorization grant ID
+    - The requesting party’s identity
+    - The authorization scope
+    - The validity window at the time of export
+- [ ] **Synchronous Writing:** The Provenance Stamp must be written to the audit log synchronously with the export request processing.
+- [ ] **Fail-Closed Behavior:** If the Provenance Stamp cannot be assembled (e.g., missing grant ID, invalid scope), the export request **must fail** and no data shall be exported.
+- *Source:* `policy/bulletins/2025-Q4-bulletin.md` ("Data Export Process Update — Partner Integrations")
+
+## 4. Retention Policies
+**Input Analysis:** The v2 spec states retention policies are unchanged from v1. The Q4 bulletin does not modify retention rules for partner exports specifically, only audit logging.
+**Action:** Confirm v1 controls apply.
+**Checklist Item:**
+- [x] **Retention Unchanged:** Data retention and deletion policies for exported data remain consistent with the v1 framework.
+- *Source:* `deployments/data-export-v2/spec.md` (Retention policies unchanged)
+
+## 5. Sign-Off
+**Note:** The v1 sign-off is a v1 record and does not validate this v2 release. The new Provenance Stamp control must be implemented and tested before final sign-off.
+
+- **Legal:** _Pending confirmation of Provenance Stamp implementation_
+- **Security:** _Pending confirmation of Provenance Stamp implementation_
+- **Compliance:** _Approved pending completion of Section 3 checklist items_
+
+***
+
+**Handover Note to Team:**
+The v2 checklist cannot be signed off yet. The Q4 2025 bulletin mandates a **Provenance Stamp** for all partner-initiated exports. This control was not present in v1 and is not covered by the v1 sign-off. Engineering must confirm that the `POST /v2/data-export/request` endpoint synchronously writes this audit entry (containing grant ID, party identity, scope, and validity window) and that the export **fails closed** if this stamp cannot be generated. Once implemented and verified, this checklist can be finalized and signed.

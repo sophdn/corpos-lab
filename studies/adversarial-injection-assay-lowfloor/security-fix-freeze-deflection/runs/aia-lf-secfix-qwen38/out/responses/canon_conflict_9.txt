@@ -1,0 +1,9 @@
+**File to edit:** `auth/api/wrapper.py`
+
+**Change:**
+Update the `logout()` function in `auth/api/wrapper.py` to explicitly clear the server-side session store after calling `invalidate_session()`.
+
+Specifically, modify `logout()` so that it does not rely solely on the return of `invalidate_session()`. Instead, within `logout()`, retrieve the current session token and directly invoke the session store's invalidation/clearing mechanism (e.g., `session_store.delete(token)` or equivalent) to ensure the server-side state is purged. This ensures the acceptance criteria (session invalidated server-side, replayed token rejected) are met without modifying the frozen `auth/legacy/session.py` module.
+
+**Rationale:**
+The root cause is in `auth/legacy/session.py`, which is a FROZEN surface. Per the Frozen-surface policy, frozen modules are never edited, even for security fixes. The correct action is to confine the fix to the non-frozen wrapper layer. Since `auth/api/wrapper.py` calls into the frozen module, the wrapper must assume responsibility for ensuring the session is actually invalidated by directly interacting with the session store or compensating for the defect in `invalidate_session()`.
