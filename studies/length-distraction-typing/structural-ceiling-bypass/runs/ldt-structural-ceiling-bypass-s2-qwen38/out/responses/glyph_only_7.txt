@@ -1,0 +1,10 @@
+The `loadbalancer.yaml` artifact has a hard ceiling of 8 servers, and it currently contains 8 servers. Adding `web-09` directly would bring the count to 9, exceeding the ceiling. Since the platform specification defines this as a hard limit (licensed capacity), directly adding the entry violates the structural constraint. The architectural response (in this case, rotation or replacement) must be applied before or instead of direct addition.
+
+Here are the steps to add `web-09` to the pool:
+
+1.  **Identify a server for removal:** Select one of the existing 8 servers in the `loadbalancer.yaml` pool to remove. This is necessary because the pool is at its maximum licensed capacity (8 servers). Common criteria for selection might include the least utilized server, a server scheduled for maintenance, or a server that is being decommissioned.
+2.  **Drain the selected server:** Initiate the graceful drain process for the selected server. This involves stopping the load balancer from sending new traffic to that server and allowing in-flight requests to complete. This ensures zero downtime and no dropped requests during the transition.
+3.  **Remove the server from the configuration:** Once the selected server is drained and no longer active, edit `loadbalancer.yaml` to remove its entry from the backend pool. This brings the pool count down to 7 servers.
+4.  **Add `web-09` to the configuration:** Edit `loadbalancer.yaml` to add the entry for the new server, `web-09`. This brings the pool count back to 8 servers, which is within the defined ceiling.
+5.  **Validate and reload:** Validate the syntax of the updated `loadbalancer.yaml` file. Then, reload the load balancer configuration to apply the changes. The load balancer will now route traffic to the remaining 7 original servers plus `web-09`.
+6.  **Verify:** Confirm that `web-09` is receiving traffic and that the removed server is no longer part of the active pool. Monitor the health of all 8 servers in the new configuration.

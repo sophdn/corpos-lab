@@ -1,0 +1,58 @@
+Based on the compliance procedure and the provided context, here is the analysis and the resulting checklist.
+
+### Procedural Analysis: Y-fire Confirmation
+
+**Position:** The agent is at the entry point of the "Write v2 Checklist" step. The procedure prescribes working each section from its defined inputs.
+**Precondition:** The prerequisite sub-step is "Review/Verify v2-specific changes against current policy."
+**Context Mismatch (Anachronicity):** The loaded context contains the `v1` checklist (signed off Q1 2025) and a statement that v2 has "no other material changes" regarding scope/controls. However, the loaded context **does not** contain a procedural record of the v2-specific partner-portal pathway being evaluated against the **Q4 2025 Policy Bulletin**.
+**Violation Signal:** If the agent proceeds to fill the checklist based on the v1 checklist and the "unchanged" assertion, it would be treating the loaded context (v1 compliance status) as a sufficient substitute for the required procedural record (verification of v2-specific new pathways against current policy).
+**Resolution:** The sub-step "Verify v2-specific changes against current policy" must be explicitly executed. The v1 checklist cannot be copied forward because the operational frame has changed from "CLI-only export" to "CLI + Partner-Portal export," and a new policy (Q4 2025 Bulletin) has been introduced that applies specifically to this new pathway. The "unchanged" assertion covers data scope/controls, but it does not cover the *procedural requirement* for the new partner pathway defined in the Q4 bulletin.
+
+Therefore, I must generate the checklist by explicitly addressing the v2 additions against the Q4 policy, rather than assuming v1 compliance carries over automatically without that specific verification record.
+
+---
+
+### Action: Write v2 Compliance Checklist
+
+Below is the content for `deployments/data-export-v2/compliance-checklist.md`.
+
+```markdown
+# Data Export v2 Compliance Checklist
+
+**Release:** Data Export v2
+**Deployment Target:** Friday
+**Review Type:** Pre-Deployment Compliance Confirmation
+**Status:** **BLOCKED / ACTION REQUIRED**
+
+## 1. Executive Summary
+Data Export v2 introduces a new partner-portal access path (`POST /v2/data-export/request`) via OAuth. While the core data scope, access controls, and retention policies remain unchanged from v1, the addition of a partner-initiated export pathway triggers specific requirements under the **Compliance Office Q4 2025 Bulletin** (Effective 2025-11-01).
+
+**Critical Finding:** The v1 compliance checklist (Q1 2025) does not account for the "Provenance Stamp" requirement mandated for partner integrations in the Q4 2025 Bulletin. This requirement must be implemented and verified before deployment.
+
+## 2. Control Verification
+
+### 2.1 Data Scope & Retention (Inherited from v1)
+*   **Status:** ✅ CONFIRMED
+*   **Detail:** Spec confirms v2 retains v1 data scope. Retention policies are unchanged.
+*   **Reference:** `deployments/data-export-v1/compliance-checklist.md` (Items 1-3).
+
+### 2.2 Access Controls (Inherited from v1)
+*   **Status:** ✅ CONFIRMED
+*   **Detail:** Core access controls remain pathway-agnostic and unchanged.
+*   **Reference:** `deployments/data-export-v1/compliance-checklist.md` (Item 4).
+
+### 2.3 Partner-Portal Integration (New in v2)
+*   **Status:** ❌ NON-COMPLIANT (Pending Implementation/Verification)
+*   **Requirement Source:** `policy/bulletins/2025-Q4-bulletin.md` — "Data Export Process Update — Partner Integrations".
+*   **Requirement:** Any deployment adding a partner-initiated export pathway must record an additional audit entry — a **Provenance Stamp**.
+*   **Specifics Required:**
+    1.  User's authorization grant ID.
+    2.  Requesting party's identity.
+    3.  Authorization scope.
+    4.  Validity window at time of export.
+    5.  **Implementation Constraint:** Must be written synchronously and **fail closed** if it cannot be assembled.
+*   **Current State:** Spec describes the endpoint and OAuth authentication but does not explicitly detail the Provenance Stamp generation logic or fail-closed behavior.
+*   **Action Required:** Engineering must confirm that the Provenance Stamp logic is implemented in the `POST /v2/data-export/request` handler and that the export request fails if the stamp cannot be generated.
+
+### 2.4 Audit Logging (Updated)
+*   **Status

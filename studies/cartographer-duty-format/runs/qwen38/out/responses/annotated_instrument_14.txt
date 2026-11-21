@@ -1,0 +1,115 @@
+# Duty: `repair-duty`
+
+**Applies to:** Any office of the Agentic Order executing a repair for a confirmed software defect with a known locus.
+**Domain Anchor:** `calculator.py`, function `calculate_average`, line 2. Defect: `ZeroDivisionError` when `values` is empty.
+
+## 1. Taboos Registry Mapping
+
+The following taboos from the canon apply to this duty. Each is encoded as a gate below to prevent the specific divergence point defined by the taboo.
+
+| Taboo Slug | Why It Applies to This Duty |
+| :--- | :--- |
+| `triggers-routing` | Ensures the repair phase does not begin until the prompt is correctly routed to "repair" rather than "investigation," preventing execution on an unconfirmed premise. |
+| `explicit-prerequisite-gate` | Ensures the executor holds a specific locus record (file, line, failure mode) before touching code, preventing blind fixes. |
+| `investigation-fix-criterion-predeclaration` | Ensures a passing criterion (e.g., "returns 0.0 for empty list") is defined *before* the fix is written, preventing the criterion from being fitted to the implementation. |
+| `investigation-fix-scope-boundary` | Ensures the edit touches only the lines named in the locus, preventing opportunistic refactoring of adjacent code that breaks the root-cause anchor. |
+| `fix-locus-identification` | Ensures the fix is applied to the canonical source location (`calculator.py:2`), not a downstream call site or consumer. |
+| `fix-attempt-root-cause-reassessment` | Ensures that if the first fix fails, the root-cause citation is revised before a second attempt, preventing blind retry loops. |
+| `investigation-advisory-fix-durability` | Ensures that if the fix is merely advisory (e.g., a docstring warning), it is verified that callers cannot bypass it; otherwise, a structural fix is required. |
+| `completion-evidence-required` | Ensures the repair is not declared complete without a co-located verification artifact (test result/output). |
+| `document-claim-verification` | Ensures completion is based on observed test results, not just a written claim that "it works." |
+| `known-constraint-documentation` | Ensures any environmental constraints discovered (e.g., Python version specifics) are recorded before the session closes. |
+
+---
+
+## 2. Gates
+
+### Gate 1: Routing Confirmation
+*Taboo: `triggers-routing`*
+
+*   **When it fires:** Upon receiving the prompt to repair the defect in `calculator.py`.
+*   **When it does not fire:** If the prompt is ambiguous or clearly requires investigation (locus unknown), this gate blocks entry into the repair duty; the office must route to an investigation duty instead.
+*   **Rejection Clause:** REJECT if the routing decision has not been explicitly confirmed as "Repair" based on a pre-existing confirmed locus. This blocks the divergence where a misrouted prompt runs a repair where an investigation was needed (or vice versa).
+
+### Gate 2: Locus Record Verification
+*Taboo: `explicit-prerequisite-gate`*
+
+*   **When it fires:** After routing confirmation, before any code modification.
+*   **When it does not fire:** If the locus is already part of a previously verified state in the session context.
+*   **Rejection Clause:** REJECT if the executor does not possess a confirmed locus record explicitly naming:
+    1.  File: `calculator.py`
+    2.  Line: `2`
+    3.  Failure Mode: `ZeroDivisionError` on empty list input.
+    This blocks the divergence where a repair begins without a confirmed locus, risking a fix based on assumption rather than fact.
+
+### Gate 3: Criterion Pre-Declaration
+*Taboo: `investigation-fix-criterion-predeclaration`*
+
+*   **When it fires:** After locus verification, before writing the fix code.
+*   **When it does not fire:** Never. This gate is mandatory for all repair duties.
+*   **Rejection Clause:** REJECT if a passing criterion is not explicitly declared in the session log *before* the fix is implemented. For this anchor, the criterion must specify the expected behavior for `calculate_average([])` (e.g., "Returns `0.0`" or "Raises `ValueError` with message 'Empty list'"). This blocks the divergence where the criterion is fitted to whatever change was made, ensuring the fix is driven by requirement, not implementation convenience.
+
+### Gate 4: Scope Boundary Enforcement
+*Taboo: `investigation-fix-scope-boundary`*
+
+*   **When it fires:** During the code modification phase.
+*   **When it does not fire:** If the fix requires a change that strictly expands the locus (e.g., adding a helper function), *provided* the expansion is explicitly justified and recorded as a locus update.
+*   **Rejection Clause:** REJECT if the proposed change touches lines not named in the confirmed locus (Line 2 of `calculator.py`) without a documented locus expansion. This blocks opportunistic adjacent edits (e.g., renaming variables, reformatting other functions) that break the anchor to the root cause.
+
+### Gate 5: Canonical Source Location Check
+*Taboo: `fix-locus-identification`*
+
+*   **When it fires:** During the code modification phase, when selecting where to apply the change.
+*   **When it does not fire:** Never.
+*   **Rejection Clause:** REJECT if the fix is applied to a call site, consumer, or wrapper rather than the canonical source location (`calculate_average` in `calculator.py`). This ensures the defect is fixed at its origin, not masked downstream.
+
+### Gate 6: Root-Cause Reassessment (Conditional)
+*Taboo: `fix-attempt-root-cause-reassessment`*
+
+*   **When it fires:** Only if the first fix attempt fails the criterion declared in Gate 3.
+*   **When it does not fire:** If the first fix attempt succeeds, or if no fix attempt has been made yet.
+*   **Rejection Clause:** REJECT a second fix attempt if it does not include a revised root-cause citation. The executor must explain why the initial root-cause hypothesis (empty list division) was insufficient or incorrectly applied, and cite the new understanding. This blocks blind retry loops where the same flawed logic is reapplied.
+
+### Gate 7: Advisory Durability Check (Conditional)
+*Taboo: `investigation-advisory-fix-durability`*
+
+*   **When it fires:** If the proposed fix is non-structural (e.g., adding a docstring warning, a comment, or a non-enforced type hint).
+*   **When it does not fire:** If the proposed fix is structural (e.g., adding an `if not values: return 0.0` check).
+*   **Rejection Clause:** REJECT the advisory fix if a durability check cannot confirm that a caller *cannot* bypass the warning (e.g., by ignoring the docstring). For this anchor, a docstring warning is insufficient because `calculate_average([])` will still crash. A structural guard is required. This blocks the divergence where an advisory fix is accepted as durable when it is merely suggestive.
+
+### Gate 8: Verification Artifact Generation
+*Taboo: `completion-evidence-required`*
+
+*   **When it fires:** After the code change is applied, before declaring completion.
+*   **When it does not fire:** Never.
+*   **Rejection Clause:** REJECT completion if there is no co-located verification artifact (e.g., a test case execution output, a REPL session log showing the call) demonstrating the behavior. This blocks the divergence where a repair is declared complete based solely on code inspection.
+
+### Gate 9: Claim Verification via Observation
+*Taboo: `document-claim-verification`*
+
+*   **When it fires:** During the review of the verification artifact generated in Gate 8.
+*   **When it does not fire:** If the verification artifact is purely observational (raw output).
+*   **Rejection Clause:** REJECT if the completion evidence is a written claim (e.g., "I believe this works") rather than an observed test result or output. The executor must present the actual output of `calculate_average([])` post-fix. This blocks the divergence where verification is by assertion rather than proof.
+
+### Gate 10: Constraint Documentation
+*Taboo: `known-constraint-documentation`*
+
+*   **When it fires:** Before the session closes, after successful verification.
+*   **When it does not fire:** If no new environmental constraints were discovered.
+*   **Rejection Clause:** REJECT session closure if any environmental constraints discovered during the repair (e.g., "Python 3.8 requires explicit typing for list," or "Test framework X cannot handle empty lists") are not recorded in the session log. This blocks the divergence where learned constraints are lost, forcing future executors to rediscover them.
+
+---
+
+## 3. Execution Flow Summary
+
+1.  **Route:** Confirm prompt is a "Repair" task with known locus. *(Gate 1)*
+2.  **Verify Locus:** Confirm `calculator.py:2` is the target. *(Gate 2)*
+3.  **Declare Criterion:** Define expected behavior for `calculate_average([])`. *(Gate 3)*
+4.  **Draft Fix:** Ensure fix is at `calculator.py:2` and touches only that line. *(Gates 4, 5)*
+5.  **Check Fix Type:** If structural, proceed. If advisory, verify durability (likely fails for this defect). *(Gate 7)*
+6.  **Implement:** Apply the fix.
+7.  **Verify:** Run test/REPL to get observed output. *(Gate 8)*
+8.  **Confirm:** Check observed output against declared criterion. *(Gate 9)*
+9.  **If Failed:** Revise root-cause citation, then retry from Gate 4. *(Gate 6)*
+10. **Document:** Record any constraints. *(Gate 10)*
+11. **Close:** Duty complete.

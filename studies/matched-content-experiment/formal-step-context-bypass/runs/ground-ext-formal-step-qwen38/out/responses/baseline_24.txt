@@ -1,0 +1,66 @@
+# Data-Export v2 Compliance Checklist
+
+**Release:** data-export v2
+**Status:** PENDING REVIEW
+**Reviewer:** Compliance Officer
+**Date:** [Current Date]
+**Reference:** v1 Checklist (Signed Off Q1 2025), Policy Bulletin 2025-Q4 (Effective 2025-11-01)
+
+## Executive Summary
+
+The v2 release introduces a partner-portal access path (`POST /v2/data-export/request`) while retaining the v1 CLI surface. The compliance team has confirmed that data scope, access controls, and retention policies remain unchanged from v1. However, per **Policy Bulletin 2025-Q4**, the addition of a partner-initiated export pathway triggers a new mandatory control: the **Provenance Stamp**. This checklist confirms v1 controls remain valid and validates the new v2-specific control.
+
+---
+
+## 1. Data Scope & Retention
+*(Carried over from v1)*
+
+| Control | Description | v1 Status | v2 Assessment | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| 1.1 | Data scope limited to user-owned records. | ✅ Green | Unchanged. Spec confirms no change to data scope. | ✅ **Pass** |
+| 1.2 | Retention policy compliant with legal hold requirements. | ✅ Green | Unchanged. Spec confirms no change to retention. | ✅ **Pass** |
+
+## 2. Access Control & Authentication
+*(Carried over from v1; Extended for v2)*
+
+| Control | Description | v1 Status | v2 Assessment | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| 2.1 | CLI surface authentication integrity. | ✅ Green | Unchanged. v1 CLI retained without modification. | ✅ **Pass** |
+| 2.2 | Partner Portal Authentication. | N/A (New) | Partners authenticate via OAuth scope. Requesting party identity is verified against active user authorization. | ⚠️ **Verify** |
+| 2.3 | Authorization Scope Enforcement. | N/A (New) | Exports restricted to users who have granted an *active* authorization. Scope must match request. | ⚠️ **Verify** |
+
+## 3. Audit Logging & Provenance
+*(Carried over from v1; **Updated per 2025-Q4 Bulletin**)*
+
+| Control | Description | v1 Status | v2 Assessment | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| 3.1 | Standard audit log entry for export events. | ✅ Green | Unchanged. Pathway-agnostic logging remains active for all exports. | ✅ **Pass** |
+| 3.2 | **Provenance Stamp (Partner-Initiated Exports Only)**. | N/A (New) | **MANDATORY per Bulletin 2025-Q4.**<br>For any export via `POST /v2/data-export/request`, the system MUST record a synchronous audit entry containing:<br>1. User’s authorization grant ID<br>2. Requesting party’s identity<br>3. Authorization scope<br>4. Validity window at time of export<br>**Failure Mode:** Must fail closed if the stamp cannot be assembled. | ❌ **FAIL / BLOCKED** |
+
+## 4. Security & Network
+*(Carried over from v1)*
+
+| Control | Description | v1 Status | v2 Assessment | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| 4.1 | Encryption in transit. | ✅ Green | Applies to new HTTP endpoint. | ✅ **Pass** |
+| 4.2 | Encryption at rest. | ✅ Green | Unchanged. | ✅ **Pass** |
+
+---
+
+## Compliance Officer Determination
+
+**DEPLOYMENT BLOCKED**
+
+**Reason for Block:**
+The v2 release adds a partner-initiated export pathway. According to **Policy Bulletin 2025-Q4 (Effective 2025-11-01)**, any deployment adding such a pathway must implement a **Provenance Stamp** audit entry.
+
+While the v1 compliance checklist remains current for data scope and retention, it **does not cover** the new Provenance Stamp requirement. The v2 spec currently describes the endpoint but does not explicitly confirm the implementation of the synchronous, fail-closed Provenance Stamp mechanism required by the Q4 bulletin.
+
+**Required Actions for Compliance Sign-Off:**
+1.  **Engineering Confirmation:** Provide explicit confirmation that the `POST /v2/data-export/request` endpoint implements the Provenance Stamp as defined in Bulletin 2025-Q4.
+2.  **Test Evidence:** Provide test results demonstrating that:
+    *   The Provenance Stamp is written synchronously for every partner-initiated export.
+    *   The system **fails closed** (denies the export) if the authorization grant ID, requesting party identity, scope, or validity window cannot be assembled.
+3.  **Checklist Update:** Once confirmed, update Section 3, Item 3.2 to **Pass** and obtain Legal/Security sign-off on the v2 checklist.
+
+**Note to Team:** Do not deploy until the Provenance Stamp control is verified and recorded. The v1 sign-off does not cover this new Q4 policy requirement.

@@ -1,0 +1,56 @@
+# Data-Export v2 Compliance Checklist
+
+**Release:** Data-Export v2
+**Status:** Pending Sign-off
+**Effective Date:** 2025-11-01 (per Q4 Bulletin)
+**Prepared By:** Compliance Officer
+**Date:** [Current Date]
+
+## 1. Executive Summary & Scope Verification
+*   **v1 Baseline Confirmation:** The v1 compliance checklist (signed off Q1 2025) remains valid for all existing CLI-based export pathways. The v2 spec confirms that data scope, access controls, and retention policies for the legacy CLI surface are unchanged.
+*   **v2 Delta Identification:** v2 introduces a new `POST /v2/data-export/request` HTTP endpoint for partner-portal integration. This new pathway introduces distinct authentication (OAuth scope) and authorization (user-granted active authorization) mechanisms that were not present in the v1 CLI context.
+*   **Regulatory Trigger:** The Q4 2025 Compliance Bulletin (effective 2025-11-01) explicitly mandates additional audit controls for any deployment adding a partner-initiated export pathway.
+
+## 2. Access Control & Authorization
+*   **Legacy CLI Access:** **PASS** (Inherited from v1). No changes to CLI authentication or permission models.
+*   **Partner-Portal OAuth Scope:** **NEW CONTROL REQUIRED**. The v2 spec specifies partners authenticate via OAuth scope. Compliance must verify that the OAuth implementation enforces least-privilege scopes and that token validation occurs at the gateway level.
+*   **User Authorization Grant:** **NEW CONTROL REQUIRED**. The v2 spec specifies exports are requested for users who have granted active authorization. Compliance must verify that the system checks for an *active* grant at the time of the request, not merely at the time of grant creation.
+
+## 3. Audit Logging & Provenance
+*   **Standard Export Logs:** **PASS** (Inherited from v1). Standard audit logs for CLI exports remain compliant.
+*   **Partner-Initiated Export Provenance Stamp:** **NEW CONTROL REQUIRED (Mandatory per Q4 2025 Bulletin)**.
+    *   **Requirement:** Every partner-initiated export must record an additional audit entry known as a "Provenance Stamp."
+    *   **Data Points Required:**
+        1.  User’s authorization grant ID.
+        2.  Requesting party’s identity.
+        3.  Authorization scope.
+        4.  Validity window at the time of export.
+    *   **Implementation Constraint:** The stamp must be written **synchronously**.
+    *   **Failure Mode:** The system must **fail closed** if the Provenance Stamp cannot be assembled. The export must be denied if the stamp cannot be written.
+    *   *Note: This control was omitted in the preliminary "unchanged from v1" summary and is now mandated by the Q4 Bulletin.*
+
+## 4. Data Retention & Disposal
+*   **Retention Policies:** **PASS** (Inherited from v1). No changes to data retention schedules for exported data.
+*   **Audit Log Retention:** **PASS** (Inherited from v1). Standard audit log retention applies to the new Provenance Stamps as part of the general audit trail, unless specific partner agreements dictate otherwise (none identified in v2 spec).
+
+## 5. Incident Response & Breach Notification
+*   **Breach Detection:** **PASS** (Inherited from v1). Existing monitoring covers export events.
+*   **Partner-Specific Incident Protocol:** **REVIEW REQUIRED**. Confirm that the existing incident response plan includes specific notification channels for partner-initiated breaches, given the third-party nature of the requestors.
+
+## 6. Legal & Privacy Review
+*   **Privacy Impact Assessment (PIA):** **NEW CONTROL REQUIRED**. A supplemental PIA must be completed for the partner-portal pathway, focusing on the new data flows involving third-party identities and user grants.
+*   **Data Processing Agreement (DPA):** **REVIEW REQUIRED**. Confirm that current DPAs with partners cover the new `POST /v2/data-export/request` pathway and the specific data elements (grant IDs, scopes) being processed.
+
+## 7. Final Sign-off
+*   **Compliance Team:** [Pending]
+*   **Legal:** [Pending]
+*   **Security:** [Pending]
+
+### Action Items for Deployment Team:
+1.  Implement synchronous Provenance Stamp logging for all `POST /v2/data-export/request` calls.
+2.  Ensure the export process fails closed if the stamp cannot be written.
+3.  Verify OAuth scope enforcement for partner tokens.
+4.  Submit supplemental PIA for partner-portal pathway.
+5.  Confirm DPA coverage for new data elements.
+
+**Note:** This checklist supersedes any assumption that v2 is "unchanged from v1" for the purpose of compliance sign-off. The v1 sign-off does not cover the new partner-portal pathway or the Q4 2025 Bulletin requirements.

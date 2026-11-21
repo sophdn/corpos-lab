@@ -1,0 +1,149 @@
+# Duty: repair-duty
+
+**Jurisdiction:** Agentic Order
+**Scope:** Repair of a confirmed software defect with a known locus.
+**Executor Constraint:** The executor possesses only this duty text and the defect context. No external registries, canons, or runtime lookups are permitted or required.
+
+---
+
+## Preamble: The Nature of the Act
+
+The act of repair is a transformation of a state (broken code) into a state (correct code). It is not a discovery act; the locus is already known. It is not an investigation act; the defect is already confirmed. Therefore, the primary risks to the executor are not "finding the bug" or "deciding if a bug exists," but rather:
+1.  **Scope Creep:** Changing more than the defect requires.
+2.  **Semantic Drift:** Solving the immediate error while breaking the intended contract of the function.
+3.  **Verification Failure:** Assuming the fix works without proof.
+4.  **Procedural Misalignment:** Treating the repair as a new feature or a refactoring opportunity.
+5.  **Session Hygiene:** Leaving the workspace in a state where the repair is not auditable or the session is not cleanly closed.
+
+This duty encodes these risks as structural gates.
+
+---
+
+## Phase 1: Routing Confirmation (Upstream Hazard)
+
+*This phase addresses the meta-taboo scan for **Routing-Class Hazards**. It verifies that the current situation legitimately requires a repair, not a different class of work.*
+
+### Gate 1.1: Locus Validity Check
+**Verifies:** That the "known locus" provided in the context is a valid, singular point of failure that matches the described defect behavior.
+**Completion Requirement:**
+1.  Identify the specific line and function referenced in the defect report (e.g., `calculator.py:2`, `calculate_average`).
+2.  Trace the execution path to that line using only the provided code context.
+3.  Confirm that the error described (e.g., `ZeroDivisionError`) is mechanically capable of occurring at that exact line under the stated input conditions (e.g., `values=[]`).
+4.  **If the locus is ambiguous, missing, or the error cannot be mechanistically linked to that line:** Abort this duty. The situation is not a "confirmed defect with a known locus." It requires an *Investigation Duty*, not a *Repair Duty*. Do not proceed.
+
+### Gate 1.2: Work-Mode Exclusion
+**Verifies:** That the required action is strictly a "repair" (minimal change to restore expected behavior) and not a "refactor," "feature," or "rearchitect."
+**Completion Requirement:**
+1.  State the expected behavior of the function based on its signature and name (e.g., `calculate_average` should return the mean of `values`).
+2.  Determine if the defect is a violation of that expected behavior.
+3.  **If the "fix" requires changing the function's signature, adding new parameters, or altering the public API to avoid the error:** Abort this duty. The situation requires a *Design Duty* or *API Change Duty*. A repair must not alter the contract.
+4.  **If the "fix" requires restructuring surrounding code unrelated to the immediate defect:** Abort this duty. The situation requires a *Refactoring Duty*.
+
+---
+
+## Phase 2: Pre-Change Establishment
+
+*This phase addresses first-principles hazards: establishing a baseline before mutation.*
+
+### Gate 2.1: Baseline Snapshot
+**Verifies:** That the exact current state of the defective code is recorded before any modification.
+**Completion Requirement:**
+1.  Copy the exact code block containing the defect.
+2.  Record the input condition that triggers the defect (e.g., `values=[]`).
+3.  Record the observed error (e.g., `ZeroDivisionError`).
+4.  **Completion is invalid if** the baseline is described vaguely (e.g., "the function crashes on empty lists") rather than mechanically (e.g., `sum([]) / len([])` evaluates to `0 / 0`).
+
+### Gate 2.2: Contract Definition
+**Verifies:** That the intended behavior for *all* valid inputs is explicitly defined, not just for the defective input.
+**Completion Requirement:**
+1.  Define the expected return value for the defective input. (e.g., Should `calculate_average([])` return `0.0`, `None`, raise a custom exception, or raise `ZeroDivisionError`? *Note: In strict mathematical contexts, the average of an empty set is undefined. However, in software, a defensive return of `0.0` or `None` is common. The executor must choose the minimal semantic shift that restores utility without breaking existing valid calls.*)
+2.  Define the expected behavior for a valid non-empty input (e.g., `values=[1, 2]` returns `1.5`).
+3.  **Completion is invalid if** the contract is not explicitly stated in text.
+
+---
+
+## Phase 3: The Repair Act
+
+*This phase addresses first-principles hazards: minimalism and semantic preservation.*
+
+### Gate 3.1: Minimal Mutation
+**Verifies:** That the code change is the smallest possible diff required to satisfy the Contract Definition.
+**Completion Requirement:**
+1.  Propose the new code.
+2.  Compare the proposed code to the Baseline Snapshot.
+3.  **Constraint:** The change must not rename variables, reformat unrelated lines, or add comments unless they are necessary to explain the new logic.
+4.  **Constraint:** The change must not introduce new dependencies or imports if the fix can be achieved with standard library logic already in scope.
+5.  **If the proposed change alters any line that is not directly involved in the division by zero or the handling of the empty list:** Reject the change. Re-evaluate for a smaller diff.
+
+### Gate 3.2: Semantic Consistency Check
+**Verifies:** That the fix does not break the behavior for valid inputs.
+**Completion Requirement:**
+1.  Manually trace the new code with a valid input (e.g., `values=[1, 2, 3]`).
+2.  Confirm the output matches the Baseline behavior for that input.
+3.  Manually trace the new code with the defective input (e.g., `values=[]`).
+4.  Confirm the output matches the Contract Definition.
+5.  **Completion is invalid if** any trace yields an unexpected result.
+
+---
+
+## Phase 4: Verification
+
+*This phase addresses first-principles hazards: proof of completion.*
+
+### Gate 4.1: Dual-Path Validation
+**Verifies:** That the code behaves correctly for both the defective case and the regression case.
+**Completion Requirement:**
+1.  Write a pseudo-code test block that asserts:
+    *   `calculate_average([])` returns the value defined in Gate 2.2.
+    *   `calculate_average([1, 2])` returns `1.5`.
+2.  Simulate execution of these assertions against the new code.
+3.  **Completion is invalid if** the executor relies on "it looks right" rather than a traced simulation.
+
+### Gate 4.2: Edge-Case Scan
+**Verifies:** That the fix does not introduce new failure modes.
+**Completion Requirement:**
+1.  Consider adjacent edge cases:
+    *   `values` containing non-numeric types.
+    *   `values` being `None`.
+    *   `values` being a single element.
+2.  Confirm that the new code handles these cases *no worse* than the baseline code. (Note: If the baseline crashed on `None`, the fix does not need to fix `None`, but it must not make `None` handling *worse* if it was previously working, or introduce a new crash path that wasn't there before.)
+3.  **If the fix introduces a new crash for an input that previously worked:** Reject the fix.
+
+---
+
+## Phase 5: Session Close & Hygiene (Downstream Hazard)
+
+*This phase addresses the meta-taboo scan for **Session-Close-Obligation Hazards**.*
+
+### Gate 5.1: Residual Artifact Check
+**Verifies:** That no temporary debugging code, print statements, or commented-out baseline code remains in the final artifact.
+**Completion Requirement:**
+1.  Review the final code block.
+2.  **If any line is present that is not part of the minimal, functional fix:** Remove it.
+3.  **If the final code contains a `pass`, `print`, or `# TODO`:** Abort. The repair is incomplete.
+
+### Gate 5.2: Discovery Recording
+**Verifies:** That any unexpected findings during the repair are recorded for the session log.
+**Completion Requirement:**
+1.  Review the execution of Phases 1–4.
+2.  **If the executor discovered that the "known locus" was incorrect:** Record this discrepancy. The duty should have aborted at Gate 1.1, but if it proceeded, the discrepancy must be flagged.
+3.  **If the executor discovered a secondary defect in the same function:** Record it. Do *not* fix it in this duty. The session close record must state: "Secondary defect observed at [location]. Requires separate repair duty."
+4.  **If the executor had to make a semantic choice in Gate 2.2 (e.g., `None` vs `0.0`):** Record the rationale. The session close record must state: "Semantic choice made: [Choice]. Rationale: [Rationale]. Requires stakeholder confirmation if API contract is strict."
+
+### Gate 5.3: Final State Declaration
+**Verifies:** That the session ends with a clear, auditable statement of the final code.
+**Completion Requirement:**
+1.  Output the final, corrected code block.
+2.  Output the "Session Close Record" containing:
+    *   Confirmation that Gate 1.1 (Locus Validity) passed.
+    *   Confirmation that Gate 3.1 (Minimal Mutation) passed.
+    *   Any records from Gate 5.2.
+3.  **The duty is complete only when this final state is declared.** No further action is taken after this gate.
+
+---
+
+## Executor Notes
+
+1.  **No External Canon:** You are not to reference style guides, team conventions, or external libraries. The "canon" is the minimal, correct behavior of the specific function provided.
+2.  **Silence is Not Consent:** If you are unsure about the expected behavior for an empty list (Gate 2.2), you must choose the *least invasive* option that prevents the crash (usually returning `0.0` or `None`) and record the choice in Gate 5.2. You are not to guess if a specific business rule applies without evidence.
+3.  **Abortion is a Success:** Aborting at Gate 1.1 or 1.2 is a correct outcome if the situation does not fit the "repair" profile. Do not force a repair where it does not belong.

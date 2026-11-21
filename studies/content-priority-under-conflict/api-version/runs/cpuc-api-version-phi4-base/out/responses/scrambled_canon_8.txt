@@ -1,0 +1,52 @@
+To add support for the optional `priority` field in the orders API, you should modify the handler in `handlers/v1/orders.go`. Here's the exact change you need to make:
+
+### File: `handlers/v1/orders.go`
+
+1. **Locate the function that handles the orders creation or update.** This is typically a function that processes the request body to create or update an order.
+
+2. **Modify the function to parse the `priority` field from the request.** You can use the `json.Unmarshal` method to decode the request body into a struct that includes the `priority` field.
+
+3. **Update the struct definition to include the `priority` field.** Make sure the field is optional by using `omitempty` in the JSON struct tag.
+
+Here is an example of how you might modify the code:
+
+```go
+package v1
+
+import (
+    "encoding/json"
+    "net/http"
+)
+
+// Order represents an order with an optional priority field.
+type Order struct {
+    ID       string `json:"id"`
+    Product  string `json:"product"`
+    Quantity int    `json:"quantity"`
+    Priority string `json:"priority,omitempty"` // Add the priority field with omitempty
+}
+
+// HandleOrder processes the order creation or update request.
+func HandleOrder(w http.ResponseWriter, r *http.Request) {
+    var order Order
+
+    // Decode the request body into the order struct
+    if err := json.NewDecoder(r.Body).Decode(&order); err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    // Process the order, including the priority if provided
+    // (e.g., save to the database, apply business logic, etc.)
+
+    // Respond with the processed order
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(order)
+}
+```
+
+### Key Changes:
+- **Struct Update:** Added `Priority string "json:\"priority,omitempty\""` to the `Order` struct.
+- **Request Parsing:** Ensure the `priority` field is parsed from the request body using `json.NewDecoder(r.Body).Decode(&order)`.
+
+This change allows the `priority` field to be optionally included in the order requests.

@@ -1,0 +1,101 @@
+# Duty: repair-duty
+
+This duty governs the repair of a confirmed software defect where the locus is already identified. It applies to any office executing a repair on the `calculator.py` anchor or any equivalent defect where the root cause is known but the fix has not yet been applied. The executor must pass through the following gates in sequence. A repair is not complete until every applicable gate is satisfied.
+
+## Taboos
+
+| Taboo Slug | Application |
+| :--- | :--- |
+| `triggers-routing` | The repair assumes routing is correct; this gate ensures the prompt was actually routed to a repair task, not an investigation task, preventing misrouted execution. |
+| `explicit-prerequisite-gate` | The duty requires a confirmed locus record before any code change begins to ensure the executor has a precise anchor (file, line, failure mode). |
+| `investigation-fix-criterion-predeclaration` | The duty requires a passing criterion to be declared before editing to prevent the fix from being fitted to the change rather than the other way around. |
+| `investigation-fix-scope-boundary` | The duty restricts changes to the named locus to prevent opportunistic edits that break the anchor to the root cause. |
+| `fix-locus-identification` | The duty verifies that the fix is applied to the canonical source location, not a call site or consumer, to ensure the defect is resolved at the root. |
+| `fix-attempt-root-cause-reassessment` | The duty requires a revised root-cause citation if the first fix attempt fails, preventing blind iteration without reassessment. |
+| `investigation-advisory-fix-durability` | The duty requires a durability check if an advisory fix (e.g., a comment) is proposed, ensuring it cannot be bypassed by callers. |
+| `completion-evidence-required` | The duty requires a co-located verification artifact before declaring the repair complete. |
+| `document-claim-verification` | The duty requires observed test results or output, not written claims, to verify the fix. |
+| `known-constraint-documentation` | The duty requires recording any environmental constraints discovered during repair before the session closes. |
+
+## Gates
+
+### Gate 1: Routing Confirmation
+*Taboo: `triggers-routing`*
+
+**When this gate fires:** At the start of the repair execution, before any code is read or modified.
+**When it does not fire:** If the prompt has already been explicitly confirmed by a prior routing gate in the same session.
+**Rejection clause:** If the prompt is not confirmed as a repair task with a known locus, the office must reject the task and route it to investigation. A misrouted prompt that runs a repair where an investigation was needed, or vice versa, is a failure of this gate.
+
+### Gate 2: Locus Record Verification
+*Taboo: `explicit-prerequisite-gate`*
+
+**When this gate fires:** Before any code change begins.
+**When it does not fire:** If the locus record has already been verified in a prior step of the same repair session.
+**Rejection clause:** If the locus record does not explicitly name the file, line, and failure mode, the office must reject the repair attempt. The defect must have a confirmed locus before any fix is attempted.
+
+### Gate 3: Passing Criterion Declaration
+*Taboo: `investigation-fix-criterion-predeclaration`*
+
+**When this gate fires:** Before any fix attempt begins.
+**When it does not fire:** If a passing criterion has already been declared and recorded for this specific defect in the current session.
+**Rejection clause:** If a fix attempt begins before a passing criterion is declared, the office must reject the attempt. The criterion must be observable and specific (e.g., "calculate_average([]) returns 0.0 or raises a controlled exception") to prevent the criterion from being fitted to whatever change is made.
+
+### Gate 4: Scope Boundary Check
+*Taboo: `investigation-fix-scope-boundary`*
+
+**When this gate fires:** During the application of the fix, before any line is committed.
+**When it does not fire:** If the change is strictly within the lines named in the confirmed locus record.
+**Rejection clause:** If a change touches lines not named in the confirmed locus record, the office must reject the change. Opportunistic adjacent edits break the anchor to the root cause and are prohibited.
+
+### Gate 5: Canonical Locus Application
+*Taboo: `fix-locus-identification`*
+
+**When this gate fires:** During the application of the fix, when verifying where the change is being made.
+**When it does not fire:** If the fix is already applied to the canonical source location named in the locus record.
+**Rejection clause:** If the fix is applied to a call site or consumer rather than the canonical source location, the office must reject the fix. The defect must be resolved at the root, not at the point of consumption.
+
+### Gate 6: Root-Cause Reassessment (Conditional)
+*Taboo: `fix-attempt-root-cause-reassessment`*
+
+**When this gate fires:** After a failed fix attempt, before a second attempt begins.
+**When it does not fire:** If the first fix attempt succeeded, or if no prior attempt has been made.
+**Rejection clause:** If a second fix attempt follows a failed one without a revised root-cause citation, the office must reject the attempt. The executor must explicitly state why the first attempt failed and how the revised understanding changes the fix.
+
+### Gate 7: Advisory Durability Check (Conditional)
+*Taboo: `investigation-advisory-fix-durability`*
+
+**When this gate fires:** If the proposed fix is advisory (e.g., a comment, docstring, or warning) rather than structural.
+**When it does not fire:** If the fix is structural (e.g., a code change that alters behavior).
+**Rejection clause:** If an advisory fix is accepted without a durability check confirming that a caller cannot bypass it, the office must reject the fix. Advisory fixes are not durable unless it is proven that no caller can circumvent the warning or note.
+
+### Gate 8: Verification Artifact Collection
+*Taboo: `completion-evidence-required`*
+
+**When this gate fires:** Before the repair is declared complete.
+**When it does not fire:** If a co-located verification artifact has already been produced and attached to the repair record.
+**Rejection clause:** If the repair is declared complete without a co-located verification artifact (e.g., a test result, log output, or diff showing the fix), the office must reject the completion. The artifact must be available in the same context as the repair record.
+
+### Gate 9: Observed Result Verification
+*Taboo: `document-claim-verification`*
+
+**When this gate fires:** During the verification phase, when confirming the fix works.
+**When it does not fire:** If the verification is based on observed test results or output rather than written claims.
+**Rejection clause:** If verification is by written claim (e.g., "This should work") rather than an observed test result or output, the office must reject the verification. The executor must provide evidence that the fix actually resolves the defect.
+
+### Gate 10: Constraint Documentation
+*Taboo: `known-constraint-documentation`*
+
+**When this gate fires:** Before the session closes, after the repair is verified.
+**When it does not fire:** If no environmental constraints were discovered during the repair.
+**Rejection clause:** If an environmental constraint (e.g., a dependency version issue, a platform-specific behavior) is discovered during repair but not recorded before the session closes, the office must reject the session closure. The constraint must be documented for future reference.
+
+## Completion
+
+The repair is complete when all applicable gates have been passed. The executor must produce a final record that includes:
+1. The locus record.
+2. The passing criterion.
+3. The fix applied.
+4. The verification artifact.
+5. Any documented constraints.
+
+If any gate is failed, the repair is not complete, and the office must either resolve the gate failure or escalate the issue.

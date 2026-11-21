@@ -1,0 +1,112 @@
+I'll begin work on DEF-2026-04-1047.
+
+## Ticket: DEF-2026-04-1047
+
+**Summary:** `config-validator --service auth` exits 0 for a malformed `auth_service_url` instead of exiting 1.
+
+**Root cause:** `validate_url_field()` in `config/validator.py` only checks presence and non-emptiness — it does not validate URL structure.
+
+---
+
+## Analysis
+
+The current behavior:
+- `validate_url_field()` returns "valid" if the field exists and is non-empty.
+- A malformed value like `not a url`, `http://`, `://missing-scheme`, `auth@host` (no scheme), or `http:///` passes validation.
+- The validator then exits 0, which is incorrect.
+
+Expected behavior:
+- A structurally invalid URL → validator exits 1.
+- A well-formed URL (e.g., `https://auth.internal:443/token`) → validator exits 0.
+
+---
+
+## Proposed Fix
+
+In `config/validator.py`, update `validate_url_field()` to perform structural validation of the URL. The cleanest approach is to use Python's `urllib.parse` to parse and verify the URL has a scheme and a netloc (host). Here is the change:
+
+```python
+# config/validator.py
+
+from urllib.parse import urlparse
+
+
+def validate_url_field(value: str) -> bool:
+    """
+    Validate that a URL field is structurally well-formed.
+
+    Returns True if the URL is valid, False otherwise.
+    """
+    if not value or not isinstance(value, str):
+        return False
+
+    # Strip whitespace (common in config files with trailing spaces)
+    value = value.strip()
+
+    if not value:
+        return False
+
+    parsed = urlparse(value)
+
+    # Require both a scheme and a netloc (host)
+    if not parsed.scheme or not parsed.netloc:
+        return False
+
+    # Reject schemes that are not valid for service URLs
+    if parsed.scheme not in ("http", "https"):
+        return False
+
+    return True
+```
+
+### How the caller uses it
+
+The calling code in the validator (wherever `--service auth` invokes validation) should check the return value and exit 1 on failure:
+
+```python
+# In the service validation path:
+if not validate_url_field(config.get("auth_service_url", "")):
+    print("ERROR: auth_service_url is malformed or missing", file=sys.stderr)
+    sys.exit(1)
+```
+
+---
+
+## Acceptance Criteria Verification
+
+| Scenario | Input | Expected exit | Behavior after fix |
+|---|---|---|---|
+| Valid HTTPS URL | `https://auth.internal:443/token` | 0 | `urlparse` → scheme=`https`, netloc=`auth.internal:443` → **passes** → exit 0 |
+| Valid HTTP URL | `http://localhost:8080` | 0 | scheme=`http`, netloc=`localhost:8080` → **passes** → exit 0 |
+| Missing field | `""` or key absent | 1 | empty string → **fails** → exit 1 |
+| No scheme | `auth.internal/token` | 1 | scheme=`""` → **fails** → exit 1 |
+| Scheme but no host | `https://` | 1 | netloc=`""` → **fails** → exit 1 |
+| Garbage value | `not a url` | 1 | scheme=`""` → **fails** → exit 1 |
+| Malformed protocol | `ftp://auth.internal` | 1 | scheme=`ftp` not in allowed set → **fails** → exit 1 |
+| Trailing whitespace | `https://auth.internal ` | 0 | stripped before parse → **passes** → exit 0 |
+
+---
+
+## Edge Cases Considered
+
+1. **Whitespace-padded values:** Stripped before parsing. Common in YAML/INI config files.
+2. **Non-string values** (e.g., `null`, integer): Guarded by `isinstance` check.
+3. **Ports and paths:** `urlparse` handles these correctly; only scheme and netloc are required for structural validity.
+4. **Scheme restriction:** Limited to `http`/`https`. If the team supports other schemes (e.g., `grpc`), the allowlist should be extended, but for an `auth_service_url` in a standard config validator, `http`/`https` is the correct default.
+5. **IDN / IPv6 hosts:** `urlparse` handles `[::1]` and punycode correctly via the netloc check.
+
+---
+
+## Risks / Notes
+
+- **Backward compatibility:** Previously-valid configs with malformed URLs (that were silently accepted) will now fail. This is the intended behavior per the ticket. If any existing service configs contain malformed URLs, they should be fixed as part of this change or flagged during rollout.
+- **No new dependencies:** Uses only `urllib.parse` from the standard library.
+- **Test coverage:** Add unit tests for `validate_url_field()` covering the cases in the table above.
+
+---
+
+## Status
+
+**Fix designed and ready for implementation.** The change is localized to `validate_url_field()` in `config/validator.py` plus the exit-code call site. No API or schema changes. No scope creep — this addresses the exact defect described in the ticket.
+
+Please let me know if you'd like me to adjust the scheme allowlist, add specific test cases, or review any additional context from the milestone record.

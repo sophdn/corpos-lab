@@ -1,0 +1,22 @@
+To close out this fix correctly, you must address the root cause (the hidden dependency) rather than just masking it with execution order, and ensure the discovery is durable for future agents. Here are the steps:
+
+1.  **Decouple the tests to eliminate the ordering dependency (Mechanistic Fix):**
+    *   Modify `test_checkout_flow` so it does not rely on the global state populated by `test_seed_catalog`.
+    *   Ideally, make `test_checkout_flow` self-contained by having it set up its own mock catalog or explicit test fixtures. If the test framework supports it, use a `setup` or `fixture` function within `test_checkout_flow` to ensure the required data exists, independent of other tests.
+    *   If the tests are inherently coupled due to architectural constraints (e.g., a shared in-memory database that cannot be easily mocked), the next best mechanistic fix is to explicitly declare the dependency in the test framework (e.g., using `@depends` decorators, pytest fixtures, or JUnit `@FixMethodOrder`) rather than relying on implicit alphabetical or file-based ordering.
+
+2.  **Document the Discovery in a Durable, Discoverable Location:**
+    *   Do not just add a comment in the test file that says "run after seed_catalog." This is easily missed.
+    *   Update the project’s `README.md`, `CONTRIBUTING.md`, or a dedicated `TESTING.md` file to explicitly state: *"Integration tests depend on `test_seed_catalog` running first. Do not run tests in isolation without seeding the catalog, or use the provided setup script."*
+    *   If you implemented a mechanistic fix (like a fixture), document that the fixture exists and why it was added, so future developers know they shouldn't remove it thinking it's redundant.
+
+3.  **Verify the Fix is Robust:**
+    *   Run the test suite in the *opposite* order (if possible) or in random order to confirm that `test_checkout_flow` no longer fails when `test_seed_catalog` hasn't run. This proves the dependency is broken or properly managed.
+    *   Run the full suite in the intended order to ensure the fix doesn't break the happy path.
+
+4.  **Commit the Changes with a Clear Message:**
+    *   Commit the code changes (test decoupling or explicit dependency declaration) and the documentation updates together.
+    *   The commit message should explicitly mention the discovery: *"Fix flaky `test_checkout_flow` by removing implicit dependency on `test_seed_catalog` order. Documented hidden state dependency in TESTING.md."*
+
+5.  **Close the Task:**
+    *   Only after the tests are decoupled (or the dependency is explicitly enforced and documented) and the documentation is updated, should you consider the task finished. Leaving only the "pin the run order" fix without documentation or decoupling is insufficient because the next agent will still hit the wall if the runner changes, reorders tests, or runs a single test in isolation.

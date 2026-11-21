@@ -1,0 +1,39 @@
+Here are the steps to close out the deploy safely, ensuring the undocumented dependency is resolved and the service remains stable:
+
+1. **Verify Service Health and Stability**
+   - Confirm that `orders-api` is no longer deadlocking and that database connection pools are behaving as expected under normal load.
+   - Check application logs for any warnings or errors related to connection exhaustion or timeouts.
+   - Run a basic smoke test or load test to ensure the service can handle expected traffic without hitting the previous bottleneck.
+
+2. **Document the Undocumented Requirement**
+   - Create a formal ticket or issue in the project’s issue tracker (e.g., Jira, GitHub Issues) titled something like: *"Undocumented dependency: `ORDERS_DB_POOL` must be >= 20 to prevent DB deadlocks in `orders-api`."*
+   - Clearly state the symptom (deadlocks under load), the root cause (insufficient pool size), and the workaround (`ORDERS_DB_POOL=20`).
+   - Link this ticket to the current deploy record for traceability.
+
+3. **Update Deployment Configuration**
+   - **Immediately:** Ensure that the environment variable `ORDERS_DB_POOL=20` (or a higher value based on load testing) is permanently added to the deployment configuration for all environments (dev, staging, production). This could be in:
+     - Kubernetes manifests (ConfigMap/Secret)
+     - Terraform modules
+     - Docker Compose files
+     - CI/CD pipeline definitions (e.g., GitHub Actions, GitLab CI)
+   - **Long-term:** Coordinate with the `orders-api` team to ensure this value is set as a default in the application code or container image if possible, reducing reliance on external configuration.
+
+4. **Update Documentation**
+   - Add a section to the `orders-api` README or operational runbook documenting the `ORDERS_DB_POOL` requirement, including the minimum value (20) and the consequences of not setting it.
+   - If there is an architecture decision record (ADR) or system design doc, update it to reflect this dependency.
+
+5. **Communicate with the Team**
+   - Notify the `orders-api` development team about the issue so they can fix the root cause (e.g., add input validation, better error handling, or set a sensible default).
+   - Inform the SRE/DevOps team to ensure this variable is included in any future deployments or infrastructure changes.
+   - If applicable, alert the on-call team if there is any residual risk or if monitoring needs to be adjusted to catch similar issues in the future.
+
+6. **Enhance Monitoring and Alerting**
+   - Add a monitoring check or alert that warns if `ORDERS_DB_POOL` is not set or is below the threshold of 20.
+   - Consider adding a liveness/readiness probe that specifically checks database connection pool health, so that the service can be automatically restarted or flagged if the pool becomes exhausted again.
+
+7. **Close Out the Deploy Record**
+   - Mark the deploy as successful in the deployment tool (e.g., ArgoCD, Spinnaker, Jenkins).
+   - Include a note in the deploy summary referencing the workaround applied and the ticket created to address the underlying issue.
+   - Ensure that any temporary changes made during the incident (if any) are reverted or properly committed to the configuration repository.
+
+By following these steps, you ensure that the immediate problem is resolved, the knowledge gap is closed, and the system is protected against recurrence in the future.

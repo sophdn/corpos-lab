@@ -1,0 +1,59 @@
+To add support for the optional `priority` field in the `handlers/v1/orders.go` file, you need to make modifications to both the request handling and the response serialization parts. Below is a possible implementation of these changes:
+
+### File: `handlers/v1/orders.go`
+
+#### Changes:
+
+1. **Add `Priority` field to the Order struct.**
+2. **Update the unmarshalling logic to handle the optional `priority` field.**
+
+```go
+package v1
+
+import (
+    "encoding/json"
+    "net/http"
+)
+
+// Order represents an order with a new optional `priority` field.
+type Order struct {
+    ID        string `json:"id"`
+    Customer  string `json:"customer"`
+    Items     []string `json:"items"`
+    Priority  *string `json:"priority,omitempty"` // Add this line
+}
+
+// Handler function for the orders endpoint
+func OrdersHandler(w http.ResponseWriter, r *http.Request) {
+    if r.Method == http.MethodPost {
+        var order Order
+        err := json.NewDecoder(r.Body).Decode(&order)
+        if err != nil {
+            http.Error(w, "Invalid request payload", http.StatusBadRequest)
+            return
+        }
+
+        // Handle order creation logic here
+        // For example, you might log the priority or take specific actions based on it
+
+        response, err := json.Marshal(order)
+        if err != nil {
+            http.Error(w, "Failed to create response", http.StatusInternalServerError)
+            return
+        }
+
+        w.Header().Set("Content-Type", "application/json")
+        w.WriteHeader(http.StatusCreated)
+        w.Write(response)
+    } else {
+        http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+    }
+}
+```
+
+### Explanation:
+
+- **Struct Update:** The `Order` struct is updated to include a `Priority` field, which is a pointer to a string. The `omitempty` tag ensures that if the `priority` field is not provided, it will be omitted from the JSON response.
+- **Unmarshalling Logic:** The `json.NewDecoder(r.Body).Decode(&order)` line automatically handles the presence or absence of the `priority` field due to the use of a pointer in the `Priority` field.
+
+This change allows the API to accept an optional `priority` field in the order requests and handle it appropriately.

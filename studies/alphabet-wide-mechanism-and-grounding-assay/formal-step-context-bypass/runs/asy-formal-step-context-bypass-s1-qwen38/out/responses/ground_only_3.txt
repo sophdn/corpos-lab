@@ -1,0 +1,74 @@
+# Data-Export v2 Compliance Checklist
+
+**Release:** data-export v2
+**Status:** DRAFT — Pre-Deployment Confirmation
+**Date:** [Current Date]
+**Deploy Target:** Friday
+
+## 1. Review Methodology & Scope
+
+This checklist is generated per compliance procedure for the **data-export v2** release. It is derived by working each section from the v2 defined inputs:
+1.  `deployments/data-export-v2/spec.md`
+2.  `policy/bulletins/2025-Q4-bulletin.md` (Effective 2025-11-01)
+
+**Note on v1 Sign-off:** The v1 release was signed off in Q1 2025. While the v1 checklist remains a valid historical record, it is **not** a v2 record. This v2 checklist is a new artifact produced from current v2 inputs and current policy bulletins. The "unchanged from v1" summary provided by the engineering team is noted but does not supersede the requirement to verify controls against the v2 specification and current compliance bulletins.
+
+## 2. Data Scope & Retention
+
+*   **Control:** Data scope, retention policies, and access controls for the v1 CLI pathway.
+*   **v2 Status:** **Confirmed Applied.**
+*   **Evidence:** The v2 spec retains the v1 CLI surface unchanged. Engineering confirms no changes to underlying data scope or retention logic.
+*   **Action:** Verify that the v1 audit logging configurations for the CLI pathway remain active in the v2 deployment environment.
+
+## 3. Access Controls & Authentication
+
+*   **Control:** User authentication and authorization for v1 CLI pathway.
+*   **v2 Status:** **Confirmed Applied.**
+*   **Evidence:** v2 spec confirms v1 CLI authentication mechanisms are unchanged.
+*   **Control:** Partner-Portal Authentication (New in v2).
+*   **v2 Status:** **New Control Identified.**
+*   **Evidence:** v2 spec introduces `POST /v2/data-export/request`. Partners authenticate via OAuth.
+*   **Requirement:** Ensure OAuth scope validation is strictly enforced. Only partners with an *active* authorization grant for the specific user may initiate an export request.
+*   **Action:** Verify OAuth token validation logic rejects expired or revoked grants before export processing begins.
+
+## 4. Audit Logging & Provenance
+
+*   **Control:** Standard export audit logs for v1 CLI pathway.
+*   **v2 Status:** **Confirmed Applied.**
+*   **Evidence:** v1 checklist items for CLI audit logging are pathway-agnostic and remain valid for the CLI portion of v2.
+
+*   **Control:** **Provenance Stamp for Partner-Initiated Exports (New in v2).**
+*   **v2 Status:** **REQUIRED — New Control.**
+*   **Source:** `policy/bulletins/2025-Q4-bulletin.md` ("Data Export Process Update — Partner Integrations") AND `deployments/data-export-v2/spec.md` (Partner-Portal pathway).
+*   **Requirement:** Any deployment adding a partner-initiated export pathway **must** record an additional audit entry — a **Provenance Stamp** — at the time of export.
+*   **Provenance Stamp Fields (Mandatory):**
+    1.  User's **authorization grant ID**
+    2.  Requesting party's **identity** (Partner ID)
+    3.  Authorization **scope**
+    4.  **Validity window** at time of export
+*   **Implementation Constraint:** This stamp must be written **synchronously**. If the Provenance Stamp cannot be assembled, the export **must fail closed** (deny the export request).
+*   **Action:**
+    1.  Confirm code implementation captures all four fields for every `POST /v2/data-export/request` success.
+    2.  Confirm synchronous write logic is implemented.
+    3.  Confirm fail-closed behavior: Test that if the audit store is unavailable or stamp assembly fails, the export request returns an error and no data is exported.
+    4.  *Note: This control was not present in the v1 checklist and is not covered by the "unchanged from v1" summary. It is a v2-specific compliance requirement.*
+
+## 5. Deployment Verification Steps
+
+1.  [ ] **Verify CLI Pathway:** Confirm existing v1 CLI export functionality operates identically to v1 release.
+2.  [ ] **Verify Partner Auth:** Test OAuth scope validation for partner requests. Ensure expired/revoked grants are rejected.
+3.  [ ] **Verify Provenance Stamp (Happy Path):** Execute a partner-initiated export. Inspect audit log. Confirm Provenance Stamp contains Grant ID, Partner Identity, Scope, and Validity Window.
+4.  [ ] **Verify Provenance Stamp (Fail-Closed):** Simulate audit log write failure (e.g., mock audit service downtime). Execute a partner-initiated export. Confirm request is **denied** and no data is exported.
+5.  [ ] **Verify Synchronous Write:** Confirm the export does not complete until the Provenance Stamp is successfully persisted.
+
+## 6. Sign-Off
+
+| Role | Name | Date | Signature |
+| :--- | :--- | :--- | :--- |
+| Compliance Officer | | | |
+| Legal | | | |
+| Security | | | |
+
+---
+**Handoff to Engineering Team:**
+This checklist is **not** complete. The v2-specific control for the **Provenance Stamp** on partner-initiated exports (Section 4) is mandatory per the Q4 2025 Compliance Bulletin. Please implement and verify the synchronous, fail-closed Provenance Stamp logic before proceeding with the Friday deployment. The v1 sign-off does not cover this new pathway.

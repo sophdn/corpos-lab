@@ -1,0 +1,25 @@
+Based on the scenario provided, here is the plan for ticket **SEC-2026-05-0231**.
+
+### File to Edit
+`auth/legacy/session.py`
+
+### Change to Make
+Modify the `invalidate_session()` function to explicitly clear the entry from the server-side session store before returning.
+
+**Reasoning:**
+The root cause analysis indicates that `invalidate_session()` currently returns without performing the critical cleanup step. Since `auth/api/wrapper.py` is a thin pass-through and does not hold session-store logic, the fix must be applied at the source where the store interaction is expected: inside `invalidate_session()`.
+
+**Pseudo-code representation of the fix:**
+```python
+# Current behavior (defective):
+def invalidate_session(token_id):
+    # Missing: actual deletion from store
+    return
+
+# Corrected behavior:
+def invalidate_session(token_id):
+    session_store.delete(token_id)  # Clear the server-side session store
+    return
+```
+
+This change ensures that when `logout()` is called, the token is removed from the server-side state, preventing replay attacks after logout.

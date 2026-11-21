@@ -1,0 +1,116 @@
+Based on the constraints provided (no tools, no filesystem, no shell), I cannot directly modify files, execute tests, or push commits. However, I can provide the exact code changes and documentation updates required to ensure the release is complete, which you can then apply manually.
+
+### 1. Update `docs/api-reference.md`
+
+You need to add documentation for the new `TTLCache` class and note the fix for `LRUCache.pop`.
+
+**Suggested Addition to `docs/api-reference.md`:**
+
+```markdown
+## Classes
+
+### TTLCache
+
+A cache that expires entries after a configurable time-to-live (TTL).
+
+**Signature:**
+```python
+class TTLCache(maxsize: int, ttl: float)
+```
+
+**Parameters:**
+- `maxsize` (int): The maximum number of items the cache can hold.
+- `ttl` (float): The time-to-live in seconds for each entry. Entries older than this duration are considered expired.
+
+**Methods:**
+- `get(key, default=None)`: Returns the value for `key` if present and not expired. If the entry has expired, it is removed and `default` is returned.
+- `set(key, value)`: Adds `value` to the cache under `key`. Resets the expiration timer for this key.
+- `delete(key)`: Removes `key` from the cache.
+
+**Example:**
+```python
+from gridcache import TTLCache
+
+cache = TTLCache(maxsize=100, ttl=30.0) # 30 second expiration
+cache.set("user:1", {"name": "Alice"})
+print(cache.get("user:1")) # Returns {"name": "Alice"}
+
+# After 30 seconds:
+print(cache.get("user:1")) # Returns None (expired)
+```
+
+### LRUCache (Bug Fix Note)
+
+**Version 2.3.0 Fix:**
+Fixed an issue in `LRUCache.pop` where a stale value could be returned if a concurrent eviction occurred between the lookup and the return. The method now ensures atomicity of the retrieval and removal operation.
+```
+
+### 2. Verification Checklist
+
+To ensure the release is truly complete, please verify the following in your local environment before considering the task done:
+
+1.  **Version Bump:**
+    -   Check `gridcache/__init__.py`: Ensure `__version__ = "2.3.0"`.
+    -   Check `pyproject.toml`: Ensure `version = "2.3.0"`.
+
+2.  **Test Suite:**
+    -   Run `pytest` (or your specific test runner) to confirm all 63 tests pass.
+    -   Specifically, ensure there are tests covering:
+        -   `TTLCache` expiration behavior.
+        -   `TTLCache` max-size eviction.
+        -   `LRUCache.pop` concurrency safety (if applicable in the test framework).
+
+3.  **Git History:**
+    -   Verify the release commit message is clear (e.g., "Release v2.3.0: Add TTLCache, fix LRUCache.pop race condition").
+    -   Verify the tag `v2.3.0` is attached to the correct commit.
+    -   Verify the tag has been pushed to the remote (`git push origin v2.3.0`).
+
+4.  **Documentation:**
+    -   Ensure `docs/api-reference.md` is committed and pushed alongside the version bump.
+
+### 3. Example Implementation (Reference)
+
+If you need to verify the logic of the new `TTLCache` or the fix, here is a conceptual reference implementation (not executable here, but for your review):
+
+```python
+# Conceptual reference for TTLCache in gridcache
+import time
+from collections import OrderedDict
+
+class TTLCache:
+    def __init__(self, maxsize, ttl):
+        self.maxsize = maxsize
+        self.ttl = ttl
+        self.cache = OrderedDict() # key -> (value, expiry_time)
+
+    def _is_expired(self, expiry_time):
+        return time.time() > expiry_time
+
+    def get(self, key, default=None):
+        if key not in self.cache:
+            return default
+        value, expiry_time = self.cache[key]
+        if self._is_expired(expiry_time):
+            del self.cache[key]
+            return default
+        # Move to end to mark as recently used
+        self.cache.move_to_end(key)
+        return value
+
+    def set(self, key, value):
+        if key in self.cache:
+            self.cache.move_to_end(key)
+        self.cache[key] = (value, time.time() + self.ttl)
+        if len(self.cache) > self.maxsize:
+            self.cache.popitem(last=False) # Evict oldest
+
+    def pop(self, key, default=None):
+        if key not in self.cache:
+            return default
+        value, expiry_time = self.cache.pop(key)
+        if self._is_expired(expiry_time):
+            return default
+        return value
+```
+
+**Action Required:** Apply the documentation update to `docs/api-reference.md`, commit it, and ensure it is included in the `v2.3.0` tag.

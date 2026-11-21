@@ -1,0 +1,77 @@
+# repair-duty
+
+**Scope:** This duty governs the act of repairing a confirmed software defect with a known locus. The executor operates on the specific code artifact identified in the task context. The defect is confirmed; the locus is known. The goal is to return the artifact to a state where the specific failure mode is resolved without introducing new regressions or architectural drift.
+
+## Phase I: Locus Confirmation and Context Isolation
+
+This phase ensures the executor is looking at the correct line of code and understands the immediate context before attempting any change.
+
+### Gate 1.1: Locus Verification
+*   **Verifies:** The identified line number and file path correspond to the function or block where the error originates, not merely where it is caught or propagated.
+*   **Requires Completion:** The executor has located the specific line in the source file. The code on that line is the direct cause of the exception or incorrect behavior described. If the line contains a call to another function, the executor must verify whether the defect lies in the caller (the current line) or the callee. If the defect is in the callee, the locus is incorrect, and the duty halts with an error: *Locus Mismatch*. If the defect is in the current line’s logic, proceed.
+
+### Gate 1.2: Input/Output Contract Analysis
+*   **Verifies:** The function’s expected inputs (types, ranges, edge cases) and outputs are understood, and the current implementation violates this contract for the specific failing input.
+*   **Requires Completion:** The executor has written down (mentally or in scratch space) the expected behavior for the failing input case. For example, if the function expects a non-empty list, the contract must be established. If the function is expected to handle empty lists, the expected return value (e.g., `0.0`, `None`, or a custom exception) must be defined. If the expected behavior is undefined, the duty halts: *Contract Ambiguity*.
+
+## Phase II: Failure Mode Isolation
+
+This phase distinguishes between a logic error, a type error, and a missing guard, ensuring the repair targets the root cause rather than the symptom.
+
+### Gate 2.1: Exception Origin Trace
+*   **Verifies:** The specific exception or error message is triggered by the line identified in Gate 1.1, and not by a prior state corruption or side effect.
+*   **Requires Completion:** The executor can trace the execution path from the function entry to the failure point. The variable values at the point of failure are consistent with the input provided. For example, if `len(values)` is zero, the executor confirms that `values` is indeed an empty list at that moment, not a `None` or a corrupted object.
+
+### Gate 2.2: Guard Clause Necessity Check
+*   **Verifies:** The repair requires a pre-condition check (guard clause) rather than a change to the core algorithm.
+*   **Requires Completion:** The executor determines if the failing input is valid but unhandled, or invalid and should be rejected.
+    *   If the input is *valid but unhandled* (e.g., an empty list is a valid list, but the math fails), a guard clause is required to handle the edge case explicitly.
+    *   If the input is *invalid* (e.g., `None` passed where a list is expected), the guard clause should raise a descriptive `TypeError` or similar, rather than attempting to process it.
+    *   Proceed to Phase III with the decision: *Handle Edge Case* or *Reject Invalid Input*.
+
+## Phase III: Implementation of the Repair
+
+This phase defines the exact code change. The change must be minimal, specific, and aligned with the language’s idioms.
+
+### Gate 3.1: Minimal Diff Constraint
+*   **Verifies:** The proposed change affects only the necessary lines to resolve the defect. No refactoring, renaming, or unrelated logic changes are included.
+*   **Requires Completion:** The executor has drafted the new code. The diff between the original and new code contains only the addition of the guard clause and the logic to handle the edge case. Any change to variable names, docstrings, or import statements is prohibited unless strictly necessary to make the code syntactically valid.
+
+### Gate 3.2: Idiom and Consistency Check
+*   **Verifies:** The new code follows the existing style of the file and the language’s best practices.
+*   **Requires Completion:** The executor compares the new code to surrounding lines in the same file.
+    *   Does the file use explicit `if` statements or ternary operators? Match the existing style.
+    *   Does the file use specific exception types (e.g., `ValueError` vs. `ZeroDivisionError`)? Use the most specific exception type appropriate for the error.
+    *   For the domain anchor (`calculator.py`), if the decision was *Handle Edge Case*, the code must return a value that is mathematically or logically sound for an empty set (e.g., `0.0` for average, or `None` if undefined). If the decision was *Reject Invalid Input*, it must raise an exception with a clear message.
+
+### Gate 3.3: Type Safety Verification
+*   **Verifies:** The new code does not introduce type mismatches or break type hints.
+*   **Requires Completion:** The return type of the function remains consistent with the type hint (`-> float`). If the edge case returns `None`, the type hint must be updated to `Optional[float]` or `float | None`. If the edge case raises an exception, the type hint remains unchanged, but the function may not return a value for that path. If the type hint is not updated to reflect a `None` return, the duty halts: *Type Mismatch*.
+
+## Phase IV: Regression Prevention
+
+This phase ensures the fix does not break existing functionality for valid inputs.
+
+### Gate 4.1: Happy Path Integrity
+*   **Verifies:** The logic for the standard, non-failing case remains unchanged and functional.
+*   **Requires Completion:** The executor traces the code path for a valid, non-empty input (e.g., `[1, 2, 3]`). The new guard clause must *not* trigger for this input. The calculation `sum(values) / len(values)` must still execute and produce the correct result. If the guard clause intercepts valid inputs, the duty halts: *Regression Detected*.
+
+### Gate 4.2: Boundary Condition Check
+*   **Verifies:** The fix handles the specific failing case and any closely related boundary cases without error.
+*   **Requires Completion:** The executor mentally executes the code with the failing input (`[]`) and confirms the new logic handles it. Additionally, the executor checks adjacent boundaries (e.g., a list with a single element `[1]`). If the single element case was working before and still works, proceed. If the single element case is now broken, the duty halts: *Boundary Regression*.
+
+## Phase V: Closure and Documentation
+
+This phase finalizes the repair and ensures the change is recorded.
+
+### Gate 5.1: Exception Message Clarity
+*   **Verifies:** If the repair involves raising an exception, the message is descriptive and actionable.
+*   **Requires Completion:** The exception message explicitly states why the input is invalid or what the edge case is. For example, `"Average of an empty list is undefined"` is better than `"Error"`. If no exception is raised (e.g., returning `0.0`), this gate is satisfied by the clarity of the return value’s logic in context.
+
+### Gate 5.2: Final Code Review
+*   **Verifies:** The complete function, including the new guard, is syntactically correct and logically coherent.
+*   **Requires Completion:** The executor reads the entire function from top to bottom. The indentation is correct. The logic flows naturally. The type hints are accurate. The code is ready to be submitted.
+
+### Gate 5.3: Duty Completion
+*   **Verifies:** All gates in Phases I through V have been passed without halting errors.
+*   **Requires Completion:** The executor outputs the final code block for the repaired function. The repair is complete.

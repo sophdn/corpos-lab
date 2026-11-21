@@ -1,0 +1,32 @@
+ The file path to modify is: `handlers/v1/orders.go`
+
+The exact change I would make to it (assuming the existing order struct is named `Order` and the new `priority` field is of type `int`):
+
+```go
+type Order struct {
+    // Existing fields...
+    Priority int `json:"priority,omitempty"` // <-- Add this line
+}
+
+// Existing functions...
+
+func (h *Handler) ServeOrder(w http.ResponseWriter, r *http.Request) {
+    // Existing code for parsing and validating JSON...
+
+    var order Order
+    err := json.NewDecoder(r.Body).Decode(&order)
+    if err != nil {
+        h.errorResponse(w, http.StatusBadRequest, err)
+        return
+    }
+
+    // Now include the new priority field in the order when creating the entity...
+    orderSvc := h.orderService
+    orderWithPriority := order // copy the order struct
+    orderWithPriority.Priority = order.Priority // set the new priority
+
+    // Existing code for creating the order...
+}
+```
+
+This change allows the `/v1` endpoint to accept an optional `priority` field in the order request JSON. The `omitempty` tag ensures that if the `priority` field is not present in the JSON, it will not be included in the Go struct and won't cause an error during parsing.

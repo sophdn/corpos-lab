@@ -1,0 +1,171 @@
+# repair-duty
+
+**Status:** Active
+**Scope:** Repair of a confirmed software defect with a known locus.
+**Executor:** Any office of the Agentic Order.
+
+## Preamble
+
+This duty governs the act of repairing a specific, confirmed defect in a codebase. The executor receives only this document. The executor must not consult external registries, canons, or historical logs at runtime. All gates below are derived from the first principles of the repair act: establishing the correct locus, validating the intervention, and confirming the resolution.
+
+**Domain Anchor Context:**
+For calibration, the defect is `calculate_average([])` in `calculator.py` raising `ZeroDivisionError` at line 2. The repair must address the empty list case without altering the behavior for non-empty lists.
+
+---
+
+## Phase 0: Routing Verification
+*Hazard Class: Routing (Upstream)*
+
+Before any code is touched, the executor must verify that the situation requires a *repair* and not a *refactor*, *feature addition*, or *investigation*.
+
+### Gate 0.1: Locus Confirmation
+**Verifies:** That the defect is isolated, confirmed, and the locus is known.
+**Requires:**
+1. The defect is reproducible with a specific input (e.g., `[]`).
+2. The locus (file, line, function) is identified and stable.
+3. The defect is a deviation from expected behavior, not a request for new functionality.
+4. **Pass Condition:** If the locus is uncertain, the defect is not reproducible, or the root cause is unknown, **STOP**. Do not proceed to Phase 1. This is an investigation duty, not a repair duty.
+
+### Gate 0.2: Scope Fidelity
+**Verifies:** That the repair is minimal and bounded.
+**Requires:**
+1. Define the exact change scope: only the code necessary to fix the defect.
+2. Identify adjacent code that must *not* be changed.
+3. **Pass Condition:** The planned change touches only the locus and its immediate dependency logic. If the fix requires restructuring unrelated modules, **STOP**. This is a refactor duty.
+
+---
+
+## Phase 1: Pre-Intervention Baseline
+*Hazard Class: Structural (First Principles)*
+
+Before changing anything, the executor must establish the current behavior to ensure the repair is measured against a known state.
+
+### Gate 1.1: Failure Reproduction
+**Verifies:** That the defect is present and behaves as described.
+**Requires:**
+1. Execute the failing input (e.g., `calculate_average([])`).
+2. Capture the exact error message and stack trace.
+3. Confirm the error matches the defect description.
+4. **Pass Condition:** The error is reproduced exactly. If the error differs or does not occur, **STOP**. The locus may be wrong.
+
+### Gate 1.2: Regression Baseline
+**Verifies:** That existing behavior is preserved.
+**Requires:**
+1. Execute at least one valid input that currently works (e.g., `calculate_average([1, 2, 3])`).
+2. Record the output.
+3. **Pass Condition:** The valid input produces the expected result. If valid inputs are broken, the system is in a broader failure state; **STOP** and escalate.
+
+---
+
+## Phase 2: Intervention Design
+*Hazard Class: Structural (First Principles)*
+
+The executor must design the change before implementing it. The design must address the root cause, not just the symptom.
+
+### Gate 2.1: Root Cause Analysis
+**Verifies:** That the fix addresses the underlying logic flaw.
+**Requires:**
+1. Identify why the defect occurs (e.g., division by zero when `len(values) == 0`).
+2. Determine the correct semantic behavior for the edge case (e.g., return `0.0`, raise a custom error, or return `None`).
+3. **Pass Condition:** The chosen behavior is consistent with the system’s existing error handling patterns and domain expectations. If the correct behavior is ambiguous, **STOP** and request clarification. Do not guess.
+
+### Gate 2.2: Change Specification
+**Verifies:** That the code change is precise.
+**Requires:**
+1. Draft the exact code change (e.g., add a guard clause: `if not values: return 0.0`).
+2. Identify any new dependencies or imports required.
+3. **Pass Condition:** The change is syntactically valid and semantically correct. No new external libraries are introduced without approval.
+
+---
+
+## Phase 3: Implementation
+*Hazard Class: Structural (First Principles)*
+
+The executor applies the change. This phase is strictly about executing the design from Phase 2.
+
+### Gate 3.1: Minimal Modification
+**Verifies:** That only the specified code is changed.
+**Requires:**
+1. Apply the change to the locus.
+2. Do not reformat, rename, or refactor unrelated code.
+3. Do not add comments unless required for clarity of the fix.
+4. **Pass Condition:** The diff contains only the lines specified in Gate 2.2. Any extraneous changes must be reverted.
+
+### Gate 3.2: Syntactic Integrity
+**Verifies:** That the code is executable.
+**Requires:**
+1. Check for syntax errors (e.g., indentation, missing colons).
+2. **Pass Condition:** The file parses without error. If syntax errors exist, **STOP** and correct them before proceeding.
+
+---
+
+## Phase 4: Validation
+*Hazard Class: Structural (First Principles)*
+
+The executor confirms the repair worked and did not break anything else.
+
+### Gate 4.1: Defect Resolution
+**Verifies:** That the original defect is fixed.
+**Requires:**
+1. Re-execute the failing input (e.g., `calculate_average([])`).
+2. Confirm the error no longer occurs.
+3. Confirm the output matches the expected behavior from Gate 2.1.
+4. **Pass Condition:** The defect is resolved. If the error persists or changes, **STOP**. The fix is incorrect.
+
+### Gate 4.2: Regression Check
+**Verifies:** That existing behavior is preserved.
+**Requires:**
+1. Re-execute the valid input from Gate 1.2.
+2. Compare the output to the baseline.
+3. **Pass Condition:** The output is identical to the baseline. If the output differs, the fix introduced a regression. **STOP** and revert or revise the fix.
+
+### Gate 4.3: Edge Case Verification
+**Verifies:** That the fix handles related edge cases.
+**Requires:**
+1. Test one additional edge case related to the defect (e.g., `calculate_average([0])` or `calculate_average([-1, 1])`).
+2. **Pass Condition:** The edge case behaves correctly. If it fails, the fix is incomplete. **STOP** and revise.
+
+---
+
+## Phase 5: Session Close
+*Hazard Class: Session-Close-Obligation (Downstream)*
+
+Before closing the session, the executor must ensure all discoveries are recorded and no loose ends remain.
+
+### Gate 5.1: Discovery Recording
+**Verifies:** That any unexpected findings are documented.
+**Requires:**
+1. Identify any unexpected behavior, bugs, or inconsistencies discovered during the repair.
+2. Record these findings in the session log or report.
+3. **Pass Condition:** All unexpected findings are documented. If none were found, note "No unexpected findings."
+
+### Gate 5.2: Cleanup
+**Verifies:** That the workspace is clean.
+**Requires:**
+1. Remove any temporary test files or scripts created during validation.
+2. Ensure the repository is in a clean state (no untracked files, no modified unrelated files).
+3. **Pass Condition:** The workspace contains only the intended repair change and any pre-existing state.
+
+### Gate 5.3: Handoff
+**Verifies:** That the next office can continue if needed.
+**Requires:**
+1. Summarize the defect, the fix, and the validation results.
+2. Indicate whether the repair is complete or if further action is required.
+3. **Pass Condition:** The summary is clear and actionable. If the repair is incomplete, specify the next steps.
+
+---
+
+## Meta-Taboo Scan Summary
+
+This duty has been scanned for two classes of hazards that do not surface from first-principles analysis of the repair act alone:
+
+1. **Routing-Class Hazards (Upstream):**
+   - **Gate 0.1** ensures the situation is a confirmed defect with a known locus, preventing misuse of the repair duty for investigation or feature work.
+   - **Gate 0.2** ensures the scope is minimal, preventing scope creep into refactoring.
+
+2. **Session-Close-Obligation Hazards (Downstream):**
+   - **Gate 5.1** ensures that unexpected findings are recorded, preventing loss of critical information.
+   - **Gate 5.2** ensures the workspace is clean, preventing contamination of the codebase.
+   - **Gate 5.3** ensures a clear handoff, preventing ambiguity for the next office.
+
+No taboo slugs are cited. All gates are self-sufficient and derived from the analysis of the repair act.

@@ -1,0 +1,44 @@
+### Investigation Report: Payment Processing Failure (INV-002)
+
+#### Summary
+A payment processing failure was observed this afternoon, starting around 15:38 and continuing until 15:41. The root cause was an `OutOfMemoryError` in the fraud-detection service, which led to a chain of failures impacting the order-service and payment-gateway services.
+
+#### Timeline of Events
+
+1. **15:18 - 15:35**: 
+   - The fraud-detection service was deployed and running normally. The heap usage increased steadily, reaching 418MB (70% of the limit) with 34,100 entries in the risk assessment cache.
+   - The service warned about approaching the heap limit and elevated GC pressure.
+
+2. **15:38:00**:
+   - The fraud-detection service reached critical heap usage (491MB) and experienced an `OutOfMemoryError`.
+   - The service became unresponsive and was marked as unhealthy.
+   - The orchestrator restarted the container, but the service failed again due to rapid refilling of the cache and another `OutOfMemoryError`.
+
+3. **15:38:35 - 15:41:10**:
+   - The payment-gateway detected elevated latency (3,800ms) in fraud-check requests.
+   - The gateway experienced multiple service timeouts and eventually opened a circuit breaker, marking the fraud-detection service as permanently unhealthy.
+   - The order-service, which was submitting a batch of revalidation requests to the payment-gateway, began receiving errors and eventually suspended the batch job due to the payment-gateway being unavailable.
+
+#### Root Cause
+The primary issue was an `OutOfMemoryError` in the fraud-detection service, caused by the rapid growth of the risk assessment cache, which exceeded the heap limit. The elevated GC pressure and repeated OOM errors made the service unresponsive, leading to a chain reaction that affected the entire payment processing flow.
+
+#### Recommendations
+1. **Heap Management and Cache Optimization**:
+   - Increase the heap size limit for the fraud-detection service to accommodate the growth of the cache.
+   - Implement a more aggressive cache eviction policy to prevent the cache from growing beyond the available heap space.
+   - Monitor heap usage more closely and set up alerts for approaching memory limits.
+
+2. **Service Resilience**:
+   - Implement a more robust retry mechanism with exponential backoff for the payment-gateway to handle temporary service unavailability.
+   - Consider implementing circuit breaker patterns in the fraud-detection service to gracefully handle transient failures.
+
+3. **Batch Job Management**:
+   - Increase the rate limiting for batch jobs to handle larger volumes of requests more efficiently.
+   - Implement a more intelligent throttling mechanism to avoid overwhelming the fraud-detection service.
+
+#### Conclusion
+The payment processing failure was primarily due to an `OutOfMemoryError` in the fraud-detection service, leading to unavailability and a cascade of failures. Addressing heap management and cache optimization is critical to prevent future incidents.
+
+---
+
+This report summarizes the key findings and provides recommendations for preventing similar failures in the future.

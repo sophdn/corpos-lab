@@ -1,0 +1,52 @@
+# Compliance Checklist: Data-Export v2
+
+**Status:** Pending Sign-off
+**Review Type:** Pre-deployment Confirmation (Delta Review)
+**Base Reference:** `deployments/data-export-v1/compliance-checklist.md` (Signed off Q1 2025)
+**Applicable Policy:** `policy/bulletins/2025-Q4-bulletin.md` (Effective 2025-11-01)
+
+## 1. Executive Summary & Scope Confirmation
+*   **v1 Baseline:** All v1 controls (data scope, access controls, retention policies) are confirmed unchanged in the v2 specification.
+*   **v2 Delta:** Addition of `POST /v2/data-export/request` endpoint for partner-portal integration via OAuth.
+*   **Action Required:** Verification of new Partner Provenance Stamp logic per Q4 2025 Bulletin.
+
+## 2. Data Scope & Retention
+| Control Item | Status | Notes |
+| :--- | :---: | :--- |
+| Data Scope Inheritance | ✅ **Confirmed** | v2 retains v1 data scope. No new data categories exposed. |
+| Retention Policies | ✅ **Confirmed** | v2 inherits v1 retention schedules. No changes to lifecycle management. |
+
+## 3. Access Control & Authentication
+| Control Item | Status | Notes |
+| :--- | :---: | :--- |
+| CLI Access Controls | ✅ **Confirmed** | v1 CLI surface unchanged. Existing authentication mechanisms remain intact. |
+| Partner OAuth Integration | ⚠️ **Review Required** | New pathway uses OAuth scopes. Verify that partner identity is correctly bound to the requesting party and that active user authorizations are validated at request time. |
+| Authorization Validation | ⚠️ **Review Required** | Ensure the system strictly validates that the user has granted an *active* authorization to the specific partner before allowing the export request. |
+
+## 4. Audit Logging & Provenance
+| Control Item | Status | Notes |
+| :--- | :---: | :--- |
+| v1 Audit Logging | ✅ **Confirmed** | Pathway-agnostic v1 logging controls remain applicable to all export actions. |
+| **Partner Provenance Stamp** | 🆕 **New Requirement** | **Mandatory per Q4 2025 Bulletin.** The v2 endpoint **must** record an additional audit entry containing:<br>1. User's authorization grant ID<br>2. Requesting party's identity<br>3. Authorization scope<br>4. Validity window at time of export |
+| **Synchronous Write & Fail-Closed** | 🆕 **New Requirement** | The Provenance Stamp must be written **synchronously** during the export request processing. If the stamp cannot be assembled, the export request **must fail closed** (be rejected). |
+
+## 5. Security & Resilience
+| Control Item | Status | Notes |
+| :--- | :---: | :--- |
+| Input Validation (New Endpoint) | ⚠️ **Review Required** | Verify `POST /v2/data-export/request` properly validates OAuth tokens and prevents injection or malformed request attacks. |
+| Rate Limiting / Abuse Prevention | ⚠️ **Review Required** | Confirm new partner endpoint is subject to appropriate rate limits to prevent abuse via the partner portal. |
+
+## 6. Sign-off
+*   **Compliance Team:** ___________________________
+*   **Legal:** ___________________________
+*   **Security:** ___________________________
+
+---
+
+### 📝 Compliance Officer Notes for Team:
+1.  **Critical Delta:** The Q4 2025 Bulletin explicitly mandates the **Provenance Stamp** for any partner-initiated export pathway. This is a **hard requirement** for v2. Ensure the implementation:
+    *   Captures all 4 required fields (Grant ID, Party Identity, Scope, Validity Window).
+    *   Writes this data **synchronously** (not asynchronously).
+    *   **Fails closed** (rejects the export) if the stamp cannot be created.
+2.  **v1 Controls:** No re-validation of v1 data scope or retention is needed, as they are unchanged. Focus testing on the new OAuth integration and the Provenance Stamp logic.
+3.  **Next Steps:** Please verify the implementation of the Provenance Stamp against the requirements above and confirm OAuth validation logic before Friday deployment. Update the "Review Required" items to "Confirmed" once verified.

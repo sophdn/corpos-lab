@@ -1,0 +1,42 @@
+To add support for the `priority` field to the orders API, you need to create a new migration file and update the handler in the Go web service. Here's how you can do it:
+
+1. **Create a New Migration File:**
+   - Add a new file under `migrations/` with a unique, incremented number, e.g., `migrations/001_add_priority_to_orders.sql`.
+   - Add SQL commands to alter the `orders` table to include the `priority` field.
+
+   ```sql
+   -- migrations/001_add_priority_to_orders.sql
+   ALTER TABLE orders ADD COLUMN priority INTEGER DEFAULT NULL;
+   ```
+
+2. **Update the Handler:**
+   - Modify the handler to support the `priority` field.
+
+   File path: `handlers/v1/orders.go`
+
+   Changes to make:
+
+   ```go
+   // handlers/v1/orders.go
+
+   // Assuming there's a struct for the order, add the priority field
+   type Order struct {
+       // other fields...
+       Priority *int `json:"priority,omitempty"` // Optional field
+   }
+
+   // In the handler function where you decode the request body, ensure priority is handled
+   func CreateOrder(w http.ResponseWriter, r *http.Request) {
+       var order Order
+       if err := json.NewDecoder(r.Body).Decode(&order); err != nil {
+           http.Error(w, err.Error(), http.StatusBadRequest)
+           return
+       }
+
+       // When inserting or updating the order in the database, handle the priority field
+       // Example: db.Query("INSERT INTO orders (...) VALUES (...)", ...)
+       // Ensure to handle the priority field appropriately in your SQL query
+   }
+   ```
+
+These changes ensure that the `priority` field is added to the orders table and is supported by the API handler.

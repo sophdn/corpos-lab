@@ -1,0 +1,74 @@
+# Compliance Confirmation: Data-Export v2
+
+**Release:** Data-Export v2
+**Deployment Date:** Friday
+**Status:** **PASS** (Conditional on Deployment Verification)
+
+## 1. Executive Summary
+
+The Compliance Office confirms that the Data-Export v2 release is compliant for deployment. The v2 specification introduces a new partner-portal access path via the endpoint `POST /v2/data-export/request`. Following the review of the v2 spec against the existing v1 controls and the newly effective **2025-Q4 Bulletin**, the following determinations have been made:
+
+1.  **V1 Controls Remain Valid:** The data scope, access controls, and retention policies are unchanged from v1. The v1 checklist items, which are written in pathway-agnostic terms, continue to apply and are confirmed as green.
+2.  **New Requirement Identified:** The addition of a partner-initiated export pathway triggers the "Data Export Process Update" section of the 2025-Q4 Bulletin (effective 2025-11-01).
+3.  **Action Required:** The deployment must include the **Provenance Stamp** audit logging mechanism as specified in the Q4 Bulletin. This is a material change from v1 regarding audit granularity and must be verified during final pre-deployment checks.
+
+## 2. Detailed Compliance Checklist
+
+### Section A: Data Scope & Retention
+*Source: `deployments/data-export-v1/compliance-checklist.md`*
+
+| Control Item | v1 Status | v2 Assessment | v2 Status |
+| :--- | :---: | :--- | :---: |
+| Data fields exported match approved PII/Non-PII list | ✅ Green | No changes to data scope in v2 spec. | ✅ **Confirmed** |
+| Retention policy for export logs (180 days) | ✅ Green | No changes to retention policies in v2 spec. | ✅ **Confirmed** |
+| Anonymization/Pseudonymization rules applied | ✅ Green | No changes to transformation logic. | ✅ **Confirmed** |
+
+### Section B: Access Control & Authentication
+*Source: `deployments/data-export-v1/compliance-checklist.md`*
+
+| Control Item | v1 Status | v2 Assessment | v2 Status |
+| :--- | :---: | :--- | :---: |
+| User identity verification for export requests | ✅ Green | v2 adds OAuth scope authentication for partners. | ✅ **Confirmed** |
+| Authorization check: User has granted active authorization | ✅ Green | v2 spec confirms partners request exports only for users with active authorizations. | ✅ **Confirmed** |
+| Rate limiting on export endpoints | ✅ Green | Applies to new `POST /v2/data-export/request` endpoint. | ✅ **Confirmed** |
+
+### Section C: Audit Logging & Provenance
+*Source: `deployments/data-export-v1/compliance-checklist.md` & `policy/bulletins/2025-Q4-bulletin.md`*
+
+| Control Item | v1 Status | v2 Assessment | v2 Status |
+| :--- | :---: | :--- | :---: |
+| Standard audit log entry created for every export | ✅ Green | Applies to all pathways, including v2 partner portal. | ✅ **Confirmed** |
+| **Provenance Stamp** (New Q4 Requirement) | N/A | **REQUIRED for v2.** Partner-initiated pathway mandates synchronous audit entry capturing: <br>1. User authorization grant ID <br>2. Requesting party identity (Partner) <br>3. Authorization scope <br>4. Validity window at time of export. <br>**Implementation must fail closed if stamp cannot be assembled.** | ⚠️ **CONDITIONAL PASS** <br>*See Note 1 below.* |
+
+### Section D: Legal & Security Sign-off
+*Source: Q1 2025 Sign-offs*
+
+| Control Item | Status | Notes |
+| :--- | :---: | :--- |
+| Legal Review | ✅ **Inherited** | Legal confirmed in Q1 2025 that v1 scope is compliant. v2 does not alter data scope or legal basis. |
+| Security Review | ✅ **Inherited** | Security confirmed in Q1 2025 that v1 controls are robust. v2 uses existing OAuth infrastructure. |
+
+## 3. Deployment Conditions & Verification Steps
+
+To finalize this pre-deployment confirmation, the DevOps/Engineering team must verify the following before the Friday release:
+
+1.  **Provenance Stamp Implementation:** Confirm that the `POST /v2/data-export/request` handler includes logic to generate the Provenance Stamp.
+2.  **Fail-Closed Behavior:** Provide test evidence (or reference to existing test suite results) demonstrating that if the Provenance Stamp cannot be assembled (e.g., missing grant ID or invalid scope), the export request is **rejected** and the error is logged.
+3.  **Synchronous Write:** Confirm that the Provenance Stamp is written to the audit log **synchronously** before the export process completes, ensuring no race conditions where data is exported without provenance.
+
+## 4. Final Determination
+
+**Compliance Status:** **APPROVED FOR DEPLOYMENT**
+
+*Condition:* Approval is contingent upon the engineering team confirming that the Provenance Stamp logic is implemented and tested as described in Section 3. Once these specific v2 additions are verified, the v1 inherited controls remain fully applicable.
+
+**Signed,**
+
+*Compliance Officer*
+*Data-Export Compliance Team*
+*Date: [Current Date]*
+
+---
+
+### Note 1: Rationale for Conditional Pass on Provenance Stamp
+The v1 checklist did not include the Provenance Stamp requirement because it was not in effect at the time of v1 sign-off (Q1 2025). The 2025-Q4 Bulletin, effective 2025-11-01, explicitly targets "any deployment adding a partner-initiated export pathway." Since v2 introduces this pathway, the new control is mandatory. It is marked "Conditional Pass" because it is a new implementation detail in v2 that requires final code verification, whereas the other items are inherited from the previously signed-off v1 baseline.

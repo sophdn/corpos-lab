@@ -1,0 +1,101 @@
+# Data-Export v2 Compliance Checklist
+
+**Release:** data-export v2
+**Deployment Date:** Friday (Upcoming)
+**Review Type:** Pre-Deployment Compliance Confirmation
+**Reference Baseline:** data-export v1 (Signed off Q1 2025)
+**Applicable Policy:** 2025-Q4 Compliance Bulletin (Effective 2025-11-01)
+
+## Executive Summary
+Data-Export v2 introduces a new partner-portal access path via an HTTP endpoint (`POST /v2/data-export/request`) while retaining the v1 CLI surface. The data scope, access controls, and retention policies remain unchanged from v1. However, the addition of a partner-initiated export pathway triggers specific requirements under the **2025-Q4 Compliance Bulletin**. This checklist confirms that v1 controls remain valid and validates the new Provenance Stamp requirement.
+
+**Status:** **CONDITIONAL PASS**
+*Deployment is approved subject to the implementation of the "Provenance Stamp" audit logging mechanism as detailed in Section 4.*
+
+---
+
+## 1. Data Scope & Retention
+*Input: v1 Checklist, v2 Spec*
+
+| Item | v1 Status | v2 Status | Notes |
+| :--- | :--- | :--- | :--- |
+| Data Scope Definition | ✅ Confirmed | ✅ Confirmed | No changes to data fields or scope. |
+| Retention Policy | ✅ Confirmed | ✅ Confirmed | Retention periods identical to v1. |
+| Data Minimization | ✅ Confirmed | ✅ Confirmed | No new data types introduced. |
+
+**Conclusion:** v1 controls remain fully applicable. No action required.
+
+## 2. Access Control & Authentication
+*Input: v1 Checklist, v2 Spec*
+
+| Item | v1 Status | v2 Status | Notes |
+| :--- | :--- | :--- | :--- |
+| Identity Verification | ✅ Confirmed | ✅ Confirmed | Users must be authenticated. |
+| Authorization Scope | ✅ Confirmed | ✅ Confirmed | Partners authenticate via OAuth scope; users must grant active authorization. |
+| Least Privilege | ✅ Confirmed | ✅ Confirmed | Partners can only request exports for users who have explicitly granted them authorization. |
+| Session Management | ✅ Confirmed | ✅ Confirmed | OAuth tokens are validated per request. |
+
+**Conclusion:** v1 pathway-agnostic access control terms still apply. The new OAuth scope mechanism aligns with existing authorization frameworks.
+
+## 3. Audit Logging (Standard)
+*Input: v1 Checklist, v2 Spec*
+
+| Item | v1 Status | v2 Status | Notes |
+| :--- | :--- | :--- | :--- |
+| Export Event Logging | ✅ Confirmed | ✅ Confirmed | All export requests (CLI and HTTP) must be logged. |
+| User Identity Recording | ✅ Confirmed | ✅ Confirmed | The requesting user’s identity is recorded. |
+| Timestamp Accuracy | ✅ Confirmed | ✅ Confirmed | Logs include precise timestamps. |
+
+**Conclusion:** Standard audit logging requirements are met.
+
+## 4. Partner Integration Specifics (New Requirement)
+*Input: 2025-Q4 Compliance Bulletin*
+
+**Policy Trigger:** The v2 spec adds a "partner-initiated export pathway." Per the Q4 Bulletin, this requires an additional audit entry known as a **Provenance Stamp**.
+
+| Item | Requirement | Implementation Status | Verification |
+| :--- | :--- | :--- | :--- |
+| **Provenance Stamp: Authorization Grant ID** | Must capture the unique ID of the user’s authorization grant. | ⚠️ **To Be Verified** | Confirm that the `POST /v2/data-export/request` handler extracts and logs the OAuth grant ID. |
+| **Provenance Stamp: Requesting Party Identity** | Must capture the identity of the partner (client ID or equivalent). | ⚠️ **To Be Verified** | Confirm that the partner’s OAuth client ID is recorded in the audit log. |
+| **Provenance Stamp: Authorization Scope** | Must capture the specific scope of the authorization at time of export. | ⚠️ **To Be Verified** | Confirm that the scope string from the OAuth token is logged. |
+| **Provenance Stamp: Validity Window** | Must capture the start/end times of the authorization validity. | ⚠️ **To Be Verified** | Confirm that the token’s `exp` and `iat` (or equivalent) fields are recorded. |
+| **Synchronous Logging** | The stamp must be written synchronously before the export begins. | ⚠️ **To Be Verified** | Confirm that the logging operation is not asynchronous or fire-and-forget. |
+| **Fail-Closed Behavior** | If the stamp cannot be assembled, the export must fail. | ⚠️ **To Be Verified** | Confirm that an exception or error response is returned if any Provenance Stamp field is missing or logging fails. |
+
+**Action Required:** Engineering must confirm that the `POST /v2/data-export/request` endpoint implements the Provenance Stamp mechanism with **fail-closed** behavior. If any part of the stamp cannot be generated, the request must be rejected.
+
+## 5. Security & Infrastructure
+*Input: v1 Checklist, v2 Spec*
+
+| Item | v1 Status | v2 Status | Notes |
+| :--- | :--- | :--- | :--- |
+| Encryption in Transit | ✅ Confirmed | ✅ Confirmed | HTTPS enforced for new HTTP endpoint. |
+| Input Validation | ✅ Confirmed | ✅ Confirmed | OAuth tokens are validated; no injection risks identified in spec. |
+| Rate Limiting | ✅ Confirmed | ✅ Confirmed | New endpoint should inherit v1 rate limits or have equivalent controls. |
+
+**Conclusion:** Security posture remains consistent with v1. Ensure the new endpoint is behind the same WAF and rate-limiting rules as v1.
+
+## 6. Legal & Privacy
+*Input: v1 Checklist, 2025-Q4 Bulletin*
+
+| Item | v1 Status | v2 Status | Notes |
+| :--- | :--- | :--- | :--- |
+| Data Processing Agreement (DPA) | ✅ Confirmed | ✅ Confirmed | Partners are covered under existing DPAs; no new data categories. |
+| User Consent | ✅ Confirmed | ✅ Confirmed | Users grant authorization via OAuth, which implies consent for the specific scope. |
+| Cross-Border Transfer | ✅ Confirmed | ✅ Confirmed | No new transfer mechanisms introduced. |
+
+**Conclusion:** Legal sign-off from Q1 2025 remains valid. The Provenance Stamp enhances transparency and supports privacy compliance by providing a clear audit trail of partner access.
+
+---
+
+## Sign-Off
+
+**Compliance Officer:** _________________________
+**Date:** _________________________
+
+**Conditions for Deployment:**
+1. Engineering confirms that the **Provenance Stamp** is implemented on the `POST /v2/data-export/request` endpoint.
+2. Testing confirms that the system **fails closed** if any component of the Provenance Stamp is missing or if logging fails.
+3. Audit logs are verified to include: User Authorization Grant ID, Partner Identity, Scope, and Validity Window.
+
+**Note to Team:** This is a pre-deployment confirmation. The v1 checklist remains the baseline for all unchanged items. The only new compliance obligation is the Provenance Stamp for the partner-portal pathway. Ensure this is verified in the final pre-deploy test suite.

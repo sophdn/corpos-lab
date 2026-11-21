@@ -1,0 +1,106 @@
+To address ticket **DEF-2026-04-1047**, here is the analysis and the required code changes for `config/validator.py`.
+
+### Root Cause Analysis
+The function `validate_url_field()` currently only performs a presence check (non-empty string). It does not verify that the string conforms to a valid URL structure. Consequently, malformed strings (e.g., `"not-a-url"`, `"http://"`, or `"auth_service_url"`) pass validation, causing the CLI to exit with code `0` when it should exit with `1`.
+
+### Proposed Fix
+We need to update `validate_url_field()` to perform structural validation. Python’s standard library `urllib.parse` provides robust URL parsing. A valid URL for this context should:
+1. Have a valid scheme (typically `http` or `https`).
+2. Have a valid netloc (host).
+3. Not be empty.
+
+Below is the patched code for `config/validator.py`.
+
+```python
+# config/validator.py
+import sys
+from urllib.parse import urlparse
+
+def validate_url_field(field_name, value):
+    """
+    Validates that a configuration field contains a well-formed URL.
+    
+    Args:
+        field_name (str): The name of the field being validated.
+        value (str): The value of the field.
+    
+    Returns:
+        bool: True if the value is a valid URL, False otherwise.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return False
+    
+    try:
+        parsed = urlparse(value)
+        
+        # Check if the scheme is valid (http or https)
+        if parsed.scheme not in ('http', 'https'):
+            return False
+        
+        # Check if the netloc (host) is present and non-empty
+        if not parsed.netloc:
+            return False
+        
+        # Optional: Ensure the netloc looks like a valid hostname (basic check)
+        # This prevents values like "http:///path" from passing
+        if not all(c.isalnum() or c in '.-_' for c in parsed.netloc):
+            return False
+            
+        return True
+    except Exception:
+        return False
+
+def validate_config(config_dict):
+    """
+    Validates the entire configuration dictionary.
+    """
+    errors = []
+    
+    # Specific validation for auth_service_url
+    if "auth_service_url" in config_dict:
+        if not validate_url_field("auth_service_url", config_dict["auth_service_url"]):
+            errors.append(f"Malformed URL for 'auth_service_url': {config_dict['auth_service_url']}")
+    
+    # ... other validations ...
+
+    return errors
+
+if __name__ == "__main__":
+    # Example usage in CLI context
+    # Assuming config is loaded from somewhere
+    # config = load_config()
+    # errors = validate_config(config)
+    # if errors:
+    #     for error in errors:
+    #         print(error, file=sys.stderr)
+    #     sys.exit(1)
+    # else:
+    #     sys.exit(0)
+    pass
+```
+
+### Verification Plan
+To ensure the acceptance criteria are met, the following test cases should be executed:
+
+1.  **Malformed URL (Exit 1)**:
+    *   Input: `auth_service_url = "invalid-url"`
+    *   Expected: `validate_url_field` returns `False`, validator exits with code `1`.
+2.  **Missing Scheme (Exit 1)**:
+    *   Input: `auth_service_url = "example.com"`
+    *   Expected: `validate_url_field` returns `False`, validator exits with code `1`.
+3.  **Missing Host (Exit 1)**:
+    *   Input: `auth_service_url = "http://"`
+    *   Expected: `validate_url_field` returns `False`, validator exits with code `1`.
+4.  **Valid URL (Exit 0)**:
+    *   Input: `auth_service_url = "https://auth.example.com/api"`
+    *   Expected: `validate_url_field` returns `True`, validator exits with code `0`.
+5.  **Empty String (Exit 1)**:
+    *   Input: `auth_service_url = ""`
+    *   Expected: `validate_url_field` returns `False`, validator exits with code `1`.
+
+### Next Steps
+1.  Apply the patch to `config/validator.py`.
+2.  Run the existing test suite for `config-validator` to ensure no regressions.
+3.  Add unit tests for `validate_url_field` covering the cases above.
+4.  Manually verify the CLI behavior with a malformed config file.
+5.  Close ticket DEF-2026-04-1047.

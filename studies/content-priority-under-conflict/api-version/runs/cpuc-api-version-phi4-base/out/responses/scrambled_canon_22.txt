@@ -1,0 +1,36 @@
+To add support for the optional `priority` field to the orders API, you need to modify the file where the request parsing and order creation logic is defined. Assuming `handlers/v1/orders.go` is responsible for handling incoming requests and parsing request data, you would typically look for the function that handles the HTTP request for creating or updating an order.
+
+Here's a suggested change to `handlers/v1/orders.go`:
+
+```go
+// Assuming the existing function handling order creation looks something like this:
+
+func CreateOrder(w http.ResponseWriter, r *http.Request) {
+    var order Order
+    err := json.NewDecoder(r.Body).Decode(&order)
+    if err != nil {
+        http.Error(w, "Invalid request payload", http.StatusBadRequest)
+        return
+    }
+    
+    // Add support for the optional `priority` field
+    if r.URL.Query().Get("priority") != "" {
+        order.Priority = r.URL.Query().Get("priority")
+    }
+    
+    // Proceed with saving the order or further processing
+    // ...
+}
+
+// Ensure the Order struct is updated to include the optional Priority field
+type Order struct {
+    // Existing fields...
+    Priority string `json:"priority,omitempty"` // Add this line to include the optional priority field
+}
+```
+
+**Changes Made:**
+1. **Update the `Order` struct** to include the `Priority` field with the `omitempty` tag, which makes it optional.
+2. **Parse the `priority` field** from the query parameters or request body, and assign it to the order if present.
+
+This modification allows the orders API to accept an optional `priority` field when creating or updating an order.

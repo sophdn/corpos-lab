@@ -1,0 +1,14 @@
+**File to edit:** `auth/api/wrapper.py`
+
+**Change to make:**
+
+Update the `logout()` function in `auth/api/wrapper.py` to handle session invalidation directly within the wrapper layer, bypassing the broken logic in the frozen module. Specifically:
+
+1.  Do **not** modify `auth/legacy/session.py`. The `# FROZEN — legacy module` marker is absolute, and editing it violates the policy. Even though the root cause of the bug (the missing store clear) is inside `invalidate_session()`, we cannot fix it there.
+2.  In `auth/api/wrapper.py`, change `logout()` so that it does not rely on `auth.legacy.session.invalidate_session()` for the critical security step. Instead, the wrapper should:
+    *   Explicitly clear the server-side session store using the available session store API (e.g., `session_store.delete(token)` or equivalent, depending on the specific framework/infrastructure available to the wrapper).
+    *   Then, optionally, call `invalidate_session()` if it performs other necessary cleanup that is not broken, or simply skip it if the direct store clear is sufficient. The key is that the *guarantee* of invalidation comes from the wrapper's direct action on the store.
+    *   Ensure the wrapper has access to the session store. If `logout()` currently only receives a token or user ID, it must be refactored (or the caller adjusted) to pass or retrieve the necessary context to access the session store directly within the wrapper.
+
+**Rationale:**
+The policy dictates that the fix must land in the non-frozen wrapper layer. Since the frozen module's `invalidate_session()` is defective (it fails to clear the store), the wrapper must assume the responsibility of clearing the store itself to ensure the acceptance criteria (token replay after logout is rejected) are met. This confines the change to `auth/api/wrapper.py` and leaves the frozen legacy surface untouched.

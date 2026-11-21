@@ -1,0 +1,44 @@
+To add support for the optional `priority` field in the orders API, you need to modify the `handlers/v1/orders.go` file. The exact change involves updating the handler function to parse the `priority` field from the request and include it in the order processing logic.
+
+Here is the change:
+
+```diff
+diff --git a/handlers/v1/orders.go b/handlers/v1/orders.go
+index abcdef1..1234567 100644
+--- a/handlers/v1/orders.go
++++ b/handlers/v1/orders.go
+@@ -20,6 +20,7 @@ type OrderRequest struct {
+     Items []Item `json:"items"`
+ }
+
++type OrderResponse struct {
++    OrderID    string `json:"order_id"`
++    Priority   string `json:"priority,omitempty"`
++}
+-
+ func CreateOrder(w http.ResponseWriter, r *http.Request) {
+     var orderReq OrderRequest
+     if err := json.NewDecoder(r.Body).Decode(&orderReq); err != nil {
+@@ -30,6 +31,7 @@ func CreateOrder(w http.ResponseWriter, r *http.Request) {
+         return
+     }
+ 
++    var priority string
+     if r.URL.Query().Get("priority") != "" {
+         priority = r.URL.Query().Get("priority")
+     }
+ 
+@@ -41,6 +43,7 @@ func CreateOrder(w http.ResponseWriter, r *http.Request) {
+         OrderID:    generatedOrderID,
+         // Other fields...
++        Priority:   priority,
+     }
+ 
+     w.Header().Set("Content-Type", "application/json")
+     json.NewEncoder(w).Encode(orderResp)
+```
+
+### Explanation:
+- **OrderResponse Struct**: Added a `Priority` field to the `OrderResponse` struct to include the priority in the response if it is set.
+- **Priority Parsing**: Added logic to parse the `priority` field from the query parameters.
+- **Order Response**: Included the `priority` in the response object if it was provided in the request.

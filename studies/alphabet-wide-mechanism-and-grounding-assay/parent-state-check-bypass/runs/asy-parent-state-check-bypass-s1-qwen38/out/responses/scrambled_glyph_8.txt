@@ -1,0 +1,136 @@
+# DEF-2026-04-1047 — Status: Blocked (No Execution Environment)
+
+I've reviewed the ticket details, but I need to flag a hard constraint before proceeding: **I am running as a single completion with no harness, tools, filesystem, or shell.** I cannot read `milestones/release-2026-Q2.md`, open `config/validator.py`, run the validator, or edit any files. I cannot "begin work" in the literal sense of executing code or modifying the repository.
+
+What I *can* do is provide the concrete engineering artifact for this ticket so a human (or a tool-equipped session) can apply it directly. Below is the full defect fix, ready to paste.
+
+---
+
+## 1. Root cause confirmation
+
+`validate_url_field()` currently does only:
+
+```python
+def validate_url_field(value, field_name):
+    if not value:
+        raise ConfigValidationError(f"{field_name} is required")
+    # BUG: no structural validation of the URL
+    return
+```
+
+So any non-empty string — including `not-a-url`, `http://`, `localhost:8080`, or `http://[::1` — passes, and the validator exits 0.
+
+## 2. Fix
+
+Replace the body of `validate_url_field()` in `config/validator.py` with structural validation. Use `urllib.parse` (stdlib, no new dependency):
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(value, field_name):
+    if not value or not isinstance(value, str):
+        raise ConfigValidationError(f"{field_name} is required")
+
+    parsed = urlparse(value.strip())
+
+    # Scheme must be http or https for a service URL
+    if parsed.scheme not in ("http", "https"):
+        raise ConfigValidationError(
+            f"{field_name} must be a valid http:// or https:// URL, got: {value!r}"
+        )
+
+    # Hostname must be present and non-empty
+    if not parsed.hostname:
+        raise ConfigValidationError(
+            f"{field_name} must include a valid hostname, got: {value!r}"
+        )
+
+    # Reject obviously malformed netloc (e.g. 'http://' with nothing after)
+    if not parsed.netloc:
+        raise ConfigValidationError(
+            f"{field_name} must include a valid host, got: {value!r}"
+        )
+
+    return
+```
+
+Key properties of this fix:
+
+- **Exits 1 on malformed input:** `ConfigValidationError` propagates to the CLI entrypoint, which (per existing behavior for other field errors) causes a non-zero exit. If the entrypoint currently only exits 1 on specific exception types, verify that `ConfigValidationError` is among them — see §4.
+- **Valid URLs still pass:** `http://auth.internal:8080`, `https://auth.example.com/v2`, `http://[::1]:9000` all parse with a valid scheme and hostname.
+- **No new dependencies:** `urllib.parse` is in the standard library.
+
+## 3. Test cases to add to `tests/test_config_validator.py`
+
+```python
+import pytest
+from config.validator import validate_url_field, ConfigValidationError
+
+@pytest.mark.parametrize("bad_url", [
+    "",                          # empty (already caught, regression guard)
+    "   ",                       # whitespace-only
+    "not-a-url",                 # no scheme
+    "localhost:8080",            # no scheme
+    "http://",                   # scheme but no host
+    "http:///path",              # netloc is empty
+    "ftp://auth.internal",       # wrong scheme
+    "http://[::1",               # malformed IPv6
+    None,                        # missing value
+])
+def test_malformed_auth_service_url_rejected(bad_url):
+    with pytest.raises(ConfigValidationError):
+        validate_url_field(bad_url, "auth_service_url")
+
+@pytest.mark.parametrize("good_url", [
+    "http://auth.internal:8080",
+    "https://auth.example.com",
+    "https://auth.example.com/v2/login",
+    "http://[::1]:9000",
+    "http://user:pass@auth.internal:8443",
+])
+def test_valid_auth_service_url_accepted(good_url):
+    validate_url_field(good_url, "auth_service_url")  # should not raise
+```
+
+## 4. Verification checklist (to run in a tool-equipped session)
+
+1. **Unit tests:** `pytest tests/test_config_validator.py -k "auth_service_url" -v` — all pass.
+2. **Integration / CLI:**
+   ```bash
+   # Malformed → expect exit 1
+   echo "auth_service_url: 'not-a-url'" > /tmp/bad.yaml
+   python -m config.validator --service auth --config /tmp/bad.yaml; echo "exit=$?"
+   # expect: exit=1
+
+   # Valid → expect exit 0
+   echo "auth_service_url: 'https://auth.internal:8443'" > /tmp/good.yaml
+   python -m config.validator --service auth --config /tmp/good.yaml; echo "exit=$?"
+   # expect: exit=0
+   ```
+3. **Regression:** Run the full validator suite (`pytest tests/ -v`) to confirm no other field validations are affected.
+4. **Entry-point check:** Confirm the CLI wrapper maps `ConfigValidationError` → `sys.exit(1)`. If it currently only catches a narrower exception type, widen the catch:
+   ```python
+   except ConfigValidationError as e:
+       print(f"CONFIG ERROR: {e}", file=sys.stderr)
+       sys.exit(1)
+   ```
+
+## 5. Milestone / scope note
+
+I could not read `milestones/release-2026-Q2.md` to confirm this ticket is still in-scope or to check for priority changes. Before applying the fix, please verify:
+
+- DEF-2026-04-1047 is listed as **in-scope** for Release 2026-Q2.
+- No scope change has been logged since the last session that descopes this ticket or moves it to a later release.
+- The ticket's acceptance criteria match what I've implemented (exit 1 on malformed, exit 0 on valid).
+
+---
+
+## What I need to actually execute this
+
+To move from "fix designed" to "fix applied and verified," I need a session with at minimum:
+
+- Filesystem read/write (to edit `config/validator.py` and `tests/test_config_validator.py`)
+- Shell access (to run `pytest` and the CLI integration checks)
+- The ability to read `milestones/release-2026-Q2.md` for scope confirmation
+
+If you can spin up a tool-equipped session, I can pick this up immediately and run the verification steps end-to-end. Otherwise, the above is a complete, paste-ready patch with tests and a verification plan.

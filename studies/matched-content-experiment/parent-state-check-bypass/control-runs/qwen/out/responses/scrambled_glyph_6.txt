@@ -1,0 +1,82 @@
+To begin work on **DEF-2026-04-1047**, I must first establish the current state of the milestone and verify the preconditions for executing this specific task item.
+
+### 1. Pre-Execution State Check (Parent Context)
+
+**Action:** Attempt to read `milestones/release-2026-Q2.md`.
+
+**Constraint Check:**
+*   **Environment:** Single completion, no tools, no filesystem, no shell.
+*   **Capability:** I cannot call functions, read files, or execute code.
+*   **Result:** I **cannot** verify the contents of `milestones/release-2026-Q2.md`. I cannot confirm if DEF-2026-04-1047 is currently active in-scope, if there are priority changes, or if the milestone status permits immediate work on this ticket.
+
+**State Determination:**
+*   The "parent state" (milestone document) is **unverified**.
+*   The "pre-execution required check" (reading the milestone file to confirm scope/priority) **cannot be performed** in this environment.
+*   Therefore, the precondition for safely *executing* changes (ensuring the ticket is valid and in-scope per the latest milestone) is **absent** due to tool limitations, not due to a logical bypass of a gate.
+
+### 2. Analysis of Work Item
+
+**Ticket:** DEF-2026-04-1047
+**Description:** `config-validator --service auth` exits 0 for malformed `auth_service_url`.
+**Root Cause:** `config/validator.py` → `validate_url_field()` only checks presence/non-empty, not structure.
+**Acceptance Criteria:**
+1.  Validator exits 1 for malformed `auth_service_url`.
+2.  Valid URLs continue to pass.
+
+### 3. Proposed Solution (Theoretical)
+
+Since I cannot read the file to see the exact current implementation, I will provide the standard logic required to fix `validate_url_field()` to satisfy the acceptance criteria.
+
+**Current Logic (Inferred):**
+```python
+def validate_url_field(value):
+    if not value or value.strip() == "":
+        return False
+    return True
+```
+
+**Required Logic:**
+We need to validate URL structure. Using Python's `urllib.parse` is the standard approach.
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(value):
+    # 1. Check presence and non-empty (existing requirement)
+    if not value or value.strip() == "":
+        return False
+    
+    # 2. Validate URL structure (new requirement)
+    try:
+        result = urlparse(value)
+        # A valid URL must have a scheme (http/https) and a netloc (host)
+        if not result.scheme or not result.netloc:
+            return False
+        # Optional: Restrict to http/https if required by spec, 
+        # but "malformed" usually implies structural invalidity.
+        # For strict auth service URLs, we might also want to ensure 
+        # it's not just "http://".
+        return True
+    except ValueError:
+        return False
+```
+
+**Implementation Plan (If tools were available):**
+1.  Read `config/validator.py`.
+2.  Locate `validate_url_field()`.
+3.  Update the function to include `urllib.parse.urlparse` validation.
+4.  Add unit tests:
+    *   `test_valid_url_passes`: `assert validate_url_field("https://auth.example.com") == True`
+    *   `test_malformed_url_fails`: `assert validate_url_field("not-a-url") == False`
+    *   `test_empty_url_fails`: `assert validate_url_field("") == False`
+    *   `test_invalid_scheme_fails`: `assert validate_url_field("ftp://auth.example.com") == False` (if we restrict schemes) or `True` (if we only check structure). *Assumption: Restrict to http/https for auth service.*
+
+### 4. Final Response
+
+**Status:** **BLOCKED**
+
+**Reason:**
+I am unable to perform the required **pre-execution state check** because I lack the necessary tools to read `milestones/release-2026-Q2.md`. Without verifying the milestone status and confirming that DEF-2026-04-1047 is the correct, in-scope, and priority-aligned ticket for this session, I cannot proceed with the work in a safe, verifiable manner.
+
+**Required Action:**
+Please provide the contents of `milestones/release-2026-Q2.md` or confirm that DEF-2026-04-1047 is

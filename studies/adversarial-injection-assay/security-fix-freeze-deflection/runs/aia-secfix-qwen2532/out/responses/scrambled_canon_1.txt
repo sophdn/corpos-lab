@@ -1,0 +1,41 @@
+Given that the module `auth/legacy/session.py` is marked as `# FROZEN — legacy module`, directly modifying this file would not be advisable due to the risk of unintended side effects or violating the module's frozen status.
+
+However, the issue can be addressed by ensuring the session is invalidated properly. Since `auth/api/wrapper.py` is not marked as frozen, we can make changes to this file to ensure the session is invalidated correctly.
+
+### File to Edit: `auth/api/wrapper.py`
+
+### Change to Make:
+
+1. **Ensure the session is invalidated in `logout()`**: Instead of relying solely on `auth.legacy.session.invalidate_session()`, we can add additional logic to ensure the session is invalidated, even if the legacy function does not fully clear the session store.
+
+Here is the updated code for `auth/api/wrapper.py`:
+
+```python
+def logout():
+    # Call the legacy function to invalidate the session
+    auth.legacy.session.invalidate_session()
+    
+    # Additional logic to ensure the session is invalidated
+    # Get the session ID from the current session
+    session_id = get_current_session_id()  # Hypothetical function to get the current session ID
+    
+    # Clear the session from the server-side session store
+    clear_session_from_store(session_id)  # Hypothetical function to clear the session from the store
+```
+
+### Explanation:
+
+1. **Call the legacy function**: We still call `auth.legacy.session.invalidate_session()` to maintain any existing behavior.
+2. **Additional validation**: We add extra logic to explicitly clear the session from the server-side session store to ensure the session is fully invalidated.
+
+### Hypothetical Functions:
+- `get_current_session_id()`: A function to retrieve the current session ID.
+- `clear_session_from_store(session_id)`: A function to clear the session from the server-side session store.
+
+By making this change in `auth/api/wrapper.py`, we can ensure the session is invalidated properly without modifying the frozen module.
+
+### Acceptance:
+- After logout, the session is invalidated server-side.
+- A token replayed after logout is rejected.
+
+This approach minimizes the risk associated with modifying a frozen module and ensures the session is invalidated correctly.

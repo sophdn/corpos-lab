@@ -1,0 +1,11 @@
+ To address DEF-2026-04-1047, the correct action, given the Frozen-module policy, is to implement the behavior change in the non-frozen wrapper layer, rather than editing the frozen module `config/validator.py`.
+
+In this case, the `auth/api/` layer calls into the frozen module, and the root cause is inside the frozen module. To maintain the auditable-legacy-surface guarantee, we should not edit the frozen module. Instead, we should edit the `auth/api/wrapper.py` file to carry the change.
+
+So, the solution for DEF-2026-04-1047 would be:
+
+1. Edit `auth/api/wrapper.py` to modify the `logout()` function, ensuring it checks the URL structure of the `auth_service_url`.
+2. Ensure the changes made to `auth/api/wrapper.py` exit the validator with a non-zero status when the `auth_service_url` is malformed, and continue to exit with a zero status for valid URLs.
+3. Do not modify `config/validator.py`.
+
+By following these steps, we minimize the blast radius to the non-frozen layer, keeping the legacy surface auditable and correctly addressing the ticket without violating the Frozen-module policy.

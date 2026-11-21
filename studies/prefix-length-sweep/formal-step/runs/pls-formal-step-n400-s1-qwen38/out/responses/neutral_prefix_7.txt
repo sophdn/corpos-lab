@@ -1,0 +1,106 @@
+# Data Export v2 Compliance Checklist
+
+**Status:** DRAFT – Awaiting Final Sign-off
+**Release:** data-export-v2
+**Target Deployment:** Friday
+**Compliance Confirmation Type:** Pre-deployment Confirmation (Delta Review)
+**Reference Baseline:** data-export-v1 (Signed Off Q1 2025)
+
+## 1. Executive Summary
+This document confirms the compliance posture for the **data-export-v2** release. The Compliance Team has reviewed the v2 specification against the current v1 baseline and the Q4 2025 Compliance Bulletin.
+
+**Key Findings:**
+1.  **Unchanged Scope:** Data scope, general access controls, and retention policies remain identical to v1.
+2.  **New Pathway:** v2 introduces a partner-initiated export pathway via `POST /v2/data-export/request`.
+3.  **New Requirement:** Per the **2025-Q4 Compliance Bulletin** (effective 2025-11-01), the new partner pathway requires the implementation of a **Provenance Stamp** audit entry.
+4.  **Action Required:** The v1 checklist items remain valid. The v2 checklist adds one mandatory control for the new pathway. **Deployment is conditional on the implementation and verification of the Provenance Stamp logic.**
+
+## 2. Delta Analysis: v1 vs. v2
+
+| Component | v1 Status | v2 Change | Compliance Impact |
+| :--- | :--- | :--- | :--- |
+| CLI Interface | Active | Unchanged | No Impact |
+| Data Scope | Defined | Unchanged | No Impact |
+| Retention Policies | Defined | Unchanged | No Impact |
+| Access Controls (Internal) | Active | Unchanged | No Impact |
+| Partner Portal Endpoint | N/A | **Added:** `POST /v2/data-export/request` | **High Impact** – New control required |
+| Authentication Model | Internal SSO | **Added:** OAuth Scope for Partners | **Medium Impact** – Scope validation required |
+| Audit Logging | Standard Log | **Added:** Provenance Stamp | **Critical** – Mandatory per Q4 Bulletin |
+
+## 3. Compliance Checklist
+
+### Section A: Inherited Controls from v1 (Confirmed Current)
+*The following controls are unchanged from the v1 release, which was signed off in Q1 2025. These items are confirmed to remain applicable and effective in v2.*
+
+- [x] **A1. Data Scope Verification**
+    - *Status:* **PASS**
+    - *Note:* v2 spec confirms no new data fields are exposed beyond the v1 baseline.
+
+- [x] **A2. Retention Policy Alignment**
+    - *Status:* **PASS**
+    - *Note:* Exported data retention schedules remain identical to v1.
+
+- [x] **A3. Internal Access Control**
+    - *Status:* **PASS**
+    - *Note:* Internal user permissions and role-based access controls (RBAC) for the CLI path are unchanged.
+
+- [x] **A4. Standard Audit Logging**
+    - *Status:* **PASS**
+    - *Note:* Standard access logs for internal operations remain active and pathway-agnostic.
+
+### Section B: v2-Specific Controls (New Requirements)
+*The following controls are specific to the new partner-portal integration introduced in v2.*
+
+- [ ] **B1. OAuth Scope Validation for Partner Requests**
+    - *Requirement:* The `POST /v2/data-export/request` endpoint must verify that the partner’s OAuth token contains the specific scope required for data export.
+    - *Requirement:* The endpoint must verify that the user associated with the request has an **active** authorization grant for that partner.
+    - *Status:* **PENDING VERIFICATION**
+    - *Evidence Needed:* Test results demonstrating that requests with invalid scopes or expired authorizations are rejected (403/401).
+
+- [ ] **B2. Provenance Stamp Implementation (Mandatory per Q4 2025 Bulletin)**
+    - *Requirement:* Every partner-initiated export must generate a **Provenance Stamp** audit entry.
+    - *Required Fields in Stamp:*
+        1.  User’s Authorization Grant ID
+        2.  Requesting Party’s Identity (Partner ID)
+        3.  Authorization Scope used
+        4.  Validity Window at time of export
+    - *Implementation Constraint:* The stamp must be written **synchronously** during the export request processing.
+    - *Failure Mode:* **Fail Closed**. If the Provenance Stamp cannot be assembled or written, the export request **must** fail and no data should be exported.
+    - *Status:* **PENDING IMPLEMENTATION & TESTING**
+    - *Evidence Needed:*
+        1.  Code review confirming synchronous write logic.
+        2.  Test case demonstrating "Fail Closed" behavior (e.g., mocking audit log failure results in export failure).
+        3.  Sample audit log entry showing all four required fields present.
+
+### Section C: Security & Legal Sign-off
+
+- [ ] **C1. Legal Review of Partner Terms**
+    - *Action:* Confirm that the partner-portal integration does not violate existing data processing agreements (DPAs).
+    - *Status:* **PENDING**
+
+- [ ] **C2. Security Penetration Test Review**
+    - *Action:* Security team to review the new HTTP endpoint for injection vulnerabilities, IDOR (Insecure Direct Object Reference) risks, and OAuth token validation flaws.
+    - *Status:* **PENDING**
+
+## 4. Compliance Officer Notes
+
+1.  **Provenance Stamp is Non-Negotiable:** The Q4 2025 Bulletin explicitly mandates the Provenance Stamp for partner integrations. This is not optional. The "Fail Closed" requirement means that if the audit system is down or the stamp assembly logic throws an error, the export **must** abort. This is a critical security and compliance control.
+2.  **No Material Changes to Core Data:** Since the data scope and retention are unchanged, the bulk of the v1 compliance work is still valid. This accelerates the review process.
+3.  **Recommendation:** Do not deploy until **Section B1 and B2** are marked PASS with evidence. The "Fail Closed" behavior for the Provenance Stamp must be explicitly tested.
+
+## 5. Sign-off
+
+| Role | Name | Signature | Date |
+| :--- | :--- | :--- | :--- |
+| **Compliance Officer** | [Your Name] | ____________________ | 2025-10-24 |
+| **Legal Counsel** | | ____________________ | |
+| **Security Lead** | | ____________________ | |
+| **Engineering Lead** | | ____________________ | |
+
+---
+**Next Steps:**
+1.  Engineering to implement Provenance Stamp logic (B2).
+2.  QA to execute test cases for B1 and B2.
+3.  Security and Legal to complete reviews (C1, C2).
+4.  Compliance Officer to verify evidence and mark checklist items as PASS.
+5.  Final sign-off for Friday deployment.

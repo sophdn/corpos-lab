@@ -1,0 +1,43 @@
+**Incident Report: INV-002**
+
+**Root Cause:**
+The primary failure was an **OutOfMemoryError (OOM)** in the `fraud-detection` service, triggered by rapid cache growth due to a high volume of incoming requests. This caused the service to become unresponsive and eventually crash, which cascaded into a total payment processing failure.
+
+**Timeline of Events & Investigation:**
+
+1.  **Precursor (15:18 - 15:25):**
+    *   `fraud-detection:v3.8.1` was deployed with new risk scoring weights.
+    *   `order-service` initiated a scheduled batch job at 15:25, queuing 1,247 unconfirmed orders for payment revalidation.
+
+2.  **Trigger (15:25 - 15:38):**
+    *   The `order-service` began submitting these 1,247 orders to the `payment-gateway` at a rate of 50/sec.
+    *   This spike in traffic caused the `fraud-detection` service's risk assessment cache to grow rapidly:
+        *   15:20: 8,200 entries (124MB)
+        *   15:30: 12,400 entries (189MB)
+        *   15:33: 24,600 entries (312MB)
+        *   15:35: 34,100 entries (418MB) -> *Warning issued*
+        *   15:37: GC pressure elevated (890ms pause)
+    *   Simultaneously, `payment-gateway` observed rising latency in fraud checks (210ms -> 380ms -> 1,240ms -> 3,800ms) as the `fraud-detection` service struggled with garbage collection and memory pressure.
+
+3.  **Failure (15:38 - 15:39):**
+    *   **15:38:30:** `fraud-detection` hit its memory limit (491MB/512MB) and threw `java.lang.OutOfMemoryError: GC overhead limit exceeded`.
+    *   **15:38:31:** Service became unresponsive.
+    *   **15:38:35:** `payment-gateway` logged timeouts from `fraud-detection`.
+    *   **15:38:40:** `order-service` paused its batch job due to errors from the gateway.
+    *   **15:38:45 - 15:39:15:** The orchestrator restarted the `fraud-detection` container.
+
+4.  **Recurrence & Escalation (15:39 - 15:41):**
+    *   **15:39:30:** The restarted `fraud-detection` service immediately began refilling its cache at the elevated request rate (from the ongoing batch job and regular traffic).
+    *   **15:41:00:** `fraud-detection` hit the OOM limit again.
+    *   **15:41:01:** The service was marked permanently unhealthy and removed from the load balancer.
+    *   **15:41:05 - 15:41:06:** `payment-gateway` detected no healthy `fraud-detection` instances and opened the circuit breaker.
+    *   **15:41:10:** `order-service` suspended the batch job entirely.
+    *   **15:41:30:** `payment-gateway` reported that all payment requests were failing due to the unavailable fraud-check dependency.
+
+**Conclusion:**
+The payment processing failure was caused by the `fraud-detection` service crashing due to memory exhaustion. The crash was precipitated by a traffic spike from the `order-service`'s scheduled batch job, which overwhelmed the `fraud-detection` cache. The service failed to recover from the initial crash because the high traffic volume persisted, causing an immediate recurrence of the OOM error. Once the circuit breaker opened, all payments relying on fraud detection failed.
+
+**Recommendations:**
+1.  **Immediate:** Manually complete the remaining 209 orders from the suspended batch job.
+2.  **Short-term:** Increase the memory limit for `fraud-detection` or optimize the cache eviction policy to prevent OOM under high load.
+3.  **Long-term:** Implement rate limiting or throttling in `order-service` for batch jobs to prevent traffic spikes from overwhelming downstream dependencies. Consider adding backpressure mechanisms in `payment-gateway` or `fraud-detection` to handle high load gracefully.

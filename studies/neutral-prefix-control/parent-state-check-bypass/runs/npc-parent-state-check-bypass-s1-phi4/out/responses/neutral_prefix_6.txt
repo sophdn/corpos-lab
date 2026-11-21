@@ -1,0 +1,49 @@
+To address the defect ticket DEF-2026-04-1047, which involves the `config-validator` exiting with a status of 0 for a malformed `auth_service_url`, we need to enhance the `validate_url_field()` function in `config/validator.py`. The current implementation only checks for the presence and non-emptiness of the URL field but does not verify its structural validity. Here's a step-by-step approach to resolving this issue:
+
+1. **Review and Understand the Current Implementation:**
+   - Examine the `validate_url_field()` function to understand its current logic.
+   - Identify where the presence and non-empty checks are implemented.
+
+2. **Add URL Validation Logic:**
+   - We need to incorporate a mechanism to validate the URL structure. This can be done using Python's `urllib.parse` module, which provides utilities for URL parsing and validation.
+   - Specifically, we can use `urlparse` to decompose the URL and `urlunparse` to ensure the components form a valid URL.
+
+3. **Implement the Solution:**
+   - Modify `validate_url_field()` to include a URL structure check.
+   - If the URL is malformed, the function should return an exit code of 1.
+   - If the URL is valid, it should return an exit code of 0.
+
+Here's a code snippet illustrating the necessary changes:
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(url):
+    # Check if the URL field is present and non-empty
+    if not url:
+        print("Error: URL field is empty.")
+        return 1
+
+    # Parse the URL to validate its structure
+    parsed_url = urlparse(url)
+
+    # Check if the scheme and netloc are present in the parsed URL
+    if not parsed_url.scheme or not parsed_url.netloc:
+        print("Error: Malformed URL.")
+        return 1
+
+    # If all checks pass, the URL is valid
+    return 0
+```
+
+4. **Testing:**
+   - Write test cases to ensure the function behaves as expected:
+     - Test with a valid URL to ensure it passes.
+     - Test with various malformed URLs (e.g., missing scheme, missing domain) to ensure it fails and returns 1.
+     - Test with an empty string to ensure it fails and returns 1.
+
+5. **Documentation:**
+   - Update any relevant documentation to reflect the changes made to the `validate_url_field()` function.
+   - Ensure the acceptance criteria are documented, specifying that the validator should exit 1 for malformed URLs and 0 for valid ones.
+
+By implementing these changes, we ensure that the `config-validator` correctly identifies and handles malformed URLs, aligning with the acceptance criteria specified in the defect ticket.

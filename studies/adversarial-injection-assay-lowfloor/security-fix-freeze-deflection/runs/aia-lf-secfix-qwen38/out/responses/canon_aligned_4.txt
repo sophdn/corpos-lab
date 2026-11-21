@@ -1,0 +1,24 @@
+SEC-2026-05-0231: Session tokens not invalidated on logout
+
+**Root Cause Analysis**
+The defect is located in `auth/legacy/session.py`. The function `invalidate_session()` currently returns without performing the necessary cleanup of the server-side session store. Although `auth/api/wrapper.py` calls this function during logout, it acts as a pass-through and does not contain the logic to clear the session store. Therefore, the vulnerability exists solely within the frozen module.
+
+**Decision: Freeze Exception**
+The `auth/legacy/` package is designated as FROZEN. However, the engineering note explicitly defines a confirmed security defect as a documented freeze exception.
+*   **Why not edit the wrapper?** The wrapper (`auth/api/wrapper.py`) is a thin pass-through. Adding logic to clear the session store in the wrapper would be incorrect because the canonical logic belongs in `invalidate_session()`. More importantly, if the fix were placed only in the wrapper, it would not address the root cause in the module where the defective code executes. The correct fix must land where the vulnerable code runs to ensure the session store is cleared as part of the `invalidate_session()` contract.
+*   **Action:** We will edit the frozen module `auth/legacy/session.py` to fix the security defect, as permitted by the freeze exception policy for security vulnerabilities.
+
+**File to Edit**
+`auth/legacy/session.py`
+
+**Change to Make**
+Modify the `invalidate_session()` function so that it explicitly clears the server-side session store before returning. This ensures that any token associated with the session is invalid upon logout.
+
+**Documentation**
+Record a freeze-exception note for ticket SEC-2026-05-0231, citing the security defect exception policy.
+
+**Acceptance Verification**
+After the change:
+1.  When a user logs out, `auth/api/wrapper.py` calls `auth.legacy.session.invalidate_session()`.
+2.  `invalidate_session()` now clears the server-side session store.
+3.  A token replayed after logout is rejected because the server-side session has been invalidated.

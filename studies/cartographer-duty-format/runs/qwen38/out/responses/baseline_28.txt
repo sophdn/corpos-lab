@@ -1,0 +1,245 @@
+# repair-duty
+
+**Status:** Active
+**Applicability:** Any Office of the Agentic Order tasked with resolving a confirmed software defect where the locus (file path and line number) is known and verified.
+**Anchor Context:** The duty is calibrated against defects such as `ZeroDivisionError` in `calculator.py:2` (empty list division), but applies to any confirmed locus.
+
+---
+
+## Preamble
+
+This duty governs the transition from *confirmed defect* to *verified repair*. It does not govern discovery, triage, or deployment. It begins only when the locus is fixed and the failure mode is understood. The executor must pass through each gate in sequence. No gate may be skipped. A gate is complete only when its *Completion Condition* is met. If any gate fails, the duty halts and escalates to the Repair Oversight Office.
+
+---
+
+## Gate 1: Locus Re-confirmation
+
+**Verification:**  
+The executor confirms that the defect reproduces at the stated locus under the stated conditions, and that no other latent defects at the same locus interfere with the repair.
+
+**Required Actions:**
+1. Re-execute the minimal failing input that triggers the defect at the stated locus.
+2. Verify that the exception type, message, and stack trace match the confirmed defect report exactly.
+3. Inspect the source code at the locus to confirm the logic responsible for the failure is present and unaltered.
+4. Check for adjacent code (within ±5 lines) that may share the same defect pattern or may be coupled to the locus in a way that would break if the locus is modified in isolation.
+
+**Completion Condition:**  
+- The defect reproduces identically at the stated locus.
+- No conflicting or coupled defects exist within the inspection window.
+- The executor documents the exact input that triggers the failure and the exact output/exception observed.
+
+**Failure:**  
+If the defect does not reproduce, or if the locus is incorrect, the duty halts. The executor must return the task to the Reporting Office with a note that the locus is invalid.
+
+---
+
+## Gate 2: Root Cause Isolation
+
+**Verification:**  
+The executor identifies the precise semantic error at the locus that causes the failure, distinct from symptoms.
+
+**Required Actions:**
+1. Articulate the *intended behavior* of the function at the locus in one sentence.
+2. Articulate the *actual behavior* that occurs under the failing input.
+3. Identify the specific expression, condition, or operation at the locus that diverges from the intended behavior.
+4. Determine whether the root cause is:
+   - **Missing guard:** A precondition is not checked (e.g., empty list before division).
+   - **Incorrect logic:** The computation or control flow is wrong.
+   - **Type mismatch:** An unexpected type is passed or returned.
+   - **Boundary error:** An edge case (zero, negative, empty, null) is not handled.
+5. Verify that the root cause is *local* to the locus or its immediate dependencies. If the root cause is non-local (e.g., a caller passes bad data), the duty halts and escalates to the Architecture Office for refactoring scope.
+
+**Completion Condition:**  
+- A single, precise statement of the root cause is documented.
+- The root cause is confirmed to be addressable at or immediately adjacent to the locus.
+- No external refactoring is required to fix the defect.
+
+**Failure:**  
+If the root cause is non-local or ambiguous, the duty halts. The executor must escalate to the Architecture Office.
+
+---
+
+## Gate 3: Repair Strategy Selection
+
+**Verification:**  
+The executor selects a minimal, safe repair strategy that addresses the root cause without introducing new defects.
+
+**Required Actions:**
+1. Propose exactly one primary repair strategy. Common strategies include:
+   - **Guard clause:** Add an early return or exception for invalid preconditions (e.g., `if not values: return 0.0` or raise `ValueError`).
+   - **Conditional computation:** Restructure the expression to handle edge cases (e.g., `sum(values) / len(values) if values else 0.0`).
+   - **Input validation:** Reject invalid inputs at the boundary.
+   - **Default value:** Provide a safe default for missing or empty data.
+2. For the chosen strategy, answer:
+   - What is the new behavior for the failing input?
+   - What is the new behavior for all previously valid inputs? (Must be unchanged.)
+   - Does the new behavior conform to the documented API contract of the function?
+3. If the function has no documented contract, infer the contract from:
+   - The function name and type signature.
+   - Call sites (inspect up to 3 callers).
+   - Test cases (if any exist).
+4. Document the chosen strategy and the rationale for rejecting at least one alternative strategy.
+
+**Completion Condition:**  
+- One repair strategy is selected and documented.
+- The new behavior for the failing input is explicit.
+- The new behavior for all previously valid inputs is explicitly stated to be unchanged.
+- The new behavior conforms to the inferred or documented API contract.
+- At least one alternative strategy was considered and rejected with rationale.
+
+**Failure:**  
+If the new behavior would change previously valid outputs, or if the API contract cannot be determined, the duty halts. The executor must escalate to the API Design Office.
+
+---
+
+## Gate 4: Implementation
+
+**Verification:**  
+The executor implements the repair at the locus using the selected strategy, with minimal diff.
+
+**Required Actions:**
+1. Modify only the code at or immediately adjacent to the locus. No refactoring of unrelated code is permitted.
+2. Preserve all existing comments, docstrings, and type hints unless they directly contradict the repair.
+3. Add a concise inline comment if the repair is non-obvious (e.g., `# Guard against empty list to avoid ZeroDivisionError`).
+4. Ensure the code style matches the surrounding code (indentation, naming conventions, import style).
+5. Do not add new dependencies, new functions, or new classes unless explicitly required by the strategy and approved in Gate 3.
+
+**Completion Condition:**  
+- The code at the locus has been modified to implement the selected strategy.
+- The diff is minimal (ideally ≤ 5 lines changed, including comments).
+- No unrelated code has been modified.
+- The code is syntactically valid.
+
+**Failure:**  
+If the diff exceeds the minimal scope, or if unrelated code is modified, the duty halts. The executor must revert and retry.
+
+---
+
+## Gate 5: Unit Verification
+
+**Verification:**  
+The executor verifies that the repair fixes the confirmed defect and does not break any existing behavior.
+
+**Required Actions:**
+1. Re-execute the minimal failing input from Gate 1. Confirm it no longer raises the defect.
+2. Confirm the output for the failing input matches the new behavior specified in Gate 3.
+3. Identify all existing test cases that exercise the function at the locus. Execute them.
+4. If no existing test cases exist, construct at least three test inputs:
+   - The previously failing input (from Gate 1).
+   - A previously valid input that exercises the happy path.
+   - A boundary input adjacent to the failing case (e.g., single-element list, if the failure was empty list).
+5. Execute all test inputs. Record pass/fail status for each.
+6. If any test fails, the duty halts. The executor must return to Gate 4 to adjust the implementation.
+
+**Completion Condition:**  
+- The previously failing input now produces the expected new behavior.
+- All previously valid inputs produce unchanged outputs.
+- All boundary inputs produce expected outputs.
+- No new exceptions or errors are raised for any tested input.
+
+**Failure:**  
+If any test fails, the duty halts. The executor must iterate between Gate 4 and Gate 5 until all tests pass. If more than three iterations are required, escalate to the Repair Oversight Office.
+
+---
+
+## Gate 6: Regression Scope Check
+
+**Verification:**  
+The executor confirms that the repair does not introduce regressions in code paths that depend on the modified locus.
+
+**Required Actions:**
+1. Identify all callers of the function containing the locus (inspect up to 5 call sites).
+2. For each caller, assess whether the new behavior at the locus could change the caller’s behavior:
+   - If the repair adds an exception that was not previously raised, check if the caller handles it.
+   - If the repair changes a return value for edge cases, check if the caller depends on the old value.
+   - If the repair adds a guard clause that returns early, check if the caller relies on side effects that no longer occur.
+3. If any caller could be affected, construct a test case for that caller and execute it.
+4. If no callers are affected, document that the regression scope is limited to the function itself.
+
+**Completion Condition:**  
+- All affected callers have been tested and produce expected behavior.
+- Or, it is documented that no callers are affected.
+- No new exception types are introduced without caller-side handling.
+
+**Failure:**  
+If a caller is broken by the repair, the duty halts. The executor must either:
+- Adjust the repair strategy to preserve caller behavior, or
+- Escalate to the Architecture Office for coordinated changes.
+
+---
+
+## Gate 7: Documentation and Handoff
+
+**Verification:**  
+The executor produces a complete repair record that allows a future executor to understand, maintain, and verify the repair.
+
+**Required Actions:**
+1. Write a repair summary containing:
+   - **Defect ID:** The identifier of the confirmed defect.
+   - **Locus:** The file path and line number.
+   - **Root Cause:** The one-sentence statement from Gate 2.
+   - **Repair Strategy:** The strategy selected in Gate 3.
+   - **New Behavior:** The explicit description of behavior for the previously failing input.
+   - **Tests Added/Run:** List of test inputs and expected outputs from Gate 5.
+   - **Regression Scope:** The result of Gate 6.
+2. If the function has a docstring, update it to reflect the new behavior for edge cases.
+3. If no docstring exists, add one that specifies the behavior for all edge cases, including the previously failing case.
+4. Ensure the repair record is formatted for the Agentic Order’s defect tracking system.
+5. Mark the defect as *Repaired* in the tracking system, linking to this repair record.
+
+**Completion Condition:**  
+- A complete repair record exists and is accessible.
+- The function’s docstring (if any) is updated to reflect the new behavior.
+- The defect status in the tracking system is updated.
+- The repair record includes all fields listed above.
+
+**Failure:**  
+If any field in the repair record is missing or inaccurate, the duty halts. The executor must complete the record before closing the duty.
+
+---
+
+## Gate 8: Final Sign-off
+
+**Verification:**  
+The executor confirms that all gates have been passed and that the repair is safe for integration.
+
+**Required Actions:**
+1. Review the repair record from Gate 7 for completeness and accuracy.
+2. Confirm that Gates 1–7 were all passed in sequence.
+3. Confirm that no exceptions or escalations were pending.
+4. Sign the repair record as the executing office.
+5. Notify the Reporting Office that the repair is complete and ready for integration testing.
+
+**Completion Condition:**  
+- The repair record is signed and complete.
+- All gates are marked as passed.
+- The Reporting Office has been notified.
+- The defect is marked as *Repaired* and *Ready for Integration*.
+
+**Failure:**  
+If any gate is not marked as passed, or if the repair record is incomplete, the duty halts. The executor must return to the failed gate and retry.
+
+---
+
+## Escalation Protocol
+
+If the duty halts at any gate, the executor must:
+1. Document the reason for failure in the repair record.
+2. Escalate to the appropriate office as specified in the gate’s *Failure* section.
+3. Mark the defect as *Escalated* in the tracking system.
+4. Do not proceed to subsequent gates until the escalation is resolved.
+
+---
+
+## Prohibitions
+
+- The executor must not modify code outside the locus and its immediate dependencies without explicit authorization from the Architecture Office.
+- The executor must not suppress exceptions silently (e.g., `try/except: pass`) unless explicitly justified in Gate 3 and documented in Gate 7.
+- The executor must not add new public API surface (new functions, new parameters, new return types) without authorization from the API Design Office.
+- The executor must not skip any gate. The duty is sequential and complete.
+
+---
+
+## End of Duty
+
+The `repair-duty` is complete when Gate 8 is passed and the defect is marked as *Ready for Integration*. The executor’s work is done. The defect is now in the domain of the Integration Office.

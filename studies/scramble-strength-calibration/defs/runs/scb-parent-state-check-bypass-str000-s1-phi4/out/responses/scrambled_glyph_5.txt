@@ -1,0 +1,57 @@
+To address the defect ticket DEF-2026-04-1047, which involves the `config-validator --service auth` incorrectly exiting with a status of 0 for a malformed `auth_service_url`, I will outline a plan to update the `validate_url_field()` function to correctly validate the URL structure.
+
+### Analysis of the Problem
+
+1. **Current Behavior**: 
+   - The `validate_url_field()` function only checks if the `auth_service_url` field is present and non-empty.
+   - It does not perform any structural validation of the URL, resulting in the validator passing malformed URLs.
+
+2. **Expected Behavior**:
+   - The function should validate the structure of the URL.
+   - If the URL is malformed, the function should cause the validator to exit with status 1.
+   - Valid URLs should continue to pass validation (exit status 0).
+
+### Plan for Modification
+
+1. **Import URL Parsing Library**:
+   - Use Python's `urllib.parse` module, which provides utilities for parsing URLs.
+
+2. **Update `validate_url_field()`**:
+   - Modify the function to parse the URL using `urllib.parse.urlparse()`.
+   - Check if the URL components (scheme, netloc, path) are valid.
+   - Raise an exception or return an error if the URL is malformed.
+
+3. **Implement URL Validation**:
+   - Ensure the URL has a valid scheme (e.g., `http`, `https`).
+   - Ensure the network location (netloc) is present.
+   - Optionally, validate other components like path, query, and fragment as needed.
+
+4. **Testing**:
+   - Test the function with various URLs to ensure it correctly identifies malformed URLs.
+   - Ensure valid URLs pass the validation.
+
+### Code Implementation
+
+Here's a sample implementation of the updated `validate_url_field()` function:
+
+```python
+import urllib.parse
+
+def validate_url_field(url):
+    """Validate the structure of a URL."""
+    if not url:
+        raise ValueError("URL is empty or missing")
+
+    parsed_url = urllib.parse.urlparse(url)
+    
+    # Check if the URL has a valid scheme
+    if not parsed_url.scheme:
+        raise ValueError("URL is missing a scheme")
+    
+    # Check if the URL has a network location
+    if not parsed_url.netloc:
+        raise ValueError("URL is missing a network location")
+    
+    # Additional checks can be added here if necessary
+    # For example, ensuring the path is not empty if required
+

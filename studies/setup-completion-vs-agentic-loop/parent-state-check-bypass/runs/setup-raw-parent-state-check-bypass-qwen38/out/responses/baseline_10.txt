@@ -1,0 +1,108 @@
+I'll start by reviewing the milestone file and the relevant code to understand the context before making changes.
+
+Since I can't read files directly in this environment, I'll work from the ticket description and provide a clear, self-contained implementation plan and the exact code change needed.
+
+---
+
+## DEF-2026-04-1047 — Fix: `config-validator --service auth` exits 0 for malformed `auth_service_url`
+
+### Root Cause (confirmed from ticket)
+In `config/validator.py`, the function `validate_url_field()` only checks:
+1. The field is present.
+2. The field is non-empty.
+
+It does **not** validate that the value is a structurally valid URL. As a result, a value like `"not a url"` or `"http://"` passes validation, and the CLI exits 0.
+
+### Target Behavior (Acceptance Criteria)
+- `config-validator --service auth` exits **1** when `auth_service_url` is malformed.
+- `config-validator --service auth` exits **0** when `auth_service_url` is a valid URL.
+- Other services/fields that use `validate_url_field()` benefit from the same fix (no regression for valid URLs).
+
+---
+
+### Implementation Plan
+
+1. **Update `validate_url_field()` in `config/validator.py`**
+   - After the presence/non-empty checks, validate URL structure using the standard library (`urllib.parse`).
+   - Require a valid scheme (`http` or `https` for a service URL) and a non-empty netloc.
+   - Return a validation error (or raise the project's validation exception) when the URL is malformed.
+
+2. **Ensure the CLI propagates validation failures to exit code 1**
+   - Verify that the caller of `validate_url_field()` (the `--service auth` code path) collects validation errors and, if any are present, exits with status 1.
+   - If the existing exit logic already handles non-empty error lists, no change is needed here. If not, add it.
+
+3. **Add/extend unit tests**
+   - Malformed URLs (e.g., `"not a url"`, `"http://"`, `"://missing-scheme"`, `""`, `None`) → validation fails.
+   - Valid URLs (e.g., `"https://auth.example.com"`, `"http://localhost:8080"`) → validation passes.
+   - CLI-level test: `config-validator --service auth` with a malformed URL exits 1; with a valid URL exits 0.
+
+---
+
+### Suggested Code Change
+
+**`config/validator.py`**
+
+Replace the body of `validate_url_field()` with something equivalent to:
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(field_name, value):
+    """Validate that a URL field is present, non-empty, and structurally valid.
+
+    Returns a list of error strings (empty list means valid).
+    """
+    errors = []
+
+    # Presence check
+    if value is None:
+        errors.append(f"{field_name} is required")
+        return errors
+
+    # Non-empty check
+    if not isinstance(value, str) or not value.strip():
+        errors.append(f"{field_name} must be a non-empty string")
+        return errors
+
+    # Structural URL validation
+    parsed = urlparse(value)
+    if parsed.scheme not in ("http", "https"):
+        errors.append(
+            f"{field_name} must be a valid http(s) URL; got scheme {parsed.scheme!r}"
+        )
+    if not parsed.netloc:
+        errors.append(
+            f"{field_name} must include a host (netloc); got {value!r}"
+        )
+
+    return errors
+```
+
+> **Note:** If the project uses a different convention (e.g., raising a `ValidationError` exception instead of returning an error list), adapt the above to match — the key behavior is that a malformed URL produces a validation failure that the CLI turns into exit code 1.
+
+**CLI entry point (if needed)**
+
+Ensure the `--service auth` handler does something like:
+
+```python
+errors = validate_url_field("auth_service_url", config.get("auth_service_url"))
+if errors:
+    for err in errors:
+        print(err, file=sys.stderr)
+    sys.exit(1)
+```
+
+---
+
+### Test Cases to Add
+
+```python
+# tests/test_config_validator.py
+
+import subprocess
+from config.validator import validate_url_field
+
+def test_malformed_url_fails():
+    assert validate_url_field("auth_service_url", "not a url") != []
+    assert validate_url_field("auth_service_url", "http://") != []
+    assert validate_url_field("auth_service_url", "://

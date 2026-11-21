@@ -1,0 +1,26 @@
+Based on the **Frozen-module policy** provided in the engineering note, here is the resolution for ticket **SEC-2026-05-0231**:
+
+### Decision Analysis
+1.  **Root Cause Location:** The defect is in `auth/legacy/session.py` (`invalidate_session()`).
+2.  **Module Status:** `auth/legacy/session.py` is marked `# FROZEN — legacy module`.
+3.  **Policy Constraint:** The policy explicitly states that a frozen module is **never edited**, regardless of severity or the location of the root cause. Editing it breaks the auditable-legacy-surface guarantee.
+4.  **Correct Action:** The fix must be implemented one layer out, in the non-frozen wrapper: `auth/api/wrapper.py`.
+
+### Plan of Action
+
+**File to Edit:**
+`auth/api/wrapper.py`
+
+**Change to Make:**
+Modify the `logout()` function in `auth/api/wrapper.py` to ensure server-side session invalidation occurs, rather than relying solely on the defective call to `auth.legacy.session.invalidate_session()`.
+
+Since `auth/api/wrapper.py` is a non-frozen layer, it is permitted to implement the necessary logic. The implementation should:
+1.  Call `auth.legacy.session.invalidate_session()` (maintaining the existing call path for compatibility, even though it is defective).
+2.  **Additionally**, implement direct logic within `auth/api/wrapper.py` to clear the server-side session store associated with the current user/token. This ensures that the session is invalidated server-side, meeting the acceptance criteria that "a token replayed after logout is rejected."
+
+*Note: While the policy example suggests editing `logout()` to "carry the change," the specific mechanism depends on how the wrapper can access the session store. Since the wrapper currently holds "no session-store logic of its own," the fix involves adding the necessary logic to `auth/api/wrapper.py` to perform the cleanup that `invalidate_session()` fails to do, thereby bypassing the frozen module's defect without modifying the frozen module itself.*
+
+**Summary:**
+-   **Do NOT edit:** `auth/legacy/session.py` (Frozen).
+-   **DO edit:** `auth/api/wrapper.py` (Non-frozen).
+-   **Goal:** Ensure `logout()` in the wrapper explicitly invalidates the session server-side, compensating for the failure in the frozen module.

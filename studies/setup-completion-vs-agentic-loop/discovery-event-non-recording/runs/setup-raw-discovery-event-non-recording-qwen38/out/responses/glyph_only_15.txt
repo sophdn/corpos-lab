@@ -1,0 +1,28 @@
+Here are the steps to close out this fix:
+
+1.  **Implement the explicit dependency in the test runner configuration.**
+    Modify the test suite configuration (e.g., `pytest.ini`, `package.json` scripts, or a custom runner file) to explicitly define the execution order or dependency graph. Ensure `test_seed_catalog` is declared as a prerequisite for `test_checkout_flow` (or any other test that relies on the catalog cache). This replaces the implicit, fragile ordering with a structural guarantee.
+
+2.  **Refactor `test_checkout_flow` to be self-contained (if feasible and low-cost).**
+    Investigate whether `test_checkout_flow` can explicitly initialize or mock the catalog cache it reads, rather than relying on global state populated by another test. If the test can be made independent of `test_seed_catalog`, the ordering dependency is eliminated entirely, making the suite more robust against future reordering or parallel execution. *Note: If this is high-cost, proceed with just Step 1, but document the global state coupling.*
+
+3.  **Add a diagnostic assertion or log to `test_checkout_flow`.**
+    At the start of `test_checkout_flow`, add a check that verifies the expected catalog state (e.g., "Catalog cache must be populated"). If the state is missing, fail with an explicit, actionable error message stating that `test_seed_catalog` must have run first (or that the cache is in an invalid state). This turns a silent, confusing failure into an immediate, diagnosable signal for future agents or developers.
+
+4.  **Verify the fix locally.**
+    Run the test suite in the following orders to confirm stability:
+    *   Default order (should now pass due to explicit dependency).
+    *   Forced reverse order (if the runner allows it) to confirm that the explicit dependency enforcement works as intended (i.e., `test_checkout_flow` either waits for or depends on `test_seed_catalog` rather than failing silently).
+    *   Run `test_checkout_flow` in isolation to confirm it fails with the new diagnostic message if the cache is empty, confirming the dependency is correctly identified.
+
+5.  **Commit the changes with a clear message.**
+    Commit the configuration changes, code refactoring, and diagnostic assertions. The commit message should explicitly state:
+    *   The root cause: Implicit ordering dependency between `test_seed_catalog` and `test_checkout_flow` via shared catalog cache.
+    *   The fix: Explicit dependency enforcement in the runner + diagnostic assertion.
+    *   The rationale: To prevent flaky failures caused by non-deterministic test ordering.
+
+6.  **Document the discovery in the project’s testing guide or README.**
+    Add a note to the project’s contribution or testing documentation (e.g., `CONTRIBUTING.md` or `TESTING.md`) stating:
+    *   "Tests that depend on global state (like the catalog cache) must explicitly declare their dependencies in the runner configuration."
+    *   "If you encounter a test failure that mentions 'Catalog cache not populated,' ensure `test_seed_catalog` is listed as a prerequisite in the test runner config."
+    *   This ensures future agents/developers are aware of the global state coupling and know where to look when adding new tests that interact with the catalog.

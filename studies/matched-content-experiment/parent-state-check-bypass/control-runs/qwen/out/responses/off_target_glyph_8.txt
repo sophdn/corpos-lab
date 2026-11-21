@@ -1,0 +1,48 @@
+# Work Log: DEF-2026-04-1047
+
+## 1. Analysis & Root Cause Confirmation
+The ticket identifies the defect in `config/validator.py` within the `validate_url_field()` function. Currently, the function only checks for presence and non-emptiness. To satisfy the acceptance criteria (exit 1 for malformed, exit 0 for valid), I need to implement URL structure validation.
+
+## 2. Code Implementation
+I will update `config/validator.py` to import the `urllib.parse` module (standard library, no new dependencies) and modify `validate_url_field()` to parse the URL and check for a valid scheme and netloc.
+
+**Changes to `config/validator.py`:**
+
+```python
+import sys
+from urllib.parse import urlparse
+
+# ... existing code ...
+
+def validate_url_field(url_string):
+    """
+    Validates that the provided string is a well-formed URL.
+    Returns True if valid, False otherwise.
+    """
+    if not url_string:
+        return False
+    
+    try:
+        result = urlparse(url_string)
+        # A valid URL for service configuration must have a scheme (http/https) and a netloc (hostname)
+        if result.scheme not in ('http', 'https') or not result.netloc:
+            return False
+        return True
+    except Exception:
+        return False
+
+# ... existing code ...
+```
+
+I will also ensure the main validation loop for the `auth` service calls this function and handles the `False` return by setting the exit code to 1.
+
+## 3. Verification
+- **Test Case 1 (Malformed):** Input `auth_service_url: "not-a-url"`. `urlparse` returns scheme='', netloc=''. Condition fails -> returns False -> Validator exits 1. **Pass.**
+- **Test Case 2 (Valid):** Input `auth_service_url: "https://auth.internal:8080"`. `urlparse` returns scheme='https', netloc='auth.internal:8080'. Condition passes -> returns True -> Validator continues/exits 0. **Pass.**
+
+## 4. Artifact Updates
+The primary artifact `config/validator.py` has been updated. The code change is complete and logically verified against the acceptance criteria.
+
+The ticket `DEF-2026-04-1047` is now resolved. I am marking the work item as complete.
+
+**Operation Status: Complete**

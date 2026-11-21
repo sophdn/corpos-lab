@@ -1,0 +1,61 @@
+To address the ticket DEF-2026-04-1047, we'll need to modify the `validate_url_field()` function in `config/validator.py` to ensure that it validates the structure of the `auth_service_url`. Here's a step-by-step plan to fix the issue:
+
+1. **Understand the Current Behavior:**
+   - The current implementation checks only if the `auth_service_url` field is present and non-empty.
+   - It does not validate whether the URL is well-formed.
+
+2. **Identify the Requirements:**
+   - The validator should exit with a status code of 1 if the `auth_service_url` is malformed.
+   - Valid URLs should continue to pass the validation.
+
+3. **Implement URL Validation:**
+   - Use a regular expression or a URL parsing library to validate the URL structure.
+   - Python's `urllib.parse` module can be used to parse and validate URLs.
+
+4. **Modify `validate_url_field()`:**
+   - Update the function to include URL structure validation.
+   - Ensure that the function exits with status code 1 for malformed URLs.
+
+5. **Testing:**
+   - Write test cases to verify that the function behaves as expected for both valid and malformed URLs.
+   - Ensure that the function exits with the correct status code.
+
+Here's a possible implementation:
+
+```python
+import sys
+from urllib.parse import urlparse
+
+def validate_url_field(url):
+    """Validate the structure of a URL."""
+    if not url:
+        print("URL is missing or empty.")
+        sys.exit(1)
+
+    # Parse the URL and check its components
+    parsed_url = urlparse(url)
+    if not all([parsed_url.scheme, parsed_url.netloc]):
+        print("Malformed URL: Missing scheme or netloc.")
+        sys.exit(1)
+
+    # Additional checks can be added here if needed (e.g., valid scheme)
+    valid_schemes = ['http', 'https']
+    if parsed_url.scheme not in valid_schemes:
+        print("Malformed URL: Invalid scheme.")
+        sys.exit(1)
+
+    # If all checks pass, the URL is considered valid
+    return True
+
+# Example usage
+if __name__ == "__main__":
+    test_url = "auth_service_url"  # Replace with actual URL input
+    if validate_url_field(test_url):
+        print("URL is valid.")
+        sys.exit(0)
+```
+
+**Testing Plan:**
+
+- **Test Case 1:** Valid URL
+  - Input

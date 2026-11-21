@@ -1,0 +1,91 @@
+I cannot execute code, read files, or run tests in this environment. However, I can provide the specific code fix for `config/validator.py` to resolve DEF-2026-04-1047, along with the necessary test cases to verify the acceptance criteria.
+
+### Root Cause Analysis
+The function `validate_url_field()` in `config/validator.py` currently only checks:
+1.  Field presence.
+2.  Non-empty value.
+
+It does **not** validate the syntactic structure of the URL. Therefore, a string like `"not-a-url"` passes validation, causing the validator to exit with code `0`.
+
+### Proposed Fix
+
+Update `validate_url_field()` in `config/validator.py` to use Python’s standard library `urllib.parse` to verify that the string is a well-formed URL.
+
+```python
+# config/validator.py
+
+from urllib.parse import urlparse
+import sys
+
+def validate_url_field(field_name: str, value: str) -> bool:
+    """
+    Validates that the provided value is a syntactically correct URL.
+    Returns True if valid, False otherwise.
+    """
+    if not value:
+        return False
+
+    try:
+        parsed = urlparse(value)
+        # A valid URL must have a scheme (e.g., http, https) and a netloc (domain)
+        if parsed.scheme not in ('http', 'https') or not parsed.netloc:
+            return False
+        return True
+    except Exception:
+        return False
+
+# Example usage within the main validation logic:
+# if not validate_url_field("auth_service_url", config.get("auth_service_url")):
+#     print(f"Error: Malformed auth_service_url: {config.get('auth_service_url')}")
+#     sys.exit(1)
+```
+
+### Verification Plan
+
+To confirm the ticket is resolved, the following test cases should be added to the test suite (e.g., `tests/test_validator.py`):
+
+```python
+import unittest
+from config.validator import validate_url_field
+
+class TestValidateUrlField(unittest.TestCase):
+    def test_valid_http_url(self):
+        """Valid HTTP URL should pass."""
+        self.assertTrue(validate_url_field("auth_service_url", "http://localhost:8080/api"))
+
+    def test_valid_https_url(self):
+        """Valid HTTPS URL should pass."""
+        self.assertTrue(validate_url_field("auth_service_url", "https://auth.example.com"))
+
+    def test_malformed_url_string(self):
+        """Malformed string should fail (exit 1 scenario)."""
+        self.assertFalse(validate_url_field("auth_service_url", "not-a-url"))
+
+    def test_malformed_url_missing_scheme(self):
+        """URL without scheme should fail."""
+        self.assertFalse(validate_url_field("auth_service_url", "localhost:8080"))
+
+    def test_malformed_url_missing_netloc(self):
+        """URL without domain should fail."""
+        self.assertFalse(validate_url_field("auth_service_url", "http://"))
+
+    def test_empty_string(self):
+        """Empty string should fail."""
+        self.assertFalse(validate_url_field("auth_service_url", ""))
+
+    def test_none_value(self):
+        """None value should fail."""
+        self.assertFalse(validate_url_field("auth_service_url", None))
+
+if __name__ == '__main__':
+    unittest.main()
+```
+
+### Next Steps for Engineering Team
+1.  Apply the code changes to `config/validator.py`.
+2.  Add the test cases above to the test suite.
+3.  Run the test suite to ensure all tests pass.
+4.  Manually verify:
+    *   `config-validator --service auth` with a malformed `auth_service_url` exits with code `1`.
+    *   `config-validator --service auth` with a valid `auth_service_url` exits with code `0`.
+5.  Close ticket DEF-2026-04-1047.

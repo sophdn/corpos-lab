@@ -1,0 +1,106 @@
+# Repair Duty: Agentic Order
+
+**Status:** Active
+**Scope:** Confirmed Software Defects with Known Locus
+**Executor:** Any Office of the Agentic Order
+
+## Preamble
+
+This duty governs the repair of a confirmed software defect where the locus (the specific file and line number containing the error) is known. The executor must not rely on external registries, historical logs, or undocumented conventions. The executor must treat the provided defect context as the sole source of truth for the error state and the surrounding code.
+
+The goal is to transition the code from a state of failure to a state of correct, robust behavior without introducing new defects or altering unrelated behavior.
+
+## Phase I: Locus Verification and Context Isolation
+
+*Before any modification is made, the executor must confirm that the reported locus matches the actual code and understand the boundaries of the change.*
+
+### Gate 1.1: Locus Existence Check
+*   **Verifies:** The file specified in the locus exists in the current working environment, and the line number specified in the locus points to executable code.
+*   **Requires Completion:** The executor has located the file and confirmed that the line number corresponds to the function or statement identified in the defect report. If the line number points to a comment, a blank line, or does not exist, the duty halts and returns an error stating "Locus Mismatch."
+
+### Gate 1.2: Signature and Contract Analysis
+*   **Verifies:** The function signature, input types, and return type of the function containing the defect are clearly defined and consistent with the calling context.
+*   **Requires Completion:** The executor has identified:
+    1.  The exact name of the function.
+    2.  The expected input parameter types (e.g., `list`, `int`, `str`).
+    3.  The expected return type (e.g., `float`, `None`).
+    4.  Any explicit documentation or type hints that define the intended behavior for edge cases (such as empty inputs).
+
+### Gate 1.3: Dependency Isolation
+*   **Verifies:** The function containing the defect does not rely on external state (global variables, database connections, network calls) that would make the repair non-deterministic or side-effect-heavy.
+*   **Requires Completion:** The executor has confirmed that the function is pure or that its dependencies are explicitly injected and mockable. If the function relies on hidden global state, the executor must document this dependency before proceeding.
+
+## Phase II: Failure Mode Derivation
+
+*The executor must understand exactly why the defect occurs and what the correct behavior should be, derived from first principles rather than guesswork.*
+
+### Gate 2.1: Root Cause Identification
+*   **Verifies:** The specific logical or arithmetic error causing the failure is identified.
+*   **Requires Completion:** The executor has written a one-sentence explanation of the failure. For example: "The function divides by the length of the list without checking if the list is empty, causing a division by zero."
+
+### Gate 2.2: Expected Behavior Definition
+*   **Verifies:** The correct output for the failing input is defined, as well as the correct output for all other valid inputs.
+*   **Requires Completion:** The executor has defined:
+    1.  **Failure Case:** What should happen when `calculate_average([])` is called? (e.g., Return `0.0`, Return `None`, Raise a specific `ValueError`). The choice must be justified by the function's contract. If the contract is silent, the executor must select the least surprising behavior for the language and domain (e.g., returning `0.0` for a numeric average is often preferred over crashing, but raising a specific error is preferred if the caller should handle empty data).
+    2.  **Success Case:** What happens with `calculate_average([1, 2, 3])`? (e.g., Returns `2.0`).
+    3.  **Edge Case:** What happens with `calculate_average([1])`? (e.g., Returns `1.0`).
+
+### Gate 2.3: Regression Scope Assessment
+*   **Verifies:** The proposed fix will not alter the behavior of any input that currently works correctly.
+*   **Requires Completion:** The executor has listed the inputs that currently work correctly and confirmed that the proposed fix (e.g., adding an `if` check) will not change the result for those inputs.
+
+## Phase III: Implementation and Verification
+
+*The executor applies the minimal change required to resolve the defect and verifies that it works.*
+
+### Gate 3.1: Minimal Change Application
+*   **Verifies:** The code change is the smallest possible modification to resolve the root cause.
+*   **Requires Completion:** The executor has modified the code. The change must:
+    1.  Add a guard clause or condition to handle the failing edge case.
+    2.  Preserve the original logic for all other inputs.
+    3.  Not rename variables, reformat unrelated code, or add comments unless necessary for clarity of the fix.
+    
+    *Example for the anchor defect:*
+    ```python
+    def calculate_average(values: list) -> float:
+        if not values:
+            return 0.0  # Or raise ValueError, based on Gate 2.2 decision
+        return sum(values) / len(values)
+    ```
+
+### Gate 3.2: Syntax and Lint Validation
+*   **Verifies:** The modified code is syntactically correct and passes standard linting rules for the language.
+*   **Requires Completion:** The executor has confirmed that the code compiles or parses without errors. No undefined variables, missing parentheses, or indentation errors are present.
+
+### Gate 3.3: Functional Verification
+*   **Verifies:** The repaired function behaves as defined in Gate 2.2 for both the failing case and the success cases.
+*   **Requires Completion:** The executor has mentally or logically traced the execution of the function for:
+    1.  The specific failing input (e.g., `[]`).
+    2.  At least one standard success input (e.g., `[1, 2, 3]`).
+    3.  At least one additional edge case (e.g., `[0]`, `[-1, 1]`).
+    
+    The output for each case must match the expected behavior defined in Gate 2.2. If any mismatch is found, the executor must return to Gate 2.2 to redefine the expected behavior or Gate 3.1 to refine the fix.
+
+## Phase IV: Closure and Documentation
+
+*The executor finalizes the repair and prepares the record for the Order.*
+
+### Gate 4.1: Diff Review
+*   **Verifies:** The final code change contains only the intended modifications.
+*   **Requires Completion:** The executor has reviewed the diff between the original and modified code. The diff must show no changes to:
+    1.  Function names (unless required by the fix, which is rare).
+    2.  Unrelated lines.
+    3.  Whitespace or formatting, except where necessary for the new logic.
+
+### Gate 4.2: Repair Record Generation
+*   **Verifies:** The repair is documented in a way that allows future executors to understand the change without external context.
+*   **Requires Completion:** The executor has produced a final report containing:
+    1.  **Locus:** The file and line number.
+    2.  **Defect:** A brief description of the original error.
+    3.  **Fix:** A brief description of the change (e.g., "Added guard clause for empty list").
+    4.  **Behavior Change:** Explicit statement of how the function behaves now for the previously failing input (e.g., "Now returns `0.0` instead of raising `ZeroDivisionError`").
+    5.  **Code Block:** The final, corrected function code.
+
+### Gate 4.3: Final Commitment
+*   **Verifies:** The executor is confident that the repair is complete and safe.
+*   **Requires Completion:** The executor has confirmed that all gates in Phases I through IV have been passed. The duty is complete. The executor submits the repaired code and the repair record.

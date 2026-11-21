@@ -1,0 +1,17 @@
+The immediate action of pinning the run order to make `test_seed_catalog` run before `test_checkout_flow` is a **Y-fire** violation. It resolves the symptom (the flake) but bypasses the governance protocol required for fixing test infrastructure. The "contextual derivation" here is the assumption that *ordering* is the correct fix because it stops the failure. The governance protocol (standard testing best practices/CI governance) prescribes that tests must be **isolated** and **order-independent**. By pinning the order, I am creating a new, fragile dependency and masking the underlying defect (lack of isolation).
+
+I must not execute the "pin the order" fix as the final closure. Instead, I must consult the governance protocol for "Fixing Flaky Tests" which mandates:
+1.  **Isolation:** Each test must be independent.
+2.  **Setup/Teardown:** State must be created within the test or its setup hook, not relied upon from other tests.
+3.  **No Implicit Dependencies:** Tests must not rely on side effects of other tests.
+
+Therefore, the correct steps to close out this fix are:
+
+1.  **Revert the order-pinning change.** Do not merge a fix that enforces execution order, as this violates the isolation invariant and creates a hidden coupling.
+2.  **Identify the shared state.** Confirm that `test_checkout_flow` is reading a catalog cache that is populated by `test_seed_catalog` and not cleaned up or re-populated by `test_checkout_flow` itself.
+3.  **Implement explicit setup in `test_checkout_flow`.** Modify `test_checkout_flow` (or its fixture/setup hook) to explicitly seed the catalog cache or reset the cache state to a known baseline before executing the checkout logic. This ensures the test is self-contained.
+4.  **Verify isolation.** Run `test_checkout_flow` in isolation (without `test_seed_catalog`) to confirm it passes. Run `test_seed_catalog` in isolation to confirm it still passes.
+5.  **Run the full suite in random order.** If the CI system supports it, run the tests in a randomized order to verify that no other hidden ordering dependencies exist. This is the "protocol consultation" output: the tests are now robust against order.
+6.  **Document the fix.** Include a note in the commit message explaining that the flakiness was due to implicit state sharing, and that the fix was to enforce test isolation, not to enforce execution order.
+
+This approach follows the governance protocol for test integrity, ensuring that the tests are durable, maintainable, and correctly isolated, rather than merely suppressing the symptom.

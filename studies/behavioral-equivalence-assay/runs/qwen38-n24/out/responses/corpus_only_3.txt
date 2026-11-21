@@ -1,0 +1,45 @@
+## Investigation Report: INV-002
+
+**Hypothesis (Pre-commitment):**
+The payment processing failure is caused by the fraud-detection service becoming unavailable or unresponsive, which prevents the payment gateway from completing fraud checks, leading to a circuit breaker opening and subsequent payment failures.
+
+### Evidence Review
+
+**1. Fraud-Detection Service (`fraud-detection.log`)**
+*   **15:18:00:** A new version (`v3.8.1`) is deployed with updated risk scoring weights.
+*   **15:20:00 – 15:35:00:** The risk assessment cache grows rapidly (from 8,200 to 34,100 entries), and heap usage climbs from 124MB to 418MB.
+*   **15:37:00:** GC pressure is elevated.
+*   **15:38:30:** `java.lang.OutOfMemoryError` occurs. The service becomes unresponsive.
+*   **15:39:15:** The service restarts, but the cache refills rapidly due to continued traffic.
+*   **15:41:00:** A second `OutOfMemoryError` occurs.
+*   **15:41:01:** The service is marked permanently unhealthy and removed from the load balancer.
+
+**2. Payment Gateway (`payment-gateway.log`)**
+*   **15:30:00 – 15:35:00:** Processing is nominal, but latency is increasing (210ms → 380ms).
+*   **15:37:00 – 15:38:00:** Fraud-check latency spikes significantly (1,240ms → 3,800ms), correlating with the GC pressure and OOM errors in the fraud-detection log.
+*   **15:38:35:** Fraud-detection service timeout.
+*   **15:39:00:** Fraud-detection returns (restart), but latency remains elevated.
+*   **15:41:05:** Fraud-detection service is removed from the pool (corresponds to the permanent unhealthy status in `fraud-detection.log`).
+*   **15:41:06:** Circuit breaker opens for fraud-detection.
+*   **15:41:30:** All payment requests fail because the fraud-check dependency is unavailable.
+
+**3. Order Service (`order-service.log`)**
+*   **15:25:00:** A batch job starts, submitting 1,247 orders for payment revalidation at 50/sec.
+*   **15:25:00 – 15:38:00:** The batch progresses, sending up to 1,005 requests. This sustained load likely contributed to the rapid cache growth in the fraud-detection service.
+*   **15:38:40:** The order service pauses because the payment gateway is returning errors.
+*   **15:41:10:** The batch job suspends because the payment gateway is unavailable.
+
+### Analysis
+
+The logs show a clear causal chain:
+
+1.  **Trigger:** The deployment of `fraud-detection:v3.8.1` at 15:18:00, combined with the sustained load from the order reconciliation batch job starting at 15:25:00, caused the fraud-detection service's risk assessment cache to grow excessively.
+2.  **Failure:** The cache growth led to high heap usage and GC pressure, resulting in an `OutOfMemoryError` at 15:38:30. A restart at 15:39:15 did not resolve the issue, as the traffic continued to refill the cache, leading to a second OOM error at 15:41:00.
+3.  **Impact:** The fraud-detection service became unresponsive, causing increased latency in the payment gateway (15:37:00–15:38:00) and eventually timeouts. When the service was removed from the load balancer at 15:41:01, the payment gateway's circuit breaker opened at 15:41:06.
+4.  **Result:** With the circuit breaker open, the payment gateway could no longer perform fraud checks, causing all payment requests to fail (15:41:30). The order service detected the payment gateway failures and suspended its batch job (15:41:10).
+
+The root cause is the **fraud-detection service crashing due to memory exhaustion (OutOfMemoryError)**, which was triggered by a combination of the new deployment (`v3.8.1`) and high request volume from the order reconciliation batch job. This crash made the fraud-detection service unavailable, which in turn caused the payment gateway to fail payments due to its dependency on fraud checks.
+
+### Finding
+
+The payment processing failure was caused by the **fraud-detection service experiencing an OutOfMemoryError and becoming unavailable**. This unavailability triggered a circuit breaker in the payment gateway, which then failed all payment requests because it could not complete fraud checks. The fraud-detection service crash was precipitated by high memory usage in its risk assessment cache, which was driven by the volume of requests from the order reconciliation batch job and potentially exacerbated by the recent deployment of `fraud-detection:v3.8.1`.

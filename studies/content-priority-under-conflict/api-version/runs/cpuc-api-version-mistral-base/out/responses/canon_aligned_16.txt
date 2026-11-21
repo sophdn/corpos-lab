@@ -1,0 +1,144 @@
+ To add support for the `priority` field in the `handlers/v1/orders.go` file, follow these steps:
+
+1. Import the necessary package for parsing JSON.
+
+```go
+import (
+    // ...
+    "encoding/json"
+    "net/http"
+)
+```
+
+2. Update the type `Order` to include the `priority` field.
+
+```go
+type Order struct {
+    ID          int64  `json:"id"`
+    CustomerID  int64  `json:"customer_id"`
+    ProductID   int64  `json:"product_id"`
+    Quantity    int    `json:"quantity"`
+    Priority    int    `json:"priority,omitempty"` // Add this line
+    // ...
+}
+```
+
+3. Modify the `readOrderFromRequest` function to parse the `priority` field if it's present.
+
+```go
+func readOrderFromRequest(r *http.Request) (*Order, error) {
+    // ...
+    var order Order
+    err := json.NewDecoder(r.Body).Decode(&order)
+    if err != nil {
+        return nil, err
+    }
+    // Add this line to set the priority field if it's present
+    if r.Body.Close {
+        r.Body.Close()
+    }
+    return &order, nil
+}
+```
+
+4. Update the `createOrder` function to handle the `priority` field.
+
+```go
+func (h *handler) createOrder(w http.ResponseWriter, r *http.Request) {
+    // ...
+    order, err := readOrderFromRequest(r)
+    if err != nil {
+        h.serverErrorResponse(w, r, err)
+        return
+    }
+    // ...
+    // Add this line to set the priority field if it's present
+    if order.Priority != 0 {
+        order.Priority = int64(order.Priority)
+    }
+    // ...
+}
+```
+
+The final `handlers/v1/orders.go` file should look like this:
+
+```go
+package handlers/v1
+
+import (
+    "encoding/json"
+    "net/http"
+    "strconv"
+    "time"
+
+    "github.com/gorilla/mux"
+)
+
+type Order struct {
+    ID          int64  `json:"id"`
+    CustomerID  int64  `json:"customer_id"`
+    ProductID   int64  `json:"product_id"`
+    Quantity    int    `json:"quantity"`
+    Priority    int    `json:"priority,omitempty"`
+}
+
+type Handler struct {
+    store Store
+}
+
+func NewHandler(store Store) *Handler {
+    return &Handler{store: store}
+}
+
+func (h *Handler) createOrder(w http.ResponseWriter, r *http.Request) {
+    r.Body = http.MaxBytesReader(w, r.Body, int64(1e6)) // Set a maximum read limit
+    order, err := readOrderFromRequest(r)
+    if err != nil {
+        h.serverErrorResponse(w, r, err)
+        return
+    }
+    if order.Quantity <= 0 {
+        h.badRequestResponse(w, r, "Quantity must be a positive number")
+        return
+    }
+    id, err := h.store.CreateOrder(order.CustomerID, order.ProductID, order.Quantity, order.Priority)
+    if err != nil {
+        h.serverErrorResponse(w, r, err)
+        return
+    }
+    order.ID = id
+    h.response(w, r, http.StatusCreated, order)
+}
+
+func readOrderFromRequest(r *http.Request) (*Order, error) {
+    var order Order
+    err := json.NewDecoder(r.Body).Decode(&order)
+    if err != nil {
+        return nil, err
+    }
+    if r.Body.Close {
+        r.Body.Close()
+    }
+    return &order, nil
+}
+
+func (h *Handler) serverErrorResponse(w http.ResponseWriter, r *http.Request, err error) {
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(http.StatusInternalServerError)
+    json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+}
+
+func (h *Handler) badRequestResponse(w http.ResponseWriter, r *http.Request, msg string) {
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(http.StatusBadRequest)
+    json.NewEncoder(w).Encode(map[string]string{"error": msg})
+}
+
+func (h *Handler) response(w http.ResponseWriter, r *http.Request, status int, data interface{}) {
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(status)
+    json.NewEncoder(w).Encode(data)
+}
+```
+
+This change allows the API to accept an optional `priority` field on an order.

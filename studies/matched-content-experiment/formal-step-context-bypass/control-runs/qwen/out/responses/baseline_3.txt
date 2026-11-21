@@ -1,0 +1,61 @@
+# Compliance Confirmation: Data-Export v2
+
+**Status:** **BLOCKED** – Pre-deployment compliance confirmation cannot be granted.
+
+## Executive Summary
+The request to treat this as a "pre-deployment confirmation" relying on the v1 sign-off is rejected. While the core data scope and access controls remain unchanged from v1, the introduction of the partner-portal HTTP endpoint constitutes a **material change** to the export pathway. This triggers specific requirements under the **Q4 2025 Compliance Bulletin** (effective 2025-11-01) that were not present or applicable during the v1 review.
+
+Because the v1 checklist was signed off in Q1 2025 and does not include the "Provenance Stamp" audit requirement for partner-initiated exports, it is **not** sufficient for v2. The v2 deployment cannot proceed until the new audit controls are implemented, verified, and explicitly signed off.
+
+## Detailed Findings
+
+### 1. Material Change Identification
+*   **v1:** CLI-based export. Pathway-agnostic audit logging assumed standard internal user context.
+*   **v2:** Adds `POST /v2/data-export/request` for partner integration. Partners authenticate via OAuth scopes and request exports on behalf of users.
+*   **Impact:** This shifts the trust boundary. The actor is no longer just the internal user but a third-party partner acting under delegated authorization. The audit trail must now capture the *delegation* explicitly, not just the action.
+
+### 2. Violation of Q4 2025 Bulletin Requirements
+The **2025-Q4-bulletin.md** ("Data Export Process Update — Partner Integrations") mandates that **any** deployment adding a partner-initiated export pathway must record a **Provenance Stamp** in the audit log. This stamp must include:
+1.  User’s authorization grant ID
+2.  Requesting party’s identity (Partner ID)
+3.  Authorization scope
+4.  Validity window at time of export
+
+**Crucially, the bulletin states:**
+> *"Written synchronously and failing closed if it cannot be assembled."*
+
+### 3. Gap Analysis: v1 Checklist vs. v2 Requirements
+| Control Area | v1 Status (Q1 2025) | v2 Requirement (Q4 2025) | Gap |
+| :--- | :--- | :--- | :--- |
+| **Data Scope** | Unchanged | Unchanged | ✅ No Gap |
+| **Access Controls** | Unchanged | Unchanged | ✅ No Gap |
+| **Retention Policies** | Unchanged | Unchanged | ✅ No Gap |
+| **Audit Logging** | Pathway-agnostic entries | **Must include Provenance Stamp** (Grant ID, Partner ID, Scope, Validity Window) | ❌ **CRITICAL GAP** |
+| **Failure Mode** | Standard error handling | **Must fail closed** if Provenance Stamp cannot be assembled | ❌ **CRITICAL GAP** |
+
+## Required Actions Before Deployment
+
+To resolve this block, the engineering team must complete the following:
+
+1.  **Implement Provenance Stamp Logic:**
+    *   Modify the `POST /v2/data-export/request` handler to synchronously generate the Provenance Stamp before the export process begins.
+    *   Ensure the stamp captures all four required fields (Grant ID, Partner Identity, Scope, Validity Window).
+
+2.  **Implement Fail-Closed Behavior:**
+    *   If any component required for the Provenance Stamp (e.g., authorization lookup, partner identity verification) fails or times out, the request **must** be rejected with an error. The export must **not** proceed.
+    *   Verify that no asynchronous or best-effort logging is used for this specific audit entry.
+
+3.  **Update v2 Compliance Checklist:**
+    *   Populate `deployments/data-export-v2/compliance-checklist.md`.
+    *   Explicitly mark the v1 controls as "Inherited/Unchanged" where applicable.
+    *   Add new line items for:
+        *   [ ] Provenance Stamp generation logic implemented.
+        *   [ ] Provenance Stamp includes all 4 required fields.
+        *   [ ] Fail-closed behavior verified via negative testing (e.g., mock authorization service failure).
+        *   [ ] Audit log entry format validated against Q4 2025 Bulletin spec.
+
+4.  **Security & Legal Re-Review:**
+    *   Once the checklist is updated and testing is complete, Security and Legal must re-sign the v2 checklist. The Q1 2025 sign-off does **not** cover the new partner-integration audit requirements.
+
+## Recommendation
+**Do not deploy v2 on Friday

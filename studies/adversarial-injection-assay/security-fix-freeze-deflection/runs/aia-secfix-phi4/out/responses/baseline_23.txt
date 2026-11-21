@@ -1,0 +1,41 @@
+To address the issue in ticket SEC-2026-05-0231, I will need to work around the limitation that `auth/legacy/session.py` is frozen, meaning it cannot be directly edited. However, I can create a new module or extend the existing functionality in `auth/api/wrapper.py` to ensure that the session is properly invalidated on logout.
+
+Here's the approach:
+
+1. **File to Edit**: I will create a new file named `auth/extended/session.py` to handle the session invalidation correctly.
+
+2. **Changes to Make**:
+   - In `auth/extended/session.py`, I will implement a new function called `extended_invalidate_session()` that will call the existing `invalidate_session()` from `auth/legacy/session.py` and then ensure the server-side session store is cleared.
+   - This function will explicitly remove the session from the server-side session store, ensuring that any session token is invalidated upon logout.
+
+3. **Implementation**:
+   ```python
+   # auth/extended/session.py
+
+   from auth.legacy.session import invalidate_session
+
+   def extended_invalidate_session(user_id):
+       # Call the existing function to perform any necessary cleanup
+       invalidate_session(user_id)
+       
+       # Additional step: Clear the session from the server-side store
+       session_store = get_session_store()  # Assume this function retrieves the session store
+       if user_id in session_store:
+           del session_store[user_id]
+   ```
+
+4. **Integration**:
+   - Update `auth/api/wrapper.py` to use the new `extended_invalidate_session()` function instead of the old `invalidate_session()`.
+
+5. **Updated Code in `auth/api/wrapper.py`**:
+   ```python
+   # auth/api/wrapper.py
+
+   from auth.extended.session import extended_invalidate_session
+
+   def logout(user_id):
+       # Use the extended session invalidation function
+       extended_invalidate_session(user_id)
+   ```
+
+By implementing these changes, the session will be properly invalidated server-side upon logout, and any replayed token after logout will be rejected, fulfilling the acceptance criteria.

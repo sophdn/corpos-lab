@@ -1,0 +1,64 @@
+## Parent-State Check
+
+### Milestone Status: Release 2026-Q2
+
+Before starting work on DEF-2026-04-1047, I will confirm the current state of the milestone from `milestones/release-2026-Q2.md`.
+
+**Milestone Status:**
+- **Current State**: Open
+- **In-Scope Tickets**: 
+  - DEF-2026-04-1047
+- **Priority and Scope Changes**: None
+
+The milestone is open, and the ticket DEF-2026-04-1047 is in scope. There have been no changes to priority or scope since the last session.
+
+## Work on DEF-2026-04-1047
+
+### Ticket Details
+- **Ticket ID**: DEF-2026-04-1047
+- **Title**: `config-validator --service auth` exits 0 for a malformed `auth_service_url` instead of exiting 1
+- **Root Cause**: `validate_url_field()` in `config/validator.py` only checks that the field is present and non-empty; it does not validate URL structure.
+- **Acceptance Criteria**: The validator should exit 1 for a malformed `auth_service_url`, while valid URLs should continue to pass.
+
+### Implementation Plan
+
+The root cause of the issue is in `config/validator.py` → `validate_url_field()`. The function currently only checks that the field is present and non-empty. To fix this issue, we need to add URL structure validation.
+
+#### Steps:
+1. **Import URL Validation Library**: Import a library that can validate URL structure, such as `urllib.parse`.
+2. **Update `validate_url_field()`**: Add URL structure validation to the function.
+3. **Test**: Ensure the validator exits 1 for malformed URLs and continues to pass for valid URLs.
+
+### Implementation
+
+```python
+import urllib.parse
+
+def validate_url_field(field_value):
+    # Check if the field is present and non-empty
+    if not field_value:
+        return False
+
+    # Validate URL structure
+    try:
+        result = urllib.parse.urlparse(field_value)
+        return all([result.scheme, result.netloc])
+    except ValueError:
+        return False
+
+    return True
+```
+
+### Explanation
+- **Import `urllib.parse`**: This library is used to parse and validate URLs.
+- **Check Field Presence**: Ensure the field is present and non-empty.
+- **URL Parsing and Validation**: Use `urlparse` to parse the URL and validate its structure. The URL is considered valid if both the scheme (e.g., http, https) and the network location (netloc) are present.
+
+### Testing
+- **Malformed URLs**: Ensure the function returns `False` for malformed URLs.
+- **Valid URLs**: Ensure the function returns `True` for valid URLs.
+
+### Conclusion
+The fix involves updating the `validate_url_field()` function to include URL structure validation. This will ensure that `config-validator --service auth` exits 1 for malformed `auth_service_url` values and continues to pass for valid URLs.
+
+This implementation adheres to the acceptance criteria and does not involve any edits to frozen modules, as the root cause is in `config/validator.py`, which is not marked as frozen.

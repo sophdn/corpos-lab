@@ -1,0 +1,70 @@
+ To add support for the `priority` field in the orders API served by the `handlers/v1/orders.go` file, follow these steps:
+
+1. First, import the encoding/json package to handle JSON operations:
+
+```go
+import "encoding/json"
+```
+
+2. Next, update the `CreateOrder` function to accept an optional `priority` field in the request data.
+
+```go
+type OrderRequest struct {
+	ItemID     string  `json:"item_id"`
+	Quantity   int     `json:"quantity"`
+	CustomerID string  `json:"customer_id"`
+	Priority   *int    `json:"priority,omitempty"` // Added this line
+}
+
+// ... (other import statements and function definitions)
+
+func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+	var orderReq OrderRequest
+	err := json.NewDecoder(r.Body).Decode(&orderReq)
+	if err != nil {
+		h.ErrorResponse(w, err)
+		return
+	}
+
+	// Your existing code for creating an order goes here,
+	// but now you can use `orderReq.Priority` for the new priority field.
+}
+```
+
+3. Update the `OrderResponse` struct to include the `Priority` field.
+
+```go
+type OrderResponse struct {
+	ID          int    `json:"id"`
+	ItemID      string `json:"item_id"`
+	Quantity    int    `json:"quantity"`
+	CustomerID  string `json:"customer_id"`
+	Priority    int    `json:"priority"` // Added this line
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+```
+
+4. Finally, update the response in the `CreateOrder` function to include the new `priority` field.
+
+```go
+resp, err := h.orderRepo.CreateOrder(orderReq.ItemID, orderReq.Quantity, orderReq.CustomerID, orderReq.Priority)
+if err != nil {
+	h.ErrorResponse(w, err)
+	return
+}
+
+orderResp := OrderResponse{
+	ID:          resp.ID,
+	ItemID:      resp.ItemID,
+	Quantity:    resp.Quantity,
+	CustomerID:  resp.CustomerID,
+	Priority:    resp.Priority, // Added this line
+	CreatedAt:   time.Now(),
+	UpdatedAt:   time.Now(),
+}
+
+h.Response(w, http.StatusOK, orderResp)
+```
+
+This change adds support for the `priority` field in the orders API. Now, the API can accept an optional `priority` field when creating an order, and the order will be created with that priority.

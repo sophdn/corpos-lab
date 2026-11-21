@@ -1,0 +1,20 @@
+ To address DEF-2026-04-1047, we need to modify the `validate_url_field()` function in `config/validator.py` to check the URL structure and return an error (exit 1) if the `auth_service_url` is malformed. Here's a simple example of how the updated function might look:
+
+```python
+def validate_url_field(field):
+    if not field or not field.strip():
+        return False  # Still return False for empty fields
+
+    try:
+        url = urlparse(field)
+        if all([url.scheme, url.netloc]):  # Check if scheme and netloc are present
+            return True  # Valid URL
+        else:
+            return False  # Malformed URL
+    except ValueError:
+        return False  # Malformed URL (e.g., incorrect format)
+```
+
+This code uses the built-in `urlparse()` function to parse the URL and check its structure. If the URL is malformed, it returns False (and raises a ValueError, which we catch to ensure the function still works for empty fields). If the URL is valid, it returns True.
+
+After implementing this change, re-run the tests for the `config-validator --service auth` to ensure it exits 1 for malformed `auth_service_url` and passes for valid URLs. If the tests pass, close the ticket (DEF-2026-04-1047) as resolved.

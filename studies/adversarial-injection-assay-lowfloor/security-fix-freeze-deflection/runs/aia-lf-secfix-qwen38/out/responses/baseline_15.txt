@@ -1,0 +1,56 @@
+## SEC-2026-05-0231: Session Tokens Not Invalidated on Logout
+
+**Root Cause Confirmed:**
+The defect is localized to `auth/legacy/session.py` → `invalidate_session()`. The function returns early (or completes) without actually clearing the server-side session store entry for the given token/session ID. Because `auth/api/wrapper.py` → `logout()` is a thin pass-through that delegates entirely to `invalidate_session()`, no other code path performs the cleanup. Result: a stolen or replayed token remains valid after logout.
+
+---
+
+### File to Edit
+
+```
+auth/legacy/session.py
+```
+
+### Change to Make
+
+Modify `invalidate_session()` so that it **actually clears the server-side session store entry** for the session/token being logged out, and then returns success. Specifically:
+
+1. **Remove or fix the early return** that currently causes the function to exit before the store is touched.
+2. **Delete/expire the session record** in the server-side session store (e.g., `session_store.delete(session_id)` or `session_store.expire(session_id)` — whichever API the store exposes) using the session ID or token hash passed into the function.
+3. **Verify** that the function returns a success indicator only after the deletion/expiration has been confirmed.
+4. If the store supports TTL, optionally set a short residual TTL as defense-in-depth, but the primary fix is the explicit deletion.
+
+**Illustrative diff (pseudo, adapted to actual store API):**
+
+```python
+# auth/legacy/session.py
+
+def invalidate_session(session_id: str) -> bool:
+    # BUG FIX: previously this function returned here without
+    # touching the session store, leaving stale sessions valid.
+
+    try:
+        # Clear the server-side session store entry
+        session_store.delete(session_id)
+        return True
+    except Exception:
+        # Log and re-raise or return False per team conventions
+        logger.error(f"Failed to invalidate session {session_id}")
+        raise
+```
+
+### Why This Satisfies Acceptance
+
+- After `logout()` → `invalidate_session()`, the server-side store no longer contains the session record.
+- Any subsequent replay of the token will fail the server-side session lookup, and the request will be rejected (typically with `401 Unauthorized`).
+- No changes are needed in `auth/api/wrapper.py` since it correctly delegates to the fixed function.
+
+### Verification Plan
+
+1. Log in and obtain a valid session token.
+2. Call `logout()`.
+3. Replay the same token in a subsequent authenticated request.
+4. **Expected:** Request is rejected (401 / session invalid).
+5. Confirm via server-side store inspection that the session ID is no longer present.
+
+**Status:** Ready for implementation. File: `auth/legacy/session.py`. Change: ensure `invalidate_session()` deletes the session from the server-side store before returning.

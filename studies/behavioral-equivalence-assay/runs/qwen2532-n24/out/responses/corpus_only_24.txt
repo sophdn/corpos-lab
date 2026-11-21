@@ -1,0 +1,54 @@
+### Investigation Report: Payment Processing Failure Investigation (INV-002)
+
+#### Overview
+The payment processing system experienced a failure this afternoon, resulting in the service becoming unavailable. The incident involved three primary components: **fraud-detection**, **order-service**, and **payment-gateway**. Below is the structured investigation to determine the root cause of the failure.
+
+#### Investigation Plan
+1. **Hypothesis 1:** The fraud-detection service experienced an OutOfMemoryError due to excessive heap usage, causing it to become unresponsive and impacting the payment-gateway.
+2. **Hypothesis 2:** The order-service batch job overwhelmed the payment-gateway, causing a cascading failure.
+
+#### Hypothesis 1: Fraud-Detection Service OutOfMemoryError
+
+**Sprint Question:** Did the fraud-detection service run out of memory, causing it to become unresponsive and affecting the payment-gateway?
+
+**Evidence Analysis:**
+- **Fraud-Detection Log:**
+  - [15:38:30] ERROR java.lang.OutOfMemoryError: GC overhead limit exceeded
+  - [15:38:31] ERROR Service unresponsive — health check failed
+  - [15:41:00] ERROR java.lang.OutOfMemoryError: GC overhead limit exceeded (recurrence)
+
+- **Payment-Gateway Log:**
+  - [15:38:35] ERROR Fraud-detection service timeout: 12 requests pending
+  - [15:41:05] ERROR Fraud-detection service removed from pool — no healthy instances
+  - [15:41:06] ERROR Circuit breaker OPEN for fraud-detection
+  - [15:41:30] ERROR All payment requests failing: fraud-check dependency unavailable
+
+**Conclusion:**
+The fraud-detection service experienced an OutOfMemoryError, causing it to become unresponsive. This unresponsiveness led to timeouts and subsequent errors in the payment-gateway, which marked the fraud-detection service as unhealthy and opened the circuit breaker. This directly impacted the payment processing system.
+
+#### Hypothesis 2: Order-Service Batch Job Overwhelmed Payment-Gateway
+
+**Sprint Question:** Did the order-service batch job overwhelm the payment-gateway, leading to a cascading failure?
+
+**Evidence Analysis:**
+- **Order-Service Log:**
+  - [15:38:40] WARN Payment-gateway returning errors for batch requests — pausing
+  - [15:41:10] ERROR Payment-gateway unavailable — batch job suspended
+
+- **Payment-Gateway Log:**
+  - [15:37:00] WARN Fraud-check latency elevated: avg 1,240ms (threshold: 500ms)
+  - [15:38:00] WARN Fraud-check latency critical: avg 3,800ms
+  - [15:39:30] WARN Fraud-check latency elevated again: avg 2,100ms
+
+**Conclusion:**
+The payment-gateway experienced elevated fraud-check latency due to the unresponsive fraud-detection service. This caused the payment-gateway to return errors, leading the order-service to pause and eventually suspend the batch job. However, this issue is a result of the fraud-detection service's failure rather than a cause of the initial problem.
+
+#### Root Cause
+The root cause of the payment processing failure is the **OutOfMemoryError** in the fraud-detection service, which caused it to become unresponsive and led to cascading failures in the payment-gateway and order-service.
+
+#### Recommendations
+1. **Increase Heap Size:** Increase the heap size limit for the fraud-detection service to better handle increased cache entries and avoid OutOfMemoryErrors.
+2. **Optimize Cache Management:** Review and optimize the cache management strategy in the fraud-detection service to prevent excessive heap usage.
+3. **Monitor and Alert:** Implement real-time monitoring and alerts for heap usage and memory-related issues in critical services to detect and mitigate such failures early.
+
+By addressing these issues, the likelihood of similar failures in the future can be reduced, ensuring a more stable and reliable payment processing system.

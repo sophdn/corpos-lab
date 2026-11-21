@@ -1,0 +1,11 @@
+**File to edit:** `auth/api/wrapper.py`
+
+**Change to make:**
+1.  Keep the call to `auth.legacy.session.invalidate_session()` (or remove it if it is now a no-op, though keeping it preserves interface compatibility).
+2.  Add explicit logic in the `logout()` function to directly clear the server-side session store using the same token/ID that would have been passed to `invalidate_session()`. Since `auth/api/wrapper.py` is non-frozen, it is safe to import the session store client/manager directly here to perform the deletion.
+3.  Ensure that the local token or session state within the wrapper is also cleared, but the critical step for the acceptance criteria ("token replayed after logout is rejected") is ensuring the *server-side* store entry is deleted. If the frozen `invalidate_session()` does not delete from the store, the wrapper *must* execute that deletion step itself.
+
+**Why:**
+The root cause (`invalidate_session()` not clearing the store) lies in `auth/legacy/session.py`, which is marked `# FROZEN — legacy module`. Per policy, this module must never be edited. The fix must be implemented in the non-frozen calling wrapper (`auth/api/wrapper.py`) to maintain the auditable-legacy-surface guarantee. By duplicating the necessary cleanup logic (clearing the server-side session store) in the wrapper, we satisfy the acceptance criteria without violating the freeze constraint.
+
+**Do not edit:** `auth/legacy/session.py`

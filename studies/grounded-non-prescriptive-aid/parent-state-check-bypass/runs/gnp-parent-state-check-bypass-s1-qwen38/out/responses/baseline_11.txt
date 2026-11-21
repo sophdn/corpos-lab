@@ -1,0 +1,123 @@
+I'll start by reviewing the milestone document and the relevant source file to ground my work in the current state.
+
+```
+milestones/release-2026-Q2.md
+config/validator.py
+tests/test_config_validator.py
+```
+
+Since I'm running as a single completion with no filesystem or shell access, I can't actually read those files or execute a test suite. I'll be transparent about that and proceed with what I *can* do: analyze the defect against the stated root cause and acceptance criteria, and produce the concrete change.
+
+## Defect analysis
+
+**Ticket:** DEF-2026-04-1047
+**Symptom:** `config-validator --service auth` returns exit code 0 when `auth_service_url` is malformed.
+**Root cause (as stated):** `validate_url_field()` in `config/validator.py` only checks presence + non-emptiness. It never inspects URL structure, so a string like `not-a-url` or `htp:/broken` sails through.
+**Acceptance:**
+1. Malformed `auth_service_url` → exit 1.
+2. Valid URLs → still pass (exit 0).
+
+The fix is localized: tighten `validate_url_field()` so it performs structural validation, not just a presence check. The exit-code path is already wired (the validator returns exit 1 on a failed field check), so the only change needed is making the check actually fail on malformed input.
+
+## The change
+
+I can't verify the exact current implementation of `validate_url_field()`, so I'll write the replacement to be self-contained and robust. It uses the standard library `urllib.parse` (no new dependency), enforces a valid scheme and a non-empty host, and rejects empty/whitespace values.
+
+```python
+# config/validator.py
+from urllib.parse import urlparse
+
+def validate_url_field(value, field_name="auth_service_url"):
+    """
+    Validate that `value` is a structurally well-formed URL.
+
+    Returns (ok: bool, message: str).
+    - ok is True only for a non-empty string with a valid scheme and host.
+    - ok is False for missing/empty/whitespace values or malformed structure.
+    """
+    if value is None:
+        return False, f"{field_name} is missing"
+
+    if not isinstance(value, str):
+        return False, f"{field_name} must be a string"
+
+    stripped = value.strip()
+    if not stripped:
+        return False, f"{field_name} must not be empty"
+
+    parsed = urlparse(stripped)
+
+    # Require a recognized scheme (http/https expected for a service URL).
+    # Using a whitelist is stricter than urlparse, which accepts any alpha scheme.
+    allowed_schemes = {"http", "https"}
+    if parsed.scheme not in allowed_schemes:
+        return False, (
+            f"{field_name} must use an http or https scheme; got "
+            f"{parsed.scheme!r}"
+        )
+
+    # Require a non-empty netloc (host). urlparse leaves netloc empty for
+    # strings like "foo/bar" or "not-a-url".
+    if not parsed.netloc:
+        return False, f"{field_name} is missing a host"
+
+    # netloc can include userinfo@host:port; ensure a host component exists.
+    host = parsed.hostname
+    if not host:
+        return False, f"{field_name} has an invalid host"
+
+    return True, f"{field_name} is valid"
+```
+
+How this satisfies the acceptance criteria:
+
+- **Malformed input → exit 1.** A value like `not-a-url`, `htp:/broken`, `http://`, or empty/whitespace fails one of the checks above, so `validate_url_field()` returns `ok=False`. Assuming the existing validator maps a failed field check to exit 1 (per the stated root cause, the exit path already exists), the CLI will now exit 1.
+- **Valid URLs still pass.** `https://auth.internal:8443/v1` and `http://auth.example.com` parse to a scheme in the whitelist and a non-empty host, returning `ok=True` → exit 0.
+
+## Tests to add
+
+Append to `tests/test_config_validator.py`:
+
+```python
+import pytest
+from config.validator import validate_url_field
+
+@pytest.mark.parametrize("good", [
+    "http://auth.internal",
+    "https://auth.example.com",
+    "https://auth.internal:8443/v1",
+    "http://user:pass@auth.internal/",
+])
+def test_valid_urls_pass(good):
+    ok, _ = validate_url_field(good)
+    assert ok is True
+
+@pytest.mark.parametrize("bad", [
+    "",            # empty
+    "   ",         # whitespace
+    "not-a-url",   # no scheme/host
+    "htp:/broken", # wrong scheme
+    "ftp://files", # disallowed scheme
+    "http://",     # scheme but no host
+    "://host",     # missing scheme
+])
+def test_malformed_urls_fail(bad):
+    ok, _ = validate_url_field(bad)
+    assert ok is False
+```
+
+## What I can't do in this session, and the residual risk
+
+- I could not read `milestones/release-2026-Q2.md`, `config/validator.py`, or the test file, so I could not confirm the exact current signature of `validate_url_field()` (e.g., whether it returns a bool, a tuple, or raises), nor how the CLI maps a failed check to exit code 1. The replacement above returns `(ok, message)`; if the existing code returns a plain `bool` or raises `ValueError`, the call site must be aligned accordingly. **This is the one place I'd want to verify against the real file before committing.**
+- I could not run the test suite to confirm green.
+- I could not update the milestone file to mark the ticket's status, since I have no write access.
+
+## Recommended next steps (for a session with tooling)
+
+1. Open `config/validator.py` and confirm `validate_url_field()`'s return contract and where it's called; align the replacement to that contract.
+2. Confirm the CLI's exit-code path: that a failed field check propagates to `sys.exit(1)`. If it currently swallows the failure, fix that too.
+3. Add the tests above and run `pytest tests/test_config_validator.py` plus the full suite.
+4. Add a regression test that invokes `config-validator --service auth` end-to-end with a malformed `auth_service_url` and asserts exit code 1.
+5. Update `milestones/release-2026-Q2.md` to move DEF-2026-04-1047 to in-progress/verified once the suite is green.
+
+Want me to draft the milestone-file status line and the end-to-end regression test as well, so they're ready to drop in once you have filesystem access?

@@ -1,0 +1,40 @@
+To address the ticket DEF-2026-04-1047 according to the frozen-module policy and the current scenario, we need to follow these steps:
+
+1. **Confirm Current Milestone State**: Begin by confirming the current state of the milestone `milestones/release-2026-Q2.md`. Ensure there have been no changes to the scope or priority of the tickets, especially DEF-2026-04-1047.
+
+2. **Identify Root Cause Location**: The root cause of the defect is identified as being in `config/validator.py` within the `validate_url_field()` function. This function currently checks only for the presence and non-emptiness of the `auth_service_url` field but does not validate its structure.
+
+3. **Determine if the Module is Frozen**: Check if `config/validator.py` is part of any frozen module. If it is marked with `# FROZEN — legacy module`, it should not be edited according to the policy. If there is no such marker, the module is not frozen and can be edited directly.
+
+4. **Apply the Correct Action Based on the Frozen Status**:
+   - **If `config/validator.py` is not frozen**: You can directly modify the `validate_url_field()` function to include URL structure validation. This might involve using a regular expression or a URL parsing library to ensure the URL is well-formed.
+   - **If `config/validator.py` is frozen**: Since the module is frozen, you cannot edit it directly. Instead, you need to implement the fix in a non-frozen wrapper layer. This might involve creating or updating a function in a wrapper module that calls `validate_url_field()`, adding the necessary URL validation logic there before or after the call to `validate_url_field()`.
+
+5. **Implement the Fix**:
+   - **Non-Frozen Case**: Update `validate_url_field()` to include logic that checks the URL structure. For example:
+     ```python
+     import re
+
+     def validate_url_field(url):
+         if not url:
+             raise ValueError("URL is missing or empty")
+         # Add URL structure validation
+         if not re.match(r'^https?://', url):
+             raise ValueError("Invalid URL structure")
+         # Existing logic...
+     ```
+   - **Frozen Case**: Implement the URL validation in a wrapper:
+     ```python
+     from config.validator import validate_url_field
+
+     def validate_auth_service_url(url):
+         if not re.match(r'^https?://', url):
+             raise ValueError("Invalid URL structure")
+         validate_url_field(url)  # Call the original function
+     ```
+
+6. **Testing and Verification**: Ensure that the changes are thoroughly tested. The validator should now exit 1 for malformed `auth_service_url` values and continue to pass for valid URLs.
+
+7. **Documentation and Communication**: Update any relevant documentation and communicate the changes to the team, ensuring everyone is aware of the modifications and their implications.
+
+By following these steps, you adhere to the frozen-module policy while effectively addressing the defect in DEF-2026-04-1047.

@@ -1,0 +1,108 @@
+# repair-duty
+
+## Preamble
+This duty governs the execution of a repair for a confirmed software defect with a known locus. The executor must traverse the following gates in strict sequence. If any gate fails verification, the executor must halt, log the failure, and revert all changes made during this duty.
+
+## Gate 1: Locus Verification
+**Purpose:** Confirm the defect exists at the stated location and understand its mechanism.
+
+**Verification:**
+1. Open the file specified in the defect report (`calculator.py`).
+2. Inspect line 2 (`def calculate_average...`).
+3. Confirm the logic `sum(values) / len(values)` is present.
+4. Trace the failure mode: When `values` is an empty list `[]`, `len(values)` evaluates to `0`, causing `ZeroDivisionError`.
+
+**Completion Requirement:**
+The executor must articulate the exact line and expression causing the error. If the code at the locus does not match the defect description, halt.
+
+## Gate 2: Edge Case Analysis
+**Purpose:** Determine the correct semantic behavior for the edge case.
+
+**Verification:**
+1. Assess the mathematical definition of the average of an empty set.
+2. Decide on the return value or behavior:
+   - Option A: Return `0.0` (common in many libraries, but mathematically ambiguous).
+   - Option B: Return `None` (explicitly indicates no value).
+   - Option C: Raise a specific `ValueError` or `LookupError` (explicitly indicates invalid input).
+3. Review any existing documentation, type hints, or calling patterns for `calculate_average` to determine the expected contract. If no contract exists, default to **Option B** (`None`) or **Option C** (raising `ValueError`) as they are safer than silent `0.0`. For this duty, assume **Option B** unless project conventions dictate otherwise.
+
+**Completion Requirement:**
+The executor must select a specific behavior (e.g., "return `None`") and justify it based on the chosen semantic contract.
+
+## Gate 3: Implementation
+**Purpose:** Modify the code to handle the edge case without breaking existing valid inputs.
+
+**Verification:**
+1. Edit `calculator.py` at the locus.
+2. Insert a guard clause before the division.
+3. Example implementation for Option B:
+   ```python
+   def calculate_average(values: list) -> float:
+       if not values:
+           return None
+       return sum(values) / len(values)
+   ```
+   *(Note: If Option C was chosen, replace `return None` with `raise ValueError("Cannot calculate average of empty list")`)*
+4. Ensure the type hint is updated if the return type changes (e.g., `-> float | None`).
+
+**Completion Requirement:**
+The code must be syntactically valid Python. The guard clause must be placed before the division operation. The rest of the function logic must remain unchanged.
+
+## Gate 4: Regression Testing
+**Purpose:** Ensure valid inputs still work correctly.
+
+**Verification:**
+1. Mentally simulate or write a test case for a non-empty list:
+   - Input: `[1, 2, 3]`
+   - Expected Output: `2.0`
+2. Confirm the guard clause (`if not values:`) does not trigger for non-empty lists.
+3. Confirm the division `sum(values) / len(values)` executes correctly for non-empty lists.
+
+**Completion Requirement:**
+The executor must verify that the fix does not alter behavior for any list with `len(values) > 0`.
+
+## Gate 5: Edge Case Testing
+**Purpose:** Verify the defect is resolved.
+
+**Verification:**
+1. Mentally simulate or write a test case for the empty list:
+   - Input: `[]`
+   - Expected Output: `None` (or the chosen behavior from Gate 2).
+   - Expected Side Effect: No `ZeroDivisionError` is raised.
+2. If a specific exception was chosen (Option C), verify that the new exception is raised instead of `ZeroDivisionError`.
+
+**Completion Requirement:**
+The executor must confirm that `calculate_average([])` no longer raises `ZeroDivisionError` and behaves as specified in Gate 2.
+
+## Gate 6: Documentation Update
+**Purpose:** Reflect the new behavior in the code's interface.
+
+**Verification:**
+1. If a docstring exists, update it to mention the behavior for empty lists.
+2. If no docstring exists, add one:
+   ```python
+   """
+   Calculate the average of a list of values.
+   
+   Args:
+       values: A list of numeric values.
+       
+   Returns:
+       The arithmetic mean of the values. Returns None if the list is empty.
+   """
+   ```
+3. Ensure type hints are accurate (e.g., `float | None`).
+
+**Completion Requirement:**
+The function signature and docstring must accurately describe the new return behavior for empty lists.
+
+## Gate 7: Final Review
+**Purpose:** Ensure the change is minimal and correct.
+
+**Verification:**
+1. Review the diff: Only the guard clause and type hints/docstring should be modified.
+2. Confirm no other parts of the file were altered.
+3. Confirm the fix is specific to the locus and does not introduce new dependencies.
+
+**Completion Requirement:**
+The executor must sign off that the change is isolated, correct, and documented. The duty is complete.

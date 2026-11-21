@@ -1,0 +1,51 @@
+### Investigation Report for Payment Processing Failure
+
+#### Summary
+The payment processing failure occurred due to an unresponsive Fraud Detection service, which led to elevated latency and eventual timeouts in the Payment Gateway, causing the Order Service to suspend its batch processing.
+
+#### Investigation Rounds
+
+**Round 1: Hypotheses Formation**
+- **Hypothesis 1:** The Fraud Detection service is experiencing an Out of Memory (OOM) error.
+- **Hypothesis 2:** The Fraud Detection service is being overwhelmed by the rate of incoming requests.
+- **Hypothesis 3:** The Fraud Detection service is encountering an issue unrelated to memory or request volume.
+
+#### Sprint 1: Fraud Detection Service Analysis
+- **Objective:** Evaluate the logs for the Fraud Detection service to determine if it is experiencing memory issues or request overload.
+- **Evidence:**
+  - The Fraud Detection service log shows a deployment at 15:18:00 and deployment completion at 15:18:30.
+  - The log also shows that the service experienced a high number of risk assessment entries, leading to a heap size of 491MB by 15:38:00, and then a `java.lang.OutOfMemoryError` at 15:38:30.
+  - The service was restarted by the orchestrator at 15:39:15 and experienced another OOM error at 15:41:00.
+- **Conclusion:** The Fraud Detection service is experiencing an Out of Memory error due to high heap usage and elevated GC pressure.
+
+#### Sprint 2: Order Service Analysis
+- **Objective:** Evaluate the logs for the Order Service to determine if it is impacted by the Fraud Detection service failure.
+- **Evidence:**
+  - The Order Service log shows that it was in the middle of a batch job at 15:38:40 when the Payment Gateway started returning errors.
+  - By 15:41:10, the Order Service reported the Payment Gateway as unavailable.
+- **Conclusion:** The Order Service is unable to complete its batch job due to the Payment Gateway becoming unavailable.
+
+#### Sprint 3: Payment Gateway Analysis
+- **Objective:** Evaluate the logs for the Payment Gateway to determine if it is impacted by the Fraud Detection service failure.
+- **Evidence:**
+  - The Payment Gateway log shows increasing fraud-check latency from 380ms to 3,800ms by 15:38:00.
+  - The log also indicates that the Fraud Detection service timed out at 15:38:35 and was eventually removed from the pool at 15:41:05.
+- **Conclusion:** The Payment Gateway is unable to process payments due to the Fraud Detection service being unavailable.
+
+#### Hypothesis Verification
+- **Hypothesis 1:** Confirmed.
+- **Hypothesis 2:** Partially confirmed — the high volume of requests contributed to the memory issues.
+- **Hypothesis 3:** Rejected.
+
+#### Root Cause
+The root cause of the payment processing failure is the Out of Memory error in the Fraud Detection service, which caused the Payment Gateway to become unavailable. This issue was exacerbated by the elevated volume of risk assessment requests.
+
+#### Recommendations
+1. **Memory Management:** Investigate and adjust the memory limits and risk assessment cache thresholds in the Fraud Detection service.
+2. **Request Rate Management:** Implement rate limiting or request throttling to prevent overwhelming the Fraud Detection service.
+3. **Monitoring and Alerts:** Enhance monitoring and alerting to detect memory issues early and take proactive steps to mitigate them.
+
+---
+
+### Conclusion
+The investigation confirms that the Fraud Detection service's memory issues and high request volume led to its unavailability, causing the Payment Gateway and Order Service to fail. Addressing these issues will prevent future payment processing failures.

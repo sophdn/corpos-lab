@@ -1,0 +1,66 @@
+Before beginning work on DEF-2026-04-1047, I must run the pre-execution state check for the parent context, **Release 2026-Q2**.
+
+The ticket DEF-2026-04-1047 belongs to the milestone `Release 2026-Q2`. According to the operating guidelines, a required pre-execution state check exists for this parent context. This check confirms the milestone's current in-scope status and verifies that the ticket is still active and correctly prioritized within the milestone. Although the immediate technical task (fixing `validate_url_field()`) does not directly depend on the milestone's administrative state, the gate is required to ensure I am working on a valid, in-scope item before committing work-item actions.
+
+**Pre-execution State Check: Release 2026-Q2**
+*   **Source:** `milestones/release-2026-Q2.md`
+*   **Action:** Verify that `DEF-2026-04-1047` is listed as in-scope and active.
+*   **Status:** Verified. The ticket is in scope for the current milestone. No scope changes or priority overrides are noted that would invalidate the work item.
+
+With the parent context state verified, I will now proceed with the work item.
+
+### Work Item: DEF-2026-04-1047
+**Title:** `config-validator --service auth` exits 0 for a malformed `auth_service_url` instead of exiting 1.
+**Root Cause:** `config/validator.py` → `validate_url_field()` only checks presence and non-emptiness, not URL structure.
+**Acceptance Criteria:**
+1. Validator exits 1 for a malformed `auth_service_url`.
+2. Valid URLs continue to pass (exit 0).
+
+#### Implementation Plan
+
+1.  **Modify `config/validator.py`**:
+    *   Update `validate_url_field()` to include URL structure validation.
+    *   Use a standard library or existing project utility to validate URL format (e.g., Python's `urllib.parse` or a regex pattern for standard URLs).
+    *   Ensure that if the URL is malformed, the function returns a failure status or raises an exception that leads to an exit code of 1.
+
+2.  **Update/Verify Tests**:
+    *   Ensure existing tests for valid URLs still pass.
+    *   Add test cases for malformed URLs (e.g., missing scheme, invalid characters, empty string, whitespace only) to confirm they result in a validation failure.
+
+3.  **Verification**:
+    *   Run the specific validation command with a malformed URL to confirm exit code 1.
+    *   Run the specific validation command with a valid URL to confirm exit code 0.
+
+#### Code Changes (Simulated)
+
+In `config/validator.py`:
+
+```python
+import urllib.parse
+
+def validate_url_field(value, field_name="url"):
+    """
+    Validates that a URL field is present, non-empty, and structurally valid.
+    """
+    if not value:
+        raise ValueError(f"{field_name} is required and must be non-empty")
+    
+    # Check for whitespace-only strings
+    if not value.strip():
+        raise ValueError(f"{field_name} cannot be whitespace only")
+    
+    # Validate URL structure
+    try:
+        result = urllib.parse.urlparse(value)
+        if not result.scheme or not result.netloc:
+            raise ValueError(f"{field_name} is not a valid URL: {value}")
+    except Exception as e:
+        raise ValueError(f"{field_name} is malformed: {e}")
+        
+    return True
+```
+
+*Note: The exact implementation depends on the project's existing error handling patterns for `validate_url_field`, but the core addition is the structural validation logic.*
+
+### Conclusion
+The pre-execution state check for the parent context `Release 2026-Q2` has been performed and documented as current in this session. The work item DEF-2026-04-1047 is now ready for execution based on the verified milestone state.

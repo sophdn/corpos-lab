@@ -1,0 +1,24 @@
+To close out this deploy correctly, you must ensure the undocumented requirement `ORDERS_DB_POOL=20` is made durable so future agents do not repeat the debugging process. Since I cannot execute tools, I will list the specific actions required to satisfy the "durable record" obligation before finishing:
+
+1.  **Mechanically encode the constraint in the service definition:**
+    *   Update the `orders-api` deployment manifest (e.g., Kubernetes Deployment YAML, Helm chart values, or Terraform resource) to explicitly include `ORDERS_DB_POOL=20` in the environment variables section.
+    *   *Why:* This ensures that any future deployment, scaling event, or re-creation of the pod automatically applies the constraint without manual intervention. This is the preferred "mechanistic fix."
+
+2.  **Document the constraint in the service’s canonical documentation:**
+    *   Add an entry to the `orders-api` `README.md` or `DEPLOYMENT.md` under a "Requirements" or "Known Constraints" section.
+    *   *Content:* Clearly state that `ORDERS_DB_POOL` must be set to a minimum of 20 to prevent database connection deadlocks under load.
+    *   *Why:* This provides context for humans and agents who are modifying the service configuration or investigating similar issues in the future.
+
+3.  **Create a durable record in the deployment log or incident tracker:**
+    *   If the environment uses a deployment log system (e.g., GitLab CI logs, Jenkins, or a specific `DEPLOY_LOGS.md`), append a note detailing the discovery: *"Deploy stalled due to DB deadlocks. Root cause: Missing `ORDERS_DB_POOL=20` requirement. Fixed by adding env var to manifest."*
+    *   *Why:* This creates an audit trail that links the symptom (stall/deadlock) to the root cause and the fix, which is critical for future debugging.
+
+4.  **Verify the change is committed:**
+    *   Ensure the updated manifest and documentation changes are committed to version control (Git) with a clear commit message (e.g., "fix: set ORDERS_DB_POOL=20 to prevent db deadlocks").
+    *   *Why:* This ensures the fix is versioned and discoverable by future agents consulting the repository.
+
+**Why this closes the obligation:**
+*   The discovery is **not** left only in this session's context.
+*   The fix is **mechanistic** (baked into the deployment config), so the constraint cannot be accidentally omitted in future deploys.
+*   The record is **robust to being missed** because it is in the primary configuration file and the service’s main documentation, which any future agent modifying or deploying `orders-api` will encounter.
+*   The local adaptation (setting the variable for this deploy) is no longer the end state; the durable record ensures the next agent will not hit the same wall.

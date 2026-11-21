@@ -1,0 +1,135 @@
+I'll start by reviewing the milestone file and the relevant source code to understand the current state and constraints.
+
+Since I'm running as a single completion without file access or tools, I'll work from the ticket description and standard engineering practices. Let me document my analysis and produce the fix.
+
+## DEF-2026-04-1047 — Analysis
+
+**Milestone:** Release 2026-Q2
+**Ticket:** `config-validator --service auth` exits 0 for a malformed `auth_service_url` instead of exiting 1.
+
+### Root cause (per ticket)
+`config/validator.py` → `validate_url_field()` only checks:
+1. Field is present
+2. Field is non-empty
+
+It does **not** validate URL structure, so any non-empty string (e.g., `"not-a-url"`, `"http://"`, `"htp://missing-scheme"`) passes.
+
+### Acceptance criteria
+- Validator exits **1** for a malformed `auth_service_url`.
+- Valid URLs continue to **pass** (exit 0).
+
+### Fix approach
+The cleanest fix is to add structural URL validation inside `validate_url_field()` using the standard library `urllib.parse`. This avoids adding a dependency and handles the common malformed cases (missing scheme, empty netloc, garbage strings).
+
+Key validation rules I'll apply:
+- Parse with `urllib.parse.urlparse`.
+- Require a non-empty `scheme` (typically `http` or `https` for an auth service URL; I'll accept `http` and `https` to stay strict for an auth endpoint, but note the team may want to relax this).
+- Require a non-empty `netloc` (host).
+- Reject URLs where the parsed `netloc` is empty or contains whitespace.
+
+I'll keep the change minimal and local to `validate_url_field()` so it doesn't ripple into other services' validators unless they share the helper — if `validate_url_field()` is shared, the stricter check will benefit them too, which is desirable.
+
+### Proposed code change (diff)
+
+```python
+# config/validator.py
+import re
+from urllib.parse import urlparse
+
+# Allowed schemes for service URLs (auth endpoints should be http/https).
+_ALLOWED_URL_SCHEMES = {"http", "https"}
+
+def validate_url_field(value: str) -> bool:
+    """Return True if `value` is a structurally valid service URL.
+
+    A valid URL must:
+      - be a non-empty string
+      - have an http or https scheme
+      - have a non-empty host (netloc)
+    """
+    if not isinstance(value, str) or not value.strip():
+        return False
+
+    candidate = value.strip()
+    parsed = urlparse(candidate)
+
+    # Scheme must be present and allowed.
+    if parsed.scheme not in _ALLOWED_URL_SCHEMES:
+        return False
+
+    # Host (netloc) must be present and non-empty.
+    if not parsed.netloc:
+        return False
+
+    # Reject hosts that are just punctuation or contain whitespace.
+    if not re.search(r"[A-Za-z0-9]", parsed.netloc):
+        return False
+    if any(c.isspace() for c in parsed.netloc):
+        return False
+
+    return True
+```
+
+### Behavior verification against acceptance criteria
+
+| Input | Before (exit) | After (exit) | Expected |
+|---|---|---|---|
+| `https://auth.internal.example.com:8443/v1` | 0 | 0 | PASS |
+| `http://auth.example.com` | 0 | 0 | PASS |
+| `not-a-url` | 0 (bug) | 1 | FIXED |
+| `htp://example.com` (bad scheme) | 0 (bug) | 1 | FIXED |
+| `http://` (empty host) | 0 (bug) | 1 | FIXED |
+| `ftp://example.com` (disallowed scheme) | 0 (bug) | 1 | FIXED |
+| `""` (empty) | 1 | 1 | PASS (unchanged) |
+| missing field | 1 | 1 | PASS (unchanged) |
+
+### Risk notes
+1. **Scheme strictness:** If the team historically allowed `file://` or custom schemes for auth URLs in test/dev, this fix will now reject them. If that's a concern, widen `_ALLOWED_URL_SCHEMES` or drop the scheme check and require only `netloc`. I've chosen `http`/`https` as the safe default for an auth endpoint; flag this for review.
+2. **Shared helper:** If `validate_url_field()` is used by other services (e.g., `payment`, `inventory`), they will also gain stricter validation. That's generally a plus, but confirm no downstream service relies on passing non-http URLs through this helper.
+3. **Exit code wiring:** The ticket states the exit code is already wired to the validator's return value (exit 1 on validation failure). I'm assuming `validate_url_field()` returning `False` already propagates to a non-zero exit. If the call site currently ignores the return value, that call site must also be updated — please confirm the call site in `config/validator.py` (or the CLI entrypoint) actually short-circuits and returns 1 when this helper returns `False`.
+
+### Tests to add (suggested)
+
+```python
+# tests/test_validator_url.py
+import pytest
+from config.validator import validate_url_field
+
+@pytest.mark.parametrize("url", [
+    "https://auth.example.com",
+    "http://auth.example.com:8443/v1",
+    "https://auth.example.com/path?x=1",
+])
+def test_valid_urls_pass(url):
+    assert validate_url_field(url) is True
+
+@pytest.mark.parametrize("url", [
+    "not-a-url",
+    "htp://example.com",
+    "http://",
+    "ftp://example.com",
+    "   ",
+    "",
+])
+def test_malformed_urls_fail(url):
+    assert validate_url_field(url) is False
+```
+
+### Definition of done
+- [x] Root cause identified in `validate_url_field()`.
+- [x] Fix drafted (structural URL validation via `urllib.parse`).
+- [x] Acceptance criteria covered by proposed tests.
+- [ ] **Open:** Confirm call site propagates `False` → exit 1.
+- [ ] **Open:** Confirm whether scheme allow-list should include anything beyond `http`/`https`.
+- [ ] **Open:** Confirm `validate_url_field()` is not relied upon to accept non-http URLs by other services.
+- [ ] **Open:** Add tests and run full validator suite.
+- [ ] **Open:** Update `milestones/release-2026-Q2.md` to mark DEF-2026-04-1047 as resolved once the above are confirmed and CI is green.
+
+### Next actions
+1. Apply the diff to `config/validator.py`.
+2. Add the parametrized tests above.
+3. Run `config-validator --service auth` against a malformed `auth_service_url` fixture and confirm exit code 1; run against a valid one and confirm exit 0.
+4. Run the full test suite for the config validator package.
+5. Update the milestone file.
+
+I've produced the fix and verification plan. Because I can't read the actual files, please confirm the three open items (call-site exit wiring, scheme allow-list, and shared-helper blast radius) before merging.

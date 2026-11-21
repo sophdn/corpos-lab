@@ -1,0 +1,69 @@
+### Investigation Plan
+
+#### Round 1: Identify the Root Cause of the Payment Processing Failure
+
+1. **Sprint 1: Fraud-Detection Service Crash Analysis**
+   - **Hypothesis:** The fraud-detection service experienced an `OutOfMemoryError` due to high risk assessment cache usage.
+   - **Evidence to Verify:** Log entries indicating memory usage and error messages.
+
+2. **Sprint 2: Order-Service Batch Job Analysis**
+   - **Hypothesis:** The order-service batch job was paused due to payment-gateway errors, indicating potential dependency issues.
+   - **Evidence to Verify:** Log entries showing batch progress and error messages.
+
+3. **Sprint 3: Payment-Gateway Dependency Analysis**
+   - **Hypothesis:** The payment-gateway became unavailable because the fraud-detection service was unhealthy.
+   - **Evidence to Verify:** Log entries showing fraud-check latency and error messages indicating service timeouts.
+
+### Execution of Sprints
+
+#### Sprint 1: Fraud-Detection Service Crash Analysis
+
+**Evidence:**
+- The fraud-detection service deployed a new version at 15:18:00.
+- Memory usage increased rapidly from 15:33:00 to 15:38:00, with the heap size reaching critical levels.
+- An `OutOfMemoryError` was logged at 15:38:30.
+
+**Conclusion:**
+The fraud-detection service crashed due to an `OutOfMemoryError` caused by excessive memory usage. The service was restarted, but it experienced a recurrence of the error shortly after restarting.
+
+#### Sprint 2: Order-Service Batch Job Analysis
+
+**Evidence:**
+- The order-service initiated a batch job at 15:25:00 to revalidate unconfirmed orders.
+- The batch job paused due to payment-gateway errors at 15:38:40 and resumed at 15:40:00.
+- The payment-gateway became unavailable, and the batch job was suspended at 15:41:10.
+
+**Conclusion:**
+The order-service batch job was suspended due to the unavailability of the payment-gateway, which indicates a dependency issue between these services.
+
+#### Sprint 3: Payment-Gateway Dependency Analysis
+
+**Evidence:**
+- The payment-gateway experienced elevated fraud-check latency starting from 15:37:00.
+- The fraud-detection service was marked as unhealthy and removed from the pool at 15:41:05.
+- The circuit breaker was opened for fraud-detection, and all payment requests failed at 15:41:30.
+
+**Conclusion:**
+The payment-gateway became unavailable due to the unavailability of the fraud-detection service, which was marked as unhealthy and removed from the pool.
+
+### Summary of Findings
+
+- The root cause of the payment processing failure is the crash of the fraud-detection service due to an `OutOfMemoryError`, caused by excessive memory usage.
+- This crash led to elevated fraud-check latency and ultimately the unavailability of the fraud-detection service.
+- The order-service batch job and payment-gateway were both affected by the unavailability of the fraud-detection service, resulting in the suspension of the batch job and the failure of all payment requests.
+
+### Recommendations
+
+1. **Memory Management in Fraud-Detection Service:**
+   - Investigate the reason for the rapid increase in memory usage and optimize the risk assessment cache to prevent future `OutOfMemoryErrors`.
+   - Implement better monitoring and alerting for memory usage to detect and prevent such issues proactively.
+
+2. **Dependency Management and Resilience:**
+   - Ensure that the payment-gateway and order-service have appropriate fallback mechanisms or retries in case of dependency failures.
+   - Implement health checks and circuit breakers to manage dependencies more effectively.
+
+3. **Incident Response and Recovery:**
+   - Develop and document a clear incident response plan for critical service failures.
+   - Conduct regular drills to ensure the team is prepared to handle such incidents efficiently.
+
+By addressing these recommendations, the likelihood and impact of such failures can be significantly reduced.

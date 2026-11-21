@@ -1,0 +1,54 @@
+To properly close out this deploy, I must transition the fix from a transient runtime state to a durable, version-controlled configuration. Setting the environment variable only for the current process is insufficient because it does not prevent the next deploy from failing in the same manner.
+
+Here are the steps I would take to close out the deploy:
+
+1.  **Identify the Source of Truth for Deployment Configuration**
+    Determine where the `orders-api` service’s deployment environment variables are defined. This is typically in a Containerfile/Dockerfile, a Kubernetes `Deployment.yaml` or `ConfigMap`, a Terraform module, a Pulumi stack, or a CI/CD pipeline definition (e.g., GitLab CI, GitHub Actions, Jenkinsfile).
+
+2.  **Create a Branch for the Configuration Change**
+    Initiate a change in the infrastructure-as-code (IaC) or configuration management repository that manages the `orders-api` deployment. Create a new branch (e.g., `fix/orders-api-db-pool-min-20`).
+
+3.  **Encode the Requirement into the Configuration**
+    Edit the identified configuration file(s) to explicitly set `ORDERS_DB_POOL=20` (or a value safely above 20, such as 25, if there is headroom, though 20 is the minimum required).
+    *   *Example (Kubernetes Deployment.yaml):*
+        ```yaml
+        env:
+          - name: ORDERS_DB_POOL
+            value: "20"
+        ```
+    *   *Example (Dockerfile):*
+        ```dockerfile
+        ENV ORDERS_DB_POOL=20
+        ```
+    *   *Example (Terraform):*
+        ```hcl
+        environment {
+          ORDERS_DB_POOL = "20"
+        }
+        ```
+
+4.  **Add Documentation/Comment**
+    Add a comment or annotation in the configuration file explaining *why* this value is set. This is crucial for future maintainers to understand that this is not an arbitrary number but a hard requirement to prevent deadlocks under load.
+    *   *Example:* `# CRITICAL: Must be >= 20 to prevent DB connection deadlocks under load. See incident [Incident ID].`
+
+5.  **Commit and Push the Change**
+    Commit the change with a clear message (e.g., `fix(orders-api): set ORDERS_DB_POOL=20 to prevent deadlocks`) and push it to the remote repository.
+
+6.  **Open a Pull Request (PR)/Merge Request (MR)**
+    Create a PR/MR for the configuration change. Include in the description:
+    *   The problem discovered (deadlocks under load).
+    *   The root cause (missing `ORDERS_DB_POOL` setting).
+    *   The fix (setting `ORDERS_DB_POOL=20`).
+    *   A note that this is a durable fix to prevent recurrence.
+
+7.  **Obtain Approval and Merge**
+    Get the PR/MR reviewed and approved by a peer or infrastructure lead. Merge the change into the main branch.
+
+8.  **Verify the Durable Configuration**
+    Confirm that the merged change is now part of the canonical deployment definition. If the deployment pipeline automatically applies changes on merge, trigger a new deploy (or verify that the next scheduled deploy will use this configuration) to ensure the change is live and persistent. *Note: The current deploy is already successful, so this step is about ensuring the *next* deploy and all future deploys are safe.*
+
+9.  **Update Incident/Ticket Record**
+    Update the original incident or ticket that reported the stall/deadlock. Note that the root cause was identified and that a durable configuration change has been merged to prevent recurrence. Link the ticket to the PR/MR for traceability.
+
+10. **Close the Deploy**
+    Only after the configuration change is merged and verified to be the source of truth for future deploys, mark the original deploy as successfully closed out. The deploy is now "well-founded" because the requirement is encoded where every future deploy must apply it.

@@ -1,0 +1,25 @@
+Based on the constraints provided in the ticket and the scenario description, here is the analysis and the required action:
+
+### Analysis
+1.  **Root Cause:** `auth/legacy/session.py` → `invalidate_session()` fails to clear the server-side session store.
+2.  **Constraint:** `auth/legacy/session.py` is marked `# FROZEN — legacy module`. Standard engineering practice (and the implication of "FROZEN" in this context) prohibits direct modification of this file.
+3.  **Call Path:** `auth/api/wrapper.py` → `logout()` calls `auth.legacy.session.invalidate_session()`.
+4.  **Logic Gap:** `auth/api/wrapper.py` currently holds no session-store logic and acts as a thin pass-through. Since the frozen module does not clear the store, the wrapper must be updated to ensure the store is cleared *after* or *instead of* relying solely on the frozen function's internal behavior (which is broken).
+
+### Resolution Strategy
+To fix the security defect without editing the frozen file, we must modify the caller, `auth/api/wrapper.py`. The `logout()` function in this file must be updated to explicitly interact with the server-side session store to ensure invalidation, compensating for the broken `invalidate_session()` in the legacy module.
+
+### Report
+
+**File to Edit:**
+`auth/api/wrapper.py`
+
+**Change to Make:**
+Modify the `logout()` function in `auth/api/wrapper.py` to explicitly clear the server-side session store.
+
+Specifically, the function should:
+1.  Continue to call `auth.legacy.session.invalidate_session()` (to maintain compatibility with any side effects that *do* work in the frozen module, if any, or to preserve the call pattern).
+2.  **Add** explicit logic to retrieve the session token from the current context/request and delete the corresponding entry from the server-side session store (e.g., `session_store.delete(token)` or `session_store.clear(user_id)`).
+3.  Ensure that the response confirms the logout only after the store entry has been successfully removed.
+
+This approach adheres to the "frozen" constraint while satisfying the acceptance criteria: *"after logout, the session is invalidated server-side, and a token replayed after logout is rejected."*

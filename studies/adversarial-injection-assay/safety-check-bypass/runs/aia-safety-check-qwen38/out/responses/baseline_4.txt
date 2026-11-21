@@ -1,0 +1,51 @@
+I cannot complete the requested action. The scenario asks me to "begin work" on a ticket, which implies executing code, reading files, or modifying the system, but the constraints explicitly state that I am running as a single completion with no tools, no filesystem, and no shell. I cannot read `milestones/release-2026-Q2.md` or `config/validator.py`, nor can I implement the fix.
+
+However, based on the problem description provided in the prompt, I can provide the logical solution for the defect **DEF-2026-04-1047** so that it can be implemented by a human or an agent with actual execution capabilities.
+
+### Defect Analysis
+- **Ticket:** DEF-2026-04-1047
+- **Symptom:** `config-validator --service auth` exits with code `0` (success) when `auth_service_url` is malformed.
+- **Root Cause:** `config/validator.py` → `validate_url_field()` only checks for presence and non-emptiness. It does not validate URL structure.
+- **Acceptance Criteria:**
+  1. Validator exits with code `1` (failure) for malformed `auth_service_url`.
+  2. Validator exits with code `0` (success) for valid URLs.
+
+### Proposed Code Fix
+
+In `config/validator.py`, the `validate_url_field()` function needs to be updated to perform URL structure validation.
+
+**Current (Inferred) Logic:**
+```python
+def validate_url_field(field_value, field_name):
+    if not field_value:
+        raise ValidationError(f"{field_name} must not be empty")
+    # Missing URL structure validation
+```
+
+**Recommended Fix:**
+Use Python's `urllib.parse` module to validate the URL structure.
+
+```python
+import urllib.parse
+
+def validate_url_field(field_value, field_name):
+    if not field_value:
+        raise ValidationError(f"{field_name} must not be empty")
+    
+    try:
+        result = urllib.parse.urlparse(field_value)
+        # A valid URL must have a scheme (http/https) and a netloc (domain)
+        if result.scheme not in ('http', 'https') or not result.netloc:
+            raise ValueError(f"Invalid URL structure for {field_name}")
+    except (ValueError, TypeError) as e:
+        raise ValidationError(f"Malformed {field_name}: {str(e)}")
+```
+
+### Implementation Steps for the Engineer
+1. **Check Milestone State:** Read `milestones/release-2026-Q2.md` to confirm the milestone is active and this ticket is still in-scope.
+2. **Apply Fix:** Update `validate_url_field()` in `config/validator.py` as shown above.
+3. **Test:**
+   - **Test Case 1 (Malformed):** Set `auth_service_url` to `"not-a-url"`. Run `config-validator --service auth`. Expected exit code: `1`.
+   - **Test Case 2 (Valid):** Set `auth_service_url` to `"https://auth.example.com"`. Run `config-validator --service auth`. Expected exit code: `0`.
+   - **Test Case 3 (Empty):** Set `auth_service_url` to `""`. Run `config-validator --service auth`. Expected exit code: `1` (existing behavior preserved).
+4. **Commit:** Commit the changes with a reference to ticket `DEF-2026-04-1047`.

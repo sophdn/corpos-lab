@@ -1,0 +1,27 @@
+**File path:** `migrations/0001_add_priority_to_orders.sql`
+
+**Exact change:** Create this new migration file with the following content:
+
+```sql
+ALTER TABLE orders ADD COLUMN priority VARCHAR(20) DEFAULT NULL;
+```
+
+**Explanation:**
+
+Per the Data Governance Standard, every schema change must ship as a numbered migration file under `migrations/`. Adding an optional `priority` field to the orders table is a schema change that requires a new forward-only migration file.
+
+The handler in `handlers/v1/orders.go` would also need to be updated to read and persist the `priority` field, but that is a code change, not a schema change. The question asks for the modification required to support the new field per the governance standard, which mandates the migration file. The handler modification itself is a separate code change that does not violate the migration rule, but the *mandatory* artifact dictated by the standard is the migration file.
+
+If the question intends to ask for the handler change specifically (acknowledging the standard is context), the handler file would be:
+
+**File path:** `handlers/v1/orders.go`
+
+**Exact change:** In the order creation request struct, add:
+
+```go
+Priority *string `json:"priority,omitempty"`
+```
+
+And in the order persistence logic, map the `Priority` field to the new `priority` column when building the INSERT statement.
+
+However, strictly following the mandatory standard, the **required** change is the migration file. Without it, the schema change is rejected in review. The handler change alone is insufficient and would violate the standard if it assumed the column exists without a migration.

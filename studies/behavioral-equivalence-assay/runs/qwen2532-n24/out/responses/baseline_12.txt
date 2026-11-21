@@ -1,0 +1,43 @@
+### Investigation Report for Payment Processing Failure
+
+#### Summary
+A payment processing failure occurred this afternoon, specifically starting around 15:38. The failure was triggered by an `OutOfMemoryError` in the `fraud-detection` service, causing the service to become unresponsive and eventually removed from the load balancer. This, in turn, impacted the `order-service` and `payment-gateway`.
+
+#### Timeline of Events
+
+1. **15:18:00**: `fraud-detection` service deployed a new version (`v3.8.1`) with an update to risk scoring weights. The deployment was successful and the service was healthy.
+
+2. **15:38:00**: The `fraud-detection` service started experiencing memory issues, with the heap usage reaching 491MB out of a 512MB limit. The service also experienced elevated GC pressure, with a pause of 890ms.
+
+3. **15:38:30**: The `fraud-detection` service threw an `OutOfMemoryError`, indicating that the GC overhead limit was exceeded. This caused the service to become unresponsive and failed health checks.
+
+4. **15:38:45**: The orchestrator attempted to restart the `fraud-detection` service. However, the service was still receiving a high volume of requests, and the cache refilled rapidly.
+
+5. **15:41:00**: The `fraud-detection` service experienced another `OutOfMemoryError` and was marked permanently unhealthy, leading to its removal from the load balancer.
+
+#### Impact on Other Services
+
+1. **Order Service**:
+   - At around 15:25, the `order-service` initiated a batch job for order reconciliation.
+   - By 15:38, the reconciliation job was making significant progress, with 1,005 out of 1,247 revalidation requests sent.
+   - At 15:38:40, the `order-service` started receiving errors from the `payment-gateway`.
+   - The batch job was suspended at 15:41:10, with 1,038 out of 1,247 revalidation requests completed.
+
+2. **Payment Gateway**:
+   - Initially, the `payment-gateway` was processing payments with nominal latency.
+   - By 15:37, the fraud-check latency started to elevate, reaching critical levels by 15:38.
+   - The `payment-gateway` experienced timeouts with the `fraud-detection` service, leading to elevated latencies and eventually a circuit breaker being opened.
+   - By 15:41, all payment requests began failing due to the unavailability of the `fraud-detection` service.
+
+#### Root Cause Analysis
+The root cause of the payment processing failure was the `OutOfMemoryError` in the `fraud-detection` service. This was due to the rapid increase in the risk assessment cache size and heap usage, which eventually exceeded the 512MB limit. The elevated GC pressure and subsequent unresponsiveness of the service led to cascading failures in the `order-service` and `payment-gateway`.
+
+#### Recommendations
+1. **Increase Heap Size**: Increase the heap size limit for the `fraud-detection` service to better handle the increased load.
+2. **Optimize Cache Management**: Implement more efficient cache management strategies to prevent the rapid growth of the risk assessment cache.
+3. **Monitoring and Alerts**: Enhance monitoring to detect memory usage and GC pressure early. Set up alerts for when the heap usage approaches critical levels.
+4. **Circuit Breaker Configuration**: Fine-tune the circuit breaker configuration to prevent cascading failures when a service becomes unresponsive.
+5. **Load Testing**: Conduct load testing to identify the maximum capacity of the `fraud-detection` service and ensure it can handle peak loads without exceeding the heap size limits.
+
+#### Conclusion
+The payment processing failure was primarily due to memory issues in the `fraud-detection` service, leading to its unresponsiveness and removal from the load balancer. Addressing these issues through increased heap size, optimized cache management, enhanced monitoring, and load testing will help prevent similar incidents in the future.

@@ -1,0 +1,79 @@
+### Investigation Plan
+
+To determine the root cause of the payment processing failure, we will follow a structured investigation approach with multiple rounds and sprints. Each sprint will test a specific hypothesis.
+
+#### Round 1: Hypothesis Testing
+
+**Hypothesis 1:** The fraud-detection service experienced an `OutOfMemoryError` due to the recent configuration update, which led to elevated GC pressure and service unresponsiveness.
+
+**Hypothesis 2:** The order-service batch job sent too many revalidation requests at a high rate, overwhelming the payment-gateway and causing it to become unresponsive.
+
+**Hypothesis 3:** The payment-gateway experienced elevated fraud-check latencies due to the fraud-detection service's performance issues, eventually leading to timeouts and dependency failures.
+
+### Sprint 1: Test Hypothesis 1
+
+**Commitment (Blind to Evidence):**
+- Verify if the deployment of `fraud-detection:v3.8.1` coincides with the start of elevated heap usage and GC pressure.
+- Confirm if the `OutOfMemoryError` and service unresponsiveness are directly related to the deployment.
+
+**Evidence Review:**
+- Check `fraud-detection.log` for the deployment time and subsequent heap usage.
+- Identify if GC pressure and `OutOfMemoryError` occur shortly after deployment.
+
+### Sprint 2: Test Hypothesis 2
+
+**Commitment (Blind to Evidence):**
+- Verify the rate at which the order-service sent revalidation requests.
+- Check if the payment-gateway log shows a corresponding spike in incoming requests.
+
+**Evidence Review:**
+- Review `order-service.log` for the rate of revalidation requests.
+- Check `payment-gateway.log` for any indications of overload due to the batch job.
+
+### Sprint 3: Test Hypothesis 3
+
+**Commitment (Blind to Evidence):**
+- Verify if the elevated fraud-check latencies in the payment-gateway are due to the unresponsiveness of the fraud-detection service.
+- Confirm if the fraud-detection service's removal from the pool aligns with the payment-gateway's circuit breaker opening.
+
+**Evidence Review:**
+- Review `payment-gateway.log` for fraud-check latency trends.
+- Check if the fraud-detection service's unresponsiveness correlates with the payment-gateway's dependency failures.
+
+### Sprint Execution and Results
+
+#### Sprint 1: Test Hypothesis 1
+- **Evidence Review:**
+  - The deployment of `fraud-detection:v3.8.1` occurred at `15:18:00`.
+  - The heap usage started increasing shortly after, reaching critical levels by `15:38:00`.
+  - The `OutOfMemoryError` occurred at `15:38:30`, and the service became unresponsive shortly thereafter.
+
+**Conclusion:**
+- Hypothesis 1 is confirmed. The deployment of the new version of the fraud-detection service coincided with increased heap usage and eventually led to an `OutOfMemoryError`, making the service unresponsive.
+
+#### Sprint 2: Test Hypothesis 2
+- **Evidence Review:**
+  - The order-service batch job started at `15:25:00` and continued submitting revalidation requests.
+  - The payment-gateway log shows no significant change in incoming request rates, and the payment-gateway log indicates elevated latencies due to the fraud-detection service's unresponsiveness.
+
+**Conclusion:**
+- Hypothesis 2 is not confirmed. The order-service batch job did not appear to overwhelm the payment-gateway directly. The elevated latencies and service timeouts were likely due to the fraud-detection service's issues.
+
+#### Sprint 3: Test Hypothesis 3
+- **Evidence Review:**
+  - The fraud-check latencies in the payment-gateway increased significantly from `15:35:00` to `15:38:00`, reaching critical levels.
+  - The fraud-detection service became unresponsive at `15:38:00`, causing the payment-gateway to fail its requests due to dependency unavailability.
+
+**Conclusion:**
+- Hypothesis 3 is confirmed. The payment-gateway experienced elevated fraud-check latencies due to the fraud-detection service's performance issues, eventually leading to timeouts and dependency failures.
+
+### Final Verdict
+The root cause of the payment processing failure is the `OutOfMemoryError` in the fraud-detection service caused by the recent configuration update (Hypothesis 1). This led to elevated GC pressure and eventually made the fraud-detection service unresponsive, which in turn affected the payment-gateway (Hypothesis 3). The order-service batch job did not directly cause the failure (Hypothesis 2).
+
+### Recommendations
+- **Mitigation:** 
+  - Address the memory issues in the fraud-detection service by optimizing the risk assessment cache or increasing the heap limit.
+  - Implement better monitoring and alerting for heap usage and GC pressure to preemptively detect and mitigate such issues.
+- **Prevention:** 
+  - Perform thorough testing of new configurations before deploying them to production.
+  - Implement circuit breakers and retries with exponential backoff in the payment-gateway to handle transient failures gracefully.

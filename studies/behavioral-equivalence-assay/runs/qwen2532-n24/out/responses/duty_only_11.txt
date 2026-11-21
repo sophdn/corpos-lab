@@ -1,0 +1,67 @@
+## Investigation Plan
+
+### Round 1: Hypotheses Formation
+We need to form hypotheses about the root causes of the payment processing failure based on the logs from `fraud-detection`, `order-service`, and `payment-gateway`. The hypotheses will be tested through dedicated sprints.
+
+#### Hypotheses:
+1. **Fraud-detection Service Overload:** The fraud-detection service might be experiencing high load, causing it to consume excessive memory and become unresponsive.
+2. **Order-Reconciliation Batch Impact:** The order-service might have triggered a large batch of revalidation requests, overwhelming the payment-gateway and fraud-detection service.
+3. **Payment-Gateway Dependency Failure:** The payment-gateway might have become dependent on a non-responsive fraud-detection service, leading to failures.
+
+### Sprint 1: Fraud-Detection Service Overload
+- **Hypothesis:** The fraud-detection service is experiencing high load, causing it to consume excessive memory and become unresponsive.
+- **Evidence to Test:** Logs showing memory usage, cache size, and error messages related to memory and GC overhead.
+
+### Sprint 2: Order-Reconciliation Batch Impact
+- **Hypothesis:** The order-service triggered a large batch of revalidation requests, overwhelming the payment-gateway and fraud-detection service.
+- **Evidence to Test:** Logs showing batch processing progress and warnings about elevated request rates.
+
+### Sprint 3: Payment-Gateway Dependency Failure
+- **Hypothesis:** The payment-gateway became dependent on a non-responsive fraud-detection service, leading to failures.
+- **Evidence to Test:** Logs showing elevated fraud-check latency, timeouts, and circuit breaker states.
+
+## Execution of Sprints
+
+### Sprint 1: Fraud-Detection Service Overload
+**Logs Analysis:**
+- [15:38:00] ERROR Risk assessment cache: 41,200 entries, 491MB heap (limit: 512MB) — critical.
+- [15:38:30] ERROR java.lang.OutOfMemoryError: GC overhead limit exceeded.
+- [15:38:31] ERROR Service unresponsive — health check failed.
+- [15:38:45] INFO  Container restart initiated by orchestrator.
+- [15:39:15] INFO  Service restarted — cache cold, 45MB heap.
+- [15:39:30] WARN  Requests still arriving at elevated rate — cache refilling rapidly.
+- [15:41:00] ERROR java.lang.OutOfMemoryError: GC overhead limit exceeded (recurrence).
+
+**Observation:**
+The logs indicate that the fraud-detection service experienced high memory usage and GC overhead, leading to an OutOfMemoryError and service unresponsiveness. This supports the hypothesis that the fraud-detection service was overloaded.
+
+### Sprint 2: Order-Reconciliation Batch Impact
+**Logs Analysis:**
+- [15:25:00] INFO  Scheduled batch: order reconciliation job starting.
+- [15:38:00] INFO  Batch progress: 1,005/1,247 revalidation requests sent.
+- [15:38:40] WARN  Payment-gateway returning errors for batch requests — pausing.
+- [15:41:10] ERROR Payment-gateway unavailable — batch job suspended.
+
+**Observation:**
+The order-service initiated a large batch of revalidation requests, which coincided with the payment-gateway returning errors and becoming unresponsive. This supports the hypothesis that the batch requests contributed to the overload.
+
+### Sprint 3: Payment-Gateway Dependency Failure
+**Logs Analysis:**
+- [15:38:35] ERROR Fraud-detection service timeout: 12 requests pending.
+- [15:41:05] ERROR Fraud-detection service removed from pool — no healthy instances.
+- [15:41:06] ERROR Circuit breaker OPEN for fraud-detection.
+- [15:41:30] ERROR All payment requests failing: fraud-check dependency unavailable.
+
+**Observation:**
+The payment-gateway experienced elevated fraud-check latency and eventually marked the fraud-detection service as unhealthy, leading to circuit breaker activation and failure of all payment requests. This supports the hypothesis that the payment-gateway became dependent on a non-responsive fraud-detection service.
+
+## Conclusion
+
+All three hypotheses have been tested through dedicated sprints and the evidence supports each one. The fraud-detection service was overloaded, contributing to high memory usage and unresponsiveness. This overload coincided with the batch processing initiated by the order-service, leading to elevated request rates. The payment-gateway, dependent on the fraud-detection service, experienced timeouts and became unavailable due to the non-responsive dependency.
+
+Therefore, the root cause of the payment processing failure can be attributed to a combination of:
+1. **Fraud-detection Service Overload:** Excessive memory usage and GC overhead.
+2. **Order-Reconciliation Batch Impact:** Elevated request rates due to large batch processing.
+3. **Payment-Gateway Dependency Failure:** Dependency on a non-responsive fraud-detection service.
+
+Each hypothesis was tested independently, ensuring that the investigation outcome reflects genuine falsifiability coverage and that the confirmed hypotheses are not post-hoc rationalizations.

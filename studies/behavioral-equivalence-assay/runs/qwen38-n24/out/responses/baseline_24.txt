@@ -1,0 +1,52 @@
+## Investigation Report: Payment Processing Failure (INV-002)
+
+### Executive Summary
+The payment processing failure was caused by an **out-of-memory (OOM) event in the `fraud-detection` service**, triggered by a sudden spike in traffic from a scheduled batch job in the `order-service`. The resulting cascading failure rendered the payment gateway unable to process transactions due to a missing dependency.
+
+### Root Cause Analysis
+
+1.  **Trigger: Unexpected Traffic Spike**
+    *   At **15:25:00**, the `order-service` initiated a scheduled batch job ("order reconciliation") to revalidate 1,247 unconfirmed orders.
+    *   This job submitted requests to the payment gateway at a rate of 50/sec, significantly increasing the load on the downstream `fraud-detection` service compared to normal organic traffic.
+
+2.  **Failure Point: `fraud-detection` OOM**
+    *   The `fraud-detection` service had recently been updated to `v3.8.1` at **15:18:00** with "new risk scoring weights."
+    *   The increased request volume from the batch job caused the risk assessment cache to grow rapidly:
+        *   15:20: 8,200 entries / 124MB
+        *   15:30: 12,400 entries / 189MB
+        *   15:33: 24,600 entries / 312MB
+        *   15:35: 34,100 entries / 418MB (Warning: approaching limit)
+        *   15:38: 41,200 entries / 491MB (Critical)
+    *   At **15:38:30**, the service crashed with `java.lang.OutOfMemoryError: GC overhead limit exceeded`.
+    *   Although the container restarted at **15:39:15**, the sustained high traffic caused the cache to refill rapidly, leading to a **recurrence of the OOM error at 15:41:00**.
+
+3.  **Cascading Failure: `payment-gateway`**
+    *   As the `fraud-detection` service became unresponsive and eventually removed from the load balancer, the `payment-gateway` experienced severe latency increases (from 210ms to 3,800ms).
+    *   At **15:41:06**, the payment gateway opened its circuit breaker for fraud-detection because no healthy instances were available.
+    *   From **15:41:30** onwards, all payment requests failed because the fraud-check dependency was unavailable.
+
+4.  **Impact on `order-service`**
+    *   The `order-service` batch job detected errors from the payment gateway starting at **15:38:40**.
+    *   It paused, retried, and was ultimately suspended at **15:41:10** when the payment gateway became fully unavailable. 209 orders remain unprocessed.
+
+### Key Observations
+
+*   **Cache Growth is the Direct Cause:** The OOM was not caused by a memory leak in the traditional sense (e.g., unreleased objects), but by an unbounded or poorly managed cache that grew linearly with request volume. The jump from 12,400 to 24,600 entries in 3 minutes indicates a high rate of new risk assessments being cached without adequate eviction or size limits.
+*   **Version v3.8.1 May Be a Contributing Factor:** The deployment of new risk scoring weights occurred just before the incident. It is possible that the new logic increases cache hit rates or changes the structure of cached entries, leading to higher memory consumption per entry or preventing effective eviction.
+*   **Lack of Backpressure/Rate Limiting:** The `order-service` sent 1,247 requests at a fixed rate of 50/sec regardless of downstream health. A more robust design would have included adaptive rate limiting or backpressure mechanisms that slow down the batch job if the fraud-detection service shows signs of stress.
+*   **No Graceful Degradation:** When the fraud-detection service failed, the payment gateway had no fallback behavior (e.g., allowing low-risk transactions to proceed without fraud checks, or failing fast with a clear error) and instead blocked all payments, causing a total outage.
+
+### Recommendations
+
+1.  **Immediate Remediation:**
+    *   Roll back `fraud-detection` to the previous stable version (v3.8.0 or earlier) to eliminate the potential regression introduced by the new risk scoring weights.
+    *   Implement a hard limit on the number of entries in the risk assessment cache and enable proper eviction policies (e.g., LRU) to prevent OOM under high load.
+
+2.  **Short-Term Improvements:**
+    *   Add monitoring and alerting for cache size and heap usage in the fraud-detection service, with alerts triggered well before the OOM threshold (e.g., at 70% of heap limit).
+    *   Implement adaptive rate limiting in the `order-service` batch job to dynamically adjust the send rate based on downstream service health metrics (e.g., latency, error rate).
+
+3.  **Long-Term Architectural Changes:**
+    *   Design the payment gateway to handle fraud-detection failures gracefully. For example, implement a "fail-open" strategy for low-risk transactions or a "fail-closed" strategy that returns a specific error code allowing the client to retry later, rather than blocking all payments.
+    *   Load test the fraud-detection service with realistic peak traffic scenarios, including batch job surges, to identify memory and performance bottlenecks before deployment.
+    *   Consider separating the cache into a dedicated external store (e.g., Redis) with appropriate TTLs and max memory settings, reducing the memory footprint of the application heap.

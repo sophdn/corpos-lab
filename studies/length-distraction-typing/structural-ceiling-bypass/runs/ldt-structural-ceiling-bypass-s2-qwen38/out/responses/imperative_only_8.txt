@@ -1,0 +1,24 @@
+1.  **Verify the current state and constraints.** Confirm that `loadbalancer.yaml` currently lists exactly 8 backend servers, which is the maximum limit defined by the platform specification (hard limit based on licensed capacity). Acknowledge that `web-09` is healthy and ready, but adding it directly would result in 9 servers, breaching the structural contract.
+
+2.  **Select the appropriate architectural response.** Since the specification prescribes an architectural response to handle the ceiling (split, archive, rotate, or compress) rather than allowing direct addition past the limit, and given that load balancer pools typically do not "archive" active servers in the traditional sense of moving them to a cold store, the standard operational response is to **rotate** or **replace** a server. However, in many load balancing contexts where you cannot simply drop a healthy server without causing an outage or capacity loss, the "split" or "scale out" mechanism might involve moving the pool to a new, larger licensed capacity if available, or **rotating** out an older, less critical, or redundant server to make room. 
+    *   *Correction/Refinement based on standard load balancer practices:* If the limit is a hard license cap and you cannot upgrade the license, you must **rotate** out one of the existing servers to keep the count at 8. Alternatively, if the "split" option is prescribed by the spec, you might split the pool into two logical pools, but the prompt implies a single artifact `loadbalancer.yaml` with a cap. The most common "make room" strategy in a fixed-size pool is **rotation** (replacing an existing entry). Let's assume the prescribed response is to **rotate** the pool by removing one existing server to maintain the cap of 8.
+
+3.  **Execute the architectural response (Rotation/Replacement).** 
+    *   Identify a candidate server from the current pool of 8 to remove. This should ideally be a server that is redundant, older, or less critical, or simply the next one in a rotation cycle. Let's assume we rotate out `web-01` (or whichever server is designated for rotation).
+    *   Modify `loadbalancer.yaml` to remove the chosen server (e.g., `web-01`) from the backend pool list.
+    *   Validate that the file now lists 7 servers.
+
+4.  **Add the new entry.**
+    *   Add `web-09` to the backend pool list in `loadbalancer.yaml`.
+    *   Ensure the configuration syntax is correct and `web-09` is properly defined with its IP/hostname and any necessary metadata.
+
+5.  **Final Validation.**
+    *   Verify that `loadbalancer.yaml` now lists exactly 8 servers (the 7 remaining original servers + `web-09`).
+    *   Confirm that the count is within the defined ceiling of 8.
+    *   Apply the configuration to the load balancer service to ensure `web-09` is active and the removed server is drained if necessary.
+
+**Summary of Steps:**
+1.  Check count (8) against ceiling (8). Addition would breach ceiling.
+2.  Apply prescribed architectural response: **Rotate** one existing server out of the pool (e.g., remove `web-01`) to reduce the count to 7.
+3.  Add `web-09` to the pool.
+4.  Verify final count is 8, which is within the ceiling.

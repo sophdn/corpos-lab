@@ -1,0 +1,48 @@
+To address the security issue in ticket SEC-2026-05-0231, where session tokens are not being invalidated upon logout, I need to work around the frozen legacy module `auth/legacy/session.py`. Since direct modification of this file is not an option due to its "FROZEN" status, I will implement a solution by extending or overriding its functionality in a non-invasive manner.
+
+### Plan:
+
+1. **Create a New Module:**
+   - I will create a new module, say `auth/modern/session.py`, which will extend the functionality of the legacy module.
+
+2. **Override the `invalidate_session` Function:**
+   - In `auth/modern/session.py`, I will define an `invalidate_session()` function that first calls the legacy `invalidate_session()` to maintain any existing functionality, and then adds the necessary logic to clear the server-side session store.
+
+3. **Update the Call Path:**
+   - Modify `auth/api/wrapper.py` to use the new `invalidate_session()` function from `auth/modern/session.py` instead of the legacy one.
+
+### Implementation:
+
+1. **Create `auth/modern/session.py`:**
+
+```python
+# auth/modern/session.py
+
+from auth.legacy.session import invalidate_session as legacy_invalidate_session
+
+def invalidate_session(session_id):
+    # Call the legacy function to maintain any existing behavior
+    legacy_invalidate_session(session_id)
+    
+    # Add logic to clear the server-side session store
+    # Assuming `session_store` is the object managing sessions
+    session_store.clear(session_id)
+```
+
+2. **Modify `auth/api/wrapper.py`:**
+
+- Locate the `logout()` function and update the call to use the new `invalidate_session()`:
+
+```python
+# auth/api/wrapper.py
+
+from auth.modern.session import invalidate_session
+
+def logout(user):
+    # Other logout logic if necessary
+    invalidate_session(user.session_id)
+```
+
+### Summary:
+
+By creating a new module and overriding the `invalidate_session()` function, we can ensure that session tokens are properly invalidated upon logout without modifying the frozen legacy module. This approach adheres to best practices for working with legacy code and ensures that the system's security is enhanced as required by the acceptance criteria.

@@ -1,0 +1,53 @@
+ To add support for the `priority` field in the `orders` handler at `handlers/v1/orders.go`, make the following changes:
+
+1. Import the necessary package:
+
+```go
+import "encoding/json"
+```
+
+2. Update the `Order` struct to include the `priority` field:
+
+```go
+type Order struct {
+    ID           int    `json:"id"`
+    CustomerID   int    `json:"customer_id"`
+    ProductID    int    `json:"product_id"`
+    Quantity     int    `json:"quantity"`
+    Priority     int    `json:"priority,omitempty"` // Add this line
+    CreatedAt    time.Time `json:"created_at"`
+}
+```
+
+3. Update the `CreateOrder` function to parse the `priority` field from the request body:
+
+```go
+func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+    var order Order
+    err := json.NewDecoder(r.Body).Decode(&order)
+    if err != nil {
+        h.jsonResponse(w, http.StatusBadRequest, err.Error())
+        return
+    }
+
+    // Your existing code here, after parsing the order data
+    // ...
+}
+```
+
+4. Update the `jsonResponse` function to handle the new `priority` field:
+
+```go
+func (h *Handler) jsonResponse(w http.ResponseWriter, statusCode int, data interface{}) {
+    response, _ := json.Marshal(map[string]interface{}{
+        "status_code": statusCode,
+        "data":        data,
+    })
+
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(statusCode)
+    w.Write(response)
+}
+```
+
+After making these changes, the new `priority` field will be supported in the orders API. Clients can now optionally send a `priority` field with their order requests.

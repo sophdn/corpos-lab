@@ -1,0 +1,60 @@
+# repair-duty
+
+## Scope
+This duty governs the repair of a **confirmed** software defect with a **known locus**. It applies to any office of the Agentic Order executing a repair. The executor must not re-verify the defect's existence or re-locate the locus; both are assumed confirmed.
+
+## Definitions
+- **Locus**: The precise file and line number where the defect manifests (e.g., `calculator.py:2`).
+- **Minimal Repair**: A change that resolves the defect without altering behavior for valid inputs, introducing new dependencies, or removing unrelated functionality.
+- **Regression Surface**: All code paths that depend on the function at the locus, including direct callers and tests.
+
+## Gates
+
+### Gate 1: Context Acquisition
+**Verifies**: The executor has loaded the exact source code at the locus and its immediate surroundings.
+**Requires**:
+- The full source file containing the locus is present in working memory.
+- The specific line(s) at the locus are identified.
+- The function signature and docstring (if any) of the function at the locus are noted.
+
+### Gate 2: Failure Mode Analysis
+**Verifies**: The root cause of the defect is understood in terms of the code’s logic, not just its symptom.
+**Requires**:
+- A written statement of why the code at the locus fails (e.g., "divides by `len(values)` without checking if `values` is empty").
+- Identification of the invariant that was violated (e.g., "denominator must be non-zero").
+- Confirmation that the fix will restore the invariant without side effects.
+
+### Gate 3: Minimal Repair Draft
+**Verifies**: A candidate patch is proposed that is minimal and targeted.
+**Requires**:
+- A concrete code change limited to the locus or its immediate enclosing function.
+- No changes to function signatures, public APIs, or unrelated lines.
+- The patch must handle the specific failure case (e.g., empty list) while preserving correct behavior for all previously valid inputs.
+- If the defect requires a guard clause, it must be the simplest possible (e.g., `if not values: return 0.0` or `if not values: raise ValueError("...")`), chosen based on the function’s documented contract.
+
+### Gate 4: Regression Surface Check
+**Verifies**: The repair does not break existing behavior or introduce new defects.
+**Requires**:
+- Mental simulation (or explicit trace) of the repaired function with:
+  - The failing input (e.g., `[]`).
+  - A typical valid input (e.g., `[1, 2, 3]`).
+  - Edge-case valid inputs (e.g., `[0]`, `[-1, 1]`).
+- Confirmation that callers of the function will not be adversely affected by the new behavior.
+- If a new exception is raised, it must be consistent with the function’s expected error-handling pattern.
+
+### Gate 5: Final Patch Emission
+**Verifies**: The repair is ready for application.
+**Requires**:
+- The final patch is expressed as a unified diff or clear before/after block.
+- The patch contains only the minimal change required.
+- No comments, logs, or debug code are added unless explicitly required by the defect (e.g., a missing log line that caused the defect).
+- The patch is syntactically valid for the language in use.
+
+## Termination
+The duty is complete when Gate 5 is satisfied. The executor outputs the final patch. No further action is taken unless a new defect is confirmed with a new locus.
+
+## Prohibitions
+- Do not refactor code beyond the locus.
+- Do not add tests as part of the repair (tests are a separate duty).
+- Do not modify configuration, dependencies, or environment.
+- Do not guess the locus; if the locus is not provided, this duty does not apply.

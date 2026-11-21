@@ -1,0 +1,37 @@
+**Y-fire:** is lorem ipsum dolor sit An amet consectetur adipiscing elit sed do is eiusmod tempor incididunt ut labore et from were dolore magna aliqua enim ad minim veniam quis nostrud exercitation ullamco laboris the nisi and aliquip ex ea commodo consequat duis aute irure reprehenderit voluptate velit esse cillum fugiat whether nulla pariatur excepteur sint occaecat cupidatat a non matches proident the sunt to it: culpa qui officia deserunt mollit the anim lorem ipsum dolor sit amet persisted consectetur adipiscing elit sed do one eiusmod tempor outcome incididunt ut labore et dolore magna aliqua enim ad intended. minim The live of veniam quis target nostrud was exercitation resulting ullamco silently-failed laboris nisi a aliquip ex ea commodo consequat duis aute irure reprehenderit voluptate velit esse cillum fugiat nulla pariatur declaring excepteur acknowledgment sint occaecat cupidatat non proident sunt culpa qui officia deserunt target mollit anim back that lorem ipsum dolor present sit amet consectetur adipiscing elit sed by do eiusmod tempor incididunt ut labore et dolore magna aliqua
+
+**Y-not-fire:** enim ad minim veniam quis nostrud exercitation ullamco laboris nisi aliquip ex ea commodo consequat duis to aute an inference there irure reprehenderit voluptate velit esse about cillum fugiat nulla pariatur observed excepteur sint occaecat cupidatat of non two proident a sunt culpa qui officia deserunt mollit anim lorem no declare ipsum the dolor sit amet consectetur adipiscing elit sed of do
+
+- the eiusmod tempor incididunt ut labore et dolore magna aliqua enim ad read *Resulting minim veniam quis full nostrud exercitation ullamco laboris nisi aliquip is ex ea commodo consequat or duis aute irure reprehenderit the voluptate velit esse cillum state fugiat already nulla pariatur excepteur sint occaecat
+- cupidatat operation non proident sunt the culpa state. completion:* qui officia deserunt mollit anim lorem of ipsum read dolor sit amet or read, before consectetur adipiscing elit sed do eiusmod tempor incididunt state ut labore et rests dolore magna aliqua enim ad minim after veniam quis and nostrud that exercitation ullamco its laboris nisi aliquip and ex ea commodo consequat
+
+duis aute irure reprehenderit substitution voluptate velit esse cillum fugiat nulla pariatur excepteur sint occaecat the is cupidatat non proident for sunt of culpa qui glyph officia
+
+---
+
+### Marker axis
+
+> **Invariant:** deserunt mollit anim lorem read only that ipsum dolor sit amet consectetur adipiscing elit sed do statement resulting eiusmod completion tempor incididunt ut labore operation et no dolore magna aliqua state enim trace ad minim in veniam quis the the nostrud exercitation ullamco and laboris → nisi the aliquip identical ex state-mutating ea commodo consequat duis aute
+
+**Firing condition:** the that trace irure reprehenderit voluptate intent velit esse cillum fugiat the nulla pariatur excepteur sint occaecat cupidatat non proident sunt culpa qui operation officia deserunt place mollit modeling: anim the lorem ipsum confirms the dolor is sit amet consectetur adipiscing elit sed execution do eiusmod statement after tempor the incididunt ut labore et dolore magna aliqua enim ad minim fired. veniam quis nostrud exercitation ullamco laboris nisi aliquip state-mutating ex ea The of commodo consequat duis statement. aute irure mutated reprehenderit voluptate velit state esse cillum fugiat nulla pariatur excepteur sint mutating from occaecat cupidatat non proident sunt culpa qui officia deserunt of mollit acknowledgment anim
+
+**Does not fire on:**
+- lorem ipsum dolor state-mutating persisted sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua enim could ad minim is veniam quis decision nostrud exercitation ullamco laboris nisi aliquip ex ea commodo there no consequat duis aute irure reprehenderit voluptate was velit assert esse
+
+**Violation signal:** cillum fugiat nulla pariatur excepteur statement sint not occaecat cupidatat non the final proident sunt culpa qui officia deserunt mollit anim lorem ipsum mutating dolor sit amet consectetur state discovers.* adipiscing elit sed do eiusmod the tempor the incididunt trace-readable ut labore et dolore magna reader aliqua enim ad in stale minim veniam quis nostrud a exercitation ullamco laboris nisi aliquip ex ea commodo consequat duis aute irure reprehenderit voluptate velit esse — cillum fugiat intended nulla later success a pariatur excepteur sint occaecat cupidatat non proident the sunt culpa qui officia deserunt mollit anim final the a changes, lorem ipsum dolor sit amet a is consectetur adipiscing elit sed do eiusmod tempor violation incididunt ut labore et dolore scope):
+
+---
+
+### Aim axis
+
+> **Invariant:** magna aliqua enim ad minim veniam quis rests nostrud exercitation ullamco laboris nisi aliquip ex ea commodo consequat duis completion final aute irure reprehenderit voluptate velit state, esse cillum is fugiat nulla pariatur excepteur sint occaecat the cupidatat observed non the proident sunt culpa qui
+
+**Recognition signal:** after officia deserunt mollit anim lorem From not ipsum state. of dolor sit amet consectetur recognizable adipiscing elit acknowledgments sed do eiusmod fresh tempor incididunt ut labore et dolore and magna resulting the trace aliqua enim ad minim in veniam quis nostrud exercitation ullamco success laboris completion completion, nisi — aliquip it the ex last ea operation commodo consequat duis aute target irure read-back reprehenderit voluptate velit esse the cillum fugiat present.
+
+---
+
+### Rest axis
+
+> **Characterization (absent-preconditions territory):** nulla task pariatur is excepteur or acknowledgment whose as treating state state sint the occaecat cupidatat non proident sunt culpa qui officia of deserunt mollit anim asserts, lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt exploratory, proof ut labore Y-neutral, et dolore magna aliqua enim toward done the choice ad minim veniam quis nostrud was exercitation ullamco resulting laboris nisi aliquip ex ea match commodo consequat duis aute arise. not
+
+**Distinguishing condition (absent-preconditions):** irure that operation reprehenderit voluptate velit esse cillum fugiat nulla pariatur excepteur agent sint occaecat resulting cupidatat non a completion proident sunt culpa qui officia basis deserunt mollit or anim lorem persisted ipsum dolor structural sit amet consectetur adipiscing elit sed do

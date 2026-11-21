@@ -1,0 +1,71 @@
+# Data Export v2 Compliance Checklist
+
+**Status:** DRAFT – Requires Legal & Security Sign-off
+**Release Target:** Friday (Q4 2025)
+**Effective Policy:** 2025-Q4 Compliance Bulletin (effective 2025-11-01)
+
+## Executive Summary
+This checklist validates the Data Export v2 deployment against the v2 specification and the Q4 2025 Compliance Bulletin. While the core data scope, access controls, and retention policies remain unchanged from v1, v2 introduces a new partner-portal export pathway (`POST /v2/data-export/request`). Consequently, the v1 sign-off is **not** sufficient for this release. A new control, the **Provenance Stamp**, is mandated by the Q4 Bulletin for all partner-initiated exports and is detailed below.
+
+---
+
+## 1. Data Scope & Retention
+*Input: `deployments/data-export-v2/spec.md`*
+
+- [x] **DS-01:** Verify that the data fields exported via the v2 partner pathway are identical to those permitted under the v1 CLI surface.
+- [x] **DS-02:** Confirm that retention policies for exported data artifacts remain consistent with v1 standards.
+- [x] **DS-03:** Validate that no new data categories have been introduced in the `POST /v2/data-export/request` response payload beyond those authorized in v1.
+
+*Note: Per spec, v2 retains v1 data scope. No changes required.*
+
+## 2. Access Control & Authentication
+*Input: `deployments/data-export-v2/spec.md`, `deployments/data-export-v1/compliance-checklist.md`*
+
+- [x] **AC-01:** Confirm that the v1 CLI access controls remain active and unchanged.
+- [x] **AC-02:** Verify that the new HTTP endpoint (`POST /v2/data-export/request`) strictly enforces OAuth scope authentication.
+- [x] **AC-03:** Ensure that partner requests are validated against the user’s active authorization grants.
+- [x] **AC-04:** Confirm that unauthorized partners (missing valid OAuth scope or active grant) are denied access with appropriate error codes.
+
+*Note: v1 access controls are pathway-agnostic and apply to the new endpoint. New OAuth validation logic must be tested.*
+
+## 3. Audit Logging & Provenance (CRITICAL UPDATE)
+*Input: `policy/bulletins/2025-Q4-bulletin.md`, `deployments/data-export-v2/spec.md`*
+
+**⚠️ MANDATORY: Q4 2025 Bulletin Requirement**
+The Q4 2025 Bulletin (effective 2025-11-01) requires a **Provenance Stamp** for any deployment adding a partner-initiated export pathway. This control was not present in the v1 checklist and **cannot** be satisfied by v1 sign-off.
+
+- [ ] **AL-01 (Provenance Stamp - Existence):** Implement the Provenance Stamp audit entry for every partner-initiated export via `POST /v2/data-export/request`.
+- [ ] **AL-02 (Provenance Stamp - Content):** Ensure the Provenance Stamp captures the following four elements:
+    1.  The user’s authorization grant ID.
+    2.  The requesting party’s identity (partner ID/OAuth subject).
+    3.  The authorization scope used for the request.
+    4.  The validity window of the authorization at the time of export.
+- [ ] **AL-03 (Provenance Stamp - Synchronous Write):** Verify that the Provenance Stamp is written **synchronously** to the audit log.
+- [ ] **AL-04 (Provenance Stamp - Fail Closed):** Verify that if the Provenance Stamp cannot be assembled or written, the export request **fails closed** (i.e., the export is denied and an error is returned). The system must not proceed with the export if the stamp is missing.
+- [x] **AL-05 (Legacy Audit):** Confirm that existing v1 audit logging for CLI exports remains functional and unchanged.
+
+*Note: AL-01 through AL-04 are new requirements specific to the v2 partner pathway. Testing must confirm fail-closed behavior under conditions where audit logging is unavailable or grant data is corrupted.*
+
+## 4. Technical Security & Network
+*Input: `deployments/data-export-v2/spec.md`*
+
+- [x] **TS-01:** Verify that the new HTTP endpoint is served over TLS 1.2+ only.
+- [x] **TS-02:** Confirm that rate limiting is applied to the partner endpoint to prevent abuse.
+- [x] **TS-03:** Ensure that error messages do not leak sensitive information about user grants or internal system state.
+
+## 5. Documentation & Handover
+- [ ] **DO-01:** Update the external partner documentation to reflect the new Provenance Stamp requirement and fail-closed behavior.
+- [ ] **DO-02:** Archive the v1 checklist and link to the v2 checklist in the compliance repository.
+- [ ] **DO-03:** Obtain sign-off from Legal and Security on this v2 checklist prior to Friday deployment.
+
+---
+
+## Sign-off
+
+| Role | Name | Date | Signature |
+| :--- | :--- | :--- | :--- |
+| Compliance Officer | | | |
+| Legal Representative | | | |
+| Security Representative | | | |
+
+**Deployment Decision:** **HOLD** until AL-01 through AL-04 are verified and signed off. The v1 sign-off does not cover the Provenance Stamp requirement introduced by the Q4 2025 Bulletin for partner-initiated pathways.

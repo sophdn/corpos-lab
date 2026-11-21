@@ -1,0 +1,30 @@
+1. **Verify Service Health and Stability**
+   - Confirm that `orders-api` is fully operational and handling traffic without errors.
+   - Monitor key metrics (latency, error rates, database connection pool usage) for a defined stabilization period (e.g., 15–30 minutes) to ensure the deadlock issue has not recurred and that setting `ORDERS_DB_POOL=20` is sufficient under current load.
+   - Verify that dependent services are communicating correctly with `orders-api`.
+
+2. **Document the Undocumented Requirement**
+   - Create an immediate incident note or runbook entry detailing the silent dependency on `ORDERS_DB_POOL`.
+   - Specify the minimum required value (20), the symptom of failure (database connection deadlock/stall), and the root cause (undocumented configuration requirement).
+   - Tag this documentation with relevant service owners and infrastructure teams for visibility.
+
+3. **Implement Permanent Configuration Management**
+   - Update the infrastructure-as-code (IaC) templates (e.g., Kubernetes manifests, Terraform, Helm charts) for `orders-api` to explicitly define `ORDERS_DB_POOL=20` (or a safer higher value) as a required environment variable.
+   - Ensure this change is version-controlled and reviewed by the team.
+   - If possible, implement a startup health check or liveness probe in `orders-api` that fails fast if `ORDERS_DB_POOL` is missing or below the threshold, rather than deadlocking silently.
+
+4. **Communicate and Coordinate**
+   - Notify the `orders-api` development team about the incident, the workaround applied, and the documented requirement.
+   - Request that the team either:
+     a) Add proper validation/logging to the application code to warn or fail fast if the variable is not set, or
+     b) Update official documentation to include this requirement.
+   - Inform the infrastructure team to ensure this variable is included in any future deploy templates or configuration management systems (e.g., Ansible, Puppet).
+
+5. **Update Deployment Runbooks and Playbooks**
+   - Amend the standard deployment runbook for `orders-api` to include a pre-deploy checklist item: "Verify `ORDERS_DB_POOL` is set to ≥ 20."
+   - Add a troubleshooting section for "deploy stalls under load" that points to this specific configuration issue.
+
+6. **Conclude the Deploy Incident**
+   - Mark the deploy as successful in the deployment tracking system.
+   - Close the associated incident ticket (if one was opened), linking it to the documentation updates and IaC changes made.
+   - Schedule a follow-up review to ensure the permanent fixes (IaC updates, app-side validation) are in place before the next deploy.

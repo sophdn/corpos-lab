@@ -1,0 +1,38 @@
+Here are the steps to close out this deployment, focusing on immediate stability, documentation, and long-term prevention:
+
+1.  **Verify Service Health and Stability**
+    *   Confirm that `orders-api` is reporting healthy status in the load balancer and monitoring dashboards.
+    *   Monitor database connection pool metrics specifically for the next 15–30 minutes to ensure no deadlocks or connection exhaustion occur under the current load.
+    *   Check application logs for any residual errors or warnings related to database connectivity.
+
+2.  **Document the Undocumented Requirement**
+    *   Create a detailed incident ticket or post-mortem note describing the issue:
+        *   **Symptom:** Deployment stalled under load; database connections deadlocked.
+        *   **Root Cause:** `orders-api` has a hidden hard dependency on the environment variable `ORDERS_DB_POOL` being ≥ 20.
+        *   **Resolution:** Set `ORDERS_DB_POOL=20`.
+    *   Explicitly note that this requirement was *not* documented in the service’s README, Helm values, Terraform modules, or CI/CD configuration.
+
+3.  **Update Infrastructure-as-Code (IaC) and Deployment Config**
+    *   Locate the source of truth for `orders-api`’s deployment configuration (e.g., Helm `values.yaml`, Kubernetes `Deployment` manifest, Terraform `environment` block, or CI/CD pipeline config).
+    *   Add `ORDERS_DB_POOL=20` (or a more robust value like `25` with a comment explaining the minimum) to the configuration.
+    *   Commit this change to the repository with a clear commit message referencing the incident ticket (e.g., “Fix: Add required ORDERS_DB_POOL env var to orders-api deployment [INC-1234]”).
+    *   Trigger a new deployment cycle to ensure the change is applied via the standard pipeline, not just manually. This validates that the IaC change is correct and reproducible.
+
+4.  **Update Service Documentation**
+    *   Add a “Requirements” or “Environment Variables” section to the `orders-api` documentation (README.md, wiki, or internal knowledge base).
+    *   Clearly state: `ORDERS_DB_POOL` **must** be set to an integer ≥ 20. Failure to do so will cause database connection deadlocks under load.
+    *   Include a link to the incident report for context.
+
+5.  **Implement Preventive Checks**
+    *   **Pre-deployment Validation:** If possible, add a startup script or health check in the `orders-api` container that verifies `ORDERS_DB_POOL` is set and ≥ 20, failing fast with a clear error message if not. This turns a silent failure into a loud, immediate alert.
+    *   **CI/CD Gate:** If the deployment platform supports it, add a validation step in the CI/CD pipeline that checks for required environment variables in the target environment before allowing the deploy to proceed.
+
+6.  **Communicate with Stakeholders**
+    *   Notify the team, especially developers and other operators, about the hidden dependency.
+    *   Share the updated documentation and incident report.
+    *   Discuss whether this was a one-off bug or a systemic issue (e.g., other services may have similar undocumented env var requirements). Consider a team-wide audit of critical services for hidden dependencies.
+
+7.  **Close the Incident Ticket**
+    *   Mark the incident as resolved.
+    *   Ensure all follow-up actions (documentation, code changes, preventive measures) are linked and tracked.
+    *   Schedule a brief review (if needed) to discuss how undocumented requirements like this can be prevented in the future (e.g., mandatory documentation review before merging new service versions).

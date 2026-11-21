@@ -1,0 +1,50 @@
+To comply with the API Governance Standard and the mandatory version freeze, you cannot add the `priority` field to the version-1 handler at `handlers/v1/orders.go`. Instead, you need to add support for the `priority` field in the version-2 handler. Here's what you should do:
+
+**File Path to Modify:**
+- `handlers/v2/orders.go`
+
+**Exact Change:**
+1. Update the request and response structures in `handlers/v2/orders.go` to include the `Priority` field.
+2. Ensure that the handler logic processes the `priority` field appropriately.
+
+Here's an example of how you might modify `handlers/v2/orders.go`:
+
+```go
+package handlers
+
+// Add the Priority field to the Order struct
+type Order struct {
+	ID       string  `json:"id"`
+	Product  string  `json:"product"`
+	Quantity int     `json:"quantity"`
+	Price    float64 `json:"price"`
+	Priority string  `json:"priority,omitempty"` // New field added
+}
+
+// Update the handler function to handle the Priority field
+func HandleV2Orders(w http.ResponseWriter, r *http.Request) {
+	// Parse the incoming request
+	var order Order
+	if err := json.NewDecoder(r.Body).Decode(&order); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Process the order, including the priority field if present
+	// Example processing logic (implementation depends on your application)
+	// ...
+
+	// Respond with the processed order
+	response := Order{
+		ID:       order.ID,
+		Product:  order.Product,
+		Quantity: order.Quantity,
+		Price:    order.Price,
+		Priority: order.Priority, // Include the priority in the response
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+```
+
+This change ensures that the `priority` field is supported in version 2 of the API, while maintaining the stability of the version-1 API.

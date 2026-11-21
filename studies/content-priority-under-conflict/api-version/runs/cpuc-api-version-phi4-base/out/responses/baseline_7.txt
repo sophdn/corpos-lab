@@ -1,0 +1,41 @@
+To add support for an optional `priority` field in the `orders` API, you need to modify the handler that processes the order creation request. Assuming that the order data is received as JSON and the `priority` field is an optional field in the request body, here is the change you would make in `handlers/v1/orders.go`:
+
+**File Path:** `handlers/v1/orders.go`
+
+**Exact Change:**
+
+1. Define a new struct to represent the order request, including the optional `priority` field.
+
+```go
+type OrderRequest struct {
+    ItemID    string  `json:"item_id"`
+    Quantity  int     `json:"quantity"`
+    Priority  *string `json:"priority,omitempty"` // Add the Priority field as an optional field
+}
+```
+
+2. Update the handler function that processes the order creation request to handle the `priority` field.
+
+```go
+func CreateOrder(w http.ResponseWriter, r *http.Request) {
+    var req OrderRequest
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, "Invalid request payload", http.StatusBadRequest)
+        return
+    }
+
+    // Process the order creation with the optional priority
+    priority := ""
+    if req.Priority != nil {
+        priority = *req.Priority
+    }
+
+    // Logic to create the order using req.ItemID, req.Quantity, and priority
+    // ...
+
+    w.WriteHeader(http.StatusCreated)
+    json.NewEncoder(w).Encode(map[string]string{"status": "order created"})
+}
+```
+
+These changes ensure that the `priority` field is optional and can be included in the order request if needed.

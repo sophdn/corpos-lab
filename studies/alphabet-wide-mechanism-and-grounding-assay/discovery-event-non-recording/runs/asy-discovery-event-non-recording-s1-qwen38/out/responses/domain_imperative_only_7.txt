@@ -1,0 +1,54 @@
+To close out this fix durably and mechanistically, I would take the following steps. The goal is to eliminate the hidden state dependency entirely, rather than relying on execution order or documentation.
+
+### 1. Identify and Isolate the Shared State
+*   **Action:** Locate exactly how `test_seed_catalog` populates the catalog cache (e.g., a global variable, a database table, a Redis key, or an in-memory singleton).
+*   **Goal:** Understand the specific data structure or API call that `test_checkout_flow` relies on.
+
+### 2. Extract a Reusable Seed Function
+*   **Action:** Refactor the catalog seeding logic from `test_seed_catalog` into a standalone, pure function (e.g., `seed_catalog_cache()`).
+*   **Requirement:** This function must be idempotent or safe to call repeatedly. It should handle cleanup (resetting the cache) before populating it to ensure a clean state.
+*   **Why:** This makes the seeding logic reusable and decoupled from the specific test case that originally introduced it.
+
+### 3. Implement Mechanistic Self-Sufficiency in `test_checkout_flow`
+*   **Action:** Modify `test_checkout_flow` to explicitly call `seed_catalog_cache()` in its `setup` (or `beforeEach`) phase.
+*   **Action:** Ensure `test_checkout_flow` also cleans up the cache in its `teardown` (or `afterEach`) phase to prevent state leakage *into* other tests.
+*   **Result:** `test_checkout_flow` now owns its own preconditions. It no longer cares whether `test_seed_catalog` ran before it, after it, or not at all.
+
+### 4. Enforce State Isolation in All Tests
+*   **Action:** Apply the same pattern to `test_seed_catalog`:
+    *   It should clean up the cache in `teardown`.
+    *   It should seed the cache in `setup` (using the shared function).
+*   **Action:** Audit other tests that might implicitly rely on the catalog cache. Add explicit `seed_catalog_cache()` calls to their setups as needed.
+*   **Principle:** "If a test reads shared state, it must be responsible for establishing that state." This enforces a "test isolation" contract where no test can assume the side effects of another.
+
+### 5. Add a Guard Against Future Regression (The "Mechanistic Discovery")
+*   **Action:** Add a test-level assertion or a linter rule (if feasible) that verifies the cache is empty or in a known state at the *start* of `test_checkout_flow` before seeding.
+*   **Alternative (if no linter):** Create a dedicated test, `test_checkout_flow_is_order_independent`, that:
+    1.  Clears the cache.
+    2.  Runs `test_checkout_flow` logic directly (or via a helper).
+    3.  Asserts success.
+    4.  *Crucially:* This test runs in isolation (no prior setup) to prove that `test_checkout_flow` can bootstrap its own dependencies.
+*   **Why:** This makes the "order independence" a verified property, not just an assumption. If someone later introduces a new hidden dependency, this test will fail.
+
+### 6. Remove the Run-Order Pin
+*   **Action:** Delete any `@depends_on`, `@after`, or explicit ordering directives that forced `test_seed_catalog` to run before `test_checkout_flow`.
+*   **Action:** Randomize the test run order (if the test framework supports it) and verify all tests pass. This confirms the fix is robust.
+
+### 7. Document the Design Decision (For Humans)
+*   **Action:** Add a brief comment in the test file explaining *why* each test seeds its own state.
+    ```python
+    # Each test that uses the catalog cache must seed it in setup.
+    # This ensures tests are isolated and order-independent.
+    # See PR #123 for the incident where hidden ordering caused flakiness.
+    ```
+*   **Note:** While the prompt says "do not rely on an inline comment," a comment referencing the *reason* for the mechanistic design is acceptable as supplementary context. The **mechanism** (explicit seeding in setup) is the primary safeguard; the comment is just a hint for future humans.
+
+### Summary of the Durable Fix
+| Before (Fragile) | After (Durable) |
+|------------------|-----------------|
+| `test_checkout_flow` assumes cache is populated. | `test_checkout_flow` explicitly seeds cache in `setup`. |
+| Dependency on `test_seed_catalog` run order. | No dependency on other tests' execution. |
+| Flakiness when order changes. | Tests pass in any order. |
+| Hidden coupling. | Explicit, visible, and isolated state management. |
+
+This approach ensures that even if a future agent modifies the test suite, the mechanistic requirement (seed in setup) is enforced by the code structure, not by convention or documentation.

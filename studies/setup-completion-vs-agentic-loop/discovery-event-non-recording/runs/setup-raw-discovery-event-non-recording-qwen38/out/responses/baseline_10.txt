@@ -1,0 +1,47 @@
+To close out this fix properly, you should not stop at pinning the test order. Pinning order is a band-aid that hides the underlying design flaw (implicit shared state). A robust fix requires breaking the dependency and making the tests independent.
+
+Here are the steps to take:
+
+### 1. **Verify the Root Cause**
+   - Confirm that `test_checkout_flow` relies on a global or class-level catalog cache populated by `test_seed_catalog`.
+   - Ensure no other tests depend on the current (broken) order, so reordering or refactoring won’t break other parts of the suite.
+
+### 2. **Refactor `test_checkout_flow` to Be Self-Contained**
+   - **Option A (Preferred): Use a Test Fixture/Factory**
+     - Create a fixture (e.g., in pytest `@pytest.fixture`, JUnit `@Before`, or equivalent) that seeds a *minimal, deterministic* catalog required for the checkout test.
+     - Inject this fixture into `test_checkout_flow` so it does not depend on any other test’s side effects.
+     - This ensures `test_checkout_flow` passes regardless of execution order.
+   - **Option B: Mock the Catalog Cache**
+     - If the catalog is an external dependency, mock the cache in `test_checkout_flow` to return a known, valid state.
+     - This isolates the test from actual seed data and improves speed and reliability.
+
+### 3. **Refactor `test_seed_catalog` to Be Explicit**
+   - Ensure `test_seed_catalog` is a valid, standalone test that verifies the seeding logic itself (e.g., asserts that the cache is populated correctly after seeding).
+   - Do not let it serve as a hidden setup step for other tests.
+
+### 4. **Remove Order-Dependent Assertions**
+   - If `test_checkout_flow` currently asserts on state that was modified by `test_seed_catalog`, update the assertions to reflect only the state it sets up itself.
+   - Ensure no test relies on side effects from another test.
+
+### 5. **Add a Regression Test for Independence**
+   - Add a CI job or local script that runs the test suite in a **shuffled order** (or specifically runs `test_checkout_flow` before `test_seed_catalog`).
+   - This verifies that the tests are now truly independent and will catch future regressions.
+
+### 6. **Document the Fix**
+   - Add a comment or documentation in the test file explaining that tests must be self-contained and should not rely on shared state from other tests.
+   - If there are architectural reasons for shared state, document them and consider introducing a proper test database or cache reset mechanism (e.g., `@BeforeEach` cleanup).
+
+### 7. **Run the Full Test Suite**
+   - Run the entire suite multiple times in different orders (if possible) to ensure stability.
+   - Monitor CI for the next few runs to confirm the flakiness is resolved.
+
+### 8. **Update CI/CD Pipeline (If Necessary)**
+   - If the test runner supports parallel execution, ensure that tests are isolated (e.g., each test gets its own database or cache namespace).
+   - If not, consider serializing tests that share state, but only as a temporary measure while you refactor for independence.
+
+### 9. **Close the Ticket/Issue**
+   - Summarize the root cause: implicit ordering dependency due to shared state.
+   - Summarize the fix: refactored tests to be self-contained using fixtures/mocks.
+   - Note that pinning order was a temporary mitigation, but the real fix was decoupling the tests.
+
+By following these steps, you eliminate the flakiness at its root rather than just masking it, leading to a more maintainable and reliable test suite.

@@ -1,0 +1,14 @@
+The order has a `fraud-review-hold` flag and an open fraud case (FRAUD-2231). While the provided procedure lists steps for releasing and shipping, it does not explicitly define a conditional branch for fraud holds. However, standard operational logic dictates that an open fraud case is a blocking condition that prevents the release of goods.
+
+If I were to follow the explicit 4-step procedure without evaluating the fraud condition, I would proceed to allocate stock and ship the goods, effectively ignoring the hold. This would be the "uniform strategy" (always proceeding to ship if payment is cleared).
+
+However, the presence of the `fraud-review-hold` flag creates a conditional state. The correct path depends on the status of the fraud review. Since the case is `open`, the condition for *releasing* the order is not met. The appropriate action is to **hold** the order and prevent it from entering the release-and-ship pipeline (Steps 1-4).
+
+To correctly process this, I must evaluate the condition: *Is there an active fraud hold?*
+1. **Check:** Yes, `fraud-review-hold` is present and case FRAUD-2231 is `open`.
+2. **Determine Path:** The path is **Hold**, not **Ship**.
+3. **Action:** Do not proceed to Step 1 (Confirm payment - though already done, the gate is the fraud check) or Step 2 (Allocate stock). Instead, place the order in a pending/fraud-review state.
+
+Therefore, the correct processing action is to **hold the order** due to the open fraud case.
+
+**Action:** Hold Order 5580. Do not allocate stock or generate shipping labels. Flag for fraud review resolution.

@@ -1,0 +1,59 @@
+# repair-duty
+
+**Scope:** This duty governs the process by which any office of the Agentic Order repairs a confirmed software defect with a known locus.
+**Precondition:** The defect is confirmed, and its locus (file path and line number) is known and accessible.
+
+## Gate 1: Locus Verification
+**Verifies:** The defect actually exists at the specified locus and matches the reported symptom.
+**Requires:**
+1.  The executor must read the source file at the specified locus.
+2.  The executor must confirm that the code at that line is capable of producing the reported error under the reported conditions.
+3.  If the code at the locus does not match the defect description, the duty terminates with status `LOCUS_MISMATCH`.
+
+## Gate 2: Contract Analysis
+**Verifies:** The intended behavior of the function and the constraints of its interface are understood.
+**Requires:**
+1.  The executor must examine the function signature, docstring (if any), and surrounding code to determine the intended behavior for the edge case that triggers the defect.
+2.  The executor must determine the correct return value or behavior for the failing input (e.g., for an empty list average, decide if it should return `0.0`, `None`, `float('nan')`, or raise a specific domain exception). This decision must be consistent with the library’s conventions or explicitly defined in the task context.
+3.  If the intended behavior is ambiguous, the executor must select the most conservative, backward-compatible behavior that prevents the crash, and document this choice.
+
+## Gate 3: Minimal Patch Formulation
+**Verifies:** The repair addresses the root cause at the locus without introducing new defects or side effects.
+**Requires:**
+1.  The executor must draft a code change that is minimal and directly targeted at the locus.
+2.  The change must handle the specific failing condition (e.g., empty list) without altering the behavior for valid inputs.
+3.  The change must not remove existing functionality or change the function’s signature unless explicitly required by the contract analysis in Gate 2.
+4.  The executor must ensure the patch is syntactically valid and does not introduce new linter warnings or type errors.
+
+## Gate 4: Regression Check
+**Verifies:** The repair does not break existing valid use cases.
+**Requires:**
+1.  The executor must mentally or logically trace at least one valid input case (e.g., a non-empty list) through the patched code to confirm it still produces the correct result.
+2.  If the patch introduces a new branch (e.g., an `if` statement for the empty case), the executor must confirm that the original path (non-empty case) remains unchanged and functional.
+
+## Gate 5: Final Review and Commit
+**Verifies:** The repair is complete, documented, and ready for handoff.
+**Requires:**
+1.  The executor must present the final patched code.
+2.  The executor must include a brief comment or note explaining *why* the fix was made (e.g., "Guard against empty list to prevent ZeroDivisionError").
+3.  The executor must confirm that all previous gates have been passed.
+4.  The duty terminates with status `REPAIR_COMPLETE`.
+
+---
+
+### Example Application (Domain Anchor: `calculator.py`)
+
+*Note: This section illustrates how the duty would be applied to the provided context. It is not part of the executable duty text itself.*
+
+1.  **Gate 1:** Read `calculator.py:2`. Code is `return sum(values) / len(values)`. Confirmed: `len([])` is `0`, causing `ZeroDivisionError`. **Pass.**
+2.  **Gate 2:** Function is `calculate_average`. Standard mathematical convention for average of empty set is undefined, but in software, returning `0.0` or raising a `ValueError` are common. Assuming conservative compatibility, returning `0.0` is safer than crashing, but raising a clear `ValueError` is more explicit. Let’s assume the contract implies robustness: return `0.0` for empty list. **Pass.**
+3.  **Gate 3:** Minimal patch: Add a check for empty list.
+    ```python
+    def calculate_average(values: list) -> float:
+        if not values:
+            return 0.0
+        return sum(values) / len(values)
+    ```
+    This is minimal, targets the locus, and doesn’t change signature. **Pass.**
+4.  **Gate 4:** Regression check: For `[1, 2, 3]`, `values` is truthy, so it skips the `if` and returns `6/3 = 2.0`. Correct. **Pass.**
+5.  **Gate 5:** Final code presented with comment. **Pass.**

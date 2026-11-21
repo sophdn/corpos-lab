@@ -1,0 +1,32 @@
+1.  **Verify Service Health and Stability**
+    *   Confirm that the `orders-api` instances are no longer deadlocking under the current load.
+    *   Check application logs for any new errors or warnings related to database connections.
+    *   Monitor key metrics (latency, error rate, DB connection count) for a defined stabilization period (e.g., 15–30 minutes) to ensure the `ORDERS_DB_POOL=20` setting is sufficient and not causing resource exhaustion elsewhere.
+
+2.  **Document the Hidden Dependency**
+    *   Create a ticket or issue in the project management system (e.g., Jira) titled “Undocumented Runtime Requirement: ORDERS_DB_POOL.”
+    *   Clearly state that `orders-api` requires `ORDERS_DB_POOL >= 20` to prevent database connection deadlocks.
+    *   Assign this ticket to the `orders-api` development team for immediate action.
+
+3.  **Update Documentation**
+    *   Add the requirement to the `orders-api` `README.md`, `OPERATIONS.md`, or similar runbook documentation.
+    *   Specify the minimum value (`20`) and the consequences of not setting it (deadlocks).
+    *   If there is a service catalog or internal wiki entry for `orders-api`, update it as well.
+
+4.  **Update Infrastructure as Code (IaC) / Deployment Config**
+    *   Modify the deployment configuration (e.g., Kubernetes `Deployment`/`StatefulSet` YAML, Terraform module, Helm chart values, or Docker Compose file) to explicitly set `ORDERS_DB_POOL=20` (or a higher value if appropriate for scale).
+    *   Commit these changes to the version-controlled repository.
+    *   Ensure that future deploys will automatically include this variable, removing the need for manual intervention.
+
+5.  **Implement Automated Validation (Optional but Recommended)**
+    *   Work with the `orders-api` team to add a startup check or health probe that fails the container/pod if `ORDERS_DB_POOL` is not set or is below 20.
+    *   This converts a silent failure into a loud, immediate failure, preventing future stalls.
+
+6.  **Close the Deployment Ticket**
+    *   Update the original deployment ticket with a note explaining why the deploy stalled and how it was resolved.
+    *   Mark the deployment as complete.
+    *   Notify the on-call engineer or deployment stakeholders that the issue is resolved and the root cause is being addressed via the new ticket.
+
+7.  **Post-Incident Review (if applicable)**
+    *   If this caused customer impact, initiate a brief post-incident review.
+    *   Key takeaway: Undocumented runtime dependencies lead to production incidents. Emphasize the need for clear documentation and automated validation for all services.

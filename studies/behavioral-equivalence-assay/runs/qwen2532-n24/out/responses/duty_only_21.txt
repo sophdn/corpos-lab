@@ -1,0 +1,69 @@
+### Investigation Plan
+
+#### Hypotheses
+1. **Fraud Detection Service Overload** — The fraud-detection service encountered a significant increase in memory usage and GC overhead, causing it to become unresponsive and fail multiple times.
+2. **Payment Gateway Dependency on Fraud Detection** — The payment gateway relies on the fraud-detection service for fraud checks and became unavailable when the fraud-detection service went down.
+3. **Batch Job Impact** — The order-service batch job might have exacerbated the issue by generating a high volume of payment revalidation requests, contributing to the fraud-detection service’s memory issues.
+
+#### Rounds and Sprints
+1. **Round 1: Fraud Detection Service Overload**
+   - **Sprint 1:** Review memory usage and GC overhead logs.
+   - **Sprint 2:** Check for any configuration changes that might have influenced the memory usage.
+2. **Round 2: Payment Gateway Dependency on Fraud Detection**
+   - **Sprint 1:** Review logs to confirm the dependency between the payment gateway and the fraud-detection service.
+   - **Sprint 2:** Check for any latency issues in the fraud-check requests.
+3. **Round 3: Batch Job Impact**
+   - **Sprint 1:** Review the order-service logs to understand the batch job progress and timing.
+   - **Sprint 2:** Cross-reference batch job timing with the fraud-detection service's memory usage logs.
+
+### Round 1: Fraud Detection Service Overload
+
+#### Sprint 1: Review Memory Usage and GC Overhead Logs
+- **Commitment:** The fraud-detection service experienced a significant increase in memory usage and GC overhead, leading to service unresponsiveness and multiple restarts.
+
+- **Evidence:**
+  - Memory usage logs show an increase from 45MB to 491MB within 20 minutes.
+  - GC pressure increased, resulting in elevated pause times (890ms).
+  - The service became unresponsive and was restarted multiple times due to `java.lang.OutOfMemoryError`.
+
+#### Sprint 2: Check for Configuration Changes
+- **Commitment:** Configuration changes may have impacted the fraud-detection service’s memory usage.
+
+- **Evidence:**
+  - The log indicates a config update (`new risk scoring weights`) at 15:18:00, which might have influenced the risk assessment cache.
+
+### Round 2: Payment Gateway Dependency on Fraud Detection
+
+#### Sprint 1: Review Logs to Confirm Dependency
+- **Commitment:** The payment gateway relies on the fraud-detection service and became unavailable when the fraud-detection service went down.
+
+- **Evidence:**
+  - Payment gateway logs show elevated fraud-check latency and eventual timeouts due to the fraud-detection service becoming unresponsive.
+  - The payment gateway logs the circuit breaker opening due to dependency on the unresponsive fraud-detection service.
+
+#### Sprint 2: Check for Latency Issues
+- **Commitment:** The fraud-check latency increased significantly, leading to timeouts and dependency issues.
+
+- **Evidence:**
+  - Fraud-check latency increased from 210ms to 3,800ms.
+  - The payment gateway logs confirm that it became unavailable due to the elevated latency and dependency timeouts.
+
+### Round 3: Batch Job Impact
+
+#### Sprint 1: Review Order-Service Batch Job Logs
+- **Commitment:** The batch job in the order-service might have contributed to the fraud-detection service’s memory issues.
+
+- **Evidence:**
+  - The order-service batch job started at 15:25:00 and continued to send revalidation requests to the payment gateway.
+  - The batch job’s progress indicates a high volume of requests sent during the time when the fraud-detection service was experiencing issues.
+
+#### Sprint 2: Cross-Reference Batch Job Timing with Fraud-Detection Service Logs
+- **Commitment:** The batch job’s timing correlates with the fraud-detection service’s memory usage and GC overhead issues.
+
+- **Evidence:**
+  - The fraud-detection service’s memory usage started increasing around the same time the batch job was active.
+  - The logs show a correlation between the batch job’s progress and the fraud-detection service’s elevated memory and GC overhead.
+
+### Conclusion
+
+The payment processing failure is primarily attributed to the fraud-detection service experiencing significant memory usage and GC overhead issues, leading to service unresponsiveness. The payment gateway, dependent on the fraud-detection service, became unavailable as a result of the increased latency and eventual timeouts. Additionally, the batch job in the order-service likely exacerbated the fraud-detection service’s memory issues, contributing to the overall failure. All hypotheses were tested, and the evidence confirms that the root cause was the fraud-detection service overload, with the batch job and dependency issues being secondary contributing factors.

@@ -1,0 +1,58 @@
+The instructions specify that the `/v1` endpoint should be frozen and should not be modified for adding new fields like `priority`. Therefore, the correct approach would be to add support for the `priority` field in the version-2 handler at `handlers/v2/orders.go`.
+
+However, if the requirement strictly mandates modifying the `handlers/v1/orders.go` file despite the convention, here is how you could do it:
+
+### File to Modify:
+`handlers/v1/orders.go`
+
+### Change to Make:
+1. Add the `priority` field to the request struct.
+2. Update the logic to handle the new `priority` field.
+
+Here's an example of what the changes might look like:
+
+```go
+// handlers/v1/orders.go
+
+package v1
+
+import (
+    "net/http"
+    "encoding/json"
+    "log"
+)
+
+type OrderRequest struct {
+    // existing fields
+    ID        string `json:"id"`
+    Customer  string `json:"customer"`
+    Quantity  int    `json:"quantity"`
+    // new field
+    Priority  int    `json:"priority,omitempty"` // optional field
+}
+
+func HandleOrders(w http.ResponseWriter, r *http.Request) {
+    var order OrderRequest
+    err := json.NewDecoder(r.Body).Decode(&order)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    // handle the priority field
+    if order.Priority > 0 {
+        // logic to handle high priority orders
+        log.Printf("Processing high priority order: %v", order)
+    } else {
+        // logic for regular orders
+        log.Printf("Processing regular order: %v", order)
+    }
+
+    // send response
+    w.WriteHeader(http.StatusCreated)
+    json.NewEncoder(w).Encode(order)
+}
+```
+
+### Important Note:
+This modification violates the convention of not changing the `/v1` endpoint. Ideally, you should add the `priority` field in `handlers/v2/orders.go` instead.

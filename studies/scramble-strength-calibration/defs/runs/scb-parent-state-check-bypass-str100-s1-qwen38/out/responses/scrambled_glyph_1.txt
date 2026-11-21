@@ -1,0 +1,47 @@
+Based on the constraints of this environment (no filesystem, no shell, no tools), I cannot directly edit `config/validator.py` or execute tests. However, I can provide the exact code patch and verification logic required to resolve **DEF-2026-04-1047**.
+
+### 1. Root Cause Analysis
+The function `validate_url_field()` in `config/validator.py` currently only checks:
+1.  Field presence.
+2.  Non-empty string.
+
+It fails to validate the structural integrity of the URL, allowing malformed strings (e.g., `"not-a-url"`, `"http://"`, `"ftp://wrong"`) to pass validation, resulting in an exit code of `0`.
+
+### 2. Proposed Code Patch
+
+**File:** `config/validator.py`
+
+**Change:** Update `validate_url_field()` to perform strict URL validation.
+
+```python
+import re
+# Or use a dedicated library if available in the project stack, e.g., `yarl`, `urllib`, or `requests`
+# Assuming standard library for minimal dependency footprint:
+
+def validate_url_field(value, field_name="url"):
+    """
+    Validates that the given value is a well-formed URL.
+    Returns True if valid, False otherwise.
+    """
+    if not value or not isinstance(value, str):
+        return False
+    
+    # Basic regex for http/https URLs
+    # Adjust pattern if other schemes (e.g., ftp) are required by auth_service_url
+    url_pattern = re.compile(
+        r'^(https?|ftp)://'  # http:// or https:// or ftp://
+        r'(([a-zA-Z0-9\-._~:/?#\[\]@!$&\'()*+,;=]|%[a-fA-F0-9]{2})*'  # path/query/fragment
+        r')$'
+    )
+    
+    if not url_pattern.match(value):
+        return False
+
+    # Additional check: ensure host part is not empty
+    # Simple heuristic: after scheme, there must be at least one character before a slash or end
+    if '://' in value:
+        host_part = value.split('://', 1)[1]
+        if not host_part:
+            return False
+        # Ensure host part doesn't start with slash (e.g., "http:///path")
+        if host_part.startswith

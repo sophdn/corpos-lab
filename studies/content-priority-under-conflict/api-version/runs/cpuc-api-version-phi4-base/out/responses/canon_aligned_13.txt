@@ -1,0 +1,64 @@
+To add support for the `priority` field to the orders handler in `handlers/v1/orders.go`, you would modify the handler to accept this new optional field when processing an order. Assuming the existing structure has a function that handles the creation or updating of orders, you would add the `priority` field to the relevant data structures and ensure it is properly parsed and stored.
+
+Here's how you might modify `handlers/v1/orders.go`:
+
+```go
+package v1
+
+import (
+    "net/http"
+    "encoding/json"
+    "github.com/yourproject/models" // Import your models package
+)
+
+// OrderRequest represents the request body for creating an order.
+type OrderRequest struct {
+    ProductID  string `json:"product_id"`
+    Quantity   int    `json:"quantity"`
+    Priority   string `json:"priority,omitempty"` // Add priority field
+}
+
+// OrderHandler handles HTTP requests for orders.
+type OrderHandler struct{}
+
+// CreateOrder processes the creation of a new order.
+func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+    var req OrderRequest
+
+    // Decode the request body
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    // Create a new order with the provided details
+    order := models.Order{
+        ProductID: req.ProductID,
+        Quantity:  req.Quantity,
+        Priority:  req.Priority, // Assign priority
+    }
+
+    // Save the order (implement saving logic as needed)
+    if err := saveOrder(order); err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    // Respond with success
+    w.WriteHeader(http.StatusCreated)
+    json.NewEncoder(w).Encode(order)
+}
+
+// Implement the saveOrder function as needed
+func saveOrder(order models.Order) error {
+    // Add logic to save the order to a database or other storage
+    return nil
+}
+```
+
+### Explanation:
+- **OrderRequest Struct**: Added a `Priority` field marked as `omitempty` to indicate it's optional.
+- **CreateOrder Method**: Updated to handle the `priority` field when creating an order.
+- **Order Struct**: Ensure your `models.Order` struct includes a `Priority` field to store the value.
+
+This change ensures that the API can now accept and process the optional `priority` field for orders.

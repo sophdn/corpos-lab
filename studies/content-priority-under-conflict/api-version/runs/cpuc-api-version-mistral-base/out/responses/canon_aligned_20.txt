@@ -1,0 +1,56 @@
+ To modify the `handlers/v1/orders.go` file and add support for the `priority` field, follow the steps below:
+
+1. Import the necessary package:
+
+```go
+import "encoding/json"
+```
+
+2. Add the `priority` field to the `Order` struct:
+
+```go
+type Order struct {
+    ID           string   `json:"id"`
+    CustomerID   string   `json:"customer_id"`
+    ProductID    string   `json:"product_id"`
+    Quantity     int      `json:"quantity"`
+    Priority     int      `json:"priority,omitempty"`
+}
+```
+
+3. Update the `CreateOrder` function to parse the new `priority` field (if provided) from the request body:
+
+```go
+func CreateOrder(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "application/json")
+
+    var order Order
+    json.NewDecoder(r.Body).Decode(&order)
+
+    // Assuming that your database connection and other setup are done elsewhere
+    db := yourDatabaseConnection() // Replace this with your actual database connection setup
+
+    // Save the order into the database with the priority if provided
+    order.Save(db, order.Priority)
+
+    json.NewEncoder(w).Encode(order)
+}
+```
+
+4. Update the `Save` function in the `Order` struct to handle the `priority` field (if provided):
+
+```go
+func (o *Order) Save(db *sql.DB, priority *int) error {
+    query, err := db.Prepare(`
+        INSERT INTO orders (id, customer_id, product_id, quantity, priority)
+        VALUES (?, ?, ?, ?, ?)
+    `)
+
+    if err != nil {
+        return err
+    }
+
+    _, err = query.Exec(o.ID, o.CustomerID, o.ProductID, o.Quantity, priority)
+    return err
+}
+```

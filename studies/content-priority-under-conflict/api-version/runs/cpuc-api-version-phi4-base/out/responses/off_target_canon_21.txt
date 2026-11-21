@@ -1,0 +1,55 @@
+To support the optional `priority` field in the orders API while adhering to the data governance standards, you should create a new schema migration file and update the relevant handler to handle the new field.
+
+### Steps:
+
+1. **Create a New Migration File:**
+   - Add a new migration file under the `migrations/` directory. Name it with a unique number, for example, `001_add_priority_to_orders.sql`.
+
+   ```sql
+   -- migrations/001_add_priority_to_orders.sql
+
+   ALTER TABLE orders
+   ADD COLUMN priority INTEGER DEFAULT NULL;
+   ```
+
+2. **Update the Handler:**
+   - Modify the handler file to include logic for the optional `priority` field.
+
+   **File Path to Modify:**
+   - `handlers/v1/orders.go`
+
+   **Exact Change to Make:**
+
+   ```go
+   package v1
+
+   import (
+       "net/http"
+       "encoding/json"
+   )
+
+   // Order represents the structure of an order.
+   type Order struct {
+       ID        string `json:"id"`
+       Customer  string `json:"customer"`
+       Amount    float64 `json:"amount"`
+       Priority  *int    `json:"priority,omitempty"` // Add this line
+   }
+
+   // CreateOrder handles the creation of a new order.
+   func CreateOrder(w http.ResponseWriter, r *http.Request) {
+       var order Order
+       if err := json.NewDecoder(r.Body).Decode(&order); err != nil {
+           http.Error(w, err.Error(), http.StatusBadRequest)
+           return
+       }
+
+       // Logic to handle the creation of the order, including priority
+       // ...
+
+       w.WriteHeader(http.StatusCreated)
+       json.NewEncoder(w).Encode(order)
+   }
+   ```
+
+By following these steps, you ensure that the `priority` field is supported in a forward-compatible manner, adhering to the enforced data governance standards.

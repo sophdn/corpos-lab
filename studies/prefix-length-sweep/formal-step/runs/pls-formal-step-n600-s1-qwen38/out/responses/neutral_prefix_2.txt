@@ -1,0 +1,61 @@
+# Compliance Checklist: Data-Export v2
+
+**Status:** CONFIRMED
+**Release:** Data-Export v2
+**Deployment Date:** Friday
+**Prepared By:** Compliance Office
+**Date:** Current
+
+## 1. Executive Summary
+This document serves as the pre-deployment compliance confirmation for Data-Export v2. It is not a full re-review. Based on the review of the v2 specification (`spec.md`) and the Q4 2025 Compliance Bulletin (`2025-Q4-bulletin.md`), the core data scope, access controls, and retention policies remain unchanged from v1. Therefore, all v1 controls carry over.
+
+However, v2 introduces a new partner-initiated export pathway via `POST /v2/data-export/request`. Per the Q4 2025 Bulletin, this requires the implementation of a **Provenance Stamp** audit entry. This is the only material compliance addition for v2.
+
+## 2. Carryover Controls (Unchanged from v1)
+The following controls were verified as unchanged in the v2 spec and remain valid based on the Q1 2025 sign-off. The v1 checklist items are written in pathway-agnostic terms and apply to both CLI and HTTP interfaces.
+
+| Control Area | v1 Status | v2 Status | Notes |
+| :--- | :--- | :--- | :--- |
+| **Data Scope** | ✅ Green | ✅ Unchanged | v2 spec confirms same data fields as v1. |
+| **User Consent/Authorization** | ✅ Green | ✅ Unchanged | v2 relies on existing user authorization grants; no new consent model introduced. |
+| **Retention Policies** | ✅ Green | ✅ Unchanged | Exported data retention windows remain identical to v1. |
+| **Access Control (Base)** | ✅ Green | ✅ Unchanged | Base identity verification and role-based access control remain unchanged. |
+| **Encryption in Transit/At Rest** | ✅ Green | ✅ Unchanged | Transport security and storage encryption mechanisms are identical. |
+| **Audit Logging (Base)** | ✅ Green | ✅ Unchanged | Standard action logs (who, what, when) remain unchanged. |
+
+## 3. New v2-Specific Controls
+The following controls are **new** or **modified** specifically for v2 due to the addition of the partner-portal HTTP endpoint.
+
+### 3.1 Partner Authentication & Authorization
+*   **Requirement:** The new `POST /v2/data-export/request` endpoint must enforce OAuth scope-based authentication.
+*   **Control:** Verify that the endpoint rejects requests lacking valid OAuth tokens with the specific export scope.
+*   **Authorization Check:** The system must verify that the requesting party (partner) has an **active authorization** granted by the specific user for whom the export is requested.
+*   **Status:** ⏳ **Pending Verification** – Confirm that the authorization check logic correctly validates the grant’s status (active/expired) and scope match.
+
+### 3.2 Provenance Stamp (Mandatory per Q4 2025 Bulletin)
+*   **Requirement:** Per `policy/bulletins/2025-Q4-bulletin.md` ("Data Export Process Update — Partner Integrations"), any deployment adding a partner-initiated export pathway must record a Provenance Stamp.
+*   **Data Points to Capture:**
+    1.  User’s authorization grant ID.
+    2.  Requesting party’s identity (Partner ID).
+    3.  Authorization scope used.
+    4.  Validity window of the authorization at the time of export.
+*   **Implementation Constraint:**
+    *   **Synchronous:** The stamp must be written **synchronously** before the export is finalized.
+    *   **Fail-Closed:** If the Provenance Stamp cannot be assembled or written, the export request **must fail** (return an error). It must not proceed without the stamp.
+*   **Status:** ⏳ **Pending Verification** – Confirm that the code path for `POST /v2/data-export/request` implements synchronous writing of the Provenance Stamp and that failure to write results in a rejected export (fail-closed behavior).
+
+## 4. Risk Assessment
+*   **Residual Risk:** Low, provided the Provenance Stamp is correctly implemented.
+*   **Key Risk:** If the Provenance Stamp is written asynchronously or fails open (proceeds without stamp), the deployment is non-compliant with Q4 2025 policy.
+*   **Mitigation:** The fail-closed requirement ensures that non-compliant exports are blocked at runtime.
+
+## 5. Sign-Off
+*   **Compliance Officer:** [Your Name]
+*   **Date:** [Current Date]
+*   **Recommendation:** **APPROVE FOR DEPLOYMENT** contingent on verification of the Provenance Stamp implementation (Section 3.2).
+
+---
+**Action Items for Engineering/Security Before Deployment:**
+1.  Confirm that `POST /v2/data-export/request` validates OAuth scopes and user authorization grants.
+2.  Provide evidence (code snippet or test result) that the Provenance Stamp is written **synchronously**.
+3.  Provide evidence (code snippet or test result) that the export **fails** if the Provenance Stamp cannot be written.

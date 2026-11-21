@@ -1,0 +1,148 @@
+I'll start by reviewing the current state of the milestone and my assigned ticket.
+
+**Milestone State — Release 2026-Q2**
+- **Status:** In progress
+- **In-scope tickets:** DEF-2026-04-1047 (this session's focus)
+- **Priority/scope changes since last session:** None recorded.
+
+**Ticket: DEF-2026-04-1047**
+- **Summary:** `config-validator --service auth` exits 0 for a malformed `auth_service_url` instead of exiting 1.
+- **Root cause:** `config/validator.py` → `validate_url_field()` only checks presence/non-empty; no URL structure validation.
+- **Acceptance:**
+  1. Validator exits 1 for a malformed `auth_service_url`.
+  2. Valid URLs continue to pass (exit 0).
+
+---
+
+## Work performed
+
+Since I'm running in a single completion with no tools, filesystem, or shell, I can't read the actual file or execute the validator. I'll document the defect, the fix, and a verification plan so the change can be applied and validated deterministically.
+
+### 1. Defect analysis
+
+The current `validate_url_field()` behaves like a presence check:
+
+```python
+def validate_url_field(value):
+    if not value:
+        return False
+    return True
+```
+
+This means any non-empty string — including `not-a-url`, `://bad`, `auth_service_url` (literal), `http://` (no host), or `htp://missing-scheme-check` — passes, so the CLI exits 0 when it should exit 1.
+
+### 2. Proposed fix
+
+Replace the presence-only check with a structural validation using `urllib.parse` (stdlib, no new dependencies), with explicit scheme and host requirements:
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(value, field_name="url"):
+    """Validate that `value` is a structurally well-formed URL.
+
+    Returns (ok: bool, reason: str | None).
+    """
+    if not isinstance(value, str) or not value.strip():
+        return False, f"{field_name} must be a non-empty string"
+
+    candidate = value.strip()
+    try:
+        parsed = urlparse(candidate)
+    except Exception as exc:  # defensive: urlparse is lenient, but guard anyway
+        return False, f"{field_name} could not be parsed: {exc}"
+
+    # Require an explicit http/https scheme (config service URLs should not
+    # be relative or use opaque schemes).
+    if parsed.scheme not in ("http", "https"):
+        return False, (
+            f"{field_name} must use an http or https scheme "
+            f"(got: {parsed.scheme!r})"
+        )
+
+    # Require a non-empty netloc (host). This rejects `http://`,
+    # `://bad`, and relative paths.
+    if not parsed.netloc:
+        return False, f"{field_name} must include a host"
+
+    # Host must contain at least one dot, or be a reserved local name
+    # (localhost) / IP literal, to reject bare words like `auth`.
+    host = parsed.hostname or ""
+    if not host:
+        return False, f"{field_name} must include a valid host"
+    if host == "localhost" or _is_ip_literal(host):
+        return True, None
+    if "." not in host:
+        return False, f"{field_name} host {host!r} is not a valid domain or IP"
+
+    return True, None
+
+
+def _is_ip_literal(host: str) -> bool:
+    """True if host looks like an IPv4 or IPv6 literal."""
+    # IPv4
+    parts = host.split(".")
+    if len(parts) == 4 and all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
+        return True
+    # IPv6 (contains colons)
+    if ":" in host:
+        return True
+    return False
+```
+
+And the CLI entry point should translate the failure into exit code 1 and surface the reason:
+
+```python
+# in the config-validator CLI for --service auth
+ok, reason = validate_url_field(cfg.get("auth_service_url"), "auth_service_url")
+if not ok:
+    print(f"config-validator: error: {reason}", file=sys.stderr)
+    return 1
+# ... continue; return 0 on success
+```
+
+### 3. Verification plan
+
+**Reproduces the defect (pre-fix):**
+- `config-validator --service auth` with `auth_service_url = "not-a-url"` → currently exits 0 (bug).
+
+**Post-fix, exit 1 cases (malformed):**
+| Input | Expected |
+|---|---|
+| `not-a-url` | exit 1 (no scheme) |
+| `://bad` | exit 1 (no scheme) |
+| `http://` | exit 1 (no host) |
+| `http://` with empty host | exit 1 |
+| `ftp://example.com` | exit 1 (scheme not http/https) |
+| `example.com` (no scheme) | exit 1 (no scheme) |
+| `http://auth` (bare word, no dot) | exit 1 |
+| `""` / missing field | exit 1 (non-empty check) |
+
+**Post-fix, exit 0 cases (valid):**
+| Input | Expected |
+|---|---|
+| `https://auth.internal.example.com` | exit 0 |
+| `http://10.0.0.5:8443` | exit 0 |
+| `https://localhost:8080` | exit 0 |
+| `http://[::1]:8080` | exit 0 |
+| `https://example.com/path?x=1` | exit 0 |
+
+**Regression guard:**
+- Run the existing `config-validator` test suite to confirm no other service's URL validation is affected (the fix is scoped to `validate_url_field` and the auth CLI path).
+
+### 4. Edge cases / rationale notes
+
+- **Scheme restriction to http/https:** Deliberate. `auth_service_url` is a service endpoint; allowing `file://`, `gopher://`, etc. would be a security smell. If the team later needs other schemes, this is a one-line change to the allowlist.
+- **`localhost` and IP literals allowed without a dot:** Prevents false negatives for local/dev configs.
+- **`urlparse` is lenient by design** (it doesn't validate), so the explicit scheme + netloc + host checks are the actual validation logic — that's why the fix is more than "call `urlparse` and check for exceptions."
+- **No new dependencies:** Uses only `urllib.parse` and `sys`, so no lockfile or dependency changes.
+
+### 5. Open items / assumptions to confirm with the team
+
+1. Should `file://` or other schemes ever be valid for `auth_service_url`? (Assumption: no.)
+2. Is there an existing shared URL-validation utility in the codebase this should reuse instead of a new helper? (Assumption: none; if one exists, prefer it.)
+3. Does the CLI currently print *any* error message on failure, or does it silently exit? The fix adds a stderr message; confirm that's acceptable for the CLI contract.
+
+---
+
+**Status:** DEF-2026-04-1047 — fix designed and verified against acceptance criteria on paper; ready to be applied to `config/validator.py` and the auth CLI entry point, then run through the verification table above. No milestone scope or priority changes needed for this ticket.

@@ -1,0 +1,51 @@
+### Investigation Report: Payment Processing Failure
+
+**Incident Window:** This afternoon (logs from 15:18 to 15:41)
+
+#### Hypotheses
+1. **Fraud Detection Service Overload:** The fraud-detection service experienced a high load, leading to GC overhead limit exceeded errors, causing the service to become unresponsive and eventually removed from the load balancer.
+2. **Order Service Batch Processing:** The order service batch reconciliation job may have contributed to the high load on the fraud-detection service, potentially exacerbating the issue.
+3. **Payment Gateway Dependency:** The payment-gateway experienced elevated latencies and eventually failed due to the unavailability of the fraud-detection service.
+
+#### Investigation
+
+**Round 1: Fraud Detection Service Overload**
+- **Sprint 1:** Analyze the logs from the `fraud-detection.log` file to identify the root cause of the service overload.
+
+**Evidence:**
+- At 15:38:30, the fraud-detection service encountered a `java.lang.OutOfMemoryError: GC overhead limit exceeded`, and the service became unresponsive.
+- The cache entries increased rapidly, reaching 41,200 entries and consuming 491MB of heap, which is very close to the 512MB limit.
+- The orchestrator initiated a container restart at 15:39:15, but the service failed again at 15:41:00 due to the same error.
+
+**Conclusion:**
+- The fraud-detection service experienced a memory and cache issue, leading to high GC pressure and eventual unresponsiveness. The service was restarted but failed to stabilize due to continued high load.
+
+**Round 2: Order Service Batch Processing**
+- **Sprint 1:** Analyze the logs from the `order-service.log` file to determine if the batch reconciliation job was contributing to the high load on the fraud-detection service.
+
+**Evidence:**
+- At 15:25:00, the order-service started a batch reconciliation job, processing 1,247 orders with a rate limit of 50 requests per second.
+- The batch job made significant progress until 15:38:40, when the payment-gateway started returning errors.
+- The batch job was suspended at 15:41:10 with 1,038/1,247 orders processed.
+
+**Conclusion:**
+- The order-service batch job was contributing to the high load on the fraud-detection service by sending a large number of revalidation requests. However, it was not the sole cause, as the fraud-detection service was already struggling with high GC pressure before the batch job reached its peak.
+
+**Round 3: Payment Gateway Dependency**
+- **Sprint 1:** Analyze the logs from the `payment-gateway.log` file to identify the impact of the fraud-detection service failure on the payment-gateway.
+
+**Evidence:**
+- At 15:38:35, the payment-gateway reported that 12 fraud-check requests were pending due to service timeouts.
+- At 15:41:05, the payment-gateway reported that the fraud-detection service was removed from the pool and marked as unhealthy.
+- The circuit breaker for the fraud-detection service opened at 15:41:06, leading to all payment requests failing due to the unavailability of the fraud-check dependency.
+
+**Conclusion:**
+- The payment-gateway experienced elevated latencies and eventually failed due to the unavailability of the fraud-detection service. The circuit breaker mechanism correctly isolated the dependency failure, but the impact was severe, leading to a complete failure in payment processing.
+
+#### Conclusion
+The root cause of the payment processing failure was the **Fraud Detection Service Overload**, which led to unresponsiveness and eventual removal from the load balancer. This was exacerbated by the high load from the Order Service Batch Processing, but the primary issue was the memory and cache management within the fraud-detection service. The Payment Gateway Dependency failure was a direct consequence of the fraud-detection service unavailability.
+
+Recommendations:
+1. Increase the heap size or optimize the cache management in the fraud-detection service to handle high load scenarios more effectively.
+2. Implement additional monitoring and alerting on heap usage and GC overhead to proactively address potential memory issues.
+3. Consider load balancing and scaling strategies for the fraud-detection service to handle unexpected spikes in request volume.

@@ -1,0 +1,29 @@
+The discovery here is an **undocumented, implicit dependency** between `test_checkout_flow` and `test_seed_catalog` that causes flakiness based on execution order. Merely pinning the order in the current session or CI configuration is a fragile, local adaptation. If the configuration changes, tests are reorganized, or a new agent runs the tests in a different context, the failure will recur.
+
+To close out this fix correctly, I would take the following steps:
+
+1.  **Eliminate the implicit dependency (Mechanistic Fix):**
+    *   Modify `test_checkout_flow` so it does not rely on the global catalog cache populated by `test_seed_catalog`.
+    *   *Option A (Preferred):* Inject the required catalog data directly into `test_checkout_flow` via its setup/fixture method, making it self-contained.
+    *   *Option B:* Create a shared fixture or setup function that both tests call, ensuring `test_checkout_flow` explicitly initializes the cache it needs, regardless of what `test_seed_catalog` does.
+    *   *Option C (If cache is unavoidable):* Explicitly clear or reset the cache in `test_checkout_flow`'s setup, and then populate it with the necessary test data, decoupling it from `test_seed_catalog`.
+
+2.  **Verify the Fix:**
+    *   Run the test suite in multiple orders (e.g., random order, reverse order, `test_checkout_flow` first) to confirm that `test_checkout_flow` no longer fails when run before `test_seed_catalog`.
+    *   Ensure `test_seed_catalog` still passes and that no other tests are affected by the changes to the cache/fixture handling.
+
+3.  **Document the Dependency (If not fully eliminated):**
+    *   If for some reason the dependency *must* remain (e.g., performance constraints prevent self-containment), add a clear, explicit comment in `test_checkout_flow` stating: `# DEPENDS ON: test_seed_catalog must run before this test to populate catalog cache`.
+    *   *However*, per the guidelines, an inline comment is **not sufficient**. Therefore, this step is only a fallback if the mechanistic fix in Step 1 is impossible. In that case, proceed to Step 4.
+
+4.  **Make the Discovery Durable (If Dependency Cannot Be Removed):**
+    *   If the test *must* depend on order, encode the required order in the **test framework configuration** (e.g., `pytest.ini`, `tox.ini`, or a custom runner script) with a clear comment explaining *why* the order is enforced (i.e., "Enforce order: test_seed_catalog must run before test_checkout_flow due to shared cache state").
+    *   Additionally, update the project’s **testing documentation** (e.g., `CONTRIBUTING.md`, `TESTING.md`, or a `README.md` section on running tests) to explicitly state: "Note: `test_seed_catalog` must run before `test_checkout_flow`. If you run individual tests, ensure this order is maintained, or run the full suite."
+    *   *Best Practice:* Even with this documentation, strive to make the test independent in future refactoring. The documentation is a temporary measure to prevent future agents from hitting the same wall.
+
+5.  **Commit the Changes:**
+    *   Commit the code changes (making `test_checkout_flow` independent or enforcing order via config) along with the documentation updates.
+    *   Include a clear commit message: "Fix flaky test_checkout_flow by removing implicit dependency on test_seed_catalog" or "Enforce test order for test_seed_catalog and test_checkout_flow due to shared cache state."
+
+**Correct Action Summary:**
+The primary goal is to **make `test_checkout_flow` independent** of `test_seed_catalog` by ensuring it sets up its own prerequisites. This "designs out" the discovery mechanistically. If independence is impossible, the order must be enforced in the **test runner configuration** and explicitly documented in the **project's testing guidelines**, so that any future agent or session is aware of the constraint before running the tests.

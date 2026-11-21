@@ -1,0 +1,49 @@
+To address the ticket DEF-2026-04-1047, we need to modify the `config/validator.py` script to ensure that the `validate_url_field()` function properly validates the structure of the `auth_service_url`. Currently, the function only checks for the presence and non-emptiness of the field, which is insufficient for ensuring that the URL is correctly formatted. Here's a step-by-step plan to fix this issue:
+
+1. **Understand the Current Code:**
+   - Review the current implementation of `validate_url_field()` in `config/validator.py`.
+   - Identify the logic used to check for the presence and non-emptiness of the URL field.
+
+2. **Define URL Validation Requirements:**
+   - Determine the criteria for a valid URL. This typically includes:
+     - Proper scheme (e.g., `http`, `https`).
+     - Valid domain name or IP address.
+     - Correct use of port numbers, paths, query strings, and fragments as applicable.
+
+3. **Choose a URL Validation Method:**
+   - Decide on a method to validate URLs. Python’s `urllib.parse` module or a third-party library like `validators` can be used to check URL validity.
+   - Example using `urllib.parse`:
+     ```python
+     from urllib.parse import urlparse
+     import re
+
+     def is_valid_url(url):
+         # Parse the URL
+         parsed_url = urlparse(url)
+         # Validate scheme
+         if not parsed_url.scheme in ['http', 'https']:
+             return False
+         # Validate netloc
+         if not parsed_url.netloc:
+             return False
+         # Optionally, validate the domain name or IP using regex
+         domain_regex = re.compile(
+             r'^(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$'
+         )
+         if not domain_regex.match(parsed_url.netloc):
+             return False
+         return True
+     ```
+
+4. **Implement the Validation Logic:**
+   - Modify `validate_url_field()` to incorporate the new URL validation logic.
+   - Ensure that the function exits with code `1` if the URL is malformed, and `0` if it is valid.
+
+5. **Update the Function:**
+   - Here’s a potential update to `validate_url_field()`:
+     ```python
+     def validate_url_field(url):
+         if not url:
+             print("Error: URL field is empty.")
+             return 1
+         if not is_valid

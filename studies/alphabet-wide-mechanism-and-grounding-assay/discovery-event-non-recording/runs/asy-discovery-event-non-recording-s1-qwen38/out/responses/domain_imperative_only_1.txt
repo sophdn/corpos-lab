@@ -1,0 +1,41 @@
+Here are the steps to close out this fix, prioritizing the mechanistic elimination of the dependency and durable documentation over simple ordering pins.
+
+### 1. Implement Self-Contained Setup in `test_checkout_flow`
+Instead of relying on global state populated by `test_seed_catalog`, modify `test_checkout_flow` to explicitly seed the catalog cache it requires.
+*   **Action:** Inject or create a local instance of the catalog cache within the `test_checkout_flow` setup/fixture phase.
+*   **Mechanism:** Ensure the test explicitly calls the seeding logic (or uses a dedicated fixture that does so) before the checkout logic executes. This makes the test **idempotent** and **order-independent**.
+*   **Why:** This removes the hidden dependency entirely. If the test needs data, it provides it. This is the "mechanistic fix" that designs the dependency out.
+
+### 2. Decouple `test_seed_catalog` from Global State (If Possible)
+If `test_seed_catalog` is currently mutating a shared global cache, refactor it to be a pure function or a fixture that returns the seeded cache, rather than a test that mutates global state.
+*   **Action:** Change `test_seed_catalog` to return the seeded catalog object (or use a fixture like `@pytest.fixture` in Python) instead of just writing to a global.
+*   **Why:** This prevents future tests from accidentally depending on the side effects of `test_seed_catalog`. It forces explicit data passing.
+
+### 3. Add a "Canary" Test to Detect Future Coupling
+Add a new, lightweight test that explicitly asserts the isolation of `test_checkout_flow`.
+*   **Action:** Create a test `test_checkout_flow_isolation` that runs `test_checkout_flow` in a fresh environment (clearing any global caches first) and asserts it passes.
+*   **Why:** If a future developer re-introduces a global dependency, this canary test will fail immediately, alerting the team that the isolation has been broken. This is a durable, mechanistic guardrail.
+
+### 4. Document the Discovery in a Durable, Machine-Readable Location
+Since comments are skipped, record the discovery in a place that future agents or developers *must* consult.
+*   **Action:** Add a section to the project's `CONTRIBUTING.md` or `TESTING.md` under a heading like "Test Isolation Requirements."
+*   **Content:** State explicitly: *"All integration tests must be order-independent. Do not rely on side effects from other tests. If a test requires external data (e.g., catalog cache), it must seed that data in its own setup. See `test_checkout_flow` for a correct implementation."*
+*   **Alternative:** If the project uses a linter or static analysis tool, add a rule or warning for tests that access global state without explicit setup.
+
+### 5. Remove or Deprecate the Run-Order Pin
+Once the mechanistic fix is in place, the run-order pin is no longer necessary and may mask future issues.
+*   **Action:** Remove the explicit ordering configuration (e.g., `@pytest.mark.order` or custom runner logic) that forced `test_seed_catalog` to run first.
+*   **Why:** Keeping the pin hides the fact that the test is now self-contained. Removing it proves the fix works. If the pin is kept, future agents might assume the dependency still exists and avoid refactoring.
+
+### 6. Verify with Randomized Test Execution
+Run the test suite with randomized test order (e.g., `pytest-random-order` or equivalent) to confirm that `test_checkout_flow` passes regardless of when it runs.
+*   **Action:** Execute the suite multiple times with different random seeds.
+*   **Why:** This provides empirical proof that the ordering dependency has been eliminated.
+
+### 7. Close the Ticket with a Link to the Durable Documentation
+In the ticket closure, explicitly reference:
+1.  The commit that implements the self-contained setup.
+2.  The section in `TESTING.md` documenting the isolation requirement.
+3.  The canary test that protects against regression.
+
+This approach ensures that the dependency is not just hidden, but **designed out**, and that the knowledge of why it was a problem is recorded in a durable, consultable location.

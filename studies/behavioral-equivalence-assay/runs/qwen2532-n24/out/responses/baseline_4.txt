@@ -1,0 +1,44 @@
+### Investigation Report: Payment Processing Failure
+
+#### Summary
+A payment processing failure occurred this afternoon, with the root cause identified as the `fraud-detection` service experiencing an `OutOfMemoryError`. The `payment-gateway` and `order-service` components were affected due to the dependency on `fraud-detection`.
+
+#### Timeline of Events
+1. **15:18:00** - `fraud-detection` service was deployed with a new version (v3.8.1) and configuration update.
+2. **15:18:30** - `fraud-detection` deployment completed successfully.
+3. **15:35:00** - `fraud-detection` service issued a warning about approaching the memory limit (418MB heap, 512MB limit).
+4. **15:38:00** - `fraud-detection` service experienced a critical memory issue (491MB heap), and an `OutOfMemoryError` occurred.
+5. **15:38:31** - `fraud-detection` service became unresponsive and was marked unhealthy.
+6. **15:39:15** - The orchestrator restarted the `fraud-detection` service, but the service encountered another `OutOfMemoryError` shortly after.
+7. **15:41:00** - `fraud-detection` service was permanently marked unhealthy and removed from the load balancer.
+8. **15:30:00** to **15:41:00** - `payment-gateway` observed elevated and critical latency in fraud-check requests.
+9. **15:38:35** - `payment-gateway` experienced a timeout with the `fraud-detection` service.
+10. **15:41:05** - `payment-gateway` detected that no healthy instances of `fraud-detection` were available and opened the circuit breaker.
+11. **15:41:11** - `order-service` observed that the `payment-gateway` was unavailable and suspended the batch job.
+
+#### Root Cause Analysis
+The primary issue was the memory pressure in the `fraud-detection` service:
+- The `fraud-detection` service's risk assessment cache grew rapidly, leading to high memory usage.
+- The service eventually hit the heap limit (512MB), leading to an `OutOfMemoryError`.
+- The service became unresponsive and was restarted by the orchestrator, but the problem recurred due to the high request rate and cache refill.
+
+#### Recommendations
+1. **Memory Management**:
+   - Increase the heap size limit for `fraud-detection` if possible.
+   - Optimize the risk assessment cache to reduce memory usage, such as implementing eviction policies or reducing the cache size.
+   - Monitor memory usage closely and set up alerts for approaching limits.
+
+2. **Load Management**:
+   - Implement rate limiting on incoming requests to the `fraud-detection` service.
+   - Consider sharding or partitioning the risk assessment cache to distribute the load.
+
+3. **Resilience and Circuit Breakers**:
+   - Improve the resilience of `payment-gateway` by implementing a more robust retry mechanism.
+   - Ensure that the circuit breaker configuration in `payment-gateway` is tuned to handle temporary outages.
+
+4. **Monitoring and Alerts**:
+   - Enhance monitoring to track memory usage and request rates in real-time.
+   - Set up alerts for critical memory thresholds and service unavailability.
+
+#### Conclusion
+The payment processing failure was caused by memory pressure in the `fraud-detection` service, which led to unresponsiveness and service degradation. Implementing the recommendations above should help mitigate such issues in the future.

@@ -1,0 +1,39 @@
+ The file path to modify is `handlers/v1/orders.go`. Here is the exact change to add support for the `priority` field:
+
+```go
+// Assuming you have an Order struct defined elsewhere
+type Order struct {
+    // ... existing fields
+    Priority *int `json:"priority,omitempty"`
+}
+
+// ... existing functions
+
+func (h *handler) GetOrder(w http.ResponseWriter, r *http.Request) {
+    // ... existing code
+    order := &Order{ID: id}
+    // ... existing database query
+    if err := r.JSON(http.StatusOK, order); err != nil {
+        h.serverErrorResponse(w, r, err)
+    }
+}
+
+func (h *handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+    // ... existing code
+    var order Order
+    if err := r.JSON(http.StatusBadRequest, order); err != nil {
+        h.serverErrorResponse(w, r, err)
+    }
+    // Assuming you have a function `db.QueryRow` that returns a row from the database
+    row := db.QueryRow("SELECT * FROM orders WHERE id=?", id)
+    // Check if the row exists (optional field)
+    scanErr := row.Scan(&order.ID, &order.ItemID, &order.Quantity, &order.CreatedAt, &order.UpdatedAt, &order.Priority)
+    // Handle the scan error
+    if scanErr != nil {
+        // ... handle error
+    }
+    // ... existing code to update the order in the database
+}
+```
+
+This change adds the `priority` field to the `Order` struct, and handles deserialization and storage of the optional `priority` field for the `GetOrder` and `CreateOrder` handlers. It assumes you have a function `db.QueryRow` that returns a row from the database, and handles the scan error accordingly.

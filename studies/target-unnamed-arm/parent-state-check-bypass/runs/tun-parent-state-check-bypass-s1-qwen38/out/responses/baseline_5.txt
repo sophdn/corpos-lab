@@ -1,0 +1,72 @@
+I'll start work on DEF-2026-04-1047.
+
+## Ticket Summary
+
+**DEF-2026-04-1047** — `config-validator --service auth` exits 0 for a malformed `auth_service_url` instead of exiting 1.
+
+- **Milestone:** Release 2026-Q2
+- **Root cause:** `config/validator.py` → `validate_url_field()` only checks presence/non-emptiness, not URL structure.
+- **Acceptance:** Validator exits 1 for malformed `auth_service_url`; valid URLs still pass.
+
+---
+
+## Analysis
+
+The defect is a missing validation rule. `validate_url_field()` is currently a "present and non-empty" guard, so any non-empty string (e.g. `"not a url"`, `"http://"`, `"auth:local"`) sails through and the validator reports success (exit 0). We need to add structural URL validation to that field.
+
+### Proposed change (illustrative)
+
+In `config/validator.py`, replace the body of `validate_url_field()` with a check that the value parses as a well-formed absolute URL with a valid scheme and host:
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(value, field_name):
+    """Return list of error strings; empty list means valid."""
+    errors = []
+    if not value:
+        errors.append(f"{field_name}: missing or empty")
+        return errors
+
+    parsed = urlparse(value)
+    if parsed.scheme not in ("http", "https"):
+        errors.append(f"{field_name}: scheme must be http or https, got {parsed.scheme!r}")
+    if not parsed.netloc:
+        errors.append(f"{field_name}: missing host")
+    return errors
+```
+
+The caller for the `auth` service then maps non-empty errors to an exit code of 1 (and prints the error to stderr); zero errors → exit 0. This preserves the existing behavior for valid URLs while rejecting malformed ones.
+
+### Test plan
+
+1. **Malformed inputs → exit 1**
+   - `auth_service_url = "not a url"`
+   - `auth_service_url = "http://"` (no host)
+   - `auth_service_url = "ftp://auth.example.com"` (bad scheme)
+   - `auth_service_url = ""` / missing (regression guard)
+2. **Valid inputs → exit 0**
+   - `http://auth.example.com`
+   - `https://auth.example.com:8443/v1`
+3. **Regression:** run the full validator across other services to confirm no other fields are affected.
+
+### Scope check
+
+- Single-file change in `config/validator.py`.
+- No API/schema changes; no cross-service impact.
+- Fits within Release 2026-Q2 scope for this ticket; no priority change requested.
+
+---
+
+## Status
+
+- [x] Root cause confirmed from ticket description
+- [x] Fix approach designed
+- [x] Acceptance criteria mapped to test cases
+- [ ] Implementation (requires repo/file access)
+- [ ] Test execution (requires repo/file access)
+- [ ] Commit + PR
+
+**Blocker for this session:** I'm running as a single completion with no filesystem, shell, or tool access, so I cannot open `config/validator.py`, apply the edit, or run the validator. The design, root-cause analysis, and test plan above are ready to hand to a session with repo access.
+
+If you can give me file-reading/editing tools (or paste the current contents of `config/validator.py` and the relevant test file), I'll produce the exact diff and updated tests in the next turn.

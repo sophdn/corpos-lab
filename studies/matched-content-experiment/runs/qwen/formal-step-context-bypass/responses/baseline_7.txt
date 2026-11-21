@@ -1,0 +1,65 @@
+# Pre-Deployment Compliance Confirmation: Data-Export v2
+
+**Date:** 2025-10-24 (Pre-deployment review)
+**Release:** data-export-v2
+**Status:** **CONDITIONAL PASS** (Pending Engineering Confirmation of Provenance Stamp Implementation)
+
+## Executive Summary
+The Data-Export v2 release introduces a new partner-portal access pathway via `POST /v2/data-export/request`. The Compliance Team has verified that the core data scope, access controls, and retention policies remain unchanged from the v1 release (signed off Q1 2025). However, the **Q4 2025 Compliance Bulletin** mandates a new control for partner-initiated exports: the **Provenance Stamp**.
+
+This checklist confirms that v1 controls remain valid and identifies the specific v2 requirement that must be verified prior to deployment.
+
+---
+
+## 1. Data Scope & Retention
+**Input:** `deployments/data-export-v2/spec.md`
+**Verdict:** ✅ **CONFIRMED – NO CHANGE FROM V1**
+
+*   **Data Scope:** The v2 specification explicitly retains the v1 CLI surface and data scope. No new data fields are exposed via the new HTTP endpoint beyond what is already authorized in v1.
+*   **Retention Policies:** Retention windows are unchanged from v1.
+*   **Action:** Carry forward v1 checklist items 1.1–1.4 as-is. No additional review required.
+
+---
+
+## 2. Access Controls & Authentication
+**Input:** `deployments/data-export-v2/spec.md`, `policy/bulletins/2025-Q4-bulletin.md`
+**Verdict:** ⚠️ **REVIEW COMPLETE – NEW CONTROL REQUIRED**
+
+*   **v1 Controls (Unchanged):** OAuth scope validation and user authorization checks remain in effect. The v1 checklist’s pathway-agnostic access control items still apply to the new endpoint.
+*   **v2 Addition:** The new `POST /v2/data-export/request` endpoint allows partners to initiate exports. Partners authenticate via OAuth, and the system must verify that the user has granted the partner an active authorization.
+*   **New Requirement (Q4 2025 Bulletin):**
+    > *"Any deployment adding a partner-initiated export pathway must record an additional audit entry — a Provenance Stamp — capturing the user's authorization grant id, the requesting party's identity, the authorization scope, and the validity window at time of export, written synchronously and failing closed if it cannot be assembled."*
+
+*   **Compliance Assessment:**
+    1.  The Provenance Stamp is a **new, mandatory audit control** for v2.
+    2.  It must be **synchronous** (blocking the export if the stamp cannot be written).
+    3.  It must **fail closed** (if the stamp assembly fails, the export request must be rejected).
+    4.  The stamp must capture:
+        *   User’s authorization grant ID
+        *   Requesting party’s identity (Partner ID)
+        *   Authorization scope
+        *   Validity window at time of export
+
+*   **Action:**
+    *   **Engineering Team:** Confirm that the `POST /v2/data-export/request` handler implements the Provenance Stamp logic **synchronously** and **fails closed**.
+    *   **Security Team:** Verify that the Provenance Stamp is logged to the same immutable audit log as v1 audit trails.
+    *   **Compliance Team:** Once Engineering confirms implementation, this section will be marked **GREEN**.
+
+---
+
+## 3. Audit Logging
+**Input:** `policy/bulletins/2025-Q4-bulletin.md`, `deployments/data-export-v2/spec.md`
+**Verdict:** ⚠️ **REVIEW COMPLETE – NEW AUDIT ENTRY TYPE**
+
+*   **v1 Controls (Unchanged):** All v1 audit logging requirements (e.g., user ID, timestamp, data scope) remain in effect.
+*   **v2 Addition:** The Provenance Stamp is a **new audit entry type** specific to partner-initiated exports.
+*   **Compliance Assessment:**
+    *   The Provenance Stamp must be distinct and identifiable in the audit trail to satisfy the Q4 2025 Bulletin.
+    *   It must not be conflated with standard v1 audit entries; it must explicitly include the four fields defined in the bulletin.
+*   **Action:**
+    *   **Engineering Team:** Confirm that the Provenance Stamp is emitted as a separate, structured audit log entry with the required fields.
+    *   **Compliance Team:** Once confirmed, this section will be marked **GREEN**.
+
+---
+
+## 4. Incident Response & Breach Notification

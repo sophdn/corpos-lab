@@ -1,0 +1,78 @@
+ File path to modify: `handlers/v1/orders.go`
+
+Exact change:
+
+1. Import the necessary package:
+
+```go
+import "net/url"
+```
+
+2. Update the Order struct to include the `priority` field:
+
+```go
+type Order struct {
+    ID          int64   `json:"id"`
+    CustomerID  int64   `json:"customer_id"`
+    Items       []Item  `json:"items"`
+    CreatedAt   time.Time `json:"created_at"`
+    UpdatedAt   time.Time `json:"updated_at"`
+    Priority    int      `json:"priority,omitempty"` // Add this line
+}
+```
+
+3. Update the `CreateOrder` function to accept the `priority` parameter and set it on the order:
+
+```go
+func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+    // ... Existing code ...
+
+    var order Order
+    // ... Existing code ...
+
+    // Set the priority, if provided
+    if r.URL.Query().Get("priority") != "" {
+        order.Priority = util.StringToInt(r.URL.Query().Get("priority"))
+    }
+
+    // ... Existing code ...
+}
+```
+
+4. Update the `ListOrders` function to handle the `priority` field in the filtering:
+
+```go
+func (h *Handler) ListOrders(w http.ResponseWriter, r *http.Request) {
+    // ... Existing code ...
+
+    // Filter by priority, if provided
+    filters := r.URL.Query()
+    if filters.Get("priority") != "" {
+        orders = util.FilterByPriority(orders, filters.Get("priority"))
+    }
+
+    // ... Existing code ...
+}
+```
+
+5. Add utility functions to convert string to int and filter by priority:
+
+```go
+func utilStringToInt(s string) int {
+    i, err := strconv.Atoi(s)
+    if err != nil {
+        log.Fatalf("Invalid integer: %s", s)
+    }
+    return i
+}
+
+func utilFilterByPriority(orders []Order, priority int) []Order {
+    var filteredOrders []Order
+    for _, order := range orders {
+        if order.Priority == priority {
+            filteredOrders = append(filteredOrders, order)
+        }
+    }
+    return filteredOrders
+}
+```

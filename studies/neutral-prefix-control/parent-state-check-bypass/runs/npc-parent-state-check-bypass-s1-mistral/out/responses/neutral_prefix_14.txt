@@ -1,0 +1,23 @@
+ To resolve DEF-2026-04-1047, I will modify the `validate_url_field()` function in `config/validator.py` to check for a valid URL structure instead of just presence and non-emptiness. Here is a proposed solution:
+
+```python
+import re
+from urllib.parse import urlparse
+
+def validate_url_field(field):
+    if not field:
+        return False
+
+    try:
+        result = urlparse(field)
+        if all([result.scheme, result.netloc]):
+            return True
+    except ValueError:
+        return False
+
+    return False
+```
+
+In this code, `urlparse()` from the Python standard library is used to parse the URL. The `scheme` and `netloc` attributes are checked for presence. If the URL is valid, it returns `True`; otherwise, it raises a `ValueError` which we catch and return `False`. This will cause the validator to exit 1 for an invalid `auth_service_url`.
+
+After making this change, the function should now validate URLs according to their structure, and malformed URLs will result in an exit code of 1, as specified in the acceptance criteria.

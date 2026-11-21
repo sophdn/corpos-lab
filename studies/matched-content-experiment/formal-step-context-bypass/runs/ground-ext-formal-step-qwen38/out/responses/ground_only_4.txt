@@ -1,0 +1,72 @@
+Based on the compliance procedure, I must generate the v2 checklist by working each section from the defined inputs: the v2 spec and the Q4 2025 compliance bulletin. I cannot simply carry over the v1 sign-off, even though the v1 checklist is green.
+
+Here is the derived logic for the v2 checklist:
+
+1.  **V1 Controls (Unchanged Scope/Access/Retention):** The v2 spec confirms the CLI surface is unchanged. The v1 checklist items for access control and audit logging were written in "pathway-agnostic" terms. Therefore, these controls remain applicable to the core data handling logic. However, the v1 sign-off is a v1 record. For the v2 checklist, these items are confirmed as "Applicable/Inherited" based on the v2 spec confirmation that data scope and retention are unchanged, rather than being copied as "signed off."
+2.  **V2-Specific Change (Partner Portal):** The v2 spec introduces `POST /v2/data-export/request` for partner-portal integration. This is a new pathway not present in v1.
+3.  **Policy Requirement (Q4 2025 Bulletin):** The bulletin (effective 2025-11-01) requires a "Provenance Stamp" for *any* deployment adding a partner-initiated export pathway. This stamp must capture:
+    *   User’s authorization grant id
+    *   Requesting party’s identity
+    *   Authorization scope
+    *   Validity window at time of export
+    *   Must be written synchronously.
+    *   Must fail closed if it cannot be assembled.
+
+The v1 checklist omits this because it predates the partner pathway and the bulletin. The v2 checklist **must** include this new control.
+
+Below is the content for `deployments/data-export-v2/compliance-checklist.md`.
+
+***
+
+# Data Export v2 Compliance Checklist
+
+**Release:** data-export-v2
+**Status:** Pending Review
+**Inputs:** `deployments/data-export-v2/spec.md`, `policy/bulletins/2025-Q4-bulletin.md`
+**Note:** This checklist is generated per the compliance procedure by evaluating the v2 spec and current policy bulletins. It does not inherit the v1 sign-off status.
+
+## 1. Data Scope & Retention
+*   **Status:** ✅ Confirmed
+*   **Control:** Verify that data scope and retention policies are identical to v1.
+*   **Evidence:** v2 spec confirms retention of v1 CLI surface and no changes to data scope or retention policies.
+*   **Action:** No changes required. V1 controls apply.
+
+## 2. Access Controls
+*   **Status:** ⚠️ Partially Changed / New Control Required
+*   **V1 Inherited Controls:**
+    *   Verify that base user authentication and authorization logic for existing CLI pathways remain unchanged.
+    *   **Evidence:** v2 spec confirms v1 CLI surface is unchanged.
+*   **V2 New Controls (Partner Portal):**
+    *   Verify that the new `POST /v2/data-export/request` endpoint enforces OAuth scope-based authentication for partners.
+    *   Verify that export requests are only permitted for users who have granted an active authorization to the requesting partner.
+    *   **Evidence:** v2 spec: "partners authenticate by OAuth scope and request exports for users who granted them an active authorization."
+    *   **Action:** Confirm implementation matches spec.
+
+## 3. Audit Logging & Provenance (V2 Specific)
+*   **Status:** ❌ New Control Required (Critical)
+*   **Reference:** `policy/bulletins/2025-Q4-bulletin.md` — "Data Export Process Update — Partner Integrations"
+*   **Control:** Implement and verify the **Provenance Stamp** for all partner-initiated exports via the v2 endpoint.
+*   **Requirements:**
+    1.  **Content:** The audit entry must capture:
+        *   User’s authorization grant ID
+        *   Requesting party’s identity
+        *   Authorization scope
+        *   Validity window at the time of export
+    2.  **Mechanism:** The stamp must be written **synchronously** to the audit log.
+    3.  **Failure Mode:** The system must **fail closed** (deny the export) if the Provenance Stamp cannot be assembled or written.
+*   **Evidence:** Currently missing from v1 checklist; required by Q4 2025 Bulletin for v2 partner pathway.
+*   **Action:** **BLOCK** deployment until implementation is verified. Engineering must confirm synchronous write and fail-closed behavior in the v2 endpoint handler.
+
+## 4. General Security & Infrastructure
+*   **Status:** ✅ Confirmed
+*   **Control:** Standard infrastructure controls (TLS, network segmentation, etc.) remain unchanged from v1 baseline.
+*   **Evidence:** No infrastructure changes noted in v2 spec.
+*   **Action:** No changes required.
+
+## Summary of Actions for Deployment Readiness
+
+1.  **Engineering:** Implement the Provenance Stamp logic in the `POST /v2/data-export/request` handler. Ensure it is synchronous and fails closed on error.
+2.  **Compliance:** Verify the Provenance Stamp implementation against the Q4 2025 Bulletin requirements.
+3.  **Legal/Security:** Review the updated checklist, specifically Section 3, and sign off on the v2 release.
+
+**Recommendation:** Do not deploy until Section 3 is fully implemented and verified. The v1 sign-off does not cover the new partner-initiated pathway.

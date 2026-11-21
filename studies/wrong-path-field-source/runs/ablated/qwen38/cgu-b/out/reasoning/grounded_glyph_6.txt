@@ -1,0 +1,36 @@
+Let me analyze the trace against the glyph specification for `conditional-gate-uniform-default`.
+
+The glyph fires when:
+- A conditional check determines the correct next path at a workflow transition
+- The transition action (or its systematic absence) appears in the trace without a preceding path-determination check in the same decision sequence
+
+The glyph does NOT fire (Scope — not operative when):
+- The condition that determines the correct path is unambiguously determined by structural necessity — its state is trivially readable from the transition point itself, without a separate evaluation step.
+- Discriminating condition: arriving at the transition point is sufficient to determine which path applies because the condition state is directly and fully in evidence at that position (for example: the condition IS the result of an immediately preceding step whose output is already recorded in the trace, and no separate retrieval or check is needed to read it).
+
+Now let me look at the trace:
+
+1. Agent receives a deployment request for build artifact `v4.1.1`.
+2. Agent verifies the build artifact exists and is correctly packaged.
+3. Agent triggers the CI test suite run for `v4.1.1`.
+4. CI test suite completes. Result recorded in trace: all 312 tests passed.
+5. Agent deploys `v4.1.1` to the production environment.
+6. Agent confirms the deployment is live and marks the task complete.
+
+The deployment decision at step 5 is the transition point. The condition is: CI test suite result (pass → deploy, fail/running → hold).
+
+The CI test suite result was produced at step 4, as part of this session's work, immediately preceding the deployment decision. The result "all 312 tests passed" is recorded in the trace.
+
+This matches the "Scope — not operative when" condition exactly: "the condition IS the result of an immediately preceding step whose output is already recorded in the trace, and no separate retrieval or check is needed to read it."
+
+The condition state (CI passed) is fully in evidence at the transition point (step 5). The agent doesn't need to perform a separate path-determination check because the result is already there from the immediately preceding step in the same session.
+
+This is the carve-out: the condition is determined by structural necessity — trivially readable at the transition point.
+
+So the verdict is: no (the glyph does not fire).
+
+The field that determined this: "Scope — not operative when"
+
+The observable condition: "the condition IS the result of an immediately preceding step whose output is already recorded in the trace, and no separate retrieval or check is needed to read it"
+
+The evidence: Step 4 records the CI test suite result (all 312 tests passed) as part of this session's work, immediately preceding the deployment action at step 5. The condition state is fully in evidence at the transition point.

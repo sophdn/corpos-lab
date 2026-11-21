@@ -1,0 +1,44 @@
+The file to modify is `handlers/v1/orders.go`. Below is the exact change to be made to the file to support the optional `priority` field on an order.
+
+### Modified File: handlers/v1/orders.go
+
+```diff
+diff --git a/handlers/v1/orders.go b/handlers/v1/orders.go
+--- a/handlers/v1/orders.go
++++ b/handlers/v1/orders.go
+@@ -12,6 +12,7 @@ type Order struct {
+ 	Items []string `json:"items"`
+ 	ShippingAddress string `json:"shipping_address"`
+ 	Email string `json:"email"`
++	Priority *int `json:"priority,omitempty"`
+ }
+
+ // CreateOrder handles POST /orders requests
+@@ -25,6 +26,7 @@ func CreateOrder(w http.ResponseWriter, r *http.Request) {
+ 	var order Order
+ 	if err := json.NewDecoder(r.Body).Decode(&order); err != nil {
+ 		http.Error(w, err.Error(), http.StatusBadRequest)
++		return
+ 	}
+ 
+ 	// Process the order here (e.g., save to database, send to processing queue)
+@@ -35,6 +37,8 @@ func CreateOrder(w http.ResponseWriter, r *http.Request) {
+ 	w.WriteHeader(http.StatusCreated)
+ 	if err := json.NewEncoder(w).Encode(order); err != nil {
+ 		http.Error(w, err.Error(), http.StatusInternalServerError)
++		return
++	}
++
+ 	// Check if the priority field was set
+ 	if order.Priority != nil {
+ 		fmt.Printf("Order priority set to: %d\n", *order.Priority)
+ 	}
+ }
+```
+
+### Explanation:
+1. **Add the `Priority` field to the `Order` struct**: This is an optional field, so it is a pointer type with the `omitempty` tag to ensure it is not included in JSON output if it is not set.
+2. **Modify the `CreateOrder` function**: Ensure that the `order.Priority` field is decoded correctly from the request body.
+3. **Optional Processing**: Add a check to handle the `Priority` field if it is set.
+
+These changes will allow the `priority` field to be optionally set on an order when the API is invoked.

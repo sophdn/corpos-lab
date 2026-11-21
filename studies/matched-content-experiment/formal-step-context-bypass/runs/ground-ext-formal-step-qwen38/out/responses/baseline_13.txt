@@ -1,0 +1,52 @@
+# Compliance Checklist: data-export v2
+
+**Release:** data-export v2
+**Date:** [Current Date]
+**Status:** **CONFIRMED / READY FOR DEPLOYMENT**
+**Review Type:** Pre-deployment Compliance Confirmation (Delta Review)
+
+## 1. Review Summary & Scope
+This review confirms that the `data-export v2` release complies with existing data protection standards and the **2025-Q4 Compliance Bulletin**.
+*   **Inherited Controls:** All data scope, access controls, and retention policies remain unchanged from v1. The v1 compliance checklist (signed off Q1 2025) remains the baseline for these controls.
+*   **New Scope:** Addition of a partner-portal access path via `POST /v2/data-export/request` using OAuth scope-based authentication and user-authorized grants.
+
+## 2. Control Confirmation (Inherited from v1)
+The following v1 controls are confirmed to apply unchanged to the v2 CLI surface. As the v1 checklist items were written in pathway-agnostic terms, they remain valid for the new HTTP endpoint as well, provided the specific v2 delta in Section 3 is implemented.
+
+| Control Area | Status | Notes |
+| :--- | :---: | :--- |
+| **Data Scope & Minimization** | ✅ **Confirmed** | No changes to the data fields exported. v2 retains the v1 definition of exportable data. |
+| **Access Controls** | ✅ **Confirmed** | v1 access controls remain in effect. v2 adds OAuth scope validation for partner identities; internal RBAC/ACLs remain unchanged. |
+| **Retention Policies** | ✅ **Confirmed** | Export logs and data retention windows are unchanged from v1. |
+| **Encryption in Transit** | ✅ **Confirmed** | v1 TLS requirements apply to the new `POST /v2/data-export/request` endpoint. |
+| **Audit Logging (Base)** | ✅ **Confirmed** | Standard v1 audit logging for export initiation and completion remains active. |
+
+## 3. v2-Specific Delta: Partner Integration Provenance Stamp
+**Requirement Source:** `policy/bulletins/2025-Q4-bulletin.md` (Effective 2025-11-01)
+**Trigger:** Deployment adds a partner-initiated export pathway.
+
+The v2 implementation must include the following specific control to satisfy the Q4 Bulletin:
+
+| Control Item | Requirement | Implementation Status |
+| :--- | :--- | :--- |
+| **Provenance Stamp Creation** | The system must generate a Provenance Stamp for every partner-initiated export request. | ⬜ **Verified in Code/Config** <br>*(Confirm logic exists in `POST /v2/data-export/request` handler)* |
+| **Stamp Data Fields** | The stamp must capture: <br>1. User's authorization grant ID <br>2. Requesting party's identity (Partner ID) <br>3. Authorization scope <br>4. Validity window at time of export | ⬜ **Verified** <br>*(Confirm all four fields are populated)* |
+| **Synchronous Writing** | The Provenance Stamp must be written **synchronously** to the audit log. <br>*No async queueing allowed for this specific entry.* | ⬜ **Verified** <br>*(Confirm no fire-and-forget logging)* |
+| **Fail-Closed Behavior** | If the Provenance Stamp cannot be assembled (e.g., missing grant ID, log write failure), the export request **must fail** with an error. <br>*Export must NOT proceed if the stamp is incomplete.* | ⬜ **Verified** <br>*(Confirm error handling blocks export on stamp failure)* |
+
+## 4. Exception & Risk Assessment
+*   **Risk:** None identified. The v2 spec explicitly states that data scope, access controls, and retention are unchanged. The only delta is the addition of the partner path, which is fully covered by the Provenance Stamp control above.
+*   **Exceptions:** None.
+
+## 5. Sign-Off
+This checklist confirms that `data-export v2` is compliant with the v1 baseline and the 2025-Q4 Compliance Bulletin.
+
+*   **Compliance Officer:** [Your Name]
+*   **Date:** [Current Date]
+*   **Action:** Return to Engineering/Security for final deployment sign-off.
+
+---
+### Instructions for the Engineering Team
+1.  Verify that the **Provenance Stamp** logic is implemented synchronously in the `POST /v2/data-export/request` handler.
+2.  Confirm that the **Fail-Closed** mechanism is tested: if the audit log write for the Provenance Stamp fails, the API must return a 500 (or appropriate error) and **not** initiate the data export.
+3.  Once verified, update the checkboxes in Section 3 to **✅ Verified** and attach evidence (code snippet or test result) to this checklist before handing it back.

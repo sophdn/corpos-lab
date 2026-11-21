@@ -1,0 +1,42 @@
+### Milestone Status Check
+
+Before proceeding with the work on DEF-2026-04-1047, I need to confirm the current state of the milestone Release 2026-Q2. According to the `milestones/release-2026-Q2.md` document, the milestone is currently active, and the ticket scope and priorities have not changed since the last session.
+
+### Ticket DEF-2026-04-1047: `config-validator --service auth` Exits 0 for Malformed `auth_service_url`
+
+#### Issue Description
+The current implementation of `config-validator` for the `auth` service exits with a status code of `0` (indicating success) when the `auth_service_url` is malformed. This behavior is incorrect and needs to be fixed.
+
+#### Root Cause
+The root cause lies in the `validate_url_field` function within `config/validator.py`. The function currently only checks that the field is present and non-empty, without validating the URL structure.
+
+#### Proposed Solution
+To fix this issue, we need to enhance the `validate_url_field` function to validate the URL structure. This can be done by adding URL validation logic to ensure that the `auth_service_url` conforms to a valid URL format.
+
+#### Steps to Implement
+1. **Import URL Validation Module**: Import a URL validation module (e.g., `urllib.parse`).
+2. **Update `validate_url_field` Function**: Modify the function to include URL validation.
+3. **Test Cases**: Ensure that malformed URLs fail the validation, while valid URLs pass.
+
+Here is a possible implementation of the updated `validate_url_field` function:
+
+```python
+import urllib.parse
+
+def validate_url_field(field_value):
+    try:
+        result = urllib.parse.urlparse(field_value)
+        if all([result.scheme, result.netloc]):
+            return True
+        else:
+            return False
+    except ValueError:
+        return False
+```
+
+#### Acceptance Criteria
+- The validator should exit with status code `1` for a malformed `auth_service_url`.
+- Valid URLs should continue to pass the validation.
+
+### Conclusion
+With the proposed changes, the `config-validator` will correctly identify malformed `auth_service_url` entries and exit with a status code of `1`. This ensures that the configuration validation process is more robust and reliable.

@@ -1,0 +1,179 @@
+# repair-duty
+
+**Status**: Active
+**Scope**: Repair of confirmed software defects with a known locus.
+**Authority**: Agentic Order
+
+## Preamble
+
+This duty governs the repair act. The executor receives a confirmed defect with a known locus. The executor must not rely on external registries, canonical slugs, or prior context beyond the text of this duty and the specific defect report.
+
+The act of repair is divided into four phases:
+1. **Locus Confirmation**: Establishing the exact point of intervention.
+2. **Pre-Change Validation**: Verifying the environment and the defect’s reproducibility.
+3. **The Repair Act**: Modifying the code to eliminate the defect.
+4. **Completion Verification**: Confirming the defect is resolved and no regression has occurred.
+
+Each phase consists of gates. A gate is a checkable step. The executor must pass every gate in sequence. If a gate fails, the executor must halt, report the failure, and not proceed.
+
+---
+
+## Phase 1: Locus Confirmation
+
+The executor must confirm that the defect report points to a specific, valid location in the codebase.
+
+### Gate 1.1: Locus Existence
+**Verifies**: That the file path and line number specified in the defect report exist in the current codebase.
+**Requires**:
+1. The file at the specified path must be readable.
+2. The line number must be within the range of lines in the file.
+3. The line must contain executable code (not a comment, not a blank line).
+
+### Gate 1.2: Locus Uniqueness
+**Verifies**: That the defect is localized to the specified line and is not distributed across multiple lines in a way that invalidates the "known locus" premise.
+**Requires**:
+1. The defect description must identify a single function or code block containing the line.
+2. The line must be the primary site of the failure mode (e.g., the line where the exception is raised or the logic error occurs).
+
+### Gate 1.3: Locus Immutability Check
+**Verifies**: That the locus has not changed since the defect was reported.
+**Requires**:
+1. The content of the line at the locus must match the content described in the defect report.
+2. If the line content has changed (e.g., due to concurrent edits), the executor must halt and report a Locus Drift failure.
+
+---
+
+## Phase 2: Pre-Change Validation
+
+Before modifying any code, the executor must confirm the defect is reproducible and the environment is safe for intervention.
+
+### Gate 2.1: Reproducibility
+**Verifies**: That the defect manifests as described when the specific trigger condition is applied.
+**Requires**:
+1. Construct a minimal test case or reproduction script that invokes the defective function with the input specified in the defect report.
+2. Execute the reproduction script.
+3. The execution must produce the exact error type and message described in the defect report (e.g., `ZeroDivisionError`).
+4. If the error does not reproduce, halt and report a Reproducibility Failure.
+
+### Gate 2.2: Dependency Isolation
+**Verifies**: That the repair can be performed without modifying external dependencies or shared libraries.
+**Requires**:
+1. Identify all imports and dependencies of the file containing the locus.
+2. Confirm that the repair will only modify the file containing the locus.
+3. If the repair requires changes to dependencies, halt and report a Scope Violation.
+
+### Gate 2.3: State Snapshot
+**Verifies**: That the current state of the file is preserved for rollback.
+**Requires**:
+1. Record the full content of the file containing the locus.
+2. Store this snapshot in a temporary, immutable location (e.g., a local variable or a backup file) accessible only by the executor.
+
+---
+
+## Phase 3: The Repair Act
+
+The executor modifies the code at the locus to eliminate the defect.
+
+### Gate 3.1: Minimal Intervention
+**Verifies**: That the change is strictly limited to resolving the defect.
+**Requires**:
+1. The edit must modify only the lines necessary to address the root cause of the defect.
+2. No refactoring, style changes, or unrelated logic improvements are permitted.
+3. The diff must be reviewable as a direct response to the defect.
+
+### Gate 3.2: Logical Correctness
+**Verifies**: That the new code correctly handles the trigger condition and valid inputs.
+**Requires**:
+1. The new code must explicitly handle the edge case that caused the defect (e.g., empty list, null input, division by zero).
+2. The new code must not introduce new exceptions for valid inputs.
+3. The new code must return a value consistent with the function’s documented or inferred contract for valid inputs.
+
+### Gate 3.3: Type and Signature Preservation
+**Verifies**: That the function’s interface remains unchanged.
+**Requires**:
+1. The function name, parameters, and return type must remain identical to the original.
+2. No new parameters may be added unless required to resolve the defect (which is prohibited under Minimal Intervention).
+3. No changes to the function’s docstring or comments are permitted unless they are necessary to document the new behavior.
+
+---
+
+## Phase 4: Completion Verification
+
+The executor confirms the repair is effective and safe.
+
+### Gate 4.1: Defect Resolution
+**Verifies**: That the original trigger condition no longer produces the defect.
+**Requires**:
+1. Re-execute the reproduction script from Gate 2.1.
+2. The execution must complete without raising the original exception.
+3. The output must be a valid value (e.g., `0.0`, `None`, or a specific sentinel) as defined by the function’s contract for the edge case.
+
+### Gate 4.2: Regression Check
+**Verifies**: That valid inputs still produce correct results.
+**Requires**:
+1. Construct a test case with valid, non-edge-case inputs.
+2. Execute the repaired function with these inputs.
+3. The output must match the expected result for these inputs (e.g., the average of `[1, 2, 3]` is `2.0`).
+4. If the output is incorrect, halt and report a Regression Failure.
+
+### Gate 4.3: Static Analysis
+**Verifies**: That the repaired code passes basic syntactic and semantic checks.
+**Requires**:
+1. The file must be parseable without syntax errors.
+2. The file must pass any available linter or static analysis tool configured for the project.
+3. If no linter is available, the executor must manually verify that the code is syntactically valid.
+
+### Gate 4.4: Closure
+**Verifies**: That the repair is complete and documented.
+**Requires**:
+1. The executor must generate a report containing:
+   - The original defect description.
+   - The locus (file and line).
+   - The diff (before and after code).
+   - The reproduction script and its output before and after the repair.
+   - The regression test case and its output.
+2. The executor must mark the defect as "Repaired" in the internal tracking system (if available) or in the report.
+3. The executor must release the lock on the file (if applicable) and notify the requesting office.
+
+---
+
+## Failure Handling
+
+If any gate fails, the executor must:
+1. Halt the repair process.
+2. Preserve the state snapshot from Gate 2.3.
+3. Generate a failure report specifying:
+   - The gate that failed.
+   - The reason for the failure.
+   - The state of the code (unmodified or partially modified).
+4. Do not attempt to bypass the failed gate.
+5. Do not proceed to subsequent phases.
+
+## Executor Constraints
+
+1. **No External Canon**: The executor must not consult any registry, canonical slug, or external documentation beyond the defect report and this duty.
+2. **No Speculation**: The executor must not assume behavior beyond what is specified in the defect report or the function’s code.
+3. **No Scope Creep**: The executor must not modify code outside the locus unless explicitly required by a gate (which is prohibited by Gate 3.1).
+4. **No Silent Failure**: Every gate must be explicitly passed or failed. The executor must not skip gates.
+
+---
+
+## Example Application
+
+**Defect**: `calculate_average([])` raises `ZeroDivisionError` at `calculator.py:2`.
+
+**Gate 1.1**: `calculator.py` exists, line 2 is `return sum(values) / len(values)`, which is executable. **Pass**.
+**Gate 1.2**: The defect is localized to line 2. **Pass**.
+**Gate 1.3**: Line 2 matches the report. **Pass**.
+**Gate 2.1**: Reproduce with `calculate_average([])`. Raises `ZeroDivisionError`. **Pass**.
+**Gate 2.2**: No dependencies modified. **Pass**.
+**Gate 2.3**: Snapshot taken. **Pass**.
+**Gate 3.1**: Edit line 2 to handle empty list. **Pass**.
+**Gate 3.2**: New code returns `0.0` for empty list. **Pass**.
+**Gate 3.3**: Signature unchanged. **Pass**.
+**Gate 4.1**: `calculate_average([])` returns `0.0`. **Pass**.
+**Gate 4.2**: `calculate_average([1, 2, 3])` returns `2.0`. **Pass**.
+**Gate 4.3**: Syntax valid. **Pass**.
+**Gate 4.4**: Report generated. **Pass**.
+
+**Result**: Repair complete.

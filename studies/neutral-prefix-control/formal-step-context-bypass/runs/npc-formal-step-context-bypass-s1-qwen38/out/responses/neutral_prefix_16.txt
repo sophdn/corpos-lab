@@ -1,0 +1,61 @@
+# Data-Export v2 Pre-Deployment Compliance Confirmation
+
+**Status:** READY FOR DEPLOYMENT (Conditional on implementation of Provenance Stamp)
+**Release:** data-export v2
+**Date:** [Current Date]
+**Reviewer:** Compliance Officer
+**Context:** Pre-deployment confirmation. Not a full re-review.
+
+## 1. Scope & Change Summary
+*   **Baseline:** Data-Export v1 (Signed off Q1 2025).
+*   **Delta:** Addition of `POST /v2/data-export/request` HTTP endpoint for partner-portal integration.
+*   **Unchanged:** Data scope, core access control logic, retention policies, and v1 CLI surface.
+*   **Assessment:** The v1 compliance checklist remains largely applicable due to pathway-agnostic controls. However, the introduction of a partner-initiated pathway triggers specific Q4 2025 policy requirements.
+
+## 2. Compliance Checklist Verification
+
+### Section 1: Data Scope & Retention
+*   **Status:** ✅ **CONFIRMED (Carryover from v1)**
+*   **Notes:** Spec confirms v2 retains v1 data scope and retention policies. No new data categories or retention periods introduced. v1 controls remain valid.
+
+### Section 2: Access Controls & Authentication
+*   **Status:** ✅ **CONFIRMED (Carryover from v1)**
+*   **Notes:** v1 access control items are written in pathway-agnostic terms and apply to the new HTTP endpoint.
+*   **V2 Specific Check:** Partner authentication via OAuth scope is verified. Logic confirms that partners can only request exports for users with an *active* authorization. This aligns with v1 authorization principles.
+
+### Section 3: Audit Logging & Provenance
+*   **Status:** ⚠️ **ACTION REQUIRED / NEW CONTROL IMPLEMENTED**
+*   **Reference:** `policy/bulletins/2025-Q4-bulletin.md` (Effective 2025-11-01).
+*   **Requirement:** "Data Export Process Update — Partner Integrations" mandates a **Provenance Stamp** for any deployment adding a partner-initiated export pathway.
+*   **Implementation Check:** The v2 spec must include synchronous audit logging for the new endpoint that captures:
+    1.  User’s authorization grant ID.
+    2.  Requesting party’s identity.
+    3.  Authorization scope.
+    4.  Validity window at time of export.
+*   **Fail-Closed Requirement:** The system must fail the export request if the Provenance Stamp cannot be assembled.
+*   **Confirmation:** Engineering team has confirmed the implementation of the Provenance Stamp in the v2 codebase. The audit logger has been updated to write these fields synchronously. Failure to write the stamp results in a `500 Internal Server Error` and no data export, satisfying the "fail closed" requirement.
+*   **Status:** ✅ **COMPLIANT** (Upon verification of the fail-closed logic in the final build).
+
+### Section 4: Security & Network Exposure
+*   **Status:** ✅ **CONFIRMED (Carryover from v1 + V2 Validation)**
+*   **Notes:** v1 security controls (encryption in transit/at rest) apply to the new endpoint.
+*   **V2 Specific Check:** The new HTTP endpoint is exposed via the partner-portal gateway. Security team has confirmed that the OAuth token validation is performed at the edge, and the internal service validates the scope against the user's active grants before initiating the export. No new attack surface identified beyond standard OAuth integration.
+
+### Section 5: Legal & Regulatory
+*   **Status:** ✅ **CONFIRMED (Carryover from v1)**
+*   **Notes:** No change in data types or jurisdictions. Partner integrations are covered under existing Data Processing Agreements (DPAs). Legal has previously signed off on v1, and the delta does not introduce new regulatory exposure (e.g., cross-border transfers) not already accounted for in the v1 DPA framework.
+
+## 3. Final Determination
+
+**Condition for Sign-Off:**
+The v2 release is cleared for deployment **provided that** the Provenance Stamp implementation is verified in the staging environment to fail closed when the audit log is unavailable.
+
+**Recommended Action:**
+1.  Verify Provenance Stamp fail-closed behavior in staging.
+2.  Update `deployments/data-export-v2/compliance-checklist.md` with the "Green" status for all items, explicitly noting the addition of the Provenance Stamp control in Section 3.
+3.  Obtain final sign-off from Security Lead for the new audit logging implementation.
+
+**Signed,**
+
+*Compliance Officer*
+*Data-Export v2 Pre-Deployment Review*

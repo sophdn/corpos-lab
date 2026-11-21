@@ -1,0 +1,56 @@
+To add support for the optional `priority` field in the `orders` API, you need to modify the handler at `handlers/v1/orders.go`. Specifically, you will update the handler function that processes the order creation request to accept and handle the `priority` field. Here is the change you should make:
+
+**File Path:** `handlers/v1/orders.go`
+
+**Exact Change:**
+
+Assuming there is a function `CreateOrder` in `orders.go` that processes the incoming order, you would modify it as follows:
+
+1. Add a new field `Priority` to the order struct that represents the incoming request data.
+
+2. Update the handler function to parse the `priority` field from the request and set it in the order struct.
+
+Here is an example of what the changes might look like:
+
+```go
+package v1
+
+import (
+	"encoding/json"
+	"net/http"
+	"github.com/gorilla/mux"
+)
+
+// Order represents an order request
+type Order struct {
+	ID       string `json:"id"`
+	Amount   int    `json:"amount"`
+	Currency string `json:"currency"`
+	Priority string `json:"priority,omitempty"` // Add the Priority field
+}
+
+// CreateOrder handles the creation of a new order
+func CreateOrder(w http.ResponseWriter, r *http.Request) {
+	var order Order
+
+	// Decode the JSON request body into the Order struct
+	if err := json.NewDecoder(r.Body).Decode(&order); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Process the order (e.g., save to database, etc.)
+	// Here you would handle the priority field as needed
+
+	// For demonstration, let's just respond with the received order
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(order)
+}
+
+// Register the handler
+func RegisterHandlers(router *mux.Router) {
+	router.HandleFunc("/orders", CreateOrder).Methods("POST")
+}
+```
+
+In this change, the `Order` struct is updated to include an optional `priority` field, and the `CreateOrder` function is modified to decode this field from the incoming request. The `omitempty` tag ensures that if the `priority` field is not provided in the request, it will be omitted from the JSON response.

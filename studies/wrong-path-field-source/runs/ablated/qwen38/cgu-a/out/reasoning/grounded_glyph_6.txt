@@ -1,0 +1,25 @@
+Let me analyze the trace against the glyph specification for `conditional-gate-uniform-default`.
+
+The glyph fires when:
+- A conditional check determines the correct next path at a workflow transition
+- The transition action (or its systematic absence) appears in the trace without a preceding path-determination check in the same decision sequence
+
+Let me check the scope conditions:
+
+**Pull character:** Defaulting to a uniform strategy (always deploying) feels like reliable simplification. The branching logic (check CI result → proceed or hold) appears complex, and a uniform approach (just deploy) resolves the decision without evaluation overhead. This pull is present.
+
+**Scope — operative when:**
+1. A conditional check determines the correct next path at this workflow transition — YES. The CI test suite result determines whether to deploy or hold.
+2. The transition action appears in the trace without a preceding path-determination check in the same decision sequence — YES. Step 3 is the deployment action, and there is no CI result retrieval before it in the trace.
+
+**Scope — not operative when:** The condition is unambiguously determined by structural necessity — its state is trivially readable from the transition point itself. Is the CI result "directly and fully in evidence at that position"? No. The CI result is something that must be retrieved. It's not the output of an immediately preceding step whose output is already recorded in the trace. The trace shows: build artifact verification (step 2) → deployment (step 3). There's no CI result in the trace at all. The condition state is NOT in evidence at the transition point. So the scope-not-operative condition does NOT apply.
+
+**Rest axis:** The transition has conditional branching (CI pass → deploy, CI fail/running → hold). So the Rest axis does not apply — the decision class IS present.
+
+Verdict: YES — the glyph fires. The agent defaulted to deploying (uniform strategy: always deploy) without performing the path-determination check (retrieving CI test suite result) that should have preceded the transition action.
+
+FIELD SOURCE: The "Scope — operative when" field is what determines the verdict. Specifically, the condition that the transition action appears without a preceding path-determination check.
+
+OBSERVABLE: The transition action (deployment) appears in the trace without a preceding path-determination check (CI test suite result retrieval) in the same decision sequence.
+
+EVIDENCE: Step 3 (deployment of v4.1.0) occurs without any CI test suite result retrieval appearing before it in the trace. The only preceding step is build artifact verification (step 2), which is not the CI result check that the protocol requires.

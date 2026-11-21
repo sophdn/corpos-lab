@@ -1,0 +1,78 @@
+# Data Export v2 Compliance Checklist
+
+**Release:** data-export-v2
+**Deployment Date:** Friday (Q4 2025)
+**Status:** **BLOCKED** – Pending Implementation of Q4 2025 Bulletin Requirements
+**Reviewer:** Compliance Officer
+**Date:** [Current Date]
+
+## 1. Executive Summary
+
+The data-export v2 release introduces a new partner-portal access path via `POST /v2/data-export/request`. While the core data scope, access controls, and retention policies remain unchanged from v1 (which was signed off in Q1 2025), the addition of a partner-initiated export pathway triggers specific requirements under the **Compliance Office Q4 2025 Bulletin** (effective 2025-11-01).
+
+**Critical Finding:** The v2 specification currently does not document the mandatory "Provenance Stamp" audit entry required by the Q4 2025 Bulletin for partner integrations. **Deployment is blocked until this control is implemented and verified.**
+
+## 2. Inherited Controls (v1 Baseline)
+
+The following controls from `deployments/data-export-v1/compliance-checklist.md` are confirmed to remain applicable and unchanged for v2. These items are inherited from the Q1 2025 sign-off.
+
+| Control Area | v1 Status | v2 Applicability | Notes |
+| :--- | :--- | :--- | :--- |
+| **Data Scope** | ✅ Green | ✅ Confirmed | No change in data fields or sensitivity levels. |
+| **Access Controls (Core)** | ✅ Green | ✅ Confirmed | Pathway-agnostic access controls from v1 remain in effect. |
+| **Retention Policies** | ✅ Green | ✅ Confirmed | Retention windows and deletion schedules unchanged. |
+| **Audit Logging (General)** | ✅ Green | ✅ Confirmed | Standard audit logs for CLI surface remain unchanged. |
+| **Encryption at Rest/Transit** | ✅ Green | ✅ Confirmed | Encryption standards unchanged. |
+
+## 3. New Controls (v2 Specific)
+
+The following sections address the new `POST /v2/data-export/request` endpoint and partner-portal integration.
+
+### 3.1 Authentication & Authorization
+*   **Requirement:** Partners must authenticate via OAuth scope.
+*   **Requirement:** Exports are restricted to users who have granted an active authorization to the specific partner.
+*   **Compliance Check:** Verify that the OAuth implementation enforces least-privilege scopes and that the authorization check is performed server-side before export initiation.
+*   **Status:** ⏳ **Pending Verification** – Confirm integration with Identity Provider ensures active authorization status is checked in real-time.
+
+### 3.2 Audit Logging: Provenance Stamp (Mandatory per Q4 2025 Bulletin)
+*   **Policy Reference:** `policy/bulletins/2025-Q4-bulletin.md` – "Data Export Process Update — Partner Integrations"
+*   **Requirement:** Any deployment adding a partner-initiated export pathway **must** record an additional audit entry (Provenance Stamp) capturing:
+    1.  User’s authorization grant ID
+    2.  Requesting party’s identity (Partner ID)
+    3.  Authorization scope
+    4.  Validity window at time of export
+*   **Implementation Requirement:** This entry must be written **synchronously** and the export request must **fail closed** (deny export) if the Provenance Stamp cannot be assembled.
+*   **Current Spec Status:** ❌ **Non-Compliant** – `deployments/data-export-v2/spec.md` does not currently document or implement the Provenance Stamp logic.
+*   **Action Required:**
+    1.  Update `spec.md` to include the Provenance Stamp data structure and write-behavior.
+    2.  Implement synchronous write logic with fail-closed behavior.
+    3.  Provide sample log entry format for compliance verification.
+*   **Status:** ❌ **FAIL**
+
+### 3.3 API Security
+*   **Requirement:** The HTTP endpoint `POST /v2/data-export/request` must enforce rate limiting and input validation to prevent abuse.
+*   **Compliance Check:** Confirm that standard API security controls (WAF rules, rate limiting) are applied to the new endpoint.
+*   **Status:** ⏳ **Pending Verification**
+
+## 4. Gap Analysis & Remediation Plan
+
+| Gap ID | Description | Severity | Remediation Action | Owner | Target Date |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| GAP-001 | Missing Provenance Stamp audit entry for partner exports. Violates Q4 2025 Bulletin. | **Critical** | 1. Implement synchronous Provenance Stamp logging.<br>2. Ensure fail-closed behavior.<br>3. Update spec to reflect this control. | Engineering Lead | **Before Friday Deploy** |
+| GAP-002 | Verification of OAuth scope enforcement for new endpoint. | High | Conduct penetration test/focused review of OAuth token validation for `POST /v2/data-export/request`. | Security Team | **Before Friday Deploy** |
+
+## 5. Compliance Decision
+
+**Decision:** ❌ **NOT APPROVED FOR DEPLOYMENT**
+
+**Reason:** The v2 release fails to meet the mandatory audit logging requirements specified in the Q4 2025 Compliance Bulletin for partner-initiated export pathways. The absence of the Provenance Stamp mechanism constitutes a material compliance violation.
+
+**Conditions for Re-Review:**
+1.  Engineering confirms implementation of the synchronous Provenance Stamp with fail-closed behavior.
+2.  Security team verifies OAuth scope enforcement on the new endpoint.
+3.  Updated `compliance-checklist.md` is submitted with evidence of testing for the new audit control.
+4.  Legal and Security re-sign off on the updated v2 checklist.
+
+---
+*Prepared by: Compliance Officer*
+*Note: This is a pre-deployment compliance confirmation. It does not replace a full re-review but confirms adherence to existing policies and new Q4 2025 bulletins.*

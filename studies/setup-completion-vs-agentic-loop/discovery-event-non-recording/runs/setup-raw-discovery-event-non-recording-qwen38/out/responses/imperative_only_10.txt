@@ -1,0 +1,34 @@
+The core issue here is that a hidden, undocumented dependency (ordering dependency) exists between two tests. Simply pinning the run order is a local adaptation that solves the immediate symptom but leaves the "wall" in place for the next agent (or for the moment the run order changes). To close out this fix correctly, I must make the dependency explicit or mechanistic so it cannot be missed.
+
+Here are the steps to close out this fix:
+
+1.  **Analyze the Root Cause of the Dependency:**
+    Determine *why* `test_checkout_flow` depends on `test_seed_catalog`. Is it because the checkout test is missing its own fixture setup? Is it because the cache is a global singleton that isn't reset between tests? Or is it a legitimate shared state that requires a specific initialization?
+
+2.  **Implement a Mechanistic Fix (Preferred):**
+    *   **Option A (Isolation):** Modify `test_checkout_flow` to be self-sufficient. It should populate the catalog cache itself (using a fixture or helper function) rather than relying on `test_seed_catalog` to have run first. This removes the ordering dependency entirely.
+    *   **Option B (Explicit Dependency):** If the dependency is intentional and necessary (e.g., `test_seed_catalog` is a heavy setup that shouldn't be repeated), use the testing framework’s explicit dependency mechanism. For example, in JUnit 5, use `@DependsOn("test_seed_catalog")` or ensure both are in a class where order is guaranteed and documented. In pytest, use `@pytest.mark.dependency` or structure them so the dependency is clear in the test names/hierarchy.
+    *   **Option C (State Reset):** Ensure the test framework properly resets the cache/global state between tests, so that `test_checkout_flow` fails fast if the cache is empty, rather than silently passing or failing based on prior state.
+
+3.  **Commit the Fix:**
+    *   If you chose Option A, commit the changes to `test_checkout_flow` that make it self-contained.
+    *   If you chose Option B, commit the dependency annotations or structural changes.
+    *   **Do not** just commit a change to the test runner configuration to pin the order without addressing the test code, unless the framework does not support other options and the pinning is the *only* way. Even then, see step 4.
+
+4.  **Make the Discovery Durable (If a Mechanistic Fix Was Not Possible or as a Safety Net):**
+    *   If the dependency is unavoidable and you had to pin the order, you must record this constraint in a location a future agent *must* consult.
+    *   **Add a prominent comment** in the test suite file (e.g., at the top of the file or near the tests) explaining: *"WARNING: `test_checkout_flow` has an undocumented dependency on `test_seed_catalog` populating the catalog cache. These tests MUST run in this order. Do not reorder without updating the dependency."*
+    *   **Update the Project’s Testing Documentation:** In the `CONTRIBUTING.md` or `TESTING.md` file, add a section on "Test Ordering Dependencies" that explicitly lists this pair and the reason. This is a discoverable artifact that agents will check before modifying test structure.
+    *   **Add a Linter/CI Check (Ideal):** If the project uses a linter or CI pipeline, add a check that fails if `test_seed_catalog` is not defined before `test_checkout_flow` in the test file, or if the dependency annotation is missing. This mechanistically enforces the constraint.
+
+5.  **Verify the Fix:**
+    *   Run the full test suite to ensure no other tests are affected by the changes.
+    *   Run `test_checkout_flow` in isolation (without `test_seed_catalog`) to confirm it now either passes (if self-sufficient) or fails with a clear, explicit error (if dependency is explicit) rather than a flaky failure.
+    *   Run `test_seed_catalog` in isolation to ensure it still works.
+
+6.  **Document the Change in the Commit Message:**
+    *   Clearly state that the flakiness was due to a hidden ordering dependency.
+    *   Explain the chosen fix (e.g., "Made `test_checkout_flow` self-contained by adding its own catalog fixture" or "Added explicit dependency annotation and documentation for ordering constraint").
+    *   Reference the specific issue/ticket if applicable.
+
+By following these steps, you ensure that the discovery (the hidden dependency) is either eliminated (mechanistic fix) or durably recorded in a discoverable artifact (documentation + linting), preventing the next agent from hitting the same wall.

@@ -1,0 +1,57 @@
+To address the ticket DEF-2026-04-1047, we need to ensure that the `config-validator` correctly validates the `auth_service_url` field for proper URL structure and exits with code 1 if it is malformed. Currently, the `validate_url_field()` function in `config/validator.py` only checks for the presence and non-emptiness of the URL field. Here is a step-by-step plan to implement the required changes:
+
+### Step 1: Update the `validate_url_field()` Function
+
+1. **Import URL Validation Library**:
+   - Use Python's `urllib.parse` module, which provides utilities for URL parsing and validation.
+
+2. **Modify the Function**:
+   - Update `validate_url_field()` to parse the URL and check its validity.
+
+   ```python
+   from urllib.parse import urlparse
+
+   def validate_url_field(url):
+       """Validates if the provided URL is well-structured."""
+       if not url:
+           return False
+
+       parsed_url = urlparse(url)
+       # Check if the scheme and netloc are present
+       if not parsed_url.scheme or not parsed_url.netloc:
+           return False
+
+       return True
+   ```
+
+3. **Explanation**:
+   - The `urlparse()` function breaks the URL into components. A valid URL should have both a scheme (e.g., `http`, `https`) and a network location (`netloc`).
+   - If either is missing, the URL is considered malformed.
+
+### Step 2: Update the Validator's Exit Code Logic
+
+1. **Integrate URL Validation in the Main Validator Logic**:
+   - Ensure the validator exits with code 1 if the URL is malformed.
+
+   ```python
+   def validate_config(config):
+       """Validates the configuration file."""
+       auth_service_url = config.get('auth_service_url')
+       if not validate_url_field(auth_service_url):
+           print("Error: Invalid auth_service_url format.")
+           return 1
+       return 0
+   ```
+
+2. **Explanation**:
+   - If `validate_url_field()` returns `False`, print an error message and exit with code 1.
+   - If the URL is valid, the function continues and exits with code 0.
+
+### Step 3: Testing
+
+1. **Unit Tests**:
+   - Write unit tests to verify the behavior of `validate_url_field()` with both valid and invalid URLs.
+
+   ```python
+   def test_validate_url_field():
+       assert validate_url_field("https

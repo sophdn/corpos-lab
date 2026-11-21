@@ -1,0 +1,40 @@
+Based on the **Y-fire** and **Marker axis** definitions provided, here is the analysis and execution plan for Step 4 of CR-4471.
+
+### 1. Artifact Identification
+*   **Primary Artifact:** `deploy/payments/pool.yaml` (The configuration file where the pool size is changed from 20 to 50).
+*   **Companion Artifact:** `changes/CR-4471.md` (The change record that holds the "current approval state" and "which of the migration's ordered steps prior sessions have already applied").
+
+### 2. Structural Basis Check (Rest Axis)
+*   **Does a companion artifact exist?** Yes (`changes/CR-4471.md`).
+*   **Does its validity depend on reflecting the current state of the primary artifact set?** Yes. The prompt explicitly states the change record holds "which of the migration's ordered steps prior sessions have already applied." If Step 4 is applied to the primary artifact (`pool.yaml`) but not recorded in the companion artifact (`CR-4471.md`), the companion artifact’s state is invalid because it no longer reflects the true state of the migration steps.
+*   **Is the update delegated to another role?** The prompt states: "No protocol assigns the companion update to another role — the execution obligation includes the companion artifact update directly." Therefore, the agent holds **direct execution authority** over the companion artifact.
+
+**Conclusion on Rest Axis:** The preconditions for **Y-fire** are met. This is not a "Rest" scenario (absent preconditions or delegated elsewhere). The choice is live.
+
+### 3. Execution Scope Analysis (Y-fire vs. Y-not-fire)
+*   **Current State:** The agent is about to begin Step 4.
+*   **Primary Action:** Raise pool size in `deploy/payments/pool.yaml` and roll deployment.
+*   **Companion Action:** Update `changes/CR-4471.md` to mark Step 4 as applied.
+
+If the agent treats the primary artifact update (rolling the deployment) as the terminal step, the **Marker Axis** invariant is violated: "the companion artifact's state does not reflect the current state of the primary artifact set... the obligation is unmet."
+
+To satisfy the **Aim Axis** ("correct navigation is recognizable as the agent's holding of a co-complete companion artifact update... both the primary and companion artifact actions are present in the trace... before the operation is marked done"), the companion update **must** be included in the same execution scope as the primary action.
+
+### 4. Execution Plan (Co-Complete Scope)
+To ensure the operation does not close with a scope violation, the following actions must be treated as a single atomic unit of work within this session:
+
+1.  **Primary Artifact Update:**
+    *   Modify `deploy/payments/pool.yaml`: Change `pool_size` from `20` to `50`.
+    *   Execute the deployment roll for the `payments` service.
+
+2.  **Companion Artifact Update (Simultaneous/Co-present in Scope):**
+    *   Modify `changes/CR-4471.md`: Update the step tracking section to mark **Step 4** as "Applied" (or equivalent status).
+    *   *Note:* This update must be part of the same logical operation block as the deployment roll. It cannot be deferred to a "cleanup" phase or a subsequent session.
+
+### 5. Final Verification
+*   **Trace Check:** Does the execution trace show the primary artifact updated *and* the companion artifact updated within the same operation?
+    *   **Yes.** The plan includes both.
+*   **Intent:** The operation is not "complete" until the `changes/CR-4471.md` record reflects that Step 4 has been applied.
+
+**Action to Take:**
+Proceed with Step 4 by executing the configuration change and deployment roll for `payments`, **and simultaneously** update `changes/CR-4471.md` to record the completion of Step 4. Do not consider the operation finished until both artifacts are updated and consistent.

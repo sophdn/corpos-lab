@@ -1,0 +1,86 @@
+## Investigation Plan
+
+### Round 1: Hypothesis Testing
+
+#### Hypothesis 1: Fraud-detection service failure due to out-of-memory (OOM) errors
+- **Sprint 1**: Analyze `fraud-detection.log` to confirm the OOM errors and their impact.
+- **Sprint 2**: Examine the timeline of events in `fraud-detection.log` to determine if the OOM errors led to service unresponsiveness.
+- **Sprint 3**: Check if the container restart was successful and if the service was re-added to the load balancer.
+
+#### Hypothesis 2: Payment-gateway dependency failure due to fraud-detection service
+- **Sprint 1**: Review `payment-gateway.log` to identify the timeline of issues related to fraud-check latency and service timeouts.
+- **Sprint 2**: Cross-reference `payment-gateway.log` with `fraud-detection.log` to correlate the service unresponsiveness and timeouts.
+- **Sprint 3**: Confirm if the circuit breaker opening and dependency unavailability in `payment-gateway.log` align with the fraud-detection service issues.
+
+#### Hypothesis 3: Order-service batch job failure due to payment-gateway unavailability
+- **Sprint 1**: Analyze `order-service.log` to confirm the batch job progress and the point at which the payment-gateway became unavailable.
+- **Sprint 2**: Examine the `order-service.log` for any error messages or warnings related to the batch job suspension.
+- **Sprint 3**: Validate if the batch job suspension correlates with the payment-gateway dependency issues identified in `payment-gateway.log`.
+
+### Execution of Sprints
+
+#### Sprint 1: Fraud-detection service failure due to out-of-memory (OOM) errors
+- **Evidence**: 
+  - `[15:38:00] ERROR Risk assessment cache: 41,200 entries, 491MB heap (limit: 512MB) — critical`
+  - `[15:38:30] ERROR java.lang.OutOfMemoryError: GC overhead limit exceeded`
+  - `[15:38:31] ERROR Service unresponsive — health check failed`
+  - `[15:41:00] ERROR java.lang.OutOfMemoryError: GC overhead limit exceeded (recurrence)`
+  - `[15:41:01] ERROR Service marked permanently unhealthy — removed from load balancer`
+
+- **Conclusion**: The fraud-detection service experienced multiple OOM errors, leading to service unresponsiveness and eventual removal from the load balancer.
+
+#### Sprint 2: Fraud-detection service failure due to out-of-memory (OOM) errors
+- **Evidence**:
+  - `[15:38:45] INFO  Container restart initiated by orchestrator`
+  - `[15:39:15] INFO  Service restarted — cache cold, 45MB heap`
+  - `[15:39:30] WARN  Requests still arriving at elevated rate — cache refilling rapidly`
+  - `[15:41:00] ERROR java.lang.OutOfMemoryError: GC overhead limit exceeded (recurrence)`
+
+- **Conclusion**: The service restarted but quickly experienced OOM errors again due to an elevated rate of requests, causing another failure.
+
+#### Sprint 3: Fraud-detection service failure due to out-of-memory (OOM) errors
+- **Evidence**:
+  - `[15:41:01] ERROR Service marked permanently unhealthy — removed from load balancer`
+
+- **Conclusion**: The service was permanently marked as unhealthy and removed from the load balancer, confirming the OOM errors led to service failure.
+
+#### Sprint 4: Payment-gateway dependency failure due to fraud-detection service
+- **Evidence**:
+  - `[15:38:35] ERROR Fraud-detection service timeout: 12 requests pending`
+  - `[15:39:00] INFO  Fraud-detection service returned — processing resumed`
+  - `[15:39:30] WARN  Fraud-check latency elevated again: avg 2,100ms`
+  - `[15:41:05] ERROR Fraud-detection service removed from pool — no healthy instances`
+  - `[15:41:06] ERROR Circuit breaker OPEN for fraud-detection`
+  - `[15:41:30] ERROR All payment requests failing: fraud-check dependency unavailable`
+
+- **Conclusion**: The fraud-detection service timeouts and eventual removal from the pool led to elevated fraud-check latency, triggering the circuit breaker in the payment-gateway, causing all payment requests to fail.
+
+#### Sprint 5: Order-service batch job failure due to payment-gateway unavailability
+- **Evidence**:
+  - `[15:38:40] WARN  Payment-gateway returning errors for batch requests — pausing`
+  - `[15:40:00] WARN  Retry: resuming batch after backoff`
+  - `[15:41:10] ERROR Payment-gateway unavailable — batch job suspended`
+  - `[15:41:11] INFO  Batch status: 1,038/1,247 completed, 209 remaining (suspended)`
+
+- **Conclusion**: The payment-gateway became unavailable due to the dependency on the fraud-detection service, leading to the suspension of the order-service batch job.
+
+## Investigation Outcome
+
+### Hypothesis Verdicts
+
+- **Hypothesis 1**: Confirmed. The fraud-detection service experienced out-of-memory errors leading to multiple service failures.
+- **Hypothesis 2**: Confirmed. The payment-gateway experienced dependency failures due to the unavailability of the fraud-detection service.
+- **Hypothesis 3**: Confirmed. The order-service batch job was suspended due to the payment-gateway unavailability, which was caused by the fraud-detection service issues.
+
+### Root Cause
+
+The root cause of the payment processing failure was the out-of-memory errors in the fraud-detection service, which led to its unresponsiveness and eventual removal from the load balancer. This, in turn, caused the payment-gateway to fail due to dependency issues, resulting in the suspension of the order-service batch job.
+
+### Recommendations
+
+1. **Increase Heap Size**: Increase the heap size for the fraud-detection service to handle the elevated rate of requests without encountering OOM errors.
+2. **Load Balancing and Autoscaling**: Implement load balancing and autoscaling strategies to manage the service's resource usage effectively.
+3. **Circuit Breaker Tuning**: Adjust the circuit breaker settings for the fraud-detection service in the payment-gateway to better handle transient failures and reduce dependency timeouts.
+4. **Monitoring and Alerting**: Enhance monitoring and alerting to detect and respond to OOM errors and elevated fraud-check latency promptly.
+
+These steps will help prevent similar failures in the future and ensure the system remains resilient under high load conditions.

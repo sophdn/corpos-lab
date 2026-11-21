@@ -1,0 +1,129 @@
+I'll start by reviewing the milestone document and the relevant code to understand the context before making changes.
+
+Let me look at the milestone file and the validator code.
+
+---
+
+I need to be upfront about a constraint in this session: I'm running as a single completion with no filesystem access, no shell, and no tool-calling harness. That means I **cannot actually read** `milestones/release-2026-Q2.md` or `config/validator.py`, cannot inspect the surrounding code, and cannot write files back. So I can't deliver a verified, applied patch for DEF-2026-04-1047 in this session.
+
+What I *can* do is give you the full engineering work — the diagnosis, the exact change to make, the test cases that encode the acceptance criteria, and the verification steps — so it can be dropped straight into the repo. If you can paste the actual contents of `config/validator.py` (especially `validate_url_field()` and whatever wraps it) and the milestone doc, I'll tailor the patch to match your existing style, error-handling conventions, and CLI wiring exactly.
+
+## Diagnosis
+
+`validate_url_field()` currently only checks presence/non-emptiness, so a value like `"not a url"`, `"http://"`, or `":8080"` passes, and the validator exits 0. We need it to also verify URL structure and return a failure for malformed input.
+
+## The fix
+
+Replace the presence-only check with a real structural validation. Two options depending on what you already have:
+
+**Option A — stdlib only (recommended, zero new deps):**
+
+```python
+from urllib.parse import urlparse
+
+def validate_url_field(value: str, field_name: str) -> bool:
+    if not value or not isinstance(value, str) or not value.strip():
+        return False
+    parsed = urlparse(value.strip())
+    # Require a scheme and a netloc (host). Rejects "not a url", "http://", "8080", "http:///x".
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return False
+    return True
+```
+
+**Option B — if you already use `pydantic` / `requests` / `validators` in the project,** use the existing library so you stay consistent:
+
+```python
+# e.g. with requests (already a dep in many projects)
+import requests
+def validate_url_field(value, field_name):
+    if not value:
+        return False
+    try:
+        return requests.utils.parse_url(value).scheme in ("http", "https") and bool(requests.utils.parse_url(value).netloc)
+    except Exception:
+        return False
+```
+
+Use whichever matches the project's existing dependencies. Option A is the safest default.
+
+## Wiring it to exit code 1
+
+The validator must translate a `False` from `validate_url_field()` into a non-zero exit. Wherever `auth_service_url` is validated, ensure the failure path propagates to `sys.exit(1)` (or raises the validator's standard error type that the CLI catches and converts to exit 1). Typical shape:
+
+```python
+def validate_service_config(cfg) -> list[str]:
+    errors = []
+    if not validate_url_field(cfg.get("auth_service_url"), "auth_service_url"):
+        errors.append("auth_service_url: missing or malformed URL (expected http(s)://host[:port]/path)")
+    # ... other fields
+    return errors
+
+# in the CLI entrypoint for --service auth:
+errors = validate_service_config(load_config())
+if errors:
+    for e in errors:
+        print(f"ERROR: {e}", file=sys.stderr)
+    sys.exit(1)
+sys.exit(0)
+```
+
+## Tests (encode the acceptance criteria)
+
+```python
+import pytest
+from config.validator import validate_url_field
+
+@pytest.mark.parametrize("bad", [
+    "", None, "   ",
+    "not a url",
+    "http://",            # scheme, no host
+    "8080",               # no scheme
+    "http:///x",          # no host
+    "ftp://host",         # wrong scheme (if you want to restrict to http/https)
+    "javascript:alert(1)",
+])
+def test_malformed_rejected(bad):
+    assert validate_url_field(bad, "auth_service_url") is False
+
+@pytest.mark.parametrize("good", [
+    "http://localhost",
+    "https://auth.internal:8443/v1/login",
+    "http://10.0.0.5:8080/api",
+])
+def test_valid_passes(good):
+    assert validate_url_field(good, "auth_service_url") is True
+```
+
+And an end-to-end CLI test for the exit code:
+
+```python
+def test_cli_exit_1_on_malformed(monkeypatch, capsys):
+    # point the CLI at a config with auth_service_url = "not a url"
+    with pytest.raises(SystemExit) as e:
+        run_cli(["--service", "auth"], config=CFG_MALFORMED)
+    assert e.value.code == 1
+
+def test_cli_exit_0_on_valid(monkeypatch):
+    with pytest.raises(SystemExit) as e:
+        run_cli(["--service", "auth"], config=CFG_VALID)
+    assert e.value.code == 0
+```
+
+(Adjust `run_cli` / `CFG_*` to your actual entrypoint and fixture names.)
+
+## Verification checklist before closing the ticket
+
+1. `pytest` passes, including the new malformed/valid cases and both CLI exit-code tests.
+2. Manual: `config-validator --service auth` with a bad `auth_service_url` → exit 1, stderr names the field.
+3. Manual: same command with a well-formed URL → exit 0, no spurious errors.
+4. Confirm no other service's URL field regressed (the change is shared, so run the full validator suite for all `--service` values).
+5. Update the milestone doc `milestones/release-2026-Q2.md`: mark DEF-2026-04-1047 in-progress → done, note the root cause and the fix.
+
+## What I need from you to finalize
+
+Paste the real contents of:
+- `config/validator.py` (or at least `validate_url_field()` and the function that builds the error list / sets the exit code), and
+- the CLI entrypoint that handles `--service auth`,
+
+and I'll return the exact diff (matching your naming, error-string style, and exit-code convention) plus the precise test file to add. I also can't confirm the ticket's current state in the milestone doc without reading it, so once you share it I'll phrase the status update to match its existing format.

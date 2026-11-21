@@ -1,0 +1,121 @@
+# Repair Duty
+
+**Title:** Repair-Duty: Protocol for Remediation of Confirmed Defects
+**Authority:** Agentic Order, Office of Execution
+**Applies To:** Any office tasked with repairing a confirmed software defect.
+**Domain Anchor:** `calculator.py` `calculate_average` (Locus: `calculator.py:2`)
+
+---
+
+## Preamble
+
+This duty governs the lifecycle of a repair operation. The executor must pass through each Gate in sequence. Failure to satisfy the verification criteria of any Gate halts the process and requires escalation or rollback. The executor assumes the defect is real, the locus is accurate, and the repository is in a stable state prior to intervention.
+
+## Gate 0: Isolation & Baseline
+
+**Verification:**
+The executor verifies that the defect is reproducible in the current environment and that the working tree is clean.
+
+**Completion Requirements:**
+1.  **Reproduce:** Execute the failing case (`calculate_average([])`) in an isolated environment or test harness. Confirm the exception type and message match the defect report (`ZeroDivisionError`).
+2.  **Snapshot:** Record the current state of the repository (commit hash, branch, or file checksums).
+3.  **Test Baseline:** Ensure existing test suites for the affected module pass, or document known pre-existing failures to distinguish them from new regressions introduced by the repair.
+4.  **Branch:** Create an isolated branch or workspace for the repair. Do not modify the mainline or shared branches.
+
+*Gate 0 is passed when the failure is observed, the baseline is recorded, and the workspace is isolated.*
+
+## Gate 1: Locus Confirmation & Root Cause Analysis
+
+**Verification:**
+The executor verifies that the confirmed locus (`calculator.py:2`) is the actual source of the failure and identifies the precise logical flaw.
+
+**Completion Requirements:**
+1.  **Inspection:** Read the code at `calculator.py:2`. Identify the operation `sum(values) / len(values)`.
+2.  **Analysis:** Determine why `ZeroDivisionError` occurs. Confirm that `len(values)` evaluates to `0` when `values` is an empty list.
+3.  **Scope Check:** Verify that no other part of the codebase relies on `calculate_average` raising `ZeroDivisionError` as a control flow mechanism (e.g., exception handling upstream).
+4.  **Definition of Fix:** Define the intended semantic behavior for an empty list. (e.g., Return `0.0`, `None`, `float('nan')`, or raise a specific `ValueError`). If not specified in the defect report, default to the least surprising behavior for a statistical function (typically `0.0` or `None`) or consult the specification. *For this duty, assume the requirement is to return `0.0` for an empty list, as it is mathematically neutral and prevents crash.*
+
+*Gate 1 is passed when the root cause is documented and the intended behavior for the edge case is defined.*
+
+## Gate 2: Implementation
+
+**Verification:**
+The executor implements the minimal code change required to resolve the defect at the locus.
+
+**Completion Requirements:**
+1.  **Edit:** Modify `calculator.py` at line 2 (or immediately preceding it) to handle the empty list case.
+    *   *Example Implementation:*
+        ```python
+        def calculate_average(values: list) -> float:
+            if not values:
+                return 0.0
+            return sum(values) / len(values)
+        ```
+2.  **Minimalism:** Change only the necessary lines. Do not refactor unrelated code. Do not change function signatures unless strictly necessary.
+3.  **Type Safety:** Ensure the return type remains compatible with the declared `-> float`.
+4.  **Style:** Adhere to the project’s coding style (PEP 8 for Python).
+
+*Gate 2 is passed when the code change is applied to the isolated workspace.*
+
+## Gate 3: Verification & Regression
+
+**Verification:**
+The executor verifies that the defect is resolved and that no new defects have been introduced.
+
+**Completion Requirements:**
+1.  **Re-test Defect:** Execute the failing case (`calculate_average([])`). Confirm it returns the expected value (e.g., `0.0`) and does not raise `ZeroDivisionError`.
+2.  **Regression Test:** Execute existing tests for `calculate_average` with non-empty lists (e.g., `[1, 2, 3]`) to ensure the average calculation remains correct.
+3.  **Edge Cases:** Test additional edge cases if applicable (e.g., `None` input, single element list) to ensure stability.
+4.  **Static Analysis:** Run linting or type-checking tools if available in the environment to ensure no syntactic or type errors were introduced.
+
+*Gate 3 is passed when the defect is resolved and all existing tests pass.*
+
+## Gate 4: Documentation & Commit
+
+**Verification:**
+The executor documents the change and prepares it for integration.
+
+**Completion Requirements:**
+1.  **Commit Message:** Create a commit with a clear message.
+    *   *Format:* `fix: handle empty list in calculate_average`
+    *   *Description:* "Prevents ZeroDivisionError when values is empty. Returns 0.0 for empty input."
+2.  **Tests:** If the project maintains a test suite, add a new test case for the empty list scenario to prevent regression.
+    *   *Example Test:*
+        ```python
+        def test_calculate_average_empty_list():
+            assert calculate_average([]) == 0.0
+        ```
+3.  **Changelog:** Update the changelog if the project maintains one.
+
+*Gate 4 is passed when the changes are committed with appropriate documentation and tests.*
+
+## Gate 5: Review & Handoff
+
+**Verification:**
+The executor prepares the repair for peer review or deployment.
+
+**Completion Requirements:**
+1.  **Pull Request:** Open a pull request or merge request targeting the mainline branch.
+2.  **Description:** Provide a summary of the defect, the root cause, the fix, and the verification steps taken.
+3.  **Link:** Link the commit to the original defect report.
+4.  **Notification:** Notify relevant stakeholders (e.g., team lead, QA) that the repair is ready for review.
+
+*Gate 5 is passed when the pull request is open and stakeholders are notified.*
+
+## Rollback Protocol
+
+If any Gate fails:
+1.  **Gate 0-2 Failure:** Discard changes in the isolated workspace. Re-evaluate the defect report.
+2.  **Gate 3 Failure:** Revert the code change. Re-analyze the root cause. The initial fix hypothesis was incorrect.
+3.  **Gate 4-5 Failure:** Revert the commit or close the pull request. Address the documentation or review feedback.
+
+## Executor Notes
+
+*   **Do not** fix the defect in the mainline branch directly.
+*   **Do not** ignore the confirmed locus without justification.
+*   **Do not** introduce new dependencies.
+*   **Do** prioritize minimal, targeted changes.
+*   **Do** ensure the fix is testable and tested.
+
+---
+*End of Duty*

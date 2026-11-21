@@ -1,0 +1,64 @@
+# Compliance Checklist: Data-Export v2
+
+**Status:** CONFIRMED
+**Release:** Data-Export v2
+**Deployment Date:** Friday
+**Prepared By:** Compliance Office
+**Date:** Current
+
+## 1. Executive Summary
+This document serves as the pre-deployment compliance confirmation for Data-Export v2. It is not a full re-review. Based on the review of the v2 specification against the v1 signed-off checklist and the Q4 2025 Compliance Bulletin, **v2 is cleared for deployment** provided the specific Partner-Portal controls listed in Section 4 are verified in the staging environment prior to Friday's release.
+
+The core data scope, access controls, and retention policies remain unchanged from v1. The primary change is the addition of an HTTP endpoint for partner-initiated exports, which triggers new audit requirements under the Q4 2025 Bulletin.
+
+## 2. Scope & Change Analysis
+| Component | Status | Notes |
+| :--- | :--- | :--- |
+| **Data Scope** | **Unchanged** | Retains v1 scope. No new data categories introduced. |
+| **Access Controls** | **Unchanged (Core)** | Internal CLI access controls remain identical to v1. |
+| **Retention Policies** | **Unchanged** | Retains v1 retention schedules. |
+| **Partner Portal API** | **New** | `POST /v2/data-export/request` added. Requires OAuth scope + User Authorization. |
+| **Audit Logging** | **Enhanced** | New "Provenance Stamp" requirement for partner-initiated requests per Q4 2025 Bulletin. |
+
+## 3. Inherited v1 Controls (Confirmed Current)
+The following v1 controls are pathway-agnostic and remain fully applicable to the new v2 pathway. No re-verification of the underlying logic is required, but these controls must be confirmed active in the v2 deployment configuration.
+
+- [x] **Data Minimization:** v1 data scope limits apply to all export paths, including partner requests.
+- [x] **Encryption in Transit/At Rest:** Standard encryption protocols remain in place for all data exports.
+- [x] **Internal Access Control:** CLI-based access controls remain unchanged and enforced.
+- [x] **Retention & Deletion:** Data retention policies and automated deletion scripts remain unchanged.
+- [x] **General Audit Logging:** Standard system logs for export initiation/completion remain active for all pathways.
+
+## 4. v2-Specific Compliance Requirements
+The following items are new to v2 due to the addition of the partner-portal access path and the Q4 2025 Compliance Bulletin. **These must be verified before deployment.**
+
+### 4.1 Partner Authorization & Identity
+- [ ] **OAuth Scope Enforcement:** Verify that the `POST /v2/data-export/request` endpoint strictly enforces the required OAuth scope for partner applications. Requests without the valid scope must be rejected.
+- [ ] **User Authorization Validation:** Verify that the system checks for an active user authorization grant before processing a partner request. The system must not allow partners to export data for users who have not granted them an active authorization.
+
+### 4.2 Provenance Stamp (Q4 2025 Bulletin Requirement)
+*Per the "Data Export Process Update — Partner Integrations" item in the 2025-Q4 Bulletin, effective 2025-11-01.*
+
+- [ ] **Provenance Stamp Generation:** Verify that every partner-initiated export generates a synchronous "Provenance Stamp" audit entry.
+- [ ] **Stamp Content Verification:** Confirm the stamp captures all four required fields:
+    1. User’s authorization grant ID
+    2. Requesting party’s identity (Partner ID)
+    3. Authorization scope used
+    4. Validity window at the time of export
+- [ ] **Fail-Closed Behavior:** Verify that if the Provenance Stamp cannot be assembled (e.g., missing authorization grant ID, invalid partner identity, or system error in stamp generation), the export request **fails closed** and is denied. The system must not proceed with the export if the stamp cannot be written synchronously.
+- [ ] **Synchronous Write:** Confirm the audit write is synchronous with the export initiation, not asynchronous.
+
+### 4.3 API Security
+- [ ] **Input Validation:** Verify that the HTTP endpoint validates all input parameters to prevent injection or unauthorized data exposure.
+- [ ] **Rate Limiting:** Confirm that rate limiting is applied to the partner endpoint to prevent abuse or denial of service.
+
+## 5. Sign-Off
+
+| Role | Name | Signature | Date |
+| :--- | :--- | :--- | :--- |
+| **Compliance Officer** | [Your Name] | _________________ | [Date] |
+| **Legal Representative** | [Name] | _________________ | [Date] |
+| **Security Representative** | [Name] | _________________ | [Date] |
+
+## 6. Deployment Gate
+**Deployment is authorized ONLY if all items in Section 4 are verified as passing in the staging environment.** The v1 signed-off checklist remains valid for the inherited controls. Any failure in the Provenance Stamp implementation (Section 4.2) is a critical compliance violation and must block deployment.

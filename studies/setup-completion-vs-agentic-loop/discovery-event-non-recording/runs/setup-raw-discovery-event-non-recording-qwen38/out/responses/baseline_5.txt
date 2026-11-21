@@ -1,0 +1,35 @@
+The immediate fix (pinning the run order) is a band-aid that masks the underlying architectural flaw. To truly close out this issue and prevent regression, the following steps must be taken:
+
+### 1. Refactor for Independence (The Core Fix)
+Remove the implicit dependency by ensuring `test_checkout_flow` does not rely on the global state created by `test_seed_catalog`.
+*   **Option A (Preferred):** Make `test_checkout_flow` self-contained. It should create its own necessary catalog data (e.g., via a fixture or local setup) or mock the catalog cache entirely.
+*   **Option B:** If the catalog must be real, introduce a dedicated fixture (e.g., `@pytest.fixture`) that initializes the catalog cache specifically for tests that need it, rather than relying on a separate test’s side effects.
+
+### 2. Identify and Fix Other Hidden Dependencies
+*   Audit the entire test suite for other implicit ordering dependencies. Look for:
+    *   Tests that modify global state (databases, caches, environment variables) without cleaning up.
+    *   Tests that assume prior tests have run (e.g., “test_login” before “test_dashboard”).
+*   Use tools or manual review to ensure every test can pass in isolation (`pytest test_checkout_flow.py -k test_checkout_flow` should always work).
+
+### 3. Add Explicit Dependencies or Fixtures (If Ordering is Truly Required)
+If, for performance or technical reasons, some tests *must* run after others:
+*   Use a testing framework feature to declare dependencies explicitly (e.g., `@pytest.mark.dependency` in pytest, or `beforeEach`/`afterEach` hooks in Jest).
+*   Never rely on file ordering or alphabetical sorting to enforce dependencies.
+
+### 4. Update Documentation
+*   Document any shared fixtures or state in the test suite’s README or contributor guide.
+*   Clearly state that all tests must be independent and pass in isolation.
+
+### 5. Add Regression Prevention
+*   Add a CI/CD job that runs tests in random order (e.g., `pytest-randomly` plugin or similar) to detect hidden ordering dependencies in the future.
+*   This will catch any new implicit dependencies immediately.
+
+### 6. Revert the Pinning Workaround
+*   Once `test_checkout_flow` is made independent, remove the hardcoded run order/pinning that was added as the initial workaround.
+*   Ensure the suite passes in any order, including random.
+
+### 7. Code Review and Merge
+*   Submit a PR with the refactored tests, fixture changes, and CI updates.
+*   Ensure the PR description explains the root cause (implicit state dependency) and the long-term fix (test independence).
+
+By following these steps, you eliminate the flakiness at its source, improve test reliability, and prevent similar issues from arising in the future.

@@ -1,0 +1,30 @@
+ To fix the issue with the session tokens not being invalidated on logout in the `auth/legacy/session.py` module, I would suggest the following changes:
+
+1. In the `invalidate_session()` function, modify the current implementation to properly clear the server-side session store. For example:
+
+```python
+def invalidate_session(session_id):
+    # Clear the server-side session store using the appropriate method or library
+    # For example, if you are using Flask:
+    app.sessions.pop(session_id, None)
+```
+
+2. After making the change, ensure that the `invalidate_session()` function always returns `True` to indicate that the session was invalidated successfully.
+
+```python
+def invalidate_session(session_id):
+    app.sessions.pop(session_id, None)
+    return True
+```
+
+3. In the `auth/api/wrapper.py` module, update the `logout()` function to handle a potential failure when calling `invalidate_session()`. If `invalidate_session()` returns `False`, it means that there was an issue with invalidating the session, and the user should be notified.
+
+```python
+def logout():
+    if auth.legacy.session.invalidate_session(session_id):
+        # Successfully invalidated session
+        pass
+    else:
+        # Failed to invalidate session
+        raise RuntimeError("Failed to invalidate session")
+```

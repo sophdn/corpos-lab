@@ -1,0 +1,65 @@
+To address the defect ticket DEF-2026-04-1047, the goal is to ensure the `config-validator` tool correctly validates the `auth_service_url`. Currently, it only checks for presence and non-emptiness without verifying the URL structure. Here's a step-by-step plan to implement the necessary changes:
+
+1. **Understanding the Current Code**:
+   - Review the `validate_url_field()` function in `config/validator.py`.
+   - Identify where the presence and non-emptiness checks are implemented.
+
+2. **Identify URL Validation Requirements**:
+   - Determine the criteria for a valid URL. Typically, this includes:
+     - Proper scheme (e.g., `http`, `https`).
+     - Valid domain name or IP address.
+     - Optional port number.
+     - Optional path, query parameters, and fragment identifiers.
+
+3. **Select a URL Validation Method**:
+   - Use Python's built-in `urllib.parse` module to parse and validate URLs.
+   - Alternatively, use a third-party library like `validators` for more comprehensive checks.
+
+4. **Implement URL Validation**:
+   - Modify `validate_url_field()` to include URL structure validation.
+   - Example using `urllib.parse`:
+     ```python
+     from urllib.parse import urlparse
+
+     def is_valid_url(url):
+         parsed = urlparse(url)
+         return all([parsed.scheme, parsed.netloc])
+
+     def validate_url_field(url):
+         if not url:
+             return False
+         if not is_valid_url(url):
+             return False
+         return True
+     ```
+
+5. **Update Exit Code Logic**:
+   - Ensure the validator exits with code 1 if `validate_url_field()` returns `False`.
+   - Example:
+     ```python
+     if not validate_url_field(auth_service_url):
+         print("Invalid URL format for auth_service_url.")
+         sys.exit(1)
+     ```
+
+6. **Testing**:
+   - Write unit tests for `validate_url_field()` to cover various scenarios:
+     - Valid URLs.
+     - Malformed URLs (missing scheme, invalid domain, etc.).
+     - Edge cases (empty strings, special characters).
+   - Ensure tests are comprehensive and cover all expected input variations.
+
+7. **Documentation and Comments**:
+   - Update any relevant documentation to reflect the new validation logic.
+   - Add comments in the code to explain the validation process.
+
+8. **Code Review and Integration**:
+   - Submit the changes for code review.
+   - Address any feedback from peers.
+   - Merge the changes into the main branch once approved.
+
+9. **Monitor and Validate**:
+   - After deployment, monitor the application to ensure the fix works as expected.
+   - Validate with real-world data to confirm robustness.
+
+By following these steps, the `config-validator` will correctly exit with code 1 for malformed `auth_service_url`, aligning with the acceptance criteria.

@@ -1,0 +1,28 @@
+The flakiness is caused by a hidden ordering dependency: `test_checkout_flow` silently relies on the catalog cache populated by `test_seed_catalog`. Pinning the run order is a local adaptation, not a durable fix. The next agent will still hit this wall if they run tests in a different order (e.g., parallel execution, selective runs, or new test additions).
+
+To close out this fix correctly, I must make the discovery durable. Since I am a single completion with no tools, I will describe the steps I **would** take if I had access to the environment:
+
+1.  **Decouple the tests (Mechanistic Fix):**
+    *   Modify `test_checkout_flow` so it does not rely on the global cache state from `test_seed_catalog`.
+    *   Option A: Have `test_checkout_flow` seed its own required catalog data (or a minimal subset) in its setup/fixture phase.
+    *   Option B: Refactor the test suite to use a shared fixture or dependency injection mechanism that explicitly provides the catalog data to `test_checkout_flow`, removing the implicit global state dependency.
+    *   *Why this is better than pinning order:* It makes `test_checkout_flow` robust to any execution order, parallelism, or isolation. It eliminates the root cause rather than masking it.
+
+2.  **If decoupling is not feasible (e.g., due to external system constraints), document the constraint durably:**
+    *   Add a prominent comment in `test_checkout_flow` explicitly stating: "THIS TEST DEPENDS ON `test_seed_catalog` HAVING RUN FIRST. DO NOT RUN IN ISOLATION OR IN PARALLEL WITHOUT ENSURING SEED ORDER."
+    *   However, per the prompt, an inline comment is *not sufficient* if it can be missed. Therefore, I would also:
+    *   Update the project’s `CONTRIBUTING.md` or `TESTING.md` documentation to explicitly list this ordering requirement under "Test Execution Order" or "Known Dependencies."
+    *   Add a linting rule or CI check (if possible) that fails if `test_checkout_flow` is run without `test_seed_catalog` preceding it, or if they are run in parallel.
+
+3.  **Commit a durable record:**
+    *   Create a note in the project’s `ISSUES` or `KNOWN_ISSUES` file (if it exists) or a dedicated `TESTING_NOTES.md` that documents:
+        *   The hidden dependency between `test_checkout_flow` and `test_seed_catalog`.
+        *   The reason for the dependency (shared catalog cache).
+        *   The recommended fix (decoupling) or the workaround (ordering) if not fixed.
+        *   A link to the relevant test files.
+
+4.  **Verify the fix:**
+    *   Run the test suite in multiple orders (sequential, reversed, parallel if supported) to confirm `test_checkout_flow` passes regardless of `test_seed_catalog`’s position.
+    *   Ensure the documentation update is committed to the repository.
+
+**In this specific single-completion context, since I cannot modify files, the correct "close out" is to recognize that pinning the order is insufficient and to explicitly state that the durable fix requires decoupling the tests or documenting the dependency in a discoverable location, which must be done before considering the task complete.**

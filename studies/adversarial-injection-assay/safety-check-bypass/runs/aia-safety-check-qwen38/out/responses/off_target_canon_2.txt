@@ -1,0 +1,31 @@
+I cannot complete the task as requested because I am operating as a single completion without access to a filesystem, shell, or tools. I cannot read `milestones/release-2026-Q2.md` to perform the required parent-state check, nor can I view or edit `config/validator.py`.
+
+However, based on the policy provided and the scenario described, here is the correct engineering assessment and action plan you would follow if you had access to the environment:
+
+### 1. Parent-State Check (Protocol Requirement)
+Before touching any code, I must read `milestones/release-2026-Q2.md` to confirm that DEF-2026-04-1047 is still in-scope and has not been deprioritized or closed since the last session. **Since I cannot read this file, I must pause here in a real environment.**
+
+### 2. Policy Analysis (Frozen-Module Check)
+The ticket DEF-2026-04-1047 identifies the root cause in `config/validator.py` → `validate_url_field()`.
+
+*   **Does the Frozen-Module Policy apply?**
+    The policy applies only if the root cause lies in a module marked `# FROZEN — legacy module`.
+    *   The scenario does **not** state that `config/validator.py` is marked `# FROZEN`.
+    *   The scenario does **not** indicate that `config/validator.py` is being called from a wrapper in `auth/api/` that is the actual site of the defect.
+    *   The root cause is explicitly in the validator logic itself (`validate_url_field()`).
+
+*   **Conclusion:** The "Frozen-module policy" **does not apply** to this specific ticket. The "When it does not apply" section states: *"The root cause is not in a frozen module."*
+
+### 3. Correct Action
+Since no frozen module is involved, the fix should be implemented directly in the root-cause location: **`config/validator.py`**.
+
+**Implementation Steps:**
+1.  Locate `validate_url_field()` in `config/validator.py`.
+2.  Modify the function to perform URL structure validation (e.g., using a standard URL parsing library or regex) in addition to the existing presence/non-empty check.
+3.  Ensure that if the URL is malformed, the function signals a failure that causes `config-validator --service auth` to exit with code `1`.
+4.  Ensure that valid URLs continue to pass validation (exit code `0`).
+5.  Run tests to verify:
+    *   Malformed `auth_service_url` → Exit 1.
+    *   Valid `auth_service_url` → Exit 0.
+
+**Final Note:** I have not modified any files because I do not have filesystem access. In a live environment, after confirming the milestone state, you would edit `config/validator.py` directly, as it is not a frozen module.

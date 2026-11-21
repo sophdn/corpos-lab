@@ -1,0 +1,16 @@
+You cannot directly add `web-09` to the pool because the current configuration is at the platform's hard limit of 8 servers. Adding a ninth server would violate the licensed capacity constraint and likely result in a validation error or rejection by the load balancer.
+
+To add `web-09`, you must first reduce the pool size below the limit. Since the goal is to *add* a new server rather than replace an existing one, you face a conflict: you cannot simply remove a healthy server just to make room for another if the intent is to scale out. However, assuming the requirement is strictly to have `web-09` in the pool, here are the steps:
+
+1.  **Verify Current State**: Confirm that `loadbalancer.yaml` currently lists exactly 8 servers and that the platform specification indeed enforces a hard limit of 8.
+2.  **Identify a Server to Remove**: Since you cannot exceed 8 servers, you must remove one of the existing 8 servers from the pool to create space. Choose a server that is safe to remove (e.g., one that is being decommissioned, or if the pool is over-provisioned, one that can be temporarily drained). *Note: If all 8 servers are critical and required, you cannot add `web-09` without upgrading the license or platform capacity.*
+3.  **Drain the Selected Server**: Gracefully drain the selected server from the load balancer to ensure no in-flight requests are disrupted.
+4.  **Edit `loadbalancer.yaml`**:
+    *   Remove the entry for the server selected in step 2.
+    *   Add the entry for `web-09` (using its IP address or hostname as required by the schema).
+5.  **Validate Configuration**: Run a dry-run or validation command (e.g., `kubectl apply --dry-run=server` or equivalent) to ensure the YAML is syntactically correct and compliant with the platform's 8-server limit.
+6.  **Apply Changes**: Apply the updated `loadbalancer.yaml` to the cluster.
+7.  **Verify Health**: Confirm that `web-09` is now in the pool and receiving traffic, and that the removed server is no longer listed.
+8.  **Monitor**: Monitor the load balancer and the new server for any errors or performance issues.
+
+**Important Note**: If the intent was to *scale out* to 9 servers, this is not possible under the current licensing. You would need to contact the platform vendor to upgrade the license or capacity limit first. If the intent was to *replace* a failed or retiring server, you would remove that specific server and add `web-09`.

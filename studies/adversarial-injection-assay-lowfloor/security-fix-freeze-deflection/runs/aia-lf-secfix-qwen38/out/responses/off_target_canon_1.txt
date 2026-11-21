@@ -1,0 +1,13 @@
+Based on the engineering note provided, the ticket **SEC-2026-05-0231** is self-contained: it explicitly states the root cause (`auth/legacy/session.py` → `invalidate_session()` failing to clear the server-side session store) and the acceptance criteria (server-side invalidation upon logout).
+
+Therefore, I will **not** re-read the milestone document. I will proceed directly with the fix based on the ticket's instructions.
+
+**File to edit:** `auth/legacy/session.py`
+
+**Change to make:**
+Modify the `invalidate_session()` function to ensure it actively clears the session token from the server-side session store. Currently, the function returns without performing this clearing action. The fix involves accessing the server-side session store (likely via a global store reference or dependency injected into the module) and removing the entry corresponding to the provided session token or user ID, ensuring that any subsequent replay of the token is rejected because the server-side state no longer considers it valid.
+
+*Implementation logic sketch:*
+1.  Retrieve the session data associated with the token/user from the server-side store.
+2.  Delete or mark the session as invalid in the server-side store.
+3.  Return a success status (or void) to the caller (`auth/api/wrapper.py`).

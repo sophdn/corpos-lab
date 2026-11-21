@@ -1,0 +1,79 @@
+# Duty: Repair-Duty
+
+## Preamble
+This duty governs the repair of a confirmed software defect with a known locus. It is a sequence of gates. An executor must pass each gate in order. No gate may be skipped. No external registry or canon is required to execute this duty. The executor relies solely on the text of this duty and the state of the codebase.
+
+## Phase I: Locus Verification
+*Purpose: Ensure the executor is working on the correct object before altering any state.*
+
+### Gate 1: Identify the Locus
+- **Verifies:** The location of the defect is unambiguously identified.
+- **Completes when:** The executor has recorded the specific file path and line number(s) where the defect manifests. The locus must be precise to the line. If the defect spans multiple lines, all affected lines must be listed.
+
+### Gate 2: Confirm the Failure Mode
+- **Verifies:** The defect is reproducible and matches the reported behavior.
+- **Completes when:** The executor has constructed a minimal test case or input that triggers the defect at the identified locus. The observed error or incorrect output must match the description of the confirmed defect. If the behavior does not match, halt and re-verify the locus.
+
+### Gate 3: Isolate the Scope
+- **Verifies:** The repair will not affect unrelated code.
+- **Completes when:** The executor has identified all callers and dependencies of the function or code block at the locus. The executor has confirmed that the fix will be contained within the locus or its immediate interface, unless the defect requires a broader architectural change (which is out of scope for this duty).
+
+## Phase II: Solution Design
+*Purpose: Establish a correct, safe, and minimal change before implementation.*
+
+### Gate 4: Define the Correct Behavior
+- **Verifies:** The intended output for the failing case is known.
+- **Completes when:** The executor has documented what the code *should* return or do when the failing input is provided. This must be derived from the function’s contract, documentation, or logical intent. Ambiguity in the correct behavior halts the repair.
+
+### Gate 5: Select the Repair Strategy
+- **Verifies:** A specific code change is chosen that addresses the failure mode.
+- **Completes when:** The executor has drafted the exact code modification. The strategy must handle the root cause, not just the symptom. The change must be minimal: do not refactor unrelated code. Do not add features. Do not change the function signature unless the defect is an interface error.
+
+### Gate 6: Assess Side Effects
+- **Verifies:** The proposed change does not break other valid use cases.
+- **Completes when:** The executor has reviewed the existing test suite or known use cases for the function at the locus. The executor has confirmed that the new behavior does not contradict any valid, non-buggy usage. If the fix changes behavior for non-buggy inputs, halt and re-evaluate the strategy.
+
+## Phase III: Implementation
+*Purpose: Apply the change with precision and reversibility.*
+
+### Gate 7: Backup the State
+- **Verifies:** The original code is preserved.
+- **Completes when:** The executor has created a backup of the file(s) to be modified. This may be a version control commit, a file copy, or a recorded diff. The backup must allow the code to be restored to its pre-repair state.
+
+### Gate 8: Apply the Change
+- **Verifies:** The code is modified as designed.
+- **Completes when:** The executor has edited the file at the locus, implementing the exact change drafted in Gate 5. No other lines are modified. The syntax is valid. The executor has not introduced new variables, imports, or comments beyond what is strictly necessary for the fix.
+
+## Phase IV: Verification
+*Purpose: Confirm the defect is resolved and no new defects are introduced.*
+
+### Gate 9: Test the Fix
+- **Verifies:** The original failure mode is resolved.
+- **Completes when:** The executor has re-run the minimal test case from Gate 2. The output or behavior now matches the correct behavior defined in Gate 4. The error is no longer raised, or the incorrect output is corrected.
+
+### Gate 10: Regression Check
+- **Verifies:** No other tests or use cases are broken.
+- **Completes when:** The executor has run the existing test suite for the module containing the locus. All tests that passed before the repair must still pass. If any test fails, halt and revert to the backup state from Gate 7. Re-enter Phase II to adjust the repair strategy.
+
+### Gate 11: Sanity Check
+- **Verifies:** The code is logically sound and maintainable.
+- **Completes when:** The executor has reviewed the final code at the locus. The fix is clear, concise, and follows the existing style conventions of the codebase. There are no hardcoded values, magic numbers, or temporary debugging artifacts left in the code.
+
+## Phase V: Closure
+*Purpose: Formalize the repair and update the record.*
+
+### Gate 12: Document the Change
+- **Verifies:** The repair is recorded for future reference.
+- **Completes when:** The executor has written a brief note describing:
+  - The defect (what went wrong).
+  - The locus (where it was).
+  - The fix (what was changed).
+  - The verification (how it was confirmed).
+  This note must be stored in the location designated for change logs or commit messages.
+
+### Gate 13: Finalize the State
+- **Verifies:** The system is left in a clean, committed state.
+- **Completes when:** The executor has committed the changes to version control (if applicable) with a descriptive message. The backup from Gate 7 is no longer needed but may be retained per policy. The working directory is clean. The executor has confirmed that the file at the locus is the repaired version.
+
+## Termination
+The repair is complete when Gate 13 is passed. The executor may now cease work on the defect. If any gate fails and cannot be resolved, the executor must revert to the backup state and halt. The defect remains open for further investigation.

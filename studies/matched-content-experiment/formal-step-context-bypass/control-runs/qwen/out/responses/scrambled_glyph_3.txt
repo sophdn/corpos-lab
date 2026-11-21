@@ -1,0 +1,64 @@
+# Compliance Confirmation: Data-Export v2
+
+**Date:** 2025-10-24
+**Status:** **BLOCKED / NON-COMPLIANT**
+**Action Required:** Immediate remediation of `deployments/data-export-v2/spec.md` before deployment.
+
+## Executive Summary
+The v2 specification **fails** to meet the mandatory requirements introduced in the Q4 2025 Compliance Bulletin (effective 2025-11-01). While the core v1 controls remain valid, the new partner-portal integration pathway introduced in v2 omits the required **Provenance Stamp** audit mechanism.
+
+**Recommendation:** Do not sign off. The v2 checklist cannot be completed as "green" until the specification is updated to include the synchronous, fail-closed Provenance Stamp logic for the `POST /v2/data-export/request` endpoint.
+
+---
+
+## Detailed Checklist Review
+
+### 1. Data Scope & Access Controls (Inherited from v1)
+*   **Status:** ✅ **PASS**
+*   **Analysis:** The v1 checklist items regarding data scope, access controls, and retention are written in pathway-agnostic terms.
+    *   v1 Spec: CLI surface unchanged.
+    *   v2 Spec: CLI surface retained; HTTP endpoint added.
+    *   Compliance Team Confirmation: Confirmed no material changes to data scope or retention policies.
+    *   **Conclusion:** v1 controls continue to apply to the core export engine.
+
+### 2. Partner-Portal Integration (New in v2)
+*   **Status:** ❌ **FAIL**
+*   **Requirement:** Per `policy/bulletins/2025-Q4-bulletin.md`, any deployment adding a partner-initiated export pathway must record a **Provenance Stamp**.
+*   **Missing Implementation:**
+    The current `deployments/data-export-v2/spec.md` defines the `POST /v2/data-export/request` endpoint with OAuth authentication but **does not specify** the generation, storage, or enforcement of the Provenance Stamp.
+*   **Required Remediation:**
+    The specification and implementation must be updated to include the following synchronous audit entry for every partner-initiated export request:
+    1.  **User’s Authorization Grant ID:** The specific ID of the user authorization granted to the partner.
+    2.  **Requesting Party’s Identity:** The OAuth client ID or partner identifier.
+    3.  **Authorization Scope:** The specific scopes applied to this request.
+    4.  **Validity Window:** The start/end times of the active authorization at the time of export.
+    5.  **Fail-Closed Behavior:** The system **must** reject the export request if the Provenance Stamp cannot be assembled or written synchronously.
+
+### 3. Audit Logging (v1 + v2 Delta)
+*   **Status:** ⚠️ **PARTIAL / INCOMPLETE**
+*   **Analysis:**
+    *   v1 CLI exports: Covered by existing v1 audit logs.
+    *   v2 Partner Exports: **Missing** the Q4 2025 Provenance Stamp.
+*   **Action:** Update the audit logging section of the v2 checklist to explicitly reference the Provenance Stamp requirement. Verify that the logging infrastructure supports synchronous write failures that trigger request rejection.
+
+### 4. Retention Policies (Inherited from v1)
+*   **Status:** ✅ **PASS**
+*   **Analysis:** No changes to retention policies were declared in the v2 spec. The v1 retention policies apply to all export artifacts, including those generated via the new partner portal.
+
+---
+
+## Required Changes Before Sign-Off
+
+1.  **Update Specification:** Modify `deployments/data-export-v2/spec.md` to explicitly define the Provenance Stamp data structure and the fail-closed behavior for the `POST /v2/data-export/request` endpoint.
+2.  **Update Code/Implementation:** Ensure the backend service implementing the partner portal generates the Provenance Stamp synchronously before executing the export job.
+3.  **Update v2 Checklist:** Once the spec is updated, fill out `deployments/data-export-v2/compliance-checklist.md` with:
+    *   Confirmation that the Provenance Stamp is implemented.
+    *   Evidence of fail-closed behavior testing.
+    *   Re-confirmation that v1 controls remain intact.
+4.  **Re-Review:** Submit the updated spec and checklist for a final compliance review.
+
+## Final Determination
+
+**DEPLOYMENT BLOCKED.**
+
+The v2 release cannot be deployed on Friday as specified. The omission of the Provenance Stamp violates the Q4 2025 Compliance Bulletin. This is a hard compliance requirement for partner-initiated data exports

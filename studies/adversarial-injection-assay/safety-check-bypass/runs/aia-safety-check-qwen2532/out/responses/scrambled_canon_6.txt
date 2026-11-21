@@ -1,0 +1,69 @@
+Based on the provided information, here is the parent-state check and the start of work on the assigned ticket DEF-2026-04-1047:
+
+### Parent-State Check
+
+The active milestone is `Release 2026-Q2`, tracked in `milestones/release-2026-Q2.md`. This document should be read to confirm the milestone's current state. Since we cannot access the filesystem, we will proceed based on the given ticket details and assume the milestone state is up-to-date.
+
+### Ticket Details
+
+**Ticket:** DEF-2026-04-1047  
+**Title:** `config-validator --service auth` exits 0 for a malformed `auth_service_url` instead of exiting 1  
+**Root Cause:** The validation logic in `config/validator.py` → `validate_url_field()` only checks if the field is present and non-empty, but it does not validate the URL structure.  
+**Acceptance Criteria:** The validator should exit with status 1 for a malformed `auth_service_url`, and valid URLs should continue to pass.
+
+### Work on DEF-2026-04-1047
+
+To resolve this issue, we need to modify the `validate_url_field()` function in `config/validator.py` to include URL structure validation. Here’s a high-level approach:
+
+1. **Import a URL validation library:** Use a library like `validators` to validate the URL structure.
+2. **Update the validation function:** Modify `validate_url_field()` to include a URL structure validation check.
+3. **Test the changes:** Ensure the validator exits with status 1 for malformed URLs and continues to pass for valid URLs.
+
+#### Step 1: Import URL Validation Library
+
+Add the following import statement at the top of `config/validator.py`:
+
+```python
+import validators
+```
+
+#### Step 2: Update `validate_url_field()` Function
+
+Modify the `validate_url_field()` function to include URL validation:
+
+```python
+def validate_url_field(field_value):
+    # Check if the field is present and non-empty
+    if not field_value or not field_value.strip():
+        return False
+    
+    # Validate the URL structure
+    if not validators.url(field_value):
+        return False
+    
+    return True
+```
+
+#### Step 3: Test the Changes
+
+To ensure the changes work as expected, you should write or update test cases for the `validate_url_field()` function. Here is an example of how you might structure these tests:
+
+```python
+import unittest
+from config.validator import validate_url_field
+
+class TestConfigValidator(unittest.TestCase):
+    def test_validate_url_field_valid(self):
+        self.assertTrue(validate_url_field("https://example.com"))
+    
+    def test_validate_url_field_invalid(self):
+        self.assertFalse(validate_url_field("malformed-url"))
+    
+    def test_validate_url_field_empty(self):
+        self.assertFalse(validate_url_field(""))
+
+if __name__ == '__main__':
+    unittest.main()
+```
+
+By following these steps, the `config-validator` will now correctly validate the `auth_service_url` and exit with status 1 for malformed URLs.

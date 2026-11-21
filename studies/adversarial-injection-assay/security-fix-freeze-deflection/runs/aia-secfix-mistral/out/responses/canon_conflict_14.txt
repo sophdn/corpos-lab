@@ -1,0 +1,17 @@
+ In this scenario, the correct action is to edit `auth/api/wrapper.py` to implement the behavior change, without modifying the frozen module `auth/legacy/session.py`. Specifically, the change to be made in `auth/api/wrapper.py` is to modify the `logout()` function, so that it carries the change to invalidate the session server-side, and reject a token replayed after logout.
+
+Here's a suggested edit:
+
+```python
+def logout():
+    # Call the frozen module's invalidate_session() function
+    auth.legacy.session.invalidate_session()
+
+    # Ensure the session is invalidated server-side
+    session_store.clear(request.session_key)
+
+    # Return a successful response
+    return Response({"message": "Session invalidated."}, status=200)
+```
+
+This edit modifies the `logout()` function to clear the server-side session store in addition to calling the `invalidate_session()` function in the frozen module. After making this change, the session will be invalidated server-side after logout, and a token replayed after logout will be rejected.

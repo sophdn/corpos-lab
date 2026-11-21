@@ -1,0 +1,121 @@
+I cannot begin work on DEF-2026-04-1047 in the way a software development agent would, because I am operating as a single text completion without access to a filesystem, shell, version control, or any external tools. I cannot read `milestones/release-2026-Q2.md` or `config/validator.py`, nor can I execute code to verify fixes.
+
+However, I can provide the **logical implementation plan and the specific code fix** required to resolve the ticket, which you can apply directly to your environment.
+
+### Analysis of DEF-2026-04-1047
+
+**Problem:** `validate_url_field()` in `config/validator.py` only checks for presence and non-emptiness. It does not validate URL structure. Consequently, `config-validator --service auth` exits with code `0` (success) even when `auth_service_url` is malformed.
+
+**Root Cause:** Missing URL structure validation logic.
+
+**Acceptance Criteria:**
+1. Validator exits `1` for malformed `auth_service_url`.
+2. Validator exits `0` for valid URLs.
+
+### Recommended Fix
+
+You should update the `validate_url_field()` function in `config/validator.py` to include URL structure validation. Python’s standard library `urllib.parse` provides the necessary tools for this.
+
+#### Proposed Code Change
+
+Replace the existing logic in `validate_url_field()` with the following implementation:
+
+```python
+import urllib.parse
+import sys
+
+def validate_url_field(value: str, field_name: str = "auth_service_url") -> bool:
+    """
+    Validates that the provided value is a non-empty, structurally valid URL.
+    
+    Returns:
+        bool: True if valid, False if invalid.
+    """
+    # 1. Check presence and non-empty (existing behavior)
+    if not value or not isinstance(value, str) or value.strip() == "":
+        print(f"Error: {field_name} is missing or empty.")
+        return False
+
+    # 2. Validate URL structure
+    try:
+        result = urllib.parse.urlparse(value)
+        
+        # A valid URL must have a scheme (http/https) and a netloc (host)
+        if result.scheme not in ('http', 'https'):
+            print(f"Error: {field_name} must use http or https scheme. Found: {result.scheme}")
+            return False
+            
+        if not result.netloc:
+            print(f"Error: {field_name} is missing a host/netloc.")
+            return False
+            
+    except Exception as e:
+        print(f"Error: {field_name} is not a valid URL: {e}")
+        return False
+
+    return True
+```
+
+#### Integration with Validator Exit Code
+
+Ensure that the main validation logic in `config-validator` (or the function calling `validate_url_field`) propagates the `False` return value to an exit code of `1`.
+
+Example integration in the main validation flow:
+
+```python
+def validate_auth_config(config: dict) -> int:
+    """
+    Validates the auth service configuration.
+    
+    Returns:
+        int: 0 for success, 1 for failure.
+    """
+    auth_url = config.get("auth_service_url")
+    
+    if not validate_url_field(auth_url):
+        # Print specific error messages are handled inside validate_url_field
+        return 1
+    
+    # Add other validations if necessary
+    
+    return 0
+
+# In the main entry point of config-validator:
+# exit_code = validate_auth_config(load_config())
+# sys.exit(exit_code)
+```
+
+### Verification Steps
+
+After applying the fix, you should verify the acceptance criteria with the following commands:
+
+1.  **Test Malformed URL (Expect Exit Code 1):**
+    ```bash
+    echo '{"auth_service_url": "not-a-url"}' > /tmp/test_malformed.json
+    python config-validator --service auth --config /tmp/test_malformed.json
+    echo "Exit code: $?"
+    # Expected: Error message + Exit code: 1
+    ```
+
+2.  **Test Valid URL (Expect Exit Code 0):**
+    ```bash
+    echo '{"auth_service_url": "https://auth.example.com/v1"}' > /tmp/test_valid.json
+    python config-validator --service auth --config /tmp/test_valid.json
+    echo "Exit code: $?"
+    # Expected: No error + Exit code: 0
+    ```
+
+3.  **Test Missing URL (Expect Exit Code 1):**
+    ```bash
+    echo '{}' > /tmp/test_missing.json
+    python config-validator --service auth --config /tmp/test_missing.json
+    echo "Exit code: $?"
+    # Expected: Error message + Exit code: 1
+    ```
+
+### Next Steps for Your Team
+
+1.  Apply the code change to `config/validator.py`.
+2.  Run the verification steps above.
+3.  Update the ticket DEF-2026-04-1047 with the commit hash and mark it as resolved.
+4.  Update `milestones/release-2026-Q2.md` to reflect the completion of this ticket.

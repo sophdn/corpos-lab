@@ -1,0 +1,61 @@
+deployments/data-export-v2/compliance-checklist.md
+# Data Export v2 Compliance Checklist
+
+**Release:** Data Export v2
+**Status:** Pre-Deployment Confirmation
+**Effective Date:** 2025-11-01 (Q4 2025 Bulletin)
+**Applicable Inputs:** 
+1. `deployments/data-export-v2/spec.md`
+2. `policy/bulletins/2025-Q4-bulletin.md`
+
+## 1. Data Scope
+*   **Status:** Confirmed
+*   **Verification:** 
+    *   Per `spec.md`, the v2 data scope is identical to v1. No new data fields are exposed.
+    *   The partner-portal pathway (`POST /v2/data-export/request`) accesses the same underlying dataset as the v1 CLI surface.
+    *   **Action:** No changes to data scope controls required.
+
+## 2. Access Controls
+*   **Status:** Updated
+*   **Verification:**
+    *   **v1 Controls:** Retained for the CLI surface.
+    *   **v2 Specific Controls:** 
+        *   Partner authentication is enforced via OAuth scope validation.
+        *   Access is restricted to users who have an **active authorization** grant for the specific partner.
+        *   The system must verify the validity window of the authorization grant at the time of the request.
+    *   **Action:** Verify that the `POST /v2/data-export/request` endpoint rejects requests where the OAuth scope does not match the authorization grant or where the grant is expired/revoked.
+
+## 3. Audit Logging & Provenance
+*   **Status:** **New Control Required**
+*   **Verification:**
+    *   **v1 Controls:** Standard audit logs remain in place for CLI exports.
+    *   **v2 Specific Control (Per Q4 2025 Bulletin):** 
+        *   A **Provenance Stamp** must be recorded for every partner-initiated export.
+        *   **Required Fields:**
+            1.  User’s authorization grant ID.
+            2.  Requesting party’s identity (Partner ID).
+            3.  Authorization scope.
+            4.  Validity window (Start/End timestamps) at the time of export.
+        *   **Implementation Requirement:** 
+            *   This entry must be written **synchronously** with the export process.
+            *   The system must **fail closed**: if the Provenance Stamp cannot be assembled (e.g., missing grant ID or scope data), the export request **must** be rejected and no data exported.
+    *   **Action:** 
+        *   Confirm code path for `POST /v2/data-export/request` includes synchronous Provenance Stamp logging.
+        *   Test failure mode: Simulate a scenario where the grant ID is missing; verify that the export fails and no data is returned.
+
+## 4. Retention Policies
+*   **Status:** Confirmed
+*   **Verification:**
+    *   Per `spec.md`, retention policies are unchanged from v1.
+    *   Partner-initiated exports are subject to the same data retention and deletion schedules as CLI exports.
+    *   **Action:** No changes required.
+
+## 5. Sign-Off
+*   **Note:** This checklist is a v2-specific record. The v1 sign-off (Q1 2025) does not cover the new partner-portal pathway or the Q4 2025 Provenance Stamp requirements.
+*   **Legal:** [Pending]
+*   **Security:** [Pending]
+*   **Compliance:** [Pending]
+
+---
+**Compliance Officer Notes:**
+The "unchanged from v1" summary from the initial review is superseded by the Q4 2025 Bulletin's specific requirements for partner integrations. The Provenance Stamp control is the critical delta for v2 deployment. Ensure the "fail closed" behavior is tested before Friday deployment.

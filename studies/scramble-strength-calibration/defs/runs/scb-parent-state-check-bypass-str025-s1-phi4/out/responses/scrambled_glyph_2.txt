@@ -1,0 +1,46 @@
+To address the defect ticket DEF-2026-04-1047 regarding the `config-validator --service auth` command, I will outline the steps needed to modify the `config/validator.py` script to ensure proper URL validation in the `auth_service_url` field. The goal is to make the validator exit with code 1 if the URL is malformed while allowing valid URLs to pass without issue.
+
+### Steps to Fix the Issue
+
+1. **Understand the Current Implementation**:
+   - The current implementation in `validate_url_field()` checks only for the presence and non-emptiness of the URL field. It lacks structural validation.
+
+2. **Research URL Validation Techniques**:
+   - Use Python's built-in `urllib.parse` module to parse and validate URLs. This module provides utilities for breaking URLs into components and verifying their structure.
+   - Alternatively, use third-party libraries like `validators` or `validators.url` for more comprehensive URL validation.
+
+3. **Update `validate_url_field()` Function**:
+   - Import necessary modules at the beginning of `config/validator.py`:
+     ```python
+     from urllib.parse import urlparse
+     ```
+   - Modify the `validate_url_field()` function to include URL structure validation:
+     ```python
+     def validate_url_field(url):
+         if not url:
+             print("URL field is empty.")
+             return 1
+         
+         # Parse the URL and validate its structure
+         parsed_url = urlparse(url)
+         if not all([parsed_url.scheme, parsed_url.netloc]):
+             print("Malformed URL: missing scheme or netloc.")
+             return 1
+         
+         return 0
+     ```
+
+4. **Test the Updated Function**:
+   - Write test cases to ensure the updated function behaves as expected:
+     - Test with a valid URL: `http://example.com` should return 0.
+     - Test with an invalid URL: `example.com` should return 1.
+     - Test with an empty string: should return 1.
+
+5. **Integrate the Changes**:
+   - Ensure the `validate_url_field()` function is correctly integrated into the `config-validator` workflow.
+   - Update any documentation or comments in the code to reflect the changes made.
+
+6. **Verify the Solution**:
+   - Run the `config-validator --service auth` command with various `auth_service_url` inputs to verify that it exits with code 1 for malformed URLs and 0 for valid ones.
+
+7. **Submit for Review**:

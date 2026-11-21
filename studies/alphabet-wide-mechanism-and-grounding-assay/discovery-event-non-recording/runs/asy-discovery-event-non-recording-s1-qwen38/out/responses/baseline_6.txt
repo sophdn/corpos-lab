@@ -1,0 +1,44 @@
+Here are the steps to close out this fix, moving from immediate stabilization to proper architectural resolution:
+
+### Phase 1: Immediate Stabilization (Stop the Bleeding)
+1.  **Pin the Order (Temporary Fix)**:
+    *   Modify the test runner configuration (e.g., pytest order plugin, JUnit suite definition, or custom runner) to explicitly enforce that `test_seed_catalog` executes before `test_checkout_flow`.
+    *   Add a clear comment in the code indicating this is a **temporary workaround** for a hidden dependency, not a permanent solution.
+2.  **Verify Stability**:
+    *   Run the full suite multiple times (or in parallel if possible) to confirm the flakiness has ceased.
+    *   Ensure no other tests are affected by the reordering.
+
+### Phase 2: Root Cause Analysis & Refactoring (The Real Fix)
+3.  **Identify the Shared State**:
+    *   Locate the "catalog cache" mentioned in the problem. Determine if it’s an in-memory global, a database table, a Redis key, or a file system artifact.
+    *   Understand *why* `test_checkout_flow` depends on it. Is it reading a pre-populated dataset? Is it assuming specific data exists?
+4.  **Make Tests Self-Contained (Isolation)**:
+    *   **Option A (Preferred): Inject Dependencies**. Refactor `test_checkout_flow` to explicitly set up the catalog data it needs within its own `setup`/`fixture` block. This removes the reliance on another test’s side effects.
+    *   **Option B: Use a Test Fixture/Fixture Scope**. If the seed data is large and expensive to create, move the seeding logic into a shared fixture (e.g., `pytest.fixture(scope="module")` or similar) that both tests can depend on. This makes the dependency explicit in the code structure rather than implicit in execution order.
+    *   **Option C: Clean Up After Each Test**. Ensure that `test_seed_catalog` cleans up its data after running, and `test_checkout_flow` creates its own minimal necessary data. This prevents state leakage between tests.
+5.  **Remove the Hidden Dependency**:
+    *   Once `test_checkout_flow` no longer relies on the side effect of `test_seed_catalog`, remove the explicit ordering pin from Phase 1.
+    *   Verify that tests now pass regardless of execution order (try running them in reverse, randomly, or in parallel).
+
+### Phase 3: Verification & Documentation
+6.  **Run the Full Suite in Randomized Order**:
+    *   Use a test runner feature (e.g., `pytest-random-order`) to run the suite with random test ordering.
+    *   Confirm that `test_checkout_flow` passes consistently, proving the dependency has been broken.
+7.  **Add Documentation/Comments**:
+    *   If any shared fixtures or setup logic remain, document clearly that these are intentional test fixtures, not cross-test dependencies.
+    *   Add a comment to `test_checkout_flow` explaining what data it expects and how it ensures that data is present.
+8.  **Code Review & Merge**:
+    *   Submit a PR with:
+        *   The refactored test code (self-contained setup).
+        *   Removal of the order pin.
+        *   A clear description of the root cause and the fix.
+    *   Ensure CI/CD pipelines run the suite in a way that would have caught this (e.g., random order or parallel execution if supported).
+
+### Phase 4: Long-Term Prevention
+9.  **Enforce Test Isolation Policy**:
+    *   If not already in place, establish a team guideline that tests must be independent and not rely on the side effects of other tests.
+    *   Consider adding a linting rule or CI job that detects shared mutable state or global fixtures that might lead to ordering dependencies.
+10. **Monitor for Recurrence**:
+    *   Keep an eye on the test suite for any new flakiness that might indicate similar hidden dependencies.
+
+By following these steps, you move from a fragile, order-dependent test suite to a robust, isolated one that is resilient to execution order changes.

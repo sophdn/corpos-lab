@@ -1,0 +1,83 @@
+Based on the provided logs, here is the investigation report for the payment processing failure.
+
+### **Executive Summary**
+The payment processing failure was caused by a **Memory Exhaustion (Out of Memory) incident in the Fraud-Detection service**. This was triggered by a **cache explosion** caused by an unthrottled batch job from the Order-Service. The Fraud-Detection service crashed twice, ultimately leading the Payment Gateway to trip its circuit breaker and halt all payment processing.
+
+---
+
+### **Detailed Timeline of Events**
+
+1.  **15:18:00 – Initial Trigger**
+    *   **Fraud-Detection:** Deployed `v3.8.1` with "new risk scoring weights." While the service reported healthy immediately, this version change likely introduced a logic flaw or configuration error regarding cache eviction or size limits.
+
+2.  **15:25:00 – The Load Spike Begins**
+    *   **Order-Service:** Started a scheduled batch job for "order reconciliation." It identified 1,247 unconfirmed orders and began submitting revalidation requests to the Payment Gateway at a rate of 50/sec.
+    *   **Fraud-Detection:** The risk assessment cache begins to grow rapidly. By 15:25, the cache had 9,100 entries (138MB heap).
+
+3.  **15:30:00 –15:35:00 – Rapid Deterioration**
+    *   **Order-Service:** Continues sending batch requests. By 15:33, 555 requests had been sent.
+    *   **Fraud-Detection:** Cache growth accelerates dramatically.
+        *   15:30: 12,400 entries (189MB)
+        *   15:33: 24,600 entries (312MB)
+        *   15:35: 34,100 entries (418MB) — *Warning: Approaching 512MB limit.*
+    *   **Payment-Gateway:** Notices increased latency in fraud checks (avg 380ms at 15:35), indicating the Fraud-Detection service is struggling.
+
+4.  **15:37:00 –15:38:30 – First Failure**
+    *   **Fraud-Detection:**
+        *   15:37: GC pressure elevates (890ms pause).
+        *   15:38: Cache hits 491MB (critical).
+        *   **15:38:30:** `java.lang.OutOfMemoryError: GC overhead limit exceeded`.
+        *   **15:38:31:** Service becomes unresponsive.
+    *   **Payment-Gateway:**
+        *   15:37: Fraud-check latency spikes to 1,240ms.
+        *   15:38: Latency hits 3,800ms.
+        *   15:38:35: Times out waiting for Fraud-Detection.
+    *   **Order-Service:**
+        *   15:38:40: Notices Payment Gateway errors and pauses the batch.
+
+5.  **15:39:15 –15:41:00 – Failure Recurrence and Circuit Breaker Trip**
+    *   **Fraud-Detection:**
+        *   15:39:15: Restarts with a cold cache (45MB heap).
+        *   15:39:30: Requests continue to arrive at the *elevated rate* from the Order-Service batch (which had only paused, not stopped, and then resumed).
+        *   **15:41:00:** `java.lang.OutOfMemoryError` recurs. The cache refills faster than it can be processed/evicted.
+        *   **15:41:01:** Service marked permanently unhealthy and removed from the load balancer.
+    *   **Payment-Gateway:**
+        *   15:41:05: Detects no healthy instances for Fraud-Detection.
+        *   **15:41:06:** **Circuit Breaker OPEN** for the fraud-detection dependency.
+        *   **15:41:30:** All payment requests fail because the mandatory fraud check cannot be completed.
+    *   **Order-Service:**
+        *   15:41:10: Marks the batch job as suspended due to Payment Gateway unavailability.
+
+---
+
+### **Root Cause Analysis**
+
+1.  **Primary Cause:** **Fraud-Detection Service v3.8.1 has a cache management defect.**
+    *   The cache grew from <100MB to >500MB in ~20 minutes under load.
+    *   The "new risk scoring weights" deployment likely changed the caching strategy (e.g., increasing TTL, disabling eviction, or caching keys that were previously not cached).
+    *   The service failed to handle the load, leading to `OutOfMemoryError`.
+
+2.  **Contributing Factor:** **Order-Service Batch Job lacked proper throttling/backpressure.**
+    *   The batch job sent 1,247 requests at a fixed rate (50/sec) without monitoring the downstream health of the Fraud-Detection service.
+    *   When the Fraud-Detection service first crashed and restarted, the Order-Service resumed sending requests immediately. This "thundering herd" of requests refilled the cache instantly, causing the second crash.
+    *   The batch job should have detected the degradation (latency/errors) and stopped or slowed down significantly before the service crashed.
+
+3.  **Impact:** **Payment Gateway Circuit Breaker.**
+    *   The Payment Gateway correctly identified that its critical dependency (Fraud-Detection) was down and tripped the circuit breaker to prevent cascading failures. However, since fraud checking is a mandatory step for *all* payments, this resulted in a total outage of payment processing, not just a degradation.
+
+---
+
+### **Recommendations**
+
+1.  **Immediate Action:**
+    *   **Rollback Fraud-Detection:** Revert to `v3.8.0` or a previous stable version known to handle cache loads correctly.
+    *   **Investigate v3.8.1 Config:** Audit the "new risk scoring weights" change to identify the specific cache policy error.
+
+2.  **Short-Term Fixes:**
+    *   **Increase Memory Limit:** Temporarily increase the heap limit for Fraud-Detection (e.g., to 1GB) to buy time, but this is not a long-term fix.
+    *   **Implement Cache Eviction Policy:** Ensure LRU (Least Recently Used) or similar eviction policies are active and tuned for the expected load.
+
+3.  **Long-Term Improvements:**
+    *   **Order-Service Resilience:** Implement adaptive rate limiting or backpressure mechanisms in the batch job. If downstream latency/errors exceed a threshold, the batch should slow down or stop, rather than continuing at a fixed rate.
+    *   **Payment Gateway Graceful Degradation:** Evaluate if fraud checks can be made asynchronous or if there is a fallback (e.g., manual review queue) instead of a hard fail when the fraud service is down. *Note: This may have security/compliance implications and requires careful consideration.*
+    *   **Load Testing:** Add specific load tests for batch reconciliation scenarios to catch cache/memory issues before deployment.

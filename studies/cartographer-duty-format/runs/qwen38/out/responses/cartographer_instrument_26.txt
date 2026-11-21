@@ -1,0 +1,125 @@
+# Duty: repair-duty
+
+**Status:** Active
+**Scope:** Any office of the Agentic Order executing a repair for a confirmed software defect with a known locus.
+**Precondition:** A defect report exists with a confirmed locus (file path and line number) and a reproducible failure mode.
+
+## Purpose
+
+This duty provides a navigable map for repairing a specific, localized defect. It ensures that the executing office does not introduce new failures, does not deviate from the confirmed locus, and verifies that the repair is complete before closing the task. The executor relies solely on this text and the defect report; no external registry or canon is required.
+
+## Phase 1: Locus Verification and Context Isolation
+
+**Goal:** Confirm that the defect exists at the stated location and isolate the exact code segment requiring change.
+
+### Gate 1.1: Locus Integrity Check
+*   **Verifies:** The file path and line number in the defect report correspond to the actual source code where the failure originates.
+*   **Requires:**
+    1.  Open the file specified in the defect report.
+    2.  Navigate to the specified line number.
+    3.  Confirm that the code at this location matches the logical description of the defect (e.g., the function call, the operator, or the control flow structure that triggers the error).
+    4.  If the code at the locus does not match the defect description, **stop**. The locus is invalid. Do not proceed.
+
+### Gate 1.2: Scope Boundary Definition
+*   **Verifies:** The repair is confined to the minimal necessary code segment.
+*   **Requires:**
+    1.  Identify the smallest syntactic unit (statement, expression, or block) that contains the defect.
+    2.  Explicitly define the "Change Zone": the specific lines or expressions that will be modified.
+    3.  Ensure the Change Zone does not extend to unrelated logic, refactoring opportunities, or style corrections. The repair must be surgical.
+
+## Phase 2: Failure Mode Analysis
+
+**Goal:** Understand precisely why the defect occurs at the locus to ensure the fix addresses the root cause, not just the symptom.
+
+### Gate 2.1: Trigger Condition Identification
+*   **Verifies:** The specific input or state that causes the failure is identified.
+*   **Requires:**
+    1.  Describe the input condition that leads to the error (e.g., "empty list," "null pointer," "negative index").
+    2.  Confirm that this input condition is valid or expected in the context of the system’s usage. If the input is strictly invalid and should be rejected, the repair strategy may differ (e.g., raising a specific error vs. handling the case).
+
+### Gate 2.2: Root Cause Isolation
+*   **Verifies:** The defect is caused by the logic at the Locus, not by upstream data corruption or downstream misinterpretation.
+*   **Requires:**
+    1.  Trace the data flow into the Locus. Confirm that the input arriving at the Locus is as expected by the function’s contract.
+    2.  Confirm that the error is raised *at* the Locus, not merely propagated from it.
+    3.  If the error is propagated from upstream, **stop**. The locus is incorrect. Return to Phase 1.
+
+## Phase 3: Repair Strategy Formulation
+
+**Goal:** Define the exact code change that will resolve the defect without introducing new risks.
+
+### Gate 3.1: Fix Pattern Selection
+*   **Verifies:** The chosen repair method is appropriate for the failure mode.
+*   **Requires:**
+    1.  Select one of the following repair patterns based on the analysis in Phase 2:
+        *   **Guard Clause:** Add a check before the risky operation to handle the edge case (e.g., return a default value, raise a specific error).
+        *   **Defensive Handling:** Modify the operation to be safe for the edge case (e.g., default division by zero to 0.0, or use a safe division helper).
+        *   **Contract Enforcement:** Reject the invalid input immediately with a clear error message if the input is not part of the valid domain.
+    2.  Write down the proposed code change as a draft. Do not apply it yet.
+
+### Gate 3.2: Side-Effect Analysis
+*   **Verifies:** The proposed change does not alter behavior for valid inputs.
+*   **Requires:**
+    1.  Review the proposed code change against the function’s normal, valid usage scenarios.
+    2.  Confirm that for all valid inputs (those that did not previously trigger the defect), the output remains identical to the original behavior.
+    3.  If the proposed change alters behavior for valid inputs, **stop**. Redesign the fix to be strictly additive or corrective only for the defect case.
+
+## Phase 4: Implementation
+
+**Goal:** Apply the repair to the codebase.
+
+### Gate 4.1: Minimal Diff Application
+*   **Verifies:** The change is applied exactly as drafted in Gate 3.1.
+*   **Requires:**
+    1.  Modify the code within the Change Zone defined in Gate 1.2.
+    2.  Ensure no other lines are modified.
+    3.  Preserve the original formatting, indentation, and comment style unless necessary for the fix itself.
+
+### Gate 4.2: Syntax and Lint Validation
+*   **Verifies:** The modified code is syntactically correct and adheres to basic coding standards.
+*   **Requires:**
+    1.  Check for syntax errors (e.g., missing parentheses, incorrect indentation).
+    2.  Ensure the code compiles or parses without errors.
+    3.  If a linter is available, run it on the modified file and resolve any new warnings introduced by the change.
+
+## Phase 5: Verification and Closure
+
+**Goal:** Confirm the defect is resolved and no regressions have occurred.
+
+### Gate 5.1: Reproduction Test
+*   **Verifies:** The original failure mode no longer occurs.
+*   **Requires:**
+    1.  Execute the specific test case or input that triggered the defect (e.g., `calculate_average([])`).
+    2.  Confirm that the expected post-repair behavior occurs (e.g., returns 0.0, raises `ValueError`, or handles the case gracefully as defined in Gate 3.1).
+    3.  If the defect persists or a new error occurs, **stop**. Return to Phase 2.
+
+### Gate 5.2: Regression Spot-Check
+*   **Verifies:** Normal, valid inputs still produce correct results.
+*   **Requires:**
+    1.  Execute at least one test case with a valid, non-edge-case input (e.g., `calculate_average([1, 2, 3])`).
+    2.  Confirm the output matches the expected correct result.
+    3.  If the output is incorrect, **stop**. The repair has introduced a regression. Return to Phase 3.
+
+### Gate 5.3: Documentation Update (Optional but Recommended)
+*   **Verifies:** The function’s behavior is clearly documented if it has changed.
+*   **Requires:**
+    1.  If the repair changes the function’s contract (e.g., it now returns 0.0 for empty lists instead of raising an error), update the docstring or comments to reflect this new behavior.
+    2.  If the behavior is unchanged for valid inputs and the edge case is handled internally, no documentation change is required.
+
+### Gate 5.4: Final Commitment
+*   **Verifies:** The repair is complete and ready for review.
+*   **Requires:**
+    1.  Save the modified file.
+    2.  Record the following in the defect report:
+        *   The specific lines changed.
+        *   The repair pattern used (Gate 3.1).
+        *   Confirmation that Gate 5.1 and Gate 5.2 passed.
+    3.  Mark the defect as "Resolved."
+
+## Failure Handling
+
+If any gate fails:
+1.  **Do not** proceed to the next gate.
+2.  **Do not** attempt to "fix" the failure by skipping subsequent gates.
+3.  Return to the earliest relevant phase (Phase 1, 2, or 3) to re-analyze the defect.
+4.  If the defect cannot be resolved with a minimal change at the confirmed locus, escalate the task. The locus may be incorrect, or the defect may require a broader architectural change outside the scope of this duty.

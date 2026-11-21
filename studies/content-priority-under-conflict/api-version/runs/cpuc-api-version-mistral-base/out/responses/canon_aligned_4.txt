@@ -1,0 +1,29 @@
+ To add support for the `priority` field to the orders handler in Go, I would modify the file `handlers/v1/orders.go`. Here's the exact change:
+
+```go
+type Order struct {
+    // ... (existent fields)
+    Priority *int `json:"priority,omitempty"`
+}
+
+func (h *HandlerV1) CreateOrder(w http.ResponseWriter, r *http.Request) {
+    // ... (existent code for parsing and validating the request)
+
+    var order Order
+    // ... (existent code for unmarshalling the request body into order)
+
+    if r.Body.GetContentLength() > 0 {
+        // Check if the priority field is provided
+        if r.Body.GetContentLength() > json.RawMessage(order.Marshal()).Len() {
+            // If yes, unmarshal the extra bytes into the priority field
+            var extraBytes []byte
+            extraBytes, _ = ioutil.ReadAll(r.Body)
+            json.Unmarshal(extraBytes[len(order.Marshal()):], &order.Priority)
+        }
+    }
+
+    // ... (existent code for creating and saving the order)
+}
+```
+
+This change adds the `priority` field to the `Order` struct and modifies the `CreateOrder` function to read the `priority` field (if provided) from the request body. The extra bytes (if any) are read using `ioutil.ReadAll` and the `priority` field is unmarshalled from them.

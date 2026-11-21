@@ -1,0 +1,169 @@
+# repair-duty
+
+**Status:** Active
+**Applicability:** Any office executing a repair for a confirmed software defect with a known locus.
+**Prerequisites:** The defect is confirmed. The locus (file path and line number/range) is known. The executor has write access to the source code and execution environment.
+
+This duty is a sequence of gates. Each gate must be passed in order. A gate is not passed until its **Verification** criteria are met. If a gate fails, the duty halts, and the failure must be documented. Do not proceed to the next phase until the current phase is fully closed.
+
+---
+
+## Phase 1: Locus Confirmation & Baseline Establishment
+
+The purpose of this phase is to ensure the executor is looking at the correct code, in the correct state, before any modification is attempted.
+
+### Gate 1.1: Locus Integrity Check
+**Objective:** Verify that the known locus corresponds to the actual defect manifestation.
+**Verification:**
+1. The file specified in the locus exists and is accessible.
+2. The line number(s) specified in the locus contain the code logic that directly causes the error described in the defect report.
+3. The error type and message produced by the defect match the defect report.
+
+**Completion Requirement:**
+- The executor has inspected the code at the locus.
+- The executor has confirmed that the code at the locus is the source of the reported failure, not a downstream effect.
+- If the locus is incorrect or the code has changed, the duty halts. The executor must report a "Locus Mismatch" and stop.
+
+### Gate 1.2: Reproduction Baseline
+**Objective:** Establish a verifiable "before" state that proves the defect exists in the current environment.
+**Verification:**
+1. A minimal test case or execution command is identified that triggers the defect.
+2. Executing this case produces the exact error described in the defect report.
+3. The output of this execution is captured (log, traceback, or result value) as the `Baseline_Failure`.
+
+**Completion Requirement:**
+- The `Baseline_Failure` is recorded in the work log.
+- The test case is stored or noted so it can be re-run in Phase 4.
+- If the defect does not reproduce, the duty halts. The executor must report "Defect Not Reproducible" and stop.
+
+---
+
+## Phase 2: Impact Analysis & Constraint Definition
+
+The purpose of this phase is to understand the boundaries of the repair. The executor must determine what the code must do *not* break, and what the new behavior must be.
+
+### Gate 2.1: Contract & Dependency Analysis
+**Objective:** Identify all callers, dependents, and expected behaviors of the function/code at the locus.
+**Verification:**
+1. All direct callers of the defective function/code are identified.
+2. The expected input types and output types (contract) are documented.
+3. Any side effects (file I/O, network calls, state mutation) are identified.
+4. It is determined whether the defect is a logic error, a missing boundary check, or a type error.
+
+**Completion Requirement:**
+- A list of affected callers is documented.
+- The intended behavior for the failing input (and valid inputs) is explicitly stated.
+- If the fix requires changing the public API (signature, return type), this is flagged for higher-level review. For this duty, API changes are prohibited unless explicitly authorized in the defect ticket.
+
+### Gate 2.2: Fix Strategy Selection
+**Objective:** Choose the minimal change that resolves the defect without violating the contract.
+**Verification:**
+1. A specific code change is proposed.
+2. The proposed change does not alter the behavior of valid inputs.
+3. The proposed change handles the failing input in a way consistent with the domain (e.g., returning `None`, raising a specific exception, or returning a neutral value).
+
+**Completion Requirement:**
+- The specific code diff is drafted (mentally or in a scratch area).
+- The strategy is validated against the constraints from Gate 2.1.
+- If the required fix is non-minimal (e.g., refactoring unrelated code), the duty halts. The executor must report "Scope Expansion Required" and stop.
+
+---
+
+## Phase 3: Implementation & Local Verification
+
+The purpose of this phase is to apply the change and verify it in isolation.
+
+### Gate 3.1: Atomic Implementation
+**Objective:** Apply the code change to the source file.
+**Verification:**
+1. The change is applied only to the lines identified in the locus.
+2. No other lines in the file are modified.
+3. The code is syntactically valid (no parse errors).
+
+**Completion Requirement:**
+- The source file is updated.
+- A backup of the original file is not required if version control is used, but the change must be isolated to a single logical edit.
+- If syntax errors are introduced, the duty halts. The executor must revert the change and return to Gate 2.2.
+
+### Gate 3.2: Isolated Unit Verification
+**Objective:** Confirm the defect is resolved and valid inputs are unaffected.
+**Verification:**
+1. The `Baseline_Failure` test case (from Gate 1.2) is re-run. It must now succeed (or return the expected safe value) without raising the original error.
+2. At least one valid input case (from Gate 2.1) is re-run. It must produce the same result as before the change.
+3. If the fix involves a new return value (e.g., `None` for empty list), the test case verifies this specific return value.
+
+**Completion Requirement:**
+- The `Fixed_Validation` log is recorded, showing:
+  - The previously failing case now passes.
+  - The previously passing case(s) still pass.
+- If the fix introduces a new failure in a valid case, the duty halts. The executor must revert and return to Gate 2.2.
+
+---
+
+## Phase 4: System Integration & Regression
+
+The purpose of this phase is to ensure the repair does not break the broader system.
+
+### Gate 4.1: Regression Suite Execution
+**Objective:** Run the existing test suite or integration checks.
+**Verification:**
+1. The standard test suite for the module containing the locus is executed.
+2. All pre-existing tests pass.
+3. No new test failures are introduced by the change.
+
+**Completion Requirement:**
+- A summary of the test suite run is recorded (Pass/Fail counts).
+- If the test suite is unavailable or broken, the executor must perform a manual smoke test of the module's primary functions.
+- If any regression is detected, the duty halts. The executor must revert the change and return to Phase 2.
+
+### Gate 4.2: Edge Case Stress Test
+**Objective:** Probe the boundaries of the fix to ensure no new edge cases were introduced.
+**Verification:**
+1. The executor tests inputs adjacent to the fixed case (e.g., if fixing empty list, test list with one element, list with `None` elements if applicable).
+2. The behavior is consistent with the contract defined in Gate 2.1.
+
+**Completion Requirement:**
+- The executor documents that adjacent edge cases behave as expected.
+- If an unexpected behavior is found, the duty halts. The executor must revert and return to Phase 2.
+
+---
+
+## Phase 5: Documentation & Closure
+
+The purpose of this phase is to formalize the repair and hand off to the registry.
+
+### Gate 5.1: Change Documentation
+**Objective:** Record the rationale and details of the repair.
+**Verification:**
+1. A concise note is written explaining:
+   - The root cause of the defect.
+   - The specific change made.
+   - Why this change is safe (reference to Gates 3.2 and 4.1).
+2. The note references the original defect ID and locus.
+
+**Completion Requirement:**
+- The documentation is attached to the work log.
+- The documentation is clear enough for a future executor to understand why the code changed.
+
+### Gate 5.2: Final State Confirmation
+**Objective:** Confirm the environment is left in a stable, verified state.
+**Verification:**
+1. The source code reflects the fix.
+2. The `Baseline_Failure` case still passes (final sanity check).
+3. No temporary files, debug prints, or scratch code remain in the source.
+
+**Completion Requirement:**
+- The duty is marked as **Complete**.
+- The executor submits the work log, including all verification outputs from Gates 1.2, 3.2, 4.1, and 5.1.
+
+---
+
+## Failure Handling Protocol
+
+If any gate fails:
+1. **Revert:** If code changes were made in Phase 3, revert them immediately to the state captured in Gate 1.2.
+2. **Log:** Record the gate that failed, the reason for failure, and the specific error message.
+3. **Stop:** Do not attempt to "fix" the failure within the same duty execution. The duty must be closed as **Failed**.
+4. **Report:** Submit the failure report for triage. A new duty may be issued with a revised locus or strategy.
+
+**Note to Executor:** You are not responsible for diagnosing why a gate failed if the failure is outside the scope of the original locus. If the regression suite (Gate 4.1) fails due to unrelated code, halt and report. Do not attempt to fix unrelated defects.

@@ -1,0 +1,57 @@
+Here are the steps to properly close out this fix, moving from temporary mitigation to a robust, maintainable solution:
+
+### 1. Document the Immediate Workaround (If Necessary)
+*   **Action:** If the build must stay green immediately while you implement the proper fix, pin the test order in your test runner configuration (e.g., `pytest -p no:randomly`, specific `@order` decorators, or JUnit `@FixMethodOrder`).
+*   **Note:** Add a prominent comment in the test file or CI config explaining *why* this pin exists and that it is a temporary workaround for `test_checkout_flow` depending on `test_seed_catalog`.
+
+### 2. Identify the Source of the Shared State
+*   **Action:** Investigate how `test_checkout_flow` reads the "catalog cache."
+    *   Is it an in-memory singleton?
+    *   Is it a database table?
+    *   Is it a Redis/Memcached entry?
+    *   Is it a file on disk?
+*   **Goal:** Understand the mechanism so you can properly isolate or reset it.
+
+### 3. Implement Proper Test Isolation (The Real Fix)
+Choose the most appropriate strategy based on the state type:
+
+#### Option A: Self-Containment (Preferred)
+*   **Action:** Modify `test_checkout_flow` so it does **not** depend on `test_seed_catalog`.
+    *   If the cache is a DB table: Add a `setup` or `fixture` step in `test_checkout_flow` that inserts the necessary catalog items directly before the checkout logic runs.
+    *   If the cache is in-memory: Inject the required catalog data into the cache (or the service under test) within the test’s setup phase.
+*   **Benefit:** Tests become independent and can run in any order.
+
+#### Option B: Explicit Fixture/Setup Method
+*   **Action:** If the catalog data is large or complex:
+    1.  Create a reusable fixture (e.g., `@pytest.fixture`) named `seeded_catalog`.
+    2.  Have `test_seed_catalog` use this fixture to validate seeding logic (if that’s its purpose).
+    3.  Have `test_checkout_flow` **also** use this fixture to ensure the cache is populated before it runs.
+    4.  Ensure the fixture includes a **teardown** step to clean up the cache/DB after each test (e.g., delete inserted records, clear cache).
+
+#### Option C: Mocking (If Applicable)
+*   **Action:** If the "catalog cache" is an external dependency (e.g., a real Redis instance in integration tests), mock the cache layer in `test_checkout_flow` to return the expected catalog data. This isolates the checkout logic from the caching infrastructure.
+
+### 4. Add Cleanup/Teardown Logic
+*   **Action:** Ensure that any test which writes to the shared state (including `test_seed_catalog`) cleans up after itself.
+    *   Use `try/finally` blocks, context managers, or test framework fixtures with `yield` (in pytest) to guarantee cleanup, even if the test fails.
+    *   This prevents state leakage into *other* tests.
+
+### 5. Remove the Order Pinning
+*   **Action:** Once the tests are isolated and self-contained:
+    *   Remove the test order pinning from the CI configuration.
+    *   Remove any temporary comments about ordering dependencies.
+    *   Verify that tests pass when run in random order (e.g., `pytest --random-order`).
+
+### 6. Add Regression Prevention
+*   **Action:**
+    *   **Static Analysis:** If possible, add a linting rule or custom CI check that warns against tests that modify global state without cleanup.
+    *   **Randomized Test Execution:** Enable randomized test execution in CI (e.g., `pytest-randomly`, `go test -shuffle`) to catch future ordering dependencies early.
+    *   **Documentation:** Update the team’s test guidelines to emphasize that tests must be independent and self-contained.
+
+### 7. Final Verification
+*   **Action:**
+    1.  Run the full test suite multiple times with randomized ordering.
+    2.  Run `test_checkout_flow` in isolation (without `test_seed_catalog`).
+    3.  Run `test_seed_catalog` in isolation.
+    4.  Confirm all tests pass consistently.
+    5.  Submit the PR with a clear description explaining the root cause (hidden dependency on shared state) and the fix (isolation via fixtures/mocking/cleanup).

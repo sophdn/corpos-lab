@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# corpos-lab pre-push hook. Wired via: git config core.hooksPath .githooks
+#
+# Runs the SLOW gate tier via `corpos-gate pre-push`, the one tested pre-push
+# body every git-flow repo shares (the private toolkit service suggestion 247). It reads git's
+# per-ref stdin, skips a delete-only push (bugs 1327/1359: no commits to
+# validate), refuses a direct push to the public GitHub mirror (below), and
+# otherwise runs `corpos-gate run --tier=pre-push`. Because tiers are a strict
+# superset (pre-push ⊃ pre-commit), that re-runs the fast checks
+# (format/vet/lint/build) AND adds the slow ones:
+#   - test     : go test -race ./...
+#   - coverage : 95% floor over ./internal/...
+#   - vuln     : govulncheck v1.3.0 ./...
+#
+# (No image stage: assay-container builds are not part of this gate — see
+# scripts/build-lab-images.sh, which runs standalone/CI.)
+# Bypass the whole hook with: git push --no-verify
+#
+# bug 1370: --refuse-remote refuses a DIRECT push of commits to the public GitHub
+# mirror. The ONLY sanctioned path to the mirror is the CI mirror-publish job,
+# which force-pushes a SCRUBBED, squashed snapshot of main (scripts/publish-public.sh
+# + the fail-closed .pii-denylist). A developer/agent `git push github <branch>`
+# bypasses the scrub entirely and is exactly how the full private CLAUDE.md
+# reached three public branches. The CI runner publishes with --no-verify (it
+# does not run this hook), so this never blocks the sanctioned publish, and a
+# delete-only push to the mirror is still allowed.
+set -euo pipefail
+
+# corpos-gate is installed to ~/go/bin (via `make -C go corpos-gate-install`
+# from the the private toolkit service checkout; its post-land hook keeps it current); add it
+# to PATH so the hook fires under a bare git environment.
+export PATH="$PATH:$HOME/go/bin"
+if ! command -v corpos-gate >/dev/null 2>&1; then
+  echo "pre-push: corpos-gate not found on PATH." >&2
+  echo "          install it from the the private toolkit service checkout: make -C go corpos-gate-install" >&2
+  echo "          or bypass with: git push --no-verify" >&2
+  exit 1
+fi
+
+# git's <remote-name> <remote-url> and the ref lines on stdin pass straight through.
+exec corpos-gate pre-push --refuse-remote 'github.com:,github.com/' "$@"

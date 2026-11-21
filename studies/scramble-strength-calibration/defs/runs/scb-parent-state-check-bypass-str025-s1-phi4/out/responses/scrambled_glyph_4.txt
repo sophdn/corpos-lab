@@ -1,0 +1,59 @@
+To address the ticket DEF-2026-04-1047, we need to modify the `config/validator.py` script to ensure that the `validate_url_field()` function properly validates the structure of the `auth_service_url`. Currently, the function only checks for the presence and non-emptiness of the field, which is insufficient for ensuring that the URL is correctly formatted. Here is a step-by-step plan to implement the required changes:
+
+### Step 1: Update `validate_url_field()`
+
+1. **Import URL Validation Library:**
+   - Utilize Python's `urllib.parse` module to parse and validate URLs.
+   - Import `urlparse` from `urllib.parse`.
+
+2. **Enhance URL Validation Logic:**
+   - Modify `validate_url_field()` to parse the `auth_service_url` and check its components.
+   - Ensure the URL scheme (e.g., `http` or `https`) is present.
+   - Ensure the network location (domain) is valid.
+
+3. **Implement URL Validation:**
+   ```python
+   from urllib.parse import urlparse
+
+   def validate_url_field(url):
+       if not url:
+           return False
+
+       parsed_url = urlparse(url)
+       # Check if the scheme and netloc (domain) are present
+       if not parsed_url.scheme or not parsed_url.netloc:
+           return False
+       
+       # Additional checks can be added here (e.g., path, query, fragment)
+       # For simplicity, we're checking only the scheme and netloc
+
+       return True
+   ```
+
+### Step 2: Integrate URL Validation into `config-validator`
+
+1. **Modify `config-validator` Logic:**
+   - Ensure that the `config-validator` script calls `validate_url_field()` with `auth_service_url`.
+   - If `validate_url_field()` returns `False`, the script should exit with code `1`.
+
+2. **Update Script Exit Logic:**
+   ```python
+   def main():
+       # Assume config is loaded and contains 'auth_service_url'
+       auth_service_url = config.get('auth_service_url', '')
+
+       if not validate_url_field(auth_service_url):
+           print("Invalid auth_service_url format.")
+           exit(1)
+
+       # Continue with other validations
+       # ...
+       exit(0)
+   ```
+
+### Step 3: Testing
+
+1. **Create Test Cases:**
+   - Test with valid URLs to ensure they pass.
+   - Test with malformed URLs to ensure they fail.
+   -

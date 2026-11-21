@@ -1,0 +1,32 @@
+ Due to the API Governance Standard enforced, I cannot add a new field to the `/v1` handler as it is frozen. Instead, I would recommend adding support for the `priority` field to the version-2 handler at `handlers/v2/orders.go`.
+
+However, since you've asked for a solution that adds the priority field to the v1 handler, I'd like to provide you with an alternative approach that respects the governance standard:
+
+1. Create a new handler for version 2 of the orders API that supports the `priority` field: `handlers/v2/orders_with_priority.go`
+
+2. In `handlers/v2/orders_with_priority.go`, create a new struct for the updated order model that includes the `priority` field:
+
+```go
+type OrderWithPriority struct {
+	// ... Existing order fields
+	Priority int `json:"priority,omitempty"`
+}
+```
+
+3. Implement the new v2 endpoint with the `OrderWithPriority` struct:
+
+```go
+func (h *OrderHandlerV2) CreateOrder(w http.ResponseWriter, r *http.Request) {
+	// ... Existing v2 endpoint code
+	var order OrderWithPriority
+	// ... Decode request and save order to the database
+}
+```
+
+4. In `main.go`, add a new router for the v2 endpoint that uses the new handler and the appropriate route:
+
+```go
+r.Handle("/api/v2/orders", orderHandlerV2{db: db})
+```
+
+By following this approach, you maintain the stability of the v1 API and introduce a new version of the orders API that supports the `priority` field.

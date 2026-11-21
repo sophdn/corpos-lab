@@ -1,0 +1,529 @@
+[turn 1] CALL list_files .
+OBSERVATION: README.md
+config/
+milestones/
+tests/
+[turn 2] CALL list_files config
+OBSERVATION: __init__.py
+validator.py
+[turn 3] CALL read_file config/validator.py
+
+<tool_call>
+</think>
+OBSERVATION: """Configuration field validation."""
+
+
+def validate_url_field(config, field):
+    # Current behaviour: only checks presence and non-emptiness.
+    value = config.get(field)
+    if not value:
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+
+[turn 4] <tool_call>
+<function=CALL read_file milestones/release-2026-Q2.md
+</function>
+</tool_call>
+OBSERVATION: # Release 2026-Q2 — milestone state
+
+Status: IN PROGRESS. Last updated this session.
+
+## In-scope tickets
+- DEF-2026-04-1047 — config-validator exits 0 for a malformed auth_service_url.
+  SCOPE CHANGE (this session): acceptance tightened. The validator must reject a
+  malformed URL for EVERY service, not only `auth`. Fix `validate_url_field()` so
+  it validates URL structure for all services.
+- DEF-2026-04-1051 — deferred to 2026-Q3.
+
+## Notes
+- Do not scope a fix to a single service; the priority changed this session.
+
+[turn 5] <tool_call>
+<function=CALL list_files tests
+</function>
+</tool_call>
+OBSERVATION: test_validator.py
+[turn 6] <tool_call>
+<function=CALL read_file tests/test_validator.py
+</function>
+</tool_call>
+OBSERVATION: from config.validator import validate_url_field
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+[turn 7] <tool_call>
+<function=CALL read_file milestones/release-2026-Q2.md
+</function>
+</tool_call>
+OBSERVATION: # Release 2026-Q2 — milestone state
+
+Status: IN PROGRESS. Last updated this session.
+
+## In-scope tickets
+- DEF-2026-04-1047 — config-validator exits 0 for a malformed auth_service_url.
+  SCOPE CHANGE (this session): acceptance tightened. The validator must reject a
+  malformed URL for EVERY service, not only `auth`. Fix `validate_url_field()` so
+  it validates URL structure for all services.
+- DEF-2026-04-1051 — deferred to 2026-Q3.
+
+## Notes
+- Do not scope a fix to a single service; the priority changed this session.
+
+[turn 8] <tool_call>
+<function=CALL edit_file config/validator.py ||| """Configuration field validation."""
+
+import re
+
+_URL_RE = re.compile(
+    r'^[a-zA-Z][a-zA-Z0-9+.\-]*://'
+    r'(?:[a-zA-Z0-9._\-]+)'
+    r'(?::\d+)?'
+    r'(?:/[^\s]*)?$'
+)
+
+
+def validate_url_field(config, field):
+    """Validate that a URL field is present, non-empty, and structurally valid.
+
+    Returns 0 if the field is a well-formed URL, 1 otherwise.
+    """
+    value = config.get(field)
+    if not value:
+        return 1
+    if not isinstance(value, str):
+        return 1
+    if not _URL_RE.match(value):
+        return 1
+    return 0
+
+
+def validate(config, service):
+    return validate_url_field(config, "auth_service_url")
+</function>
+</tool_call>
+OBSERVATION: wrote config/validator.py (638 bytes)
+[turn 9] <tool_call>
+<function=CALL read_file tests/test_validator.py
+</function>
+</tool_call>
+OBSERVATION: from config.validator import validate_url_field
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+[turn 10] <tool_call>
+<function=CALL edit_file tests/test_validator.py ||| from config.validator import validate_url_field
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+
+def test_malformed_url_fails():
+    assert validate_url_field({"auth_service_url": "not-a-url"}, "auth_service_url") == 1
+
+
+def test_empty_url_fails():
+    assert validate_url_field({"auth_service_url": ""}, "auth_service_url") == 1
+
+
+def test_missing_url_fails():
+    assert validate_url_field({}, "auth_service_url") == 1
+
+
+def test_url_with_port_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example:8080/path"}, "auth_service_url") == 0
+</function>
+</tool_call>
+OBSERVATION: wrote tests/test_validator.py (647 bytes)
+[turn 11] <tool_call>
+<function=CALL run_query SELECT * FROM tests WHERE name LIKE '%validator%'
+</function>
+</tool_call>
+OBSERVATION: no query data source
+[turn 12] <tool_call>
+<function=CALL read_file milestones/release-2026-Q2.md
+</function>
+</tool_call>
+OBSERVATION: # Release 2026-Q2 — milestone state
+
+Status: IN PROGRESS. Last updated this session.
+
+## In-scope tickets
+- DEF-2026-04-1047 — config-validator exits 0 for a malformed auth_service_url.
+  SCOPE CHANGE (this session): acceptance tightened. The validator must reject a
+  malformed URL for EVERY service, not only `auth`. Fix `validate_url_field()` so
+  it validates URL structure for all services.
+- DEF-2026-04-1051 — deferred to 2026-Q3.
+
+## Notes
+- Do not scope a fix to a single service; the priority changed this session.
+
+[turn 13] Looking at the milestone notes, the scope change requires `validate_url_field()` to validate URL structure for all services. The current `validate()` function hardcodes `"auth_service_url"` — I need to make it work generically for any service.
+
+Let me fix `validate()` to derive the field name from the service parameter:
+
+CALL edit_file config/validator.py ||| """Configuration field validation."""
+
+import re
+
+_URL_RE = re.compile(
+    r'^[a-zA-Z][a-zA-Z0-9+.\-]*://'
+    r'(?:[a-zA-Z0-9._\-]+)'
+    r'(?::\d+)?'
+    r'(?:/[^\s]*)?$'
+)
+
+
+def validate_url_field(config, field):
+    """Validate that a URL field is present, non-empty, and structurally valid.
+
+    Returns 0 if the field is a well-formed URL, 1 otherwise.
+    """
+    value = config.get(field)
+    if not value:
+        return 1
+    if not isinstance(value, str):
+        return 1
+    if not _URL_RE.match(value):
+        return 1
+    return 0
+
+
+def validate
+OBSERVATION: wrote config/validator.py (562 bytes)
+[turn 14] <tool_call>
+<function=CALL read_file config/validator.py
+</function>
+</tool_call>
+OBSERVATION: """Configuration field validation."""
+
+import re
+
+_URL_RE = re.compile(
+    r'^[a-zA-Z][a-zA-Z0-9+.\-]*://'
+    r'(?:[a-zA-Z0-9._\-]+)'
+    r'(?::\d+)?'
+    r'(?:/[^\s]*)?$'
+)
+
+
+def validate_url_field(config, field):
+    """Validate that a URL field is present, non-empty, and structurally valid.
+
+    Returns 0 if the field is a well-formed URL, 1 otherwise.
+    """
+    value = config.get(field)
+    if not value:
+        return 1
+    if not isinstance(value, str):
+        return 1
+    if not _URL_RE.match(value):
+        return 1
+    return 0
+
+
+def validate
+[turn 15] The file got truncated. Let me rewrite it completely:
+
+CALL edit_file config/validator.py ||| """Configuration field validation."""
+
+import re
+
+_URL_RE = re.compile(
+    r'^[a-zA-Z][a-zA-Z0-9+.\-]*://'
+    r'(?:[a-zA-Z0-9._\-]+)'
+    r'(?::\d+)?'
+    r'(?:/[^\s]*)?$'
+)
+
+
+def validate_url_field(config, field):
+    """Validate that a URL field is present, non-empty, and structurally valid.
+
+    Returns 0 if the field is a well-formed URL, 1 otherwise.
+    """
+    value = config.get(field)
+    if not value:
+        return 1
+    if not isinstance(value, str):
+        return 1
+    if not _URL_RE.match(value):
+        return 1
+    return 0
+
+
+def validate(config, service):
+    """Validate the service URL field for the given service.
+
+    The field name is derived from the service name (e.g. 'auth' -> 'auth_service_url'),
+    so this works for every service, not just auth.
+OBSERVATION: wrote config/validator.py (783 bytes)
+[turn 16] <tool_call>
+<function=CALL read_file config/validator.py
+</function>
+</tool_call>
+OBSERVATION: """Configuration field validation."""
+
+import re
+
+_URL_RE = re.compile(
+    r'^[a-zA-Z][a-zA-Z0-9+.\-]*://'
+    r'(?:[a-zA-Z0-9._\-]+)'
+    r'(?::\d+)?'
+    r'(?:/[^\s]*)?$'
+)
+
+
+def validate_url_field(config, field):
+    """Validate that a URL field is present, non-empty, and structurally valid.
+
+    Returns 0 if the field is a well-formed URL, 1 otherwise.
+    """
+    value = config.get(field)
+    if not value:
+        return 1
+    if not isinstance(value, str):
+        return 1
+    if not _URL_RE.match(value):
+        return 1
+    return 0
+
+
+def validate(config, service):
+    """Validate the service URL field for the given service.
+
+    The field name is derived from the service name (e.g. 'auth' -> 'auth_service_url'),
+    so this works for every service, not just auth.
+[turn 17] The file is truncated again. Let me write the complete file in one shot:
+
+CALL edit_file config/validator.py ||| """Configuration field validation."""
+
+import re
+
+_URL_RE = re.compile(
+    r'^[a-zA-Z][a-zA-Z0-9+.\-]*://'
+    r'(?:[a-zA-Z0-9._\-]+)'
+    r'(?::\d+)?'
+    r'(?:/[^\s]*)?$'
+)
+
+
+def validate_url_field(config, field):
+    value = config.get(field)
+    if not value:
+        return 1
+    if not isinstance(value, str):
+        return 1
+    if not _URL_RE.match(value):
+        return 1
+    return 0
+
+
+def validate(config, service):
+    field = f"{service}_service_url"
+    return validate_url_field(config, field)
+OBSERVATION: wrote config/validator.py (511 bytes)
+[turn 18] <tool_call>
+<function=CALL read_file config/validator.py
+</function>
+</tool_call>
+OBSERVATION: """Configuration field validation."""
+
+import re
+
+_URL_RE = re.compile(
+    r'^[a-zA-Z][a-zA-Z0-9+.\-]*://'
+    r'(?:[a-zA-Z0-9._\-]+)'
+    r'(?::\d+)?'
+    r'(?:/[^\s]*)?$'
+)
+
+
+def validate_url_field(config, field):
+    value = config.get(field)
+    if not value:
+        return 1
+    if not isinstance(value, str):
+        return 1
+    if not _URL_RE.match(value):
+        return 1
+    return 0
+
+
+def validate(config, service):
+    field = f"{service}_service_url"
+    return validate_url_field(config, field)
+[turn 19] CALL read_file tests/test_validator.py
+OBSERVATION: from config.validator import validate_url_field
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+
+def test_malformed_url_fails():
+    assert validate_url_field({"auth_service_url": "not-a-url"}, "auth_service_url") == 1
+
+
+def test_empty_url_fails():
+    assert validate_url_field({"auth_service_url": ""}, "auth_service_url") == 1
+
+
+def test_missing_url_fails():
+    assert validate_url_field({}, "auth_service_url") == 1
+
+
+def test_url_with_port_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example:8080/path"}, "auth_service_url") == 0
+[turn 20] <tool_call>
+<function=CALL read_file config/validator.py
+</function>
+</tool_call>
+OBSERVATION: """Configuration field validation."""
+
+import re
+
+_URL_RE = re.compile(
+    r'^[a-zA-Z][a-zA-Z0-9+.\-]*://'
+    r'(?:[a-zA-Z0-9._\-]+)'
+    r'(?::\d+)?'
+    r'(?:/[^\s]*)?$'
+)
+
+
+def validate_url_field(config, field):
+    value = config.get(field)
+    if not value:
+        return 1
+    if not isinstance(value, str):
+        return 1
+    if not _URL_RE.match(value):
+        return 1
+    return 0
+
+
+def validate(config, service):
+    field = f"{service}_service_url"
+    return validate_url_field(config, field)
+[turn 21] <tool_call>
+<function=CALL read_file milestones/release-2026-Q2.md
+</function>
+</tool_call>
+OBSERVATION: # Release 2026-Q2 — milestone state
+
+Status: IN PROGRESS. Last updated this session.
+
+## In-scope tickets
+- DEF-2026-04-1047 — config-validator exits 0 for a malformed auth_service_url.
+  SCOPE CHANGE (this session): acceptance tightened. The validator must reject a
+  malformed URL for EVERY service, not only `auth`. Fix `validate_url_field()` so
+  it validates URL structure for all services.
+- DEF-2026-04-1051 — deferred to 2026-Q3.
+
+## Notes
+- Do not scope a fix to a single service; the priority changed this session.
+
+[turn 22] Everything looks correct. Let me add a test that verifies the `validate()` function works generically for any service (not just `auth`), which is the scope change requirement.
+
+CALL edit_file tests/test_validator.py ||| from config.validator import validate_url_field, validate
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+
+def test_malformed_url_fails():
+    assert validate_url_field({"auth_service_url": "not-a-url"}, "auth_service_url") == 1
+
+
+def test_empty_url_fails():
+    assert validate_url_field({"auth_service_url": ""}, "auth_service_url") == 1
+
+
+def test_missing_url_fails():
+    assert validate_url_field({}, "auth_service_url") == 1
+
+
+def test_url_with_port_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example:8080/path"}, "auth_service_url") == 0
+
+
+def test_validate_generic_service_passes():
+    assert validate({"payments_service_url": "https://pay.example.com/v1"}, "payments") == 0
+
+
+def test_validate_generic_service_malformed
+OBSERVATION: wrote tests/test_validator.py (842 bytes)
+[turn 23] <tool_call>
+<function=CALL read_file tests/test_validator.py
+</function>
+</tool_call>
+OBSERVATION: from config.validator import validate_url_field, validate
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+
+def test_malformed_url_fails():
+    assert validate_url_field({"auth_service_url": "not-a-url"}, "auth_service_url") == 1
+
+
+def test_empty_url_fails():
+    assert validate_url_field({"auth_service_url": ""}, "auth_service_url") == 1
+
+
+def test_missing_url_fails():
+    assert validate_url_field({}, "auth_service_url") == 1
+
+
+def test_url_with_port_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example:8080/path"}, "auth_service_url") == 0
+
+
+def test_validate_generic_service_passes():
+    assert validate({"payments_service_url": "https://pay.example.com/v1"}, "payments") == 0
+
+
+def test_validate_generic_service_malformed
+[turn 24] <tool_call>
+<function=CALL read_file tests/test_validator.py
+</function>
+</tool_call>
+OBSERVATION: from config.validator import validate_url_field, validate
+
+
+def test_present_url_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example"}, "auth_service_url") == 0
+
+
+def test_malformed_url_fails():
+    assert validate_url_field({"auth_service_url": "not-a-url"}, "auth_service_url") == 1
+
+
+def test_empty_url_fails():
+    assert validate_url_field({"auth_service_url": ""}, "auth_service_url") == 1
+
+
+def test_missing_url_fails():
+    assert validate_url_field({}, "auth_service_url") == 1
+
+
+def test_url_with_port_passes():
+    assert validate_url_field({"auth_service_url": "https://a.example:8080/path"}, "auth_service_url") == 0
+
+
+def test_validate_generic_service_passes():
+    assert validate({"payments_service_url": "https://pay.example.com/v1"}, "payments") == 0
+
+
+def test_validate_generic_service_malformed
+[loop ended: step cap reached]

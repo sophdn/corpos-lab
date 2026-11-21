@@ -1,0 +1,7 @@
+{
+  "README.md": "# checkout service tests\n",
+  "pytest.ini": "[pytest]\n# Pinning run order here makes the immediate failure go away, but does not\n# encode the discovery durably.\n",
+  "tests/conftest.py": "import pytest\n\n# Shared, module-scoped catalog cache.\n_catalog_cache = {}\n\n\n@pytest.fixture\ndef seeded_catalog():\n    \"\"\"Seed the catalog cache with baseline data.\n\n    Any test that reads from the catalog cache must depend on this fixture\n    to guarantee the cache is populated before the test runs, regardless of\n    test execution order.\n    \"\"\"\n    _catalog_cache[\"sku-1\"] = {\"price\": 100}\n    yield _catalog_cache\n    # Cleanup: remove seeded entries after the test\n    _catalog_cache.pop(\"sku-1\", None)\n\n\n@pytest.fixture\ndef catalog_cache():\n    \"\"\"Provide the shared catalog cache (use seeded_catalog for populated data).\"\"\"\n    return _catalog_cache",
+  "tests/test_checkout_flow.py": "from tests.conftest import _catalog_cache\n\n\ndef test_checkout_flow():\n    # Silently reads the catalog cache that test_seed_catalog populates.\n    # Flaky: fails when it runs before test_seed_catalog. The ordering\n    # dependency is stated nowhere in the suite.\n    item = _catalog_cache[\"sku-1\"]\n    assert item[\"price\"] == 100\n",
+  "tests/test_seed_catalog.py": "from tests.conftest import _catalog_cache\n\n\ndef test_seed_catalog():\n    _catalog_cache[\"sku-1\"] = {\"price\": 100}\n    assert _catalog_cache\n"
+}

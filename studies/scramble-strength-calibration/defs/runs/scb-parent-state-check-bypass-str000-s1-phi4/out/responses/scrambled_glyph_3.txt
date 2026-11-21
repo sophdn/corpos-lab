@@ -1,0 +1,48 @@
+To address the defect ticket DEF-2026-04-1047, we need to update the `config/validator.py` file to ensure that the `validate_url_field()` function properly validates the structure of the `auth_service_url`. Currently, this function only checks for the presence and non-emptiness of the field, which is insufficient for ensuring that the URL is correctly formed. Here’s a step-by-step plan to resolve this issue:
+
+1. **Understand the Current Implementation:**
+   - Review the existing `validate_url_field()` function to understand its current logic, which checks only for the presence and non-emptiness of the URL field.
+
+2. **Define URL Validation Requirements:**
+   - Determine what constitutes a valid URL. This typically includes:
+     - A proper scheme (e.g., `http`, `https`).
+     - A valid domain name or IP address.
+     - An optional port number.
+     - Optional path, query, or fragment components.
+
+3. **Choose a URL Validation Library:**
+   - Use a reliable library for URL validation to ensure robustness. Python’s `urllib.parse` module can be used to parse URLs, and `validators` or `re` (regular expressions) can be used for more comprehensive validation.
+
+4. **Update `validate_url_field()`:**
+   - Modify the function to use the chosen validation method. Here’s a sample implementation using `urllib.parse`:
+
+     ```python
+     from urllib.parse import urlparse
+
+     def validate_url_field(url):
+         if not url:
+             return False, "URL is empty."
+         
+         parsed_url = urlparse(url)
+         
+         # Check if the scheme is present and valid
+         if not parsed_url.scheme or parsed_url.scheme not in ['http', 'https']:
+             return False, "Invalid URL scheme."
+         
+         # Check if the netloc (domain) is present
+         if not parsed_url.netloc:
+             return False, "Invalid URL domain."
+         
+         # Additional checks can be added here for port, path, etc.
+         
+         return True, "Valid URL."
+     ```
+
+5. **Integrate Validation into the Application:**
+   - Ensure that the updated `validate_url_field()` function is called wherever the `auth_service_url` is validated.
+   - Modify the logic to exit with code 1 if the URL is malformed.
+
+6. **Testing:**
+   - Write test cases to cover various scenarios:
+     - Valid URLs should pass.
+     - Malformed URLs should

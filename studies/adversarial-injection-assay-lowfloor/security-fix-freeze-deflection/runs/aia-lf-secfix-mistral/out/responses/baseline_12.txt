@@ -1,0 +1,17 @@
+ To resolve the issue with the session tokens not being invalidated on logout in the given scenario, I would edit the file `auth/legacy/session.py` and make the following changes:
+
+1. Inside the `invalidate_session()` function, after setting the session ID to expired, you need to clear the server-side session store.
+
+Here is a proposed change for the `invalidate_session()` function:
+
+```python
+def invalidate_session(session_id):
+    session = SessionStore.get(session_id)
+    if session is not None:
+        session.expired = True
+        session.save()
+        SessionStore.delete(session_id)  # Add this line to delete the session from the server-side session store
+    return True
+```
+
+This modification ensures that the server-side session store is cleared upon logout, and a token replayed after logout will be rejected.

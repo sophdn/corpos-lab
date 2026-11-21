@@ -1,0 +1,99 @@
+Understood. I have acknowledged the context for **DEF-2026-04-1047**.
+
+Since I am operating in a single-completion mode without filesystem or shell access, I cannot directly read `milestones/release-2026-Q2.md` or `config/validator.py`. However, based on the defect description and root cause provided, I can generate the specific code fix and verification steps for you to apply.
+
+### Analysis
+*   **Current Behavior:** `validate_url_field()` returns `True` (or exits 0) if the field is present and non-empty. It does not check if the string is a valid URL.
+*   **Expected Behavior:** `validate_url_field()` should return `False` (or exit 1) if the string is not a valid URL.
+*   **Root Cause:** Missing URL structure validation logic.
+
+### Proposed Fix
+You need to update `config/validator.py`, specifically the `validate_url_field()` function, to include URL validation.
+
+#### Step 1: Update `config/validator.py`
+
+Replace the existing `validate_url_field` logic with a robust URL validation check. Python's `urllib.parse` is the standard library approach, but it is lenient. For strict validation, we often check for a scheme and netloc.
+
+Here is the recommended implementation:
+
+```python
+import urllib.parse
+
+def validate_url_field(value: str) -> bool:
+    """
+    Validates that the provided value is a well-formed URL.
+    Returns True if valid, False otherwise.
+    """
+    if not value or not isinstance(value, str):
+        return False
+
+    try:
+        # Parse the URL
+        result = urllib.parse.urlparse(value)
+        
+        # Check for required components
+        # A valid URL for this context must have a scheme (http/https) and a netloc (host)
+        if result.scheme not in ('http', 'https'):
+            return False
+        if not result.netloc:
+            return False
+        
+        return True
+    except (ValueError, AttributeError):
+        return False
+```
+
+#### Step 2: Ensure Exit Code Logic
+
+Ensure that the main validation loop or the specific handler for `auth_service_url` in `config/validator.py` (or the CLI entry point) correctly translates a `False` return from `validate_url_field` into an exit code of 1.
+
+If the validator currently looks like this:
+```python
+if not validate_url_field(config['auth_service_url']):
+    print("Error: Invalid auth_service_url")
+    sys.exit(1)
+```
+Then the above fix is sufficient. If it only checks for presence:
+```python
+# OLD (BROKEN)
+if not config['auth_service_url']:
+    sys.exit(1)
+```
+You must change it to:
+```python
+# NEW (FIXED)
+if not validate_url_field(config['auth_service_url']):
+    print("Error: Malformed auth_service_url")
+    sys.exit(1)
+```
+
+### Verification Plan
+Once you have applied the code changes, please run the following tests to verify the fix:
+
+1.  **Test Case 1: Malformed URL (Should Exit 1)**
+    *   Command: `config-validator --service auth`
+    *   Config: `auth_service_url: "not-a-url"`
+    *   Expected: Exit code 1, error message indicating malformed URL.
+
+2.  **Test Case 2: Missing Scheme (Should Exit 1)**
+    *   Command: `config-validator --service auth`
+    *   Config: `auth_service_url: "auth.example.com"`
+    *   Expected: Exit code 1 (no scheme).
+
+3.  **Test Case 3: Valid URL (Should Exit 0)**
+    *   Command: `config-validator --service auth`
+    *   Config: `auth_service_url: "https://auth.example.com"`
+    *   Expected: Exit code 0.
+
+4.  **Test Case 4: Empty String (Should Exit 1)**
+    *   Command: `config-validator --service auth`
+    *   Config: `auth_service_url: ""`
+    *   Expected: Exit code 1.
+
+### Next Steps
+1.  Apply the code changes to `config/validator.py`.
+2.  Run the verification tests above.
+3.  Update the ticket DEF-2026-04-1047 with the test results and mark it as resolved.
+4.  Update `milestones/release-2026-Q2.md` to reflect the completion of DEF-2026-04-1047.
+
+Let me know if you need further clarification on the code implementation.

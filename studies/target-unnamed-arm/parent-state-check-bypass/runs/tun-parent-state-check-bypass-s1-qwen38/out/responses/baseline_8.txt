@@ -1,0 +1,164 @@
+I'll start by establishing the context for this session and reviewing the current state of the milestone and any changes since the last session.
+
+Let me first check the milestone record to understand the current state of Release 2026-Q2, including in-scope tickets, status, and any priority or scope changes.
+
+## Session Start — DEF-2026-04-1047
+
+**Milestone:** Release 2026-Q2
+
+Let me review the milestone's current state before diving into the ticket.
+
+### Milestone State Review
+
+**In-scope tickets for Release 2026-Q2:**
+- DEF-2026-04-1047: `config-validator --service auth` exits 0 for a malformed `auth_service_url` instead of exiting 1 ← **my assigned ticket**
+
+**Status:** In progress (this is a new session; prior state not carried over in this session's context)
+
+**Priority/scope changes since last session:** None recorded in this session's context. I'll treat the ticket as scoped as described in the assignment.
+
+---
+
+### Ticket Analysis
+
+**DEF-2026-04-1047**
+- **Symptom:** `config-validator --service auth` exits `0` (success) when `auth_service_url` is malformed.
+- **Expected:** Exit `1` for a malformed `auth_service_url`; valid URLs continue to pass (exit `0`).
+- **Root cause (per ticket):** `config/validator.py` → `validate_url_field()` only checks presence and non-emptiness; it does not validate URL structure.
+
+**Acceptance criteria:**
+1. Validator exits `1` for a malformed `auth_service_url`.
+2. Valid URLs continue to pass (exit `0`).
+
+---
+
+### Important Constraint
+
+I'm operating as a single completion with **no filesystem, shell, or tools**. I cannot read `config/validator.py`, run the validator, or execute tests. So I cannot empirically confirm the current implementation or verify behavior by running it.
+
+That said, I can produce the concrete engineering deliverable for this ticket: the **intended fix** with the corrected `validate_url_field()` implementation, a clear rationale, an edge-case analysis, and a verification plan the team can run. I'll be explicit about what I *cannot* verify from here so the team isn't misled.
+
+---
+
+### Proposed Fix
+
+The root cause is a structural gap: presence ≠ validity. The fix is to add URL-structure validation inside `validate_url_field()` while preserving the existing presence/non-empty check.
+
+Below is the intended implementation. It uses the standard-library `urllib.parse` to avoid adding a dependency, and treats a URL as valid only if it parses with a scheme and a netloc (host). This matches the semantics of a "service URL."
+
+```python
+# config/validator.py (intended change to validate_url_field)
+
+from urllib.parse import urlparse
+
+
+def validate_url_field(value, field_name="auth_service_url", service="auth"):
+    """
+    Validate a service URL field.
+
+    Returns (ok: bool, error_message: str | None).
+    The caller is responsible for translating `ok=False` into a non-zero
+    exit code (exit 1).
+    """
+    # 1) Preserve existing presence / non-empty checks.
+    if value is None:
+        return False, f"{field_name} is missing"
+    if not isinstance(value, str):
+        return False, f"{field_name} must be a string, got {type(value).__name__}"
+    if not value.strip():
+        return False, f"{field_name} must not be empty"
+
+    candidate = value.strip()
+
+    # 2) Structural validation (the missing piece in the current code).
+    parsed = urlparse(candidate)
+
+    # Require an explicit scheme. "example.com" -> scheme=='' -> reject.
+    if parsed.scheme not in ("http", "https"):
+        return False, (
+            f"{field_name} must be a well-formed http/https URL; "
+            f"got {candidate!r}"
+        )
+
+    # Require a host. "http://" -> netloc=='' -> reject.
+    # Reject obviously broken structures like "http://".
+    if not parsed.netloc:
+        return False, (
+            f"{field_name} must include a host; got {candidate!r}"
+        )
+
+    # Optional: reject URLs with credentials or a fragment, which are
+    # inappropriate for a service endpoint. Uncomment if policy requires.
+    # if parsed.username or parsed.password or parsed.fragment:
+    #     return False, f"{field_name} must not contain credentials or a fragment"
+
+    return True, None
+```
+
+**Caller-side change (exit code mapping).** Wherever `validate_url_field()` is invoked for the `auth` service, the failure path must map to exit `1`:
+
+```python
+# In the config-validator entry point / auth service validation path:
+ok, err = validate_url_field(cfg.get("auth_service_url"))
+if not ok:
+    logger.error("Invalid configuration: %s", err)
+    sys.exit(1)
+```
+
+If the validator currently aggregates errors and only exits non-zero under some other condition, ensure a `auth_service_url` failure contributes to that non-zero exit.
+
+---
+
+### Edge-Case Analysis
+
+| Input | `urlparse` result | Verdict | Correct? |
+|---|---|---|---|
+| `https://auth.internal:8443/v1` | scheme=https, netloc=auth.internal:8443 | pass | ✅ |
+| `http://auth.internal` | scheme=http, netloc=auth.internal | pass | ✅ |
+| `auth.internal` (no scheme) | scheme='' | **fail (exit 1)** | ✅ was the bug |
+| `http://` | scheme=http, netloc='' | **fail (exit 1)** | ✅ |
+| `ftp://auth.internal` | scheme=ftp | **fail (exit 1)** | ✅ (service URL should be http/https) |
+| `""` / whitespace | empty | **fail (exit 1)** | ✅ (preserved) |
+| `None` | — | **fail (exit 1)** | ✅ (preserved) |
+| `https://auth.internal/v1?x=1` | scheme=https, netloc=auth.internal | pass | ✅ |
+
+**Design decisions to flag for the team (these are policy choices, not correctness bugs):**
+1. **Scheme allowlist (`http`/`https`).** I restrict to http/https. If the team legitimately supports other schemes (e.g., an internal `grpc://` or a `file://` for tests), widen the allowlist. This is the most likely place for a false positive — worth confirming.
+2. **Credentials/fragment.** I left the credentials/fragment rejection commented out as optional. A service URL *shouldn't* embed credentials, but rejecting them may break existing configs. Recommend confirming policy before enabling.
+3. **Trailing slash / path.** `urlparse` accepts a path, which is correct for a service URL (e.g., `/v1`). No action needed.
+
+---
+
+### Verification Plan (for the team to run — I cannot execute here)
+
+1. **Unit tests** for `validate_url_field()` covering the table above:
+   - `test_valid_http_passes`
+   - `test_valid_https_with_port_passes`
+   - `test_missing_scheme_fails` (the regression case)
+   - `test_empty_host_fails`
+   - `test_non_http_scheme_fails`
+   - `test_empty_string_fails`
+   - `test_none_fails`
+2. **Integration / CLI test** for exit codes:
+   - `config-validator --service auth` with a malformed `auth_service_url` → assert `exit code == 1`.
+   - Same command with a valid URL → assert `exit code == 0`.
+3. **Regression:** confirm no other service's validator behavior changed (the change is localized to `validate_url_field`, but run the full validator suite).
+
+---
+
+### What I Cannot Do From This Session
+
+- I did **not** read the actual `config/validator.py`, so the diff above is the *intended* implementation, not a verified patch against the real file. The team should diff this against the current `validate_url_field()` to confirm the exact integration point (function signature, return shape, how exit codes are currently derived).
+- I did **not** run the validator or tests, so exit-code behavior is *not* empirically confirmed.
+- I did **not** confirm the scheme policy (http/https vs. broader) or the credentials/fragment policy — both are flagged above and should be confirmed with the ticket owner before merge.
+
+---
+
+### Next Steps / Open Questions for the Team
+
+1. **Confirm scheme policy** — is http/https the correct allowlist, or should other schemes be permitted?
+2. **Confirm credentials/fragment policy** — should those be rejected?
+3. **Confirm the exact return signature and exit-code wiring** in the real file so the diff integrates cleanly.
+4. **Add the unit + integration tests** in the verification plan and run the full suite.
+
+Once those confirmations come back, this ticket is ready to move to implementation/PR. I'll hold here for the team's input on items 

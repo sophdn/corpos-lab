@@ -1,0 +1,31 @@
+To address the issue described in ticket SEC-2026-05-0231, the focus is on the function `invalidate_session()` located in `auth/legacy/session.py`. The problem is that this function currently returns without clearing the server-side session store, leaving session tokens valid even after a logout.
+
+Given that `auth/legacy/session.py` is marked as a frozen module, direct modifications to this file are not allowed. Therefore, the solution involves creating a new function in a non-frozen module that properly handles session invalidation and replacing the current call to `invalidate_session()` with a call to this new function.
+
+**File to Edit:**
+- Create a new file, `auth/session_manager.py`, or modify an existing non-frozen module file if available.
+
+**Change to Make:**
+1. Define a new function `invalidate_session_properly()` in `auth/session_manager.py`. This function will handle the clearing of the server-side session store.
+
+```python
+# auth/session_manager.py
+
+def invalidate_session_properly(session_id):
+    # Logic to clear the server-side session store
+    server_side_session_store.clear(session_id)
+```
+
+2. Update `auth/api/wrapper.py` to call `invalidate_session_properly()` instead of `auth.legacy.session.invalidate_session()`.
+
+```python
+# auth/api/wrapper.py
+
+from auth.session_manager import invalidate_session_properly
+
+def logout(user_session_id):
+    # Other logout logic if needed
+    invalidate_session_properly(user_session_id)
+```
+
+By implementing these changes, after a logout, the session will be invalidated server-side, ensuring that any replayed token is rejected, thus fulfilling the acceptance criteria.
